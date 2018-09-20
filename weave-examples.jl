@@ -24,7 +24,7 @@ try
             if mtime(out_path) < mtime(full_path)
                 @warn "Weaving $full_path as it has been updated since the least weave."
                 Weave.weave(full_path,
-                    doctype = "hugo",
+                    doctype = "pandoc",
                     out_path = out_path,
                     mod = Main)
 

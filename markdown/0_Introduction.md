@@ -16,7 +16,7 @@ The following example illustrates the effect of updating our beliefs with every 
 
 First, let's load some of the packages we need to flip a coin (`Random`, `Distributions`) and show our results (`Plots`). You will note that **Turing** is not an import here — we do not need it for this example. If you are already familiar with posterior updates, you can proceed to the next step.
 
-````julia
+~~~~{.julia}
 # Using Base modules.
 using Random
 
@@ -25,54 +25,54 @@ using Plots
 
 # Load the distributions library.
 using Distributions
-````
+~~~~~~~~~~~~~
 
 
 
 
 Next, we configure our posterior update model. First, let's set the true probability that any coin flip will turn up heads and set the number of coin flips we will show our model:
 
-````julia
+~~~~{.julia}
 # Set the true probability of heads in a coin.
 p_true = 0.5
 
 # Iterate from having seen 0 observations to 100 observations.
 Ns = 0:100;
-````
+~~~~~~~~~~~~~
 
 
 
 
 We will now use the Bernoulli distribution to flip 100 coins, and collect the results in a variable called `data`:
 
-````julia
+~~~~{.julia}
 # Draw data from a Bernoulli distribution, i.e. draw heads or tails.
 Random.seed!(12)
 data = rand(Bernoulli(p_true), last(Ns))
 
 # Here's what the first five coin flips look like:
 data[1:5]
-````
+~~~~~~~~~~~~~
 
 
-````
+~~~~
 5-element Array{Int64,1}:
  1
  0
  1
  1
  0
-````
+~~~~
 
 
 
 
 After flipping all our coins, we want to set a prior belief about what we think the distribution of coin flips look like. In this case, we are going to choose a common prior distribution called the [Beta](https://en.wikipedia.org/wiki/Beta_distribution) distribution.
 
-````julia
+~~~~{.julia}
 # Our prior belief about the probability of heads in a coin toss.
 prior_belief = Beta(1, 1);
-````
+~~~~~~~~~~~~~
 
 
 
@@ -94,7 +94,7 @@ Which is 0.5 when $\alpha = \beta$, as we expect for a large enough number of co
 
 The intuition about this definition is that the variance of the distribution will approach 0 with more and more samples, as the denominator will grow faster than will the numerator. More samples means less variance.
 
-````julia
+~~~~{.julia}
 # This is required for plotting only.
 x = range(0, stop = 1, length = 100)
 
@@ -119,7 +119,7 @@ animation = @animate for (i, N) in enumerate(Ns)
         fill=0, α=0.3, w=3)
     vline!([p_true])
 end;
-````
+~~~~~~~~~~~~~
 
 
 
@@ -136,7 +136,7 @@ In the previous example, we used the fact that our prior distribution is a [conj
 
 We are now going to move away from the closed-form expression above and specify the same model using **Turing**. To do so, we will first need to import `Turing`, `MCMCChain`, `Distributions`, and `StatPlots`. `MCMChain` is a library built by the Turing team to help summarize Markov Chain Monte Carlo (MCMC) simulations, as well as a variety of utility functions for diagnostics and visualizations.
 
-````julia
+~~~~{.julia}
 # Load Turing and MCMCChain.
 using Turing, MCMCChain
 
@@ -145,14 +145,14 @@ using Distributions
 
 # Load stats plots for density plots.
 using StatPlots
-````
+~~~~~~~~~~~~~
 
 
 
 
 First, we define the coin-flip model using Turing.
 
-````julia
+~~~~{.julia}
 @model coinflip(y) = begin
     
     # Our prior belief about the probability of heads in a coin.
@@ -165,14 +165,14 @@ First, we define the coin-flip model using Turing.
         y[n] ~ Bernoulli(p)
     end
 end;
-````
+~~~~~~~~~~~~~
 
 
 
 
 After defining the model, we can approximate the posterior distribution by drawing samples from the distribution. In this example, we use a [Hamiltonian Monte Carlo](https://en.wikipedia.org/wiki/Hamiltonian_Monte_Carlo) sampler to draw these samples. Later tutorials will give more information on the samplers available in Turing and discuss their use for different models.
 
-````julia
+~~~~{.julia}
 # Settings of the Hamiltonian Monte Carlo (HMC) sampler.
 iterations = 1000
 ϵ = 0.05
@@ -180,35 +180,37 @@ iterations = 1000
 
 # Start sampling.
 chain = sample(coinflip(data), HMC(iterations, ϵ, τ));
-````
+~~~~~~~~~~~~~
 
 
-````
+~~~~
 [HMC] Finished with
-  Running time        = 4.933411608999993;
+  Running time        = 5.048863407999998;
   Accept rate         = 0.997;
   #lf / sample        = 9.99;
   #evals / sample     = 11.989;
   pre-cond. diag mat  = [1.0].
-````
+~~~~
 
 
 
 
 After finishing the sampling process, we can visualize the posterior distribution approximated using Turing against the posterior distribution in closed-form. We can extract the chain data from the sampler using the `Chains(chain[:p])` function, exported from the `MCMCChain` module. `Chains(chain[:p])` creates an instance of the `Chain` type which summarizes the MCMC simulation — the `MCMCChain` module supports numerous tools for plotting, summarizing, and describing variables of type `Chain`.
 
-````julia
+~~~~{.julia}
 # Construct summary of the sampling process for the parameter p, i.e. the probability of heads in a coin.
 p_summary = Chains(chain[:p])
 histogramplot(p_summary)
-````
+~~~~~~~~~~~~~
 
 
-{{< figure src="../figures/0_Introduction_9_1.svg"  >}}
+![](figures/0_Introduction_9_1.png)\ 
+
+
 
 Now we can build our plot:
 
-````julia
+~~~~{.julia}
 # Compute the posterior distribution in closed-form.
 N = length(data)
 heads = sum(data)
@@ -224,7 +226,7 @@ plot!(p, range(0, stop = 1, length = 100), pdf.(Ref(updated_belief), range(0, st
 
 # Visualize the true probability of heads in red.
 vline!(p, [p_true], label = "True probability", c = :red);
-````
+~~~~~~~~~~~~~
 
 
 

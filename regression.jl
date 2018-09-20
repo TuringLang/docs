@@ -2,7 +2,7 @@
 using RDatasets
 using Distributions
 using Turing
-using MCMCChain
+using MCMCChain, Plots, StatPlots
 using StatsFuns: logistic
 using MLDataUtils
 
@@ -31,7 +31,7 @@ delete!(data, :Student)
 head(data)
 
 # Split our dataset 70/30 into training/test sets.
-train, test = MLDataUtils.splitobs(data, at = 0.01);
+train, test = MLDataUtils.splitobs(data, at = 0.001);
 
 # Create our labels. These are the values we are trying to predict.
 train_label = train[:DefaultNum]
@@ -58,5 +58,6 @@ end
 train = (train .- mean(train, dims=1)) ./ std(train, dims=1)
 
 n, d = size(train)
-chain = sample(lr_nuts(train, train_label, d, n, 1), NUTS(200, 1.5))
+chain = sample(lr_nuts(train, train_label, d, n, 1), NUTS(500, 1.5))
+# chain = sample(lr_nuts(train, train_label, d, n, 1), HMC(1000, 0.05, 10))
 describe(chain)

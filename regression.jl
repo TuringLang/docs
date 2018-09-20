@@ -17,8 +17,8 @@ data[:DefaultNum] = 0.0
 data[:StudentNum] = 0.0
 
 for i in 1:length(data.Default)
-    # If a row's "Default" or "Student" columns
-    # say "Yes", set them to 1 in our new columns.
+    # If a row's "Default" or "Student" columns say "Yes",
+    # set them to 1 in our new columns.
     data[:DefaultNum][i] = data.Default[i] == "Yes" ? 1.0 : 0.0
     data[:StudentNum][i] = data.Student[i] == "Yes" ? 1.0 : 0.0
 end

@@ -57,15 +57,15 @@ test = Matrix(test);
 # end
 
 # Bayesian logistic regression (LR)
-@model lr_nuts(x, y, d, n, σ²) = begin
-    α ~ Normal(0, σ²)
+@model logistic_regression(x, y, d, n, σ²) = begin
+    intercept ~ Normal(0, σ²)
 
-    βstudent ~ Normal(0, σ²)
-    βbalance ~ Normal(0, σ²)
-    βincome  ~ Normal(0, σ²)
+    student ~ Normal(0, σ²)
+    balance ~ Normal(0, σ²)
+    income  ~ Normal(0, σ²)
 
     for i = 1:n
-        v = logistic(α + βstudent*x[i, 1] + βbalance*x[i,2] + βincome*x[i,3])
+        v = logistic(intercept + student*x[i, 1] + balance*x[i,2] + income*x[i,3])
         y[i] ~ Bernoulli(v)
     end
 end
@@ -74,7 +74,7 @@ train = (train .- mean(train, dims=1)) ./ std(train, dims=1)
 Turing.setadbackend(:forward_diff)
 n, d = size(train)
 # chain = sample(lr_nuts(train, train_label, d, n, 1), NUTS(1000, 1.5))
-chain = sample(lr_nuts(train, train_label, d, n, 1), HMC(1000, 0.05, 10))
+chain = sample(logistic_regression(train, train_label, d, n, 1), HMC(1000, 0.05, 10))
 describe(chain)
 
 # visualize the MCMC simulation results

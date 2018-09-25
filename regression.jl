@@ -31,7 +31,7 @@ delete!(data, :Student)
 head(data)
 
 # Split our dataset 70/30 into training/test sets.
-train, test = MLDataUtils.splitobs(data, at = 0.7);
+train, test = MLDataUtils.splitobs(data, at = 0.25);
 
 # Create our labels. These are the values we are trying to predict.
 train_label = train[:DefaultNum]
@@ -73,7 +73,7 @@ end
 train = (train .- mean(train, dims=1)) ./ std(train, dims=1)
 Turing.setadbackend(:forward_diff)
 n, d = size(train)
-# chain = sample(lr_nuts(train, train_label, d, n, 1), NUTS(1000, 1.5))
+# chain = sample(logistic_regression(train, train_label, d, n, 1), NUTS(500, 1.5))
 chain = sample(logistic_regression(train, train_label, d, n, 1), HMC(1000, 0.05, 10))
 describe(chain)
 
@@ -84,3 +84,7 @@ p2 = plot(chain, colordim = :parameter);
 # save to a png file
 savefig(p1, "demo-plot-parameters.png")
 savefig(p2, "demo-plot-chains.png")
+
+test_n, test_d = size(test)
+x = logistic_regression(test, test_label, test_d, test_n, 1)
+y = x()

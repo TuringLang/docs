@@ -61,7 +61,7 @@ try
 
             full_path = joinpath(@__DIR__, file)
 
-            if true || mtime(out_path) < mtime(full_path)
+            if mtime(out_path) < mtime(full_path)
                 @warn "Weaving $full_path as it has been updated since the least weave."
                 Weave.weave(full_path,
                     doctype = "github",

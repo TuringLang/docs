@@ -52,8 +52,8 @@ function add_yaml(path)
     end
 end
 
-# Weave all examples
-# try
+Weave all examples
+try
     for file in readdir(@__DIR__)
         if endswith(file, ".ipynb")
             out_name = split(file, ".")[1] * ".md"
@@ -75,7 +75,7 @@ end
             end
         end
     end
-# catch e
-#     println("Weaving error: $e")
-#     rethrow(e)
-# end
+catch e
+    println("Weaving error: $e")
+    rethrow(e)
+end

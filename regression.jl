@@ -45,17 +45,6 @@ test = test[[:StudentNum, :Balance, :Income]]
 train = Matrix(train);
 test = Matrix(test);
 
-# # Bayesian logistic regression (LR)
-# @model lr_nuts(x, y, d, n, σ²) = begin
-#     α ~ Normal(0, σ²)
-#     β ~ MvNormal(zeros(d), σ² * ones(d))
-#
-#     for i = 1:n
-#         v = logistic(α + transpose(x[i,:]) * β)
-#         y[i] ~ Bernoulli(v)
-#     end
-# end
-
 # Bayesian logistic regression (LR)
 @model logistic_regression(x, y, d, n, σ²) = begin
     intercept ~ Normal(0, σ²)
@@ -85,6 +74,13 @@ p2 = plot(chain, colordim = :parameter);
 savefig(p1, "demo-plot-parameters.png")
 savefig(p2, "demo-plot-chains.png")
 
-test_n, test_d = size(test)
-x = logistic_regression(test, test_label, test_d, test_n, 1)
-y = x()
+function prediction(x::Vector, student, balance, income, intercept)
+    v = logistic(intercept + student*x[1] + balance * x[2] + income * x[3])
+    @info v
+end
+
+
+
+#test_n, test_d = size(test)
+#x = logistic_regression(test, test_label, test_d, test_n, 1)
+#y = x()

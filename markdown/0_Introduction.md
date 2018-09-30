@@ -1,5 +1,8 @@
+---
+title: Introduction to Turing
+permalink: /:collection/:name/
+---
 
-# Introduction to Turing
 
 ## Introduction
 This is the first of a series of tutorials on the universal probabilistic programming language **Turing**.
@@ -82,13 +85,13 @@ With our priors set and our data at hand, we can perform Bayesian inference.
 This is a fairly simple process. We expose one additional coin flip to our model every iteration, such that the first run only sees the first coin flip, while the last iteration sees all the coin flips. Then, we set the `updated_belief` variable to an updated version of the original Beta distribution that accounts for the new proportion of heads and tails. 
 
 
-For the mathematically inclined, the `Beta` distribution is updated by adding each coin flip to the distribution's $\alpha$ and $\beta$ parameters, which are initially defined as $\alpha = 1, \beta = 1$. Over time, with more and more coin flips, $\alpha$ and $\beta$ will be approximately equal to each other as we are equally likely to flip a heads or a tails, and the plot of the beta distribution will become more tightly centered around 0.5. 
+For the mathematically inclined, the `Beta` distribution is updated by adding each coin flip to the distribution's $$\alpha$$ and $$\beta$$ parameters, which are initially defined as $$\alpha = 1, \beta = 1$$. Over time, with more and more coin flips, $$\alpha$$ and $$\beta$$ will be approximately equal to each other as we are equally likely to flip a heads or a tails, and the plot of the beta distribution will become more tightly centered around 0.5. 
 
 This works because mean of the `Beta` distribution is defined as the following:
 
 \$\$ \text{E}[\text{Beta}] = \dfrac{\alpha}{\alpha+\beta} \$\$
 
-Which is 0.5 when $\alpha = \beta$, as we expect for a large enough number of coin flips. As we increase the number of samples, our variance will also decrease, such that the distribution will reflect less uncertainty about the probability of receiving a heads. The definition of the variance for the `Beta` distribution is the following:
+Which is 0.5 when $$\alpha = \beta$$, as we expect for a large enough number of coin flips. As we increase the number of samples, our variance will also decrease, such that the distribution will reflect less uncertainty about the probability of receiving a heads. The definition of the variance for the `Beta` distribution is the following:
 
 \$\$ \text{var}[\text{Beta}] = \dfrac{\alpha\beta}{(\alpha + \beta)^2 (\alpha + \beta + 1)} \$\$
 
@@ -111,7 +114,7 @@ animation = @animate for (i, N) in enumerate(Ns)
     # Plotting
     plot(x, pdf.(Ref(updated_belief), x), 
         size = (500, 250), 
-        title = "Updated belief after $N observations",
+        title = "Updated belief after $$N observations",
         xlabel = "probability of heads", 
         ylabel = "", 
         legend = nothing,
@@ -185,7 +188,7 @@ chain = sample(coinflip(data), HMC(iterations, ϵ, τ));
 
 ````
 [HMC] Finished with
-  Running time        = 5.182771467999993;
+  Running time        = 7.1547015269999985;
   Accept rate         = 0.997;
   #lf / sample        = 9.99;
   #evals / sample     = 11.989;
@@ -200,7 +203,7 @@ After finishing the sampling process, we can visualize the posterior distributio
 ````julia
 # Construct summary of the sampling process for the parameter p, i.e. the probability of heads in a coin.
 p_summary = Chains(chain[:p])
-histogramplot(p_summary)
+plot(p_summary)
 ````
 
 
@@ -216,7 +219,7 @@ heads = sum(data)
 updated_belief = Beta(prior_belief.α + heads, prior_belief.β + N - heads)
 
 # Visualize a blue density plot of the approximate posterior distribution using HMC (see "Chain 1" in the legend).
-p = densityplot(p_summary, xlim = (0,1), legend = :best, w = 2, c = :blue)
+p = plot(p_summary, DensityPlot, xlim = (0,1), legend = :best, w = 2, c = :blue)
 
 # Visualize a green density plot of posterior distribution in closed-form.
 plot!(p, range(0, stop = 1, length = 100), pdf.(Ref(updated_belief), range(0, stop = 1, length = 100)), 

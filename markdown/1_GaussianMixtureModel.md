@@ -29,7 +29,7 @@ scatter(x[1,:], x[2,:], legend = false, title = "Synthetic Dataset")
 ````
 
 
-![](figures/1_GaussianMixtureModel_1_1.svg)
+![](/tutorials/figures/1_GaussianMixtureModel_1_1.svg)
 
 
 ## Gaussian Mixture Model in Turing
@@ -147,7 +147,7 @@ plot(Chains(tchain.value[:,ids,:], names = ["mu 1", "mu 2"]), colordim = :parame
 ````
 
 
-![](figures/1_GaussianMixtureModel_7_1.svg)
+![](/tutorials/figures/1_GaussianMixtureModel_7_1.svg)
 
 
 As the samples for the location parameter for both clusters are unimodal, we can safely visualize the density region of our model using the average location.
@@ -178,7 +178,7 @@ scatter!(x[1,:], x[2,:], legend = false, title = "Synthetic Dataset")
 ````
 
 
-![](figures/1_GaussianMixtureModel_9_1.svg)
+![](/tutorials/figures/1_GaussianMixtureModel_9_1.svg)
 
 
 ## Infered Assignments
@@ -191,4 +191,4 @@ scatter(x[1,:], x[2,:], legend = false, title = "Assignments on Synthetic Datase
 ````
 
 
-![](figures/1_GaussianMixtureModel_10_1.svg)
+![](/tutorials/figures/1_GaussianMixtureModel_10_1.svg)

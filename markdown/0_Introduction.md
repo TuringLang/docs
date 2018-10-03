@@ -1,7 +1,3 @@
----
-title: Introduction to Turing
-permalink: /:collection/:name/
----
 
 
 ## Introduction

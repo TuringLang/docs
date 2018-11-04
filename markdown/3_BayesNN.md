@@ -136,7 +136,7 @@ ch = sample(bayes_nn(hcat(xs...), ts), HMC(N, 0.05, 4));
 
 ````
 [HMC] Finished with
-  Running time        = 94.00390947300008;
+  Running time        = 99.29485458900051;
   Accept rate         = 0.9206;
   #lf / sample        = 3.9992;
   #evals / sample     = 5.999;
@@ -306,7 +306,7 @@ ch2 = sample(bayes_nn(hcat(xs...), ts, network_shape, num_params), HMC(num_sampl
 
 ````
 [HMC] Finished with
-  Running time        = 10.522859031000007;
+  Running time        = 10.105418757999997;
   Accept rate         = 0.285;
   #lf / sample        = 3.9992;
   #evals / sample     = 5.999;
@@ -336,4 +336,4 @@ contour!(x_range, y_range, Z)
 ![](/tutorials/figures/3_BayesNN_12_1.svg)
 
 
-This has been an introduction to using Turing and Flux to define Bayesian neural networks.
+This has been an introduction to the applications of Turing and Flux in defining Bayesian neural networks.

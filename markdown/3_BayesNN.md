@@ -136,7 +136,7 @@ ch = sample(bayes_nn(hcat(xs...), ts), HMC(N, 0.05, 4));
 
 ````
 [HMC] Finished with
-  Running time        = 99.29485458900051;
+  Running time        = 102.81737468400011;
   Accept rate         = 0.9206;
   #lf / sample        = 3.9992;
   #evals / sample     = 5.999;
@@ -183,7 +183,9 @@ The contour plot above shows that the MAP method is not too bad at classifying o
 
 Now we can visualize our predictions.
 
-\$\$ p(\tilde{x} | X, \alpha) = \int_{\theta} p(\tilde{x} | \theta) p(\theta | X, \alpha) \approx \sum_{\theta \sim p(\theta | X, \alpha)}f_{\theta}(\tilde{x}) \$\$
+\$\$ 
+p(\tilde{x} | X, \alpha) = \int_{\theta} p(\tilde{x} | \theta) p(\theta | X, \alpha) \approx \sum_{\theta \sim p(\theta | X, \alpha)}f_{\theta}(\tilde{x}) 
+\$\$
 
 The `nn_predict` function takes the average predicted value from a network parameterized by weights drawn from the MCMC chain.
 
@@ -306,7 +308,7 @@ ch2 = sample(bayes_nn(hcat(xs...), ts, network_shape, num_params), HMC(num_sampl
 
 ````
 [HMC] Finished with
-  Running time        = 10.105418757999997;
+  Running time        = 14.862639767999996;
   Accept rate         = 0.285;
   #lf / sample        = 3.9992;
   #evals / sample     = 5.999;

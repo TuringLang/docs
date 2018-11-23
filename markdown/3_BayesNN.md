@@ -47,8 +47,8 @@ function plot_data()
     x2 = map(e -> e[1], xt0s)
     y2 = map(e -> e[2], xt0s)
 
-    Plots.scatter(x1,y1, color="red")
-    Plots.scatter!(x2, y2, color="blue")
+    Plots.scatter(x1,y1, color="red", clim = (0,1))
+    Plots.scatter!(x2, y2, color="blue", clim = (0,1))
 end
 
 plot_data()
@@ -136,7 +136,7 @@ ch = sample(bayes_nn(hcat(xs...), ts), HMC(N, 0.05, 4));
 
 ````
 [HMC] Finished with
-  Running time        = 102.81737468400011;
+  Running time        = 93.82825720999995;
   Accept rate         = 0.9206;
   #lf / sample        = 3.9992;
   #evals / sample     = 5.999;
@@ -226,14 +226,14 @@ n_end = 500
 anim = @animate for i=1:n_end
     plot_data()
     Z = [nn_forward([x, y], theta[i])[1] for x=x_range, y=y_range]
-    contour!(x_range, y_range, Z, title="Iteration $$i")
+    contour!(x_range, y_range, Z, title="Iteration $$i", clim = (0,1))
 end every 5;
 ````
 
 
 
 
-![3_bayesnn_anim](https://user-images.githubusercontent.com/422990/47970525-93132d80-e03b-11e8-91d3-65d330fd4e1d.gif)
+![3_bayesnn_anim](https://user-images.githubusercontent.com/422990/48957381-2e961080-ef0d-11e8-8c52-dbe35d812497.gif)
 
 
 ## Generic Bayesian Neural Networks
@@ -308,7 +308,7 @@ ch2 = sample(bayes_nn(hcat(xs...), ts, network_shape, num_params), HMC(num_sampl
 
 ````
 [HMC] Finished with
-  Running time        = 14.862639767999996;
+  Running time        = 10.684494601000013;
   Accept rate         = 0.285;
   #lf / sample        = 3.9992;
   #evals / sample     = 5.999;

@@ -47,12 +47,12 @@ function add_yaml(path)
 
         # Add remaining content.
         for line in lines
-            write(f, line)
+            write(f, replace(line, "![](figure" => "![](/tutorials/figure"))
         end
     end
 end
 
-Weave all examples
+# Weave all examples
 try
     for file in readdir(@__DIR__)
         if endswith(file, ".ipynb")

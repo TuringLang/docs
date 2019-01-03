@@ -156,7 +156,7 @@ chain = sample(model, NUTS(1500, 200, 0.65));
 
 ````
 [NUTS] Finished with
-  Running time        = 48.31455570699994;
+  Running time        = 47.373997639;
   #lf / sample        = 0.0013333333333333333;
   #evals / sample     = 166.042;
   pre-cond. metric    = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0,....
@@ -207,8 +207,8 @@ ESS
 .16430
        intercept   0.0022922010  0.120060757 0.0030999554 0.0020259848 1500
 .00000
-         elapsed   0.0322097038  0.084159835 0.0021729976 0.0027334832  947
-.93147
+         elapsed   0.0315826651  0.083303521 0.0021508877 0.0026707943  972
+.84988
          epsilon   0.0460736473  0.051153720 0.0013207834 0.0028309912  326
 .49565
         eval_num 166.0420000000 86.146183970 2.2242849057 2.3910870610 1298
@@ -247,8 +247,8 @@ Quantiles:
 2   1.32299054666
        intercept  -0.2028319916  -0.06259757339   0.0010312832   0.06318343
 7   0.19767845203
-         elapsed   0.0052388088   0.01740961475   0.0279629675   0.03194519
-5   0.05883527522
+         elapsed   0.0051270871   0.01700136700   0.0275639580   0.03026585
+7   0.05726697642
          epsilon   0.0226028431   0.04217697431   0.0421769743   0.04217697
 4   0.09251541804
         eval_num  30.7500000000  76.00000000000 156.0000000000 156.00000000
@@ -341,68 +341,22 @@ ols_loss1 = sum((train_cut.OLSPrediction - train_cut.MPG).^2)
 bayes_loss2 = sum((test_cut.BayesPredictions - test_cut.MPG).^2)
 ols_loss2 = sum((test_cut.OLSPrediction - test_cut.MPG).^2)
 
-println("Training set:")
+println("Training set:
+    Bayes loss: $$bayes_loss1
+    OLS loss: $$ols_loss1
+Test set: 
+    Bayes loss: $$bayes_loss2
+    OLS loss: $$ols_loss2")
 ````
 
 
 ````
 Training set:
-````
-
-
-
-````julia
-println("  Bayes loss: $$bayes_loss1")
-````
-
-
-````
-Bayes loss: 67.70847342511051
-````
-
-
-
-````julia
-println("  OLS loss: $$ols_loss1")
-````
-
-
-````
-OLS loss: 67.56037474764624
-````
-
-
-
-````julia
-
-println("Test set:")
-````
-
-
-````
-Test set:
-````
-
-
-
-````julia
-println("  Bayes loss: $$bayes_loss2")
-````
-
-
-````
-Bayes loss: 206.70849416171862
-````
-
-
-
-````julia
-println("  OLS loss: $$ols_loss2")
-````
-
-
-````
-OLS loss: 270.94813070761944
+    Bayes loss: 67.70847342511051
+    OLS loss: 67.56037474764624
+Test set: 
+    Bayes loss: 206.70849416171862
+    OLS loss: 270.94813070761944
 ````
 
 

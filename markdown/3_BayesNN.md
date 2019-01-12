@@ -12,6 +12,17 @@ We will begin with importing the relevant libraries.
 ````julia
 # Import libraries.
 using Turing, Flux, Plots, Random
+
+# Hide sampling progress.
+Turing.turnprogress(false);
+
+# Use reverse_diff due to the number of parameters in neural networks.
+Turing.setadbackend(:reverse_diff)
+````
+
+
+````
+:reverse_diff
 ````
 
 
@@ -136,11 +147,11 @@ ch = sample(bayes_nn(hcat(xs...), ts), HMC(N, 0.05, 4));
 
 ````
 [HMC] Finished with
-  Running time        = 93.82825720999995;
+  Running time        = 95.85748582800002;
   Accept rate         = 0.9206;
   #lf / sample        = 3.9992;
-  #evals / sample     = 5.999;
-  pre-cond. diag mat  = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0,....
+  #evals / sample     = 5.9992;
+  pre-cond. metric    = [1.0].
 ````
 
 
@@ -247,9 +258,6 @@ Here, we solve the same problem as above, but with three additional 2x2 `tanh` h
 network_shape = [
     (3,2, :tanh),
     (2,3, :tanh), 
-    (2,2, :tanh), 
-    (2,2, :tanh), 
-    (2,2, :tanh),
     (1,2, :σ)]
 
 # Regularization, parameter variance, and total number of
@@ -260,18 +268,17 @@ num_params = sum([i * o + i for (i, o, _) in network_shape])
 
 # This modification of the unpack function generates a series of vectors
 # given a network shape.
-function unpack(parameters::AbstractVector, network_shape::AbstractVector)
+function unpack(θ::AbstractVector, network_shape::AbstractVector)
     index = 1
-    weights = Vector{Array{Float64}}()
-    biases = Vector{Array{Float64}}()
-    θ = Tracker.collect(parameters)
+    weights = []
+    biases = []
     for layer in network_shape
         rows, cols, _ = layer
         size = rows * cols
         last_index_w = size + index - 1
         last_index_b = last_index_w + rows
-        push!(weights, reshape(θ.data[index:last_index_w], rows, cols))
-        push!(biases, reshape(θ.data[last_index_w+1:last_index_b], rows))
+        push!(weights, reshape(θ[index:last_index_w], rows, cols))
+        push!(biases, reshape(θ[last_index_w+1:last_index_b], rows))
         index = last_index_b + 1
     end
     return weights, biases
@@ -301,18 +308,18 @@ end
 end
 
 # Perform inference.
-num_samples = 5000
-ch2 = sample(bayes_nn(hcat(xs...), ts, network_shape, num_params), HMC(num_samples, 0.05, 4));
+num_samples = 500
+# ch2 = sample(bayes_nn(hcat(xs...), ts, network_shape, num_params), HMC(num_samples, 0.05, 4));
+ch2 = sample(bayes_nn(hcat(xs...), ts, network_shape, num_params), NUTS(num_samples, 0.65));
 ````
 
 
 ````
-[HMC] Finished with
-  Running time        = 10.684494601000013;
-  Accept rate         = 0.285;
-  #lf / sample        = 3.9992;
-  #evals / sample     = 5.999;
-  pre-cond. diag mat  = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0,....
+[NUTS] Finished with
+  Running time        = 218.073647036;
+  #lf / sample        = 0.004;
+  #evals / sample     = 181.052;
+  pre-cond. metric    = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0,....
 ````
 
 

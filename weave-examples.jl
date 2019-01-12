@@ -55,7 +55,7 @@ end
 # Weave all examples
 try
     for file in readdir(@__DIR__)
-        if endswith(file, ".ipynb")
+        if endswith(file, ".ipynb") || endswith(file, ".jmd")
             out_name = split(file, ".")[1] * ".md"
             out_path = joinpath(markdown_path, out_name)
 

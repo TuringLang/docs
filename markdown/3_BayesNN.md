@@ -147,8 +147,8 @@ ch = sample(bayes_nn(hcat(xs...), ts), HMC(N, 0.05, 4));
 
 ````
 [HMC] Finished with
-  Running time        = 95.85748582800002;
-  Accept rate         = 0.9206;
+  Running time        = 245.44691409500032;
+  Accept rate         = 0.9048;
   #lf / sample        = 3.9992;
   #evals / sample     = 5.9992;
   pre-cond. metric    = [1.0].
@@ -316,9 +316,9 @@ ch2 = sample(bayes_nn(hcat(xs...), ts, network_shape, num_params), NUTS(num_samp
 
 ````
 [NUTS] Finished with
-  Running time        = 218.073647036;
-  #lf / sample        = 0.004;
-  #evals / sample     = 181.052;
+  Running time        = 603.8450554479997;
+  #lf / sample        = 0.0;
+  #evals / sample     = 179.434;
   pre-cond. metric    = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0,....
 ````
 

@@ -2,6 +2,7 @@
 title: Bayesian Hidden Markov Models
 permalink: /:collection/:name/
 ---
+
 This tutorial illustrates training Bayesian [Hidden Markov Models](https://en.wikipedia.org/wiki/Hidden_Markov_model) (HMM) using Turing. The main goals are learning the transition matrix, emission parameter, and hidden states. For a more rigorous academic overview on Hidden Markov Models, see [An introduction to Hidden Markov Models and Bayesian Networks](http://mlg.eng.cam.ac.uk/zoubin/papers/ijprai.pdf) (Ghahramani, 2001).
 
 Let's load the libraries we'll need. We also set a random seed (for reproducibility) and the automatic differentiation backend to forward mode (more [here](http://turing.ml/docs/autodiff/) on why this is useful).
@@ -10,11 +11,13 @@ Let's load the libraries we'll need. We also set a random seed (for reproducibil
 # Load libraries.
 using Turing, Plots, Random
 
+# Turn off progress monitor.
+Turing.turnprogress(false)
+
 # Set a random seed and use the forward_diff AD mode.
 Random.seed!(1234);
 Turing.setadbackend(:forward_diff);
 ````
-
 
 
 
@@ -34,7 +37,6 @@ plot(y, xlim = (0,15), ylim = (-1,5), size = (500, 250))
 
 
 ![](/tutorials/figures/4_BayesHmm_2_1.svg)
-
 
 
 We can see that we have three states, one for each height of the plot (1, 2, 3). This height is also our emission parameter, so state one produces a value of one, state two produces a value of two, and so on.
@@ -92,7 +94,6 @@ end;
 
 
 
-
 We will use a combination of two samplers ([HMC](http://turing.ml/docs/library/#Turing.HMC) and [Particle Gibbs](http://turing.ml/docs/library/#Turing.PG)) by passing them to the [Gibbs](http://turing.ml/docs/library/#Turing.Gibbs) sampler. The Gibbs sampler allows for compositional inference, where we can utilize different samplers on different parameters.
 
 In this case, we use HMC for `m` and `T`, representing the emission and transition matrices respectively. We use the Particle Gibbs sampler for `s`, the state sequence. You may wonder why it is that we are not assigning `s` to the HMC sampler, and why it is that we need compositional Gibbs sampling at all.
@@ -109,14 +110,13 @@ c = sample(BayesHmm(y, 3), g);
 
 
 
-
 Let's see how well our chain performed. Ordinarily, using the `describe` function from [MCMCChain](https://github.com/TuringLang/MCMCChain.jl) would be a good first step, but we have generated a lot of parameters here (`s[1]`, `s[2]`, `m[1]`, and so on). It's a bit easier to show how our model performed graphically.
 
 The code below generates an animation showing the graph of the data above, and the data our model generates in each sample.
 
 ````julia
 # Import StatsPlots for animating purposes.
-using StatPlots
+using StatsPlots
 
 # Extract our m and s parameters from the chain.
 m_set = c[:m]
@@ -142,7 +142,6 @@ end every 10;
 
 
 
-
 ![animation](https://user-images.githubusercontent.com/422990/50612436-de588980-0e8e-11e9-8635-4e3e97c0d7f9.gif)
 
 Looks like our model did a pretty good job, but we should also check to make sure our chain converges. A quick check is to examine whether the diagonal (representing the probability of remaining in the current state) of the transition matrix appears to be stationary. The code below extracts the diagonal and shows a traceplot of each persistence probability.
@@ -159,7 +158,6 @@ plot(T_diag_trace, ylim = (0,1),
 ![](/tutorials/figures/4_BayesHmm_6_1.svg)
 
 
-
 A cursory examination of the traceplot above indicates that at least `T[3,3]` and possibly `T[2,2]` have converged to something resembling stationary. `T[1,1]`, on the other hand, has a slight "wobble", and seems less consistent than the others. We can use the diagnostic functions provided by [MCMCChain](https://github.com/TuringLang/MCMCChain.jl) to engage in some formal tests, like the Heidelberg and Welch diagnostic:
 
 ````julia
@@ -173,8 +171,8 @@ Burn-in Stationarity p-value    Mean   Halfwidth Test
  T[2][2]     500            0  0.0012    0.1497    0.0098    1
  T[2][3]     200            1  0.1140    0.0249    0.0022    1
   lf_num     500            0     NaN    7.0000    0.0000    1
-    s[4]     500            0     NaN    2.0000    0.0000    1
     s[2]     500            0     NaN    2.0000    0.0000    1
+    s[4]     500            0     NaN    2.0000    0.0000    1
     s[9]     500            0     NaN    1.0000    0.0000    1
     s[1]     500            0     NaN    2.0000    0.0000    1
     s[6]     500            0     NaN    1.0000    0.0000    1
@@ -182,27 +180,26 @@ Burn-in Stationarity p-value    Mean   Halfwidth Test
  T[1][1]     100            1  0.0969    0.6736    0.0257    1
  T[1][2]       0            1  0.0898    0.2807    0.0216    1
  T[1][3]     300            1  0.5218    0.0455    0.0034    1
- elapsed     100            1  0.3724    0.0602    0.0038    1
+ elapsed       0            1  0.7540    0.1734    0.2229    0
    s[12]     500            0     NaN    1.0000    0.0000    1
-    s[8]     500            0     NaN    1.0000    0.0000    1
-   s[11]     500            0     NaN    1.0000    0.0000    1
  T[3][1]       0            1  0.3270    0.4755    0.0131    1
  T[3][2]       0            1  0.3355    0.4547    0.0120    1
  T[3][3]     500            0  0.0176    0.0612    0.0055    1
+   s[11]     500            0     NaN    1.0000    0.0000    1
+    s[8]     500            0     NaN    1.0000    0.0000    1
  epsilon       0            1  1.0000    0.0010    0.0000    1
     s[7]     500            0     NaN    1.0000    0.0000    1
    s[10]     500            0     NaN    1.0000    0.0000    1
-    s[3]     500            0     NaN    2.0000    0.0000    1
     m[1]     100            1  0.4358    2.3220    0.0191    1
+    s[3]     500            0     NaN    2.0000    0.0000    1
     m[2]     200            1  0.1679    1.0053    0.0120    1
-eval_num     500            0     NaN   18.0000    0.0000    1
+eval_num     500            0     NaN   10.0000    0.0000    1
     s[5]     500            0     NaN    1.0000    0.0000    1
    s[15]     500            0     NaN    2.0000    0.0000    1
    s[13]     500            0     NaN    1.0000    0.0000    1
       lp       0            1  0.1424 -138.8795   14.2975    0
     m[3]     400            1  0.0697    0.0893    0.1523    0
 ````
-
 
 
 
@@ -258,14 +255,12 @@ end;
 
 
 
-
 Let's extract the parameters we learned from our chain. We're only using the samples starting from 200 to discard the burn-in period.
 
 ````julia
 learned_T = mean(c[:T][200:end]);
 learned_m = mean(c[:m][200:end]);
 ````
-
 
 
 
@@ -280,7 +275,6 @@ plot(generated_data)
 
 
 ![](/tutorials/figures/4_BayesHmm_10_1.svg)
-
 
 
 It doesn't look exactly like our model, but it should have all the same properties. Notice that the spikes to level 3 are quite rare, not unlike our original data set.

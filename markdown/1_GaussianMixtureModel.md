@@ -10,7 +10,7 @@ The following tutorial illustrates the use *Turing* for clustering data using a 
 More specifically, we are interested in discovering the grouping illustrated in figure below. This example consists of 2-D data points, i.e. $$\boldsymbol{x} = \{x_i\}_{i=1}^N \,, x_i \in \mathcal{R}^2$$, which are distributed according to Gaussian distributions. For simplicity, we use isotropic Gaussian distributions but this assumption can easily be relaxed by introducing additional parameters. 
 
 ````julia
-using Distributions, StatPlots, Random
+using Distributions, StatsPlots, Random
 
 # Set a random seed.
 Random.seed!(3)
@@ -56,6 +56,14 @@ For more details on Gaussian mixture models, we refer to Christopher M. Bishop, 
 
 ````julia
 using Turing, MCMCChain
+
+# Turn off the progress monitor.
+Turing.turnprogress(false)
+````
+
+
+````
+false
 ````
 
 
@@ -156,7 +164,7 @@ As the samples for the location parameter for both clusters are unimodal, we can
 # Helper function used for visualizing the density region.
 function predict(x, y, w, μ)
     # Use log-sum-exp trick for numeric stability.
-    return Turing.logsumexp(
+    return Turing.logaddexp(
         log(w[1]) + logpdf(MvNormal([μ[1], μ[1]], 1.), [x, y]), 
         log(w[2]) + logpdf(MvNormal([μ[2], μ[2]], 1.), [x, y])
     )

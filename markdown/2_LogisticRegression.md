@@ -25,18 +25,24 @@ loaded
 
 
 ````julia
-# Import MCMCChain, Plots, and StatPlots for visualizations and diagnostics.
-using MCMCChain, Plots, StatPlots
+
+# Import MCMCChain, Plots, and StatsPlots for visualizations and diagnostics.
+using MCMCChain, Plots, StatsPlots
 
 # We need a logistic function, which is provided by StatsFuns.
 using StatsFuns: logistic
 
-# MLDataUtils provides a sample splitting tool that's very handy.
-using MLDataUtils
-
 # Set a seed for reproducibility.
 using Random
 Random.seed!(0);
+
+# Turn off progress monitor.
+Turing.turnprogress(false)
+````
+
+
+````
+false
 ````
 
 
@@ -51,12 +57,12 @@ Now we're going to import our dataset. The first six rows of the dataset are sho
 data = RDatasets.dataset("ISLR", "Default");
 
 # Show the first six rows of the dataset.
-head(data)
+first(data, 6)
 ````
 
 
 
-<table class="data-frame"><thead><tr><th></th><th>Default</th><th>Student</th><th>Balance</th><th>Income</th></tr><tr><th></th><th>Categorical…</th><th>Categorical…</th><th>Float64</th><th>Float64</th></tr></thead><tbody><tr><th>1</th><td>No</td><td>No</td><td>729.526</td><td>44361.6</td></tr><tr><th>2</th><td>No</td><td>Yes</td><td>817.18</td><td>12106.1</td></tr><tr><th>3</th><td>No</td><td>No</td><td>1073.55</td><td>31767.1</td></tr><tr><th>4</th><td>No</td><td>No</td><td>529.251</td><td>35704.5</td></tr><tr><th>5</th><td>No</td><td>No</td><td>785.656</td><td>38463.5</td></tr><tr><th>6</th><td>No</td><td>Yes</td><td>919.589</td><td>7491.56</td></tr></tbody></table>
+<table class="data-frame"><thead><tr><th></th><th>Default</th><th>Student</th><th>Balance</th><th>Income</th></tr><tr><th></th><th>Categorical…</th><th>Categorical…</th><th>Float64</th><th>Float64</th></tr></thead><tbody><p>6 rows × 4 columns</p><tr><th>1</th><td>No</td><td>No</td><td>729.526</td><td>44361.6</td></tr><tr><th>2</th><td>No</td><td>Yes</td><td>817.18</td><td>12106.1</td></tr><tr><th>3</th><td>No</td><td>No</td><td>1073.55</td><td>31767.1</td></tr><tr><th>4</th><td>No</td><td>No</td><td>529.251</td><td>35704.5</td></tr><tr><th>5</th><td>No</td><td>No</td><td>785.656</td><td>38463.5</td></tr><tr><th>6</th><td>No</td><td>Yes</td><td>919.589</td><td>7491.56</td></tr></tbody></table>
 
 
 Most machine learning processes require some effort to tidy up the data, and this is no different. We need to convert the `Default` and `Student` columns, which say "Yes" or "No" into 1s and 0s. Afterwards, we'll get rid of the old words-based columns.
@@ -74,31 +80,40 @@ for i in 1:length(data.Default)
 end
 
 # Delete the old columns which say "Yes" and "No".
-delete!(data, :Default)
-delete!(data, :Student)
+deletecols!(data, :Default)
+deletecols!(data, :Student)
 
 # Show the first six rows of our edited dataset.
-head(data)
+first(data, 6)
 ````
 
 
 
-<table class="data-frame"><thead><tr><th></th><th>Balance</th><th>Income</th><th>DefaultNum</th><th>StudentNum</th></tr><tr><th></th><th>Float64</th><th>Float64</th><th>Float64</th><th>Float64</th></tr></thead><tbody><tr><th>1</th><td>729.526</td><td>44361.6</td><td>0.0</td><td>0.0</td></tr><tr><th>2</th><td>817.18</td><td>12106.1</td><td>0.0</td><td>1.0</td></tr><tr><th>3</th><td>1073.55</td><td>31767.1</td><td>0.0</td><td>0.0</td></tr><tr><th>4</th><td>529.251</td><td>35704.5</td><td>0.0</td><td>0.0</td></tr><tr><th>5</th><td>785.656</td><td>38463.5</td><td>0.0</td><td>0.0</td></tr><tr><th>6</th><td>919.589</td><td>7491.56</td><td>0.0</td><td>1.0</td></tr></tbody></table>
+<table class="data-frame"><thead><tr><th></th><th>Balance</th><th>Income</th><th>DefaultNum</th><th>StudentNum</th></tr><tr><th></th><th>Float64</th><th>Float64</th><th>Float64</th><th>Float64</th></tr></thead><tbody><p>6 rows × 4 columns</p><tr><th>1</th><td>729.526</td><td>44361.6</td><td>0.0</td><td>0.0</td></tr><tr><th>2</th><td>817.18</td><td>12106.1</td><td>0.0</td><td>1.0</td></tr><tr><th>3</th><td>1073.55</td><td>31767.1</td><td>0.0</td><td>0.0</td></tr><tr><th>4</th><td>529.251</td><td>35704.5</td><td>0.0</td><td>0.0</td></tr><tr><th>5</th><td>785.656</td><td>38463.5</td><td>0.0</td><td>0.0</td></tr><tr><th>6</th><td>919.589</td><td>7491.56</td><td>0.0</td><td>1.0</td></tr></tbody></table>
 
 
-After we've done that tidying, it's time to split our dataset into training and testing sets, and separate the labels from the data. We use `MLDataUtils.splitobs` to separate our data into two halves, `train` and `test`. You can use a higher percentage of splitting (or a lower one) by modifying the `at = 0.05` argument. We have highlighted the use of only a 5% sample to show the power of Bayesian inference with small smaple sizes.
+After we've done that tidying, it's time to split our dataset into training and testing sets, and separate the labels from the data. We separate our data into two halves, `train` and `test`. You can use a higher percentage of splitting (or a lower one) by modifying the `at = 0.05` argument. We have highlighted the use of only a 5% sample to show the power of Bayesian inference with small smaple sizes.
 
 ````julia
+# Function to split samples.
+function split_data(df, at = 0.70)
+    (r, _) = size(df)
+    index = Int(round(r * at))
+    train = df[1:index, :]
+    test  = df[(index+1):end, :]
+    return train, test
+end
+
 # Split our dataset 5/95 into training/test sets.
-train, test = MLDataUtils.splitobs(data, at = 0.05);
+train, test = split_data(data, 0.05);
 
 # Create our labels. These are the values we are trying to predict.
 train_label = train[:DefaultNum]
 test_label = test[:DefaultNum]
 
 # Remove the columns that are not our predictors.
-train = train[[:StudentNum, :Balance, :Income]]
-test = test[[:StudentNum, :Balance, :Income]]
+train = train[[:StudentNum, :Balance, :Income]];
+test = test[[:StudentNum, :Balance, :Income]];
 ````
 
 
@@ -129,7 +144,7 @@ test = (test .- mean(test, dims=1)) ./ std(test, dims=1)
 ## Model Declaration 
 Finally, we can define our model.
 
-`logistic regression` takes four arguments:
+`logistic_regression` takes four arguments:
 
 - `x` is our set of independent variables;
 - `y` is the element we want to predict;
@@ -177,11 +192,11 @@ chain = sample(logistic_regression(train, train_label, n, 1), HMC(1500, 0.05, 10
 
 ````
 [HMC] Finished with
-  Running time        = 34.26214442800002;
+  Running time        = 42.47009129200001;
   Accept rate         = 0.9946666666666667;
   #lf / sample        = 9.993333333333334;
-  #evals / sample     = 11.992666666666667;
-  pre-cond. diag mat  = [1.0, 1.0, 1.0, 1.0].
+  #evals / sample     = 11.993333333333334;
+  pre-cond. metric    = [1.0].
 ````
 
 
@@ -209,52 +224,55 @@ Empirical Posterior Estimates:
 0330 0.0066666666666666471452452 1500.00000
 intercept  -4.386463650  0.569482001314424723936725 0.014703962047037581403
 7522 0.0238168855773724236213340  571.72879
-  elapsed   0.022833752  0.087468726769515933727739 0.002258432813948680478
-7328 0.0024252788748974000825054 1300.71528
+  elapsed   0.028326263  0.030576404770844667346807 0.000789479376429189300
+4709 0.0008327763013195875778025 1348.08142
+  epsilon   0.050000000  0.000000000000000048588456 0.000000000000000001254
+5485 0.0000000000000000018544974  686.45764
   balance   1.693144952  0.298957918849792336768445 0.007719060272813826895
 0886 0.0120984278925268529114589  610.60765
        lp -60.867338542 31.380006637554323845051840 0.810228287407507297146
 4806 1.1525762860633543827049152  741.25341
+ eval_num  11.993333333  0.258198889747160931218417 0.006666666666666661023
+0330 0.0066666666666666471452452 1500.00000
    lf_eps   0.050000000  0.000000000000000048588456 0.000000000000000001254
 5485 0.0000000000000000018544974  686.45764
 
 Quantiles:
-              2.5%         25.0%         50.0%         75.0%         97.5% 
-   
-   income  -0.77093056  -0.296231518  -0.037215981   0.215403802   0.679450
-856
-  student  -0.99822332  -0.518826075  -0.281800004  -0.051259684   0.445303
-065
-   lf_num  10.00000000  10.000000000  10.000000000  10.000000000  10.000000
-000
-intercept  -5.20578527  -4.630727198  -4.357935735  -4.105080753  -3.606788
-908
-  elapsed   0.01706563   0.017446126   0.018251866   0.022908220   0.031010
-357
-  balance   1.16023654   1.503315029   1.684428890   1.869271334   2.280035
-461
-       lp -63.62840058 -60.546210910 -59.387116198 -58.629031792 -57.868429
-724
-   lf_eps   0.05000000   0.050000000   0.050000000   0.050000000   0.050000
-000
+               2.5%         25.0%         50.0%         75.0%         97.5%
+    
+   income  -0.770930561  -0.296231518  -0.037215981   0.215403802   0.67945
+0856
+  student  -0.998223322  -0.518826075  -0.281800004  -0.051259684   0.44530
+3065
+   lf_num  10.000000000  10.000000000  10.000000000  10.000000000  10.00000
+0000
+intercept  -5.205785266  -4.630727198  -4.357935735  -4.105080753  -3.60678
+8908
+  elapsed   0.019326845   0.021539978   0.023714664   0.033169230   0.04683
+4756
+  epsilon   0.050000000   0.050000000   0.050000000   0.050000000   0.05000
+0000
+  balance   1.160236544   1.503315029   1.684428890   1.869271334   2.28003
+5461
+       lp -63.628400582 -60.546210910 -59.387116198 -58.629031792 -57.86842
+9724
+ eval_num  12.000000000  12.000000000  12.000000000  12.000000000  12.00000
+0000
+   lf_eps   0.050000000   0.050000000   0.050000000   0.050000000   0.05000
+0000
 ````
 
 
 
 
-We can use the `cornerplot` function from StatPlots to show the distributions of the various parameters of our logistic regression. 
+We can use the `cornerplot` function from StatsPlots to show the distributions of the various parameters of our logistic regression. 
 
 ````julia
 # The labels to use.
 l = [:student, :balance, :income]
 
-# Extract the parameters we want to plot.
-w1 = chain[:student]
-w2 = chain[:balance]
-w3 = chain[:income]
-
-# Show the corner plot.
-cornerplot(hcat(w1, w2, w3), compact=true, labels = l)
+# Use the corner function. Requires StatsPlots and MCMCChain.
+corner(chain, l)
 ````
 
 

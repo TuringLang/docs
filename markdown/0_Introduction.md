@@ -99,7 +99,7 @@ The intuition about this definition is that the variance of the distribution wil
 
 ````julia
 # Import StatsPlots for animating purposes.
-using StatPlots
+using StatsPlots
 
 # Make an animation.
 animation = @animate for (i, N) in enumerate(Ns)
@@ -147,7 +147,7 @@ using Turing, MCMCChain
 using Distributions
 
 # Load stats plots for density plots.
-using StatPlots
+using StatsPlots
 ````
 
 
@@ -188,11 +188,11 @@ chain = sample(coinflip(data), HMC(iterations, ϵ, τ));
 
 ````
 [HMC] Finished with
-  Running time        = 9.639088371000007;
+  Running time        = 6.332703758000011;
   Accept rate         = 0.997;
   #lf / sample        = 9.99;
-  #evals / sample     = 11.989;
-  pre-cond. diag mat  = [1.0].
+  #evals / sample     = 11.99;
+  pre-cond. metric    = [1.0].
 ````
 
 

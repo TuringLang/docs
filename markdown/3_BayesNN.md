@@ -66,7 +66,7 @@ plot_data()
 ````
 
 
-![](/tutorials/figures/3_BayesNN_2_1.svg)
+![](/tutorials/figures/3_BayesNN_2_1.png)
 
 
 ## Building a Neural Network
@@ -147,7 +147,7 @@ ch = sample(bayes_nn(hcat(xs...), ts), HMC(N, 0.05, 4));
 
 ````
 [HMC] Finished with
-  Running time        = 245.44691409500032;
+  Running time        = 244.2390099529995;
   Accept rate         = 0.9048;
   #lf / sample        = 3.9992;
   #evals / sample     = 5.9992;
@@ -161,7 +161,7 @@ Now we extract the weights and biases from the sampled chain. We'll use these pr
 
 ````julia
 # Extract all weight and bias parameters.
-theta = ch[:nn_params];
+theta = ch[:nn_params].value.data;
 ````
 
 
@@ -176,17 +176,20 @@ We can use [MAP estimation](https://en.wikipedia.org/wiki/Maximum_a_posteriori_e
 plot_data()
 
 # Find the index that provided the highest log posterior in the chain.
-_, i = findmax(ch[:lp])
+_, i = findmax(ch[:lp].value.data)
+
+# Extract the max row value from i.
+i = i.I[1]
 
 # Plot the posterior distribution with a contour plot.
 x_range = collect(range(-6,stop=6,length=25))
 y_range = collect(range(-6,stop=6,length=25))
-Z = [nn_forward([x, y], theta[i])[1] for x=x_range, y=y_range]
+Z = [nn_forward([x, y], theta[i, :])[1] for x=x_range, y=y_range]
 contour!(x_range, y_range, Z)
 ````
 
 
-![](/tutorials/figures/3_BayesNN_7_1.svg)
+![](/tutorials/figures/3_BayesNN_7_1.png)
 
 
 The contour plot above shows that the MAP method is not too bad at classifying our data.
@@ -204,7 +207,7 @@ The `nn_predict` function takes the average predicted value from a network param
 # Return the average predicted value across
 # multiple weights.
 function nn_predict(x, theta, num)
-    mean([nn_forward(x, theta[i])[1] for i in 1:10:num])
+    mean([nn_forward(x, theta[i,:])[1] for i in 1:10:num])
 end;
 ````
 
@@ -225,7 +228,7 @@ contour!(x_range, y_range, Z)
 ````
 
 
-![](/tutorials/figures/3_BayesNN_9_1.svg)
+![](/tutorials/figures/3_BayesNN_9_1.png)
 
 
 If you are interested in how the predictive power of our Bayesian neural network evolved between samples, the following graph displays an animation of the contour plot generated from the network weights in samples 1 to 1,000. 
@@ -236,7 +239,7 @@ n_end = 500
 
 anim = @animate for i=1:n_end
     plot_data()
-    Z = [nn_forward([x, y], theta[i])[1] for x=x_range, y=y_range]
+    Z = [nn_forward([x, y], theta[i,:])[1] for x=x_range, y=y_range]
     contour!(x_range, y_range, Z, title="Iteration $$i", clim = (0,1))
 end every 5;
 ````
@@ -307,16 +310,18 @@ end
     end
 end
 
+# Set the backend.
+Turing.setadbackend(:reverse_diff)
+
 # Perform inference.
 num_samples = 500
-# ch2 = sample(bayes_nn(hcat(xs...), ts, network_shape, num_params), HMC(num_samples, 0.05, 4));
 ch2 = sample(bayes_nn(hcat(xs...), ts, network_shape, num_params), NUTS(num_samples, 0.65));
 ````
 
 
 ````
 [NUTS] Finished with
-  Running time        = 603.8450554479997;
+  Running time        = 584.4946359479999;
   #lf / sample        = 0.0;
   #evals / sample     = 179.434;
   pre-cond. metric    = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0,....
@@ -327,11 +332,11 @@ ch2 = sample(bayes_nn(hcat(xs...), ts, network_shape, num_params), NUTS(num_samp
 ````julia
 # This function makes predictions based on network shape.
 function nn_predict(x, theta, num, network_shape)
-    mean([nn_forward(x, theta[i], network_shape)[1] for i in 1:10:num])
+    mean([nn_forward(x, theta[i,:], network_shape)[1] for i in 1:10:num])
 end;
 
 # Extract the θ parameters from the sampled chain.
-params2 = ch2[:θ]
+params2 = ch2[:θ].value.data
 
 plot_data()
 
@@ -342,7 +347,7 @@ contour!(x_range, y_range, Z)
 ````
 
 
-![](/tutorials/figures/3_BayesNN_12_1.svg)
+![](/tutorials/figures/3_BayesNN_12_1.png)
 
 
 This has been an introduction to the applications of Turing and Flux in defining Bayesian neural networks.

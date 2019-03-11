@@ -26,8 +26,8 @@ loaded
 
 ````julia
 
-# Import MCMCChain, Plots, and StatsPlots for visualizations and diagnostics.
-using MCMCChain, Plots, StatsPlots
+# Import MCMCChains, Plots, and StatsPlots for visualizations and diagnostics.
+using MCMCChains, Plots, StatsPlots
 
 # We need a logistic function, which is provided by StatsFuns.
 using StatsFuns: logistic
@@ -61,8 +61,20 @@ first(data, 6)
 ````
 
 
+````
+6×4 DataFrame
+│ Row │ Default      │ Student      │ Balance │ Income  │
+│     │ Categorical… │ Categorical… │ Float64 │ Float64 │
+├─────┼──────────────┼──────────────┼─────────┼─────────┤
+│ 1   │ No           │ No           │ 729.526 │ 44361.6 │
+│ 2   │ No           │ Yes          │ 817.18  │ 12106.1 │
+│ 3   │ No           │ No           │ 1073.55 │ 31767.1 │
+│ 4   │ No           │ No           │ 529.251 │ 35704.5 │
+│ 5   │ No           │ No           │ 785.656 │ 38463.5 │
+│ 6   │ No           │ Yes          │ 919.589 │ 7491.56 │
+````
 
-<table class="data-frame"><thead><tr><th></th><th>Default</th><th>Student</th><th>Balance</th><th>Income</th></tr><tr><th></th><th>Categorical…</th><th>Categorical…</th><th>Float64</th><th>Float64</th></tr></thead><tbody><p>6 rows × 4 columns</p><tr><th>1</th><td>No</td><td>No</td><td>729.526</td><td>44361.6</td></tr><tr><th>2</th><td>No</td><td>Yes</td><td>817.18</td><td>12106.1</td></tr><tr><th>3</th><td>No</td><td>No</td><td>1073.55</td><td>31767.1</td></tr><tr><th>4</th><td>No</td><td>No</td><td>529.251</td><td>35704.5</td></tr><tr><th>5</th><td>No</td><td>No</td><td>785.656</td><td>38463.5</td></tr><tr><th>6</th><td>No</td><td>Yes</td><td>919.589</td><td>7491.56</td></tr></tbody></table>
+
 
 
 Most machine learning processes require some effort to tidy up the data, and this is no different. We need to convert the `Default` and `Student` columns, which say "Yes" or "No" into 1s and 0s. Afterwards, we'll get rid of the old words-based columns.
@@ -88,8 +100,20 @@ first(data, 6)
 ````
 
 
+````
+6×4 DataFrame
+│ Row │ Balance │ Income  │ DefaultNum │ StudentNum │
+│     │ Float64 │ Float64 │ Float64    │ Float64    │
+├─────┼─────────┼─────────┼────────────┼────────────┤
+│ 1   │ 729.526 │ 44361.6 │ 0.0        │ 0.0        │
+│ 2   │ 817.18  │ 12106.1 │ 0.0        │ 1.0        │
+│ 3   │ 1073.55 │ 31767.1 │ 0.0        │ 0.0        │
+│ 4   │ 529.251 │ 35704.5 │ 0.0        │ 0.0        │
+│ 5   │ 785.656 │ 38463.5 │ 0.0        │ 0.0        │
+│ 6   │ 919.589 │ 7491.56 │ 0.0        │ 1.0        │
+````
 
-<table class="data-frame"><thead><tr><th></th><th>Balance</th><th>Income</th><th>DefaultNum</th><th>StudentNum</th></tr><tr><th></th><th>Float64</th><th>Float64</th><th>Float64</th><th>Float64</th></tr></thead><tbody><p>6 rows × 4 columns</p><tr><th>1</th><td>729.526</td><td>44361.6</td><td>0.0</td><td>0.0</td></tr><tr><th>2</th><td>817.18</td><td>12106.1</td><td>0.0</td><td>1.0</td></tr><tr><th>3</th><td>1073.55</td><td>31767.1</td><td>0.0</td><td>0.0</td></tr><tr><th>4</th><td>529.251</td><td>35704.5</td><td>0.0</td><td>0.0</td></tr><tr><th>5</th><td>785.656</td><td>38463.5</td><td>0.0</td><td>0.0</td></tr><tr><th>6</th><td>919.589</td><td>7491.56</td><td>0.0</td><td>1.0</td></tr></tbody></table>
+
 
 
 After we've done that tidying, it's time to split our dataset into training and testing sets, and separate the labels from the data. We separate our data into two halves, `train` and `test`. You can use a higher percentage of splitting (or a lower one) by modifying the `at = 0.05` argument. We have highlighted the use of only a 5% sample to show the power of Bayesian inference with small smaple sizes.
@@ -136,6 +160,31 @@ This next part is critically important. We must rescale our variables so that th
 # Rescale our matrices.
 train = (train .- mean(train, dims=1)) ./ std(train, dims=1)
 test = (test .- mean(test, dims=1)) ./ std(test, dims=1)
+````
+
+
+````
+9500×3 Array{Float64,2}:
+  1.54877    0.267577   -1.28037 
+  1.54877    2.13084    -0.976825
+ -0.645608  -0.892311    0.62087 
+ -0.645608  -0.500971    0.311075
+ -0.645608  -1.72494     0.826565
+ -0.645608  -0.193203    0.438225
+  1.54877    0.565783   -1.53722 
+ -0.645608  -0.132822    1.19331 
+ -0.645608  -0.436599    0.672515
+  1.54877   -0.693263   -0.797271
+  ⋮                              
+ -0.645608  -0.365488    1.59521 
+ -0.645608   0.568975    0.897238
+ -0.645608   0.212375    1.73249 
+  1.54877   -1.36916    -1.39162 
+ -0.645608  -0.256626    1.45956 
+ -0.645608  -0.160862   -1.03896 
+ -0.645608   0.0195917   1.88261 
+ -0.645608   1.51275     0.235979
+  1.54877   -1.31033    -1.24868
 ````
 
 
@@ -186,14 +235,29 @@ Turing.setadbackend(:forward_diff)
 n, _ = size(train)
 
 # Sample using HMC.
-chain = sample(logistic_regression(train, train_label, n, 1), HMC(1500, 0.05, 10))
+chain = mapreduce(c -> sample(logistic_regression(train, train_label, n, 1), HMC(1500, 0.05, 10)),
+    chainscat,
+    1:3
+)
 ````
 
 
 ````
 [HMC] Finished with
-  Running time        = 42.47009129200001;
+  Running time        = 35.55168537699997;
   Accept rate         = 0.9946666666666667;
+  #lf / sample        = 9.993333333333334;
+  #evals / sample     = 11.993333333333334;
+  pre-cond. metric    = [1.0].
+[HMC] Finished with
+  Running time        = 33.99525671099996;
+  Accept rate         = 0.9926666666666667;
+  #lf / sample        = 9.993333333333334;
+  #evals / sample     = 11.993333333333334;
+  pre-cond. metric    = [1.0].
+[HMC] Finished with
+  Running time        = 34.627003904000006;
+  Accept rate         = 0.9953333333333333;
   #lf / sample        = 9.993333333333334;
   #evals / sample     = 11.993333333333334;
   pre-cond. metric    = [1.0].
@@ -208,64 +272,57 @@ describe(chain)
 
 
 ````
-Iterations = 1:1500
+Log evidence      = 0.0
+Iterations        = 1:1500
 Thinning interval = 1
-Chains = 1
+Chains            = 1, 2, 3
 Samples per chain = 1500
+parameters        = lf_num, intercept, balance, eval_num, epsilon, income, 
+student, lf_eps
 
-Empirical Posterior Estimates:
-               Mean                  SD                       Naive SE     
-                 MCSE                ESS   
-   income  -0.033933583  0.380088470602344796756000 0.009813842111522192226
-9578 0.0184895930515621559342421  422.58559
-  student  -0.284304750  0.387281658118278471203411 0.009999569414557913857
-3110 0.0223005213544469442499274  301.59478
-   lf_num   9.993333333  0.258198889747160931218417 0.006666666666666661023
-0330 0.0066666666666666471452452 1500.00000
-intercept  -4.386463650  0.569482001314424723936725 0.014703962047037581403
-7522 0.0238168855773724236213340  571.72879
-  elapsed   0.028326263  0.030576404770844667346807 0.000789479376429189300
-4709 0.0008327763013195875778025 1348.08142
-  epsilon   0.050000000  0.000000000000000048588456 0.000000000000000001254
-5485 0.0000000000000000018544974  686.45764
-  balance   1.693144952  0.298957918849792336768445 0.007719060272813826895
-0886 0.0120984278925268529114589  610.60765
-       lp -60.867338542 31.380006637554323845051840 0.810228287407507297146
-4806 1.1525762860633543827049152  741.25341
- eval_num  11.993333333  0.258198889747160931218417 0.006666666666666661023
-0330 0.0066666666666666471452452 1500.00000
-   lf_eps   0.050000000  0.000000000000000048588456 0.000000000000000001254
-5485 0.0000000000000000018544974  686.45764
+Empirical Posterior Estimates
+──────────────────────────────────────────────────
+parameters
+            Mean    SD   Naive SE  MCSE     ESS  
+  balance  1.6856 0.3155   0.0047 0.0074 1500.000
+  epsilon  0.0500 0.0000   0.0000 0.0000   99.022
+ eval_num 11.9933 0.2581   0.0038 0.0038 1500.000
+   income -0.0296 0.3771   0.0056 0.0083 1500.000
+intercept -4.3785 0.5531   0.0082 0.0141 1500.000
+   lf_eps  0.0500 0.0000   0.0000 0.0000   99.022
+   lf_num  9.9933 0.2581   0.0038 0.0038 1500.000
+  student -0.2717 0.3739   0.0056 0.0094 1500.000
 
-Quantiles:
-               2.5%         25.0%         50.0%         75.0%         97.5%
-    
-   income  -0.770930561  -0.296231518  -0.037215981   0.215403802   0.67945
-0856
-  student  -0.998223322  -0.518826075  -0.281800004  -0.051259684   0.44530
-3065
-   lf_num  10.000000000  10.000000000  10.000000000  10.000000000  10.00000
-0000
-intercept  -5.205785266  -4.630727198  -4.357935735  -4.105080753  -3.60678
-8908
-  elapsed   0.019326845   0.021539978   0.023714664   0.033169230   0.04683
-4756
-  epsilon   0.050000000   0.050000000   0.050000000   0.050000000   0.05000
-0000
-  balance   1.160236544   1.503315029   1.684428890   1.869271334   2.28003
-5461
-       lp -63.628400582 -60.546210910 -59.387116198 -58.629031792 -57.86842
-9724
- eval_num  12.000000000  12.000000000  12.000000000  12.000000000  12.00000
-0000
-   lf_eps   0.050000000   0.050000000   0.050000000   0.050000000   0.05000
-0000
+Quantiles
+──────────────────────────────────────────────────
+parameters
+            2.5%    25.0%   50.0%   75.0%   97.5% 
+  balance  -2.8694  1.4879  1.6762  1.8702  5.5417
+  epsilon   0.0500  0.0500  0.0500  0.0500  0.0500
+ eval_num   2.0000 12.0000 12.0000 12.0000 12.0000
+   income  -2.5360 -0.2805 -0.0299  0.2186  2.9974
+intercept -15.8927 -4.6262 -4.3476 -4.0916  2.2389
+   lf_eps   0.0500  0.0500  0.0500  0.0500  0.0500
+   lf_num   0.0000 10.0000 10.0000 10.0000 10.0000
+  student  -3.7261 -0.5140 -0.2728 -0.0322  2.4746
 ````
 
 
 
 
-We can use the `cornerplot` function from StatsPlots to show the distributions of the various parameters of our logistic regression. 
+Since we ran multiple chains, we may as well do a spot check to make sure each chain converges around similar points.
+
+````julia
+plot(chain)
+````
+
+
+![](/tutorials/figures/2_LogisticRegression_9_1.png)
+
+
+Looks good!
+
+We can also use the `corner` function from MCMCChains to show the distributions of the various parameters of our logistic regression. 
 
 ````julia
 # The labels to use.
@@ -276,7 +333,7 @@ corner(chain, l)
 ````
 
 
-![](/tutorials/figures/2_LogisticRegression_9_1.svg)
+![](/tutorials/figures/2_LogisticRegression_10_1.png)
 
 
 Fortunately the corner plot appears to demonstrate unimodal distributions for each of our parameters, so it should be straightforward to take the means of each parameter's sampled values to estimate our model to make predictions.
@@ -289,10 +346,10 @@ The `prediction` function below takes a `Matrix` and a `Chain` object. It takes 
 ````julia
 function prediction(x::Matrix, chain, threshold)
     # Pull the means from each parameter's sampled values in the chain.
-    intercept = mean(chain[:intercept])
-    student = mean(chain[:student])
-    balance = mean(chain[:balance])
-    income = mean(chain[:income])
+    intercept = mean(chain[:intercept].value)
+    student = mean(chain[:student].value)
+    balance = mean(chain[:balance].value)
+    income = mean(chain[:income].value)
 
     # Retrieve the number of rows.
     n, _ = size(x)
@@ -327,6 +384,11 @@ predictions = prediction(test, chain, threshold)
 
 # Calculate MSE for our test set.
 loss = sum((predictions - test_label).^2) / length(test_label)
+````
+
+
+````
+0.08242105263157895
 ````
 
 
@@ -365,8 +427,8 @@ println("Not defaults: $$not_defaults
 
 ````
 Not defaults: 9183.0
-    Predictions: 8467
-    Percentage non-defaults correct 0.9220298377436568
+    Predictions: 8470
+    Percentage non-defaults correct 0.9223565283676358
 ````
 
 

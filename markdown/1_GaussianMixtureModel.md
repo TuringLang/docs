@@ -29,7 +29,7 @@ scatter(x[1,:], x[2,:], legend = false, title = "Synthetic Dataset")
 ````
 
 
-![](/tutorials/figures/1_GaussianMixtureModel_1_1.svg)
+![](/tutorials/figures/1_GaussianMixtureModel_1_1.png)
 
 
 ## Gaussian Mixture Model in Turing
@@ -55,7 +55,7 @@ After having constructed all the necessary model parameters, we can generate an 
 For more details on Gaussian mixture models, we refer to Christopher M. Bishop, *Pattern Recognition and Machine Learning*, Section 9.
 
 ````julia
-using Turing, MCMCChain
+using Turing, MCMCChains
 
 # Turn off the progress monitor.
 Turing.turnprogress(false)
@@ -132,17 +132,18 @@ gmm_model = GaussianMixtureModel(x);
 
 
 To draw observations from the posterior distribution, we use a [particle Gibbs](https://www.stats.ox.ac.uk/~doucet/andrieu_doucet_holenstein_PMCMC.pdf) sampler to draw the discrete assignment parameters as well as a Hamiltonion Monte Carlo sampler for continous parameters.
-Note that we use a `Gibbs` sampler to combine both samplers for Bayesian inference in our model.
+
+Note that we use a `Gibbs` sampler to combine both samplers for Bayesian inference in our model. We are also calling `mapreduce` to generate multiple chains, particularly so we test for convergence. The `chainscat` function simply adds multiple chains together.
 
 ````julia
 gmm_sampler = Gibbs(100, PG(100, 1, :k), HMC(1, 0.05, 10, :μ1, :μ2))
-tchain = sample(gmm_model, gmm_sampler);
+tchain = mapreduce(c -> sample(gmm_model, gmm_sampler), chainscat, 1:3);
 ````
 
 
 
 
-## Visualize the density region of the mixture model.
+## Visualize the Density Region of the Mixture Model
 
 
 After sucessfully doing posterior inference, we can first visualize the trace and density of the parameters of interest.
@@ -150,12 +151,23 @@ After sucessfully doing posterior inference, we can first visualize the trace an
 In particular, in this example we consider the sample values of the location parameter for the two clusters.
 
 ````julia
-ids = findall(map(name -> occursin("μ", name), tchain.names));
-plot(Chains(tchain.value[:,ids,:], names = ["mu 1", "mu 2"]), colordim = :parameter, legend = true)
+ids = findall(map(name -> occursin("μ", name), names(tchain)));
+p=plot(tchain[:, ids, :], legend=true, labels = ["Mu 1" "Mu 2"], colordim=:parameter)
 ````
 
 
-![](/tutorials/figures/1_GaussianMixtureModel_7_1.svg)
+![](/tutorials/figures/1_GaussianMixtureModel_7_1.png)
+
+
+You'll note here that it appears the location means are switching between chains. We will address this in future tutorials. For those who are keenly interested, see [this](https://mc-stan.org/users/documentation/case-studies/identifying_mixture_models.html) article on potential solutions.
+
+For the moment, we will just use the first chain to ensure the validity of our inference.
+
+````julia
+tchain = tchain[:, :, 1];
+````
+
+
 
 
 As the samples for the location parameter for both clusters are unimodal, we can safely visualize the density region of our model using the average location.
@@ -180,13 +192,13 @@ predict (generic function with 1 method)
 
 ````julia
 contour(range(-5, stop = 3), range(-6, stop = 2), 
-    (x, y) -> predict(x, y, [0.5, 0.5], [mean(tchain[:μ1]), mean(tchain[:μ2])])
+    (x, y) -> predict(x, y, [0.5, 0.5], [mean(tchain[:μ1].value), mean(tchain[:μ2].value)])
 )
 scatter!(x[1,:], x[2,:], legend = false, title = "Synthetic Dataset")
 ````
 
 
-![](/tutorials/figures/1_GaussianMixtureModel_9_1.svg)
+![](/tutorials/figures/1_GaussianMixtureModel_10_1.png)
 
 
 ## Infered Assignments
@@ -195,8 +207,12 @@ scatter!(x[1,:], x[2,:], legend = false, title = "Synthetic Dataset")
 Finally, we can inspect the assignments of the data points infered using Turing. As we can see, the dataset is partitioned into two distinct groups.
 
 ````julia
-scatter(x[1,:], x[2,:], legend = false, title = "Assignments on Synthetic Dataset", zcolor = mean(tchain[:k]))
+assignments = collect(skipmissing(mean(tchain[:k].value, dims=1).data))
+scatter(x[1,:], x[2,:], 
+    legend = false, 
+    title = "Assignments on Synthetic Dataset", 
+    zcolor = assignments)
 ````
 
 
-![](/tutorials/figures/1_GaussianMixtureModel_10_1.svg)
+![](/tutorials/figures/1_GaussianMixtureModel_11_1.png)

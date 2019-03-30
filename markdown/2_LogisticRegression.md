@@ -15,16 +15,6 @@ using Turing, Distributions
 
 # Import RDatasets.
 using RDatasets
-````
-
-
-````
-loaded
-````
-
-
-
-````julia
 
 # Import MCMCChains, Plots, and StatsPlots for visualizations and diagnostics.
 using MCMCChains, Plots, StatsPlots
@@ -116,7 +106,7 @@ first(data, 6)
 
 
 
-After we've done that tidying, it's time to split our dataset into training and testing sets, and separate the labels from the data. We separate our data into two halves, `train` and `test`. You can use a higher percentage of splitting (or a lower one) by modifying the `at = 0.05` argument. We have highlighted the use of only a 5% sample to show the power of Bayesian inference with small smaple sizes.
+After we've done that tidying, it's time to split our dataset into training and testing sets, and separate the labels from the data. We separate our data into two halves, `train` and `test`. You can use a higher percentage of splitting (or a lower one) by modifying the `at = 0.05` argument. We have highlighted the use of only a 5% sample to show the power of Bayesian inference with small sample sizes.
 
 ````julia
 # Function to split samples.
@@ -198,20 +188,20 @@ Finally, we can define our model.
 - `x` is our set of independent variables;
 - `y` is the element we want to predict;
 - `n` is the number of observations we have; and
-- `σ²` is the standard deviation we want to assume for our priors.
+- `σ` is the standard deviation we want to assume for our priors.
 
-Within the model, we create four coefficients (`intercept`, `student`, `balance`, and `income`) and assign a prior of normally distributed with means of zero and standard deviations of `σ²`. We want to find values of these four coefficients to predict any given `y`.
+Within the model, we create four coefficients (`intercept`, `student`, `balance`, and `income`) and assign a prior of normally distributed with means of zero and standard deviations of `σ`. We want to find values of these four coefficients to predict any given `y`.
 
 The `for` block creates a variable `v` which is the logistic function. We then observe the liklihood of calculating `v` given the actual label, `y[i]`.
 
 ````julia
 # Bayesian logistic regression (LR)
-@model logistic_regression(x, y, n, σ²) = begin
-    intercept ~ Normal(0, σ²)
+@model logistic_regression(x, y, n, σ) = begin
+    intercept ~ Normal(0, σ)
 
-    student ~ Normal(0, σ²)
-    balance ~ Normal(0, σ²)
-    income  ~ Normal(0, σ²)
+    student ~ Normal(0, σ)
+    balance ~ Normal(0, σ)
+    income  ~ Normal(0, σ)
 
     for i = 1:n
         v = logistic(intercept + student*x[i, 1] + balance*x[i,2] + income*x[i,3])
@@ -244,19 +234,19 @@ chain = mapreduce(c -> sample(logistic_regression(train, train_label, n, 1), HMC
 
 ````
 [HMC] Finished with
-  Running time        = 35.55168537699997;
+  Running time        = 42.78788639999998;
   Accept rate         = 0.9946666666666667;
   #lf / sample        = 9.993333333333334;
   #evals / sample     = 11.993333333333334;
   pre-cond. metric    = [1.0].
 [HMC] Finished with
-  Running time        = 33.99525671099996;
+  Running time        = 38.19668059999996;
   Accept rate         = 0.9926666666666667;
   #lf / sample        = 9.993333333333334;
   #evals / sample     = 11.993333333333334;
   pre-cond. metric    = [1.0].
 [HMC] Finished with
-  Running time        = 34.627003904000006;
+  Running time        = 44.11348389999992;
   Accept rate         = 0.9953333333333333;
   #lf / sample        = 9.993333333333334;
   #evals / sample     = 11.993333333333334;
@@ -277,34 +267,25 @@ Iterations        = 1:1500
 Thinning interval = 1
 Chains            = 1, 2, 3
 Samples per chain = 1500
-parameters        = lf_num, intercept, balance, eval_num, epsilon, income, 
-student, lf_eps
+parameters        = intercept, balance, income, student
 
 Empirical Posterior Estimates
-──────────────────────────────────────────────────
+─────────────────────────────────────────────────
 parameters
-            Mean    SD   Naive SE  MCSE     ESS  
-  balance  1.6856 0.3155   0.0047 0.0074 1500.000
-  epsilon  0.0500 0.0000   0.0000 0.0000   99.022
- eval_num 11.9933 0.2581   0.0038 0.0038 1500.000
-   income -0.0296 0.3771   0.0056 0.0083 1500.000
-intercept -4.3785 0.5531   0.0082 0.0141 1500.000
-   lf_eps  0.0500 0.0000   0.0000 0.0000   99.022
-   lf_num  9.9933 0.2581   0.0038 0.0038 1500.000
-  student -0.2717 0.3739   0.0056 0.0094 1500.000
+            Mean    SD   Naive SE  MCSE   ESS
+  balance  1.6856 0.3155   0.0047 0.0074 1500
+   income -0.0296 0.3771   0.0056 0.0083 1500
+intercept -4.3785 0.5531   0.0082 0.0141 1500
+  student -0.2717 0.3739   0.0056 0.0094 1500
 
 Quantiles
-──────────────────────────────────────────────────
+─────────────────────────────────────────────────
 parameters
-            2.5%    25.0%   50.0%   75.0%   97.5% 
-  balance  -2.8694  1.4879  1.6762  1.8702  5.5417
-  epsilon   0.0500  0.0500  0.0500  0.0500  0.0500
- eval_num   2.0000 12.0000 12.0000 12.0000 12.0000
-   income  -2.5360 -0.2805 -0.0299  0.2186  2.9974
-intercept -15.8927 -4.6262 -4.3476 -4.0916  2.2389
-   lf_eps   0.0500  0.0500  0.0500  0.0500  0.0500
-   lf_num   0.0000 10.0000 10.0000 10.0000 10.0000
-  student  -3.7261 -0.5140 -0.2728 -0.0322  2.4746
+            2.5%    25.0%   50.0%   75.0%   97.5%
+  balance  -2.8694  1.4879  1.6762  1.8702 5.5417
+   income  -2.5360 -0.2805 -0.0299  0.2186 2.9974
+intercept -15.8927 -4.6262 -4.3476 -4.0916 2.2389
+  student  -3.7261 -0.5140 -0.2728 -0.0322 2.4746
 ````
 
 

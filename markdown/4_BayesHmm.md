@@ -67,10 +67,10 @@ The priors on our transition matrix are noninformative, using `T[i] ~ Dirichlet(
     s = tzeros(Int, N)
 
     # Emission matrix.
-    m = Vector{Real}(undef, K)
+    m = Vector(undef, K)
 
     # Transition matrix.
-    T = Vector{Vector{Real}}(undef, K)
+    T = Vector{Vector}(undef, K)
 
     # Assign distributions to each element
     # of the transition matrix and the

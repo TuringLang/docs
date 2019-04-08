@@ -7,17 +7,17 @@ permalink: /:collection/:name/
 ## Introduction
 This is the first of a series of tutorials on the universal probabilistic programming language **Turing**.
 
-**Turing** is probabilistic programming system written entirely in *Julia*. It has an intuitive modelling syntax and supports a wide range of sampling-based inference algorithms. Most importantly, **Turing** inference is composable: it combines Markov chain sampling operations on subsets of model variables, e.g. using a combination of a Hamiltonian Monte Carlo (HMC) engine and a particle Gibbs (PG) engine. This composable inference engine allows the user to easily switch between black-box style inference methods such as HMC and customized inference methods.
+Turing is probabilistic programming system written entirely in Julia. It has an intuitive modelling syntax and supports a wide range of sampling-based inference algorithms. Most importantly, Turing inference is composable: it combines Markov chain sampling operations on subsets of model variables, e.g. using a combination of a Hamiltonian Monte Carlo (HMC) engine and a particle Gibbs (PG) engine. This composable inference engine allows the user to easily switch between black-box style inference methods such as HMC and customized inference methods.
  
 Familiarity with Julia is assumed through out this tutorial. If you are new to Julia, [Learning Julia](https://julialang.org/learning/) is a good starting point.
 
-For users new to Bayesian machine learning, please consider more thorough introductions to the field, such as [Pattern Recognition and Machine Learning](https://www.springer.com/us/book/9780387310732). This tutorial tries to provide an intuition for Bayesian inference and gives a simple example on how to use **Turing**. Note that this is not a comprehensive introduction to Bayesian machine learning.
+For users new to Bayesian machine learning, please consider more thorough introductions to the field, such as [Pattern Recognition and Machine Learning](https://www.springer.com/us/book/9780387310732). This tutorial tries to provide an intuition for Bayesian inference and gives a simple example on how to use Turing. Note that this is not a comprehensive introduction to Bayesian machine learning.
 
 
 ### Coin-Flipping Without Turing
 The following example illustrates the effect of updating our beliefs with every piece of new evidence we observe. In particular, assume that we are unsure about the probability of heads in a coin flip. To get an intuitive understanding of what "updating our beliefs" is, we will visualize the probability of heads in a coin flip after each observed evidence.
 
-First, let's load some of the packages we need to flip a coin (`Random`, `Distributions`) and show our results (`Plots`). You will note that **Turing** is not an import here — we do not need it for this example. If you are already familiar with posterior updates, you can proceed to the next step.
+First, let's load some of the packages we need to flip a coin (`Random`, `Distributions`) and show our results (`Plots`). You will note that Turing is not an import here — we do not need it for this example. If you are already familiar with posterior updates, you can proceed to the next step.
 
 ````julia
 # Using Base modules.
@@ -102,7 +102,7 @@ The intuition about this definition is that the variance of the distribution wil
 using StatsPlots
 
 # Make an animation.
-animation = @animate for (i, N) in enumerate(Ns)
+animation = @gif for (i, N) in enumerate(Ns)
 
     # Count the number of heads and tails.
     heads = sum(data[1:i-1])
@@ -137,16 +137,16 @@ The animation above shows that with increasing evidence our belief about the pro
 
 In the previous example, we used the fact that our prior distribution is a [conjugate prior](https://en.wikipedia.org/wiki/Conjugate_prior). Note that a closed-form expression (the `updated_belief` expression) for the posterior is not accessible in general and usually does not exist for more interesting models. 
 
-We are now going to move away from the closed-form expression above and specify the same model using **Turing**. To do so, we will first need to import `Turing`, `MCMCChain`, `Distributions`, and `StatPlots`. `MCMChain` is a library built by the Turing team to help summarize Markov Chain Monte Carlo (MCMC) simulations, as well as a variety of utility functions for diagnostics and visualizations.
+We are now going to move away from the closed-form expression above and specify the same model using **Turing**. To do so, we will first need to import `Turing`, `MCMCChains`, `Distributions`, and `StatPlots`. `MCMCChains` is a library built by the Turing team to help summarize Markov Chain Monte Carlo (MCMC) simulations, as well as a variety of utility functions for diagnostics and visualizations.
 
 ````julia
-# Load Turing and MCMCChain.
-using Turing, MCMCChain
+# Load Turing and MCMCChains.
+using Turing, MCMCChains
 
 # Load the distributions library.
 using Distributions
 
-# Load stats plots for density plots.
+# Load StatsPlots for density plots.
 using StatsPlots
 ````
 
@@ -188,7 +188,7 @@ chain = sample(coinflip(data), HMC(iterations, ϵ, τ));
 
 ````
 [HMC] Finished with
-  Running time        = 6.332703758000011;
+  Running time        = 5.194402630000002;
   Accept rate         = 0.997;
   #lf / sample        = 9.99;
   #evals / sample     = 11.99;
@@ -202,12 +202,12 @@ After finishing the sampling process, we can visualize the posterior distributio
 
 ````julia
 # Construct summary of the sampling process for the parameter p, i.e. the probability of heads in a coin.
-p_summary = Chains(chain[:p])
+p_summary = chain[:p]
 plot(p_summary, seriestype = :histogram)
 ````
 
 
-![](/tutorials/figures/0_Introduction_9_1.svg)
+![](/tutorials/figures/0_Introduction_9_1.png)
 
 
 Now we can build our plot:
@@ -227,13 +227,11 @@ plot!(p, range(0, stop = 1, length = 100), pdf.(Ref(updated_belief), range(0, st
         fill=0, α=0.3, w=3, c = :lightgreen)
 
 # Visualize the true probability of heads in red.
-vline!(p, [p_true], label = "True probability", c = :red);
+vline!(p, [p_true], label = "True probability", c = :red)
 ````
 
 
-
-
-![sdf](https://user-images.githubusercontent.com/7974003/44995682-25477880-af9c-11e8-850b-36e4b6d756ea.png)
+![](/tutorials/figures/0_Introduction_10_1.png)
 
 
 As we can see, the Turing model closely approximates the true probability. Hopefully this tutorial has provided an easy-to-follow, yet informative introduction to Turing's simpler applications. More advanced usage will be demonstrated in later tutorials.

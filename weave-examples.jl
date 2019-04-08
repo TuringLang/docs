@@ -10,8 +10,19 @@ function polish_latex(path::String)
     open(path, "w+") do f
         txt = replace(txt, raw"$$" => raw"\$\$")
 
-        inline = r"(?<=[^\\])\$"
+        beg_align = r"\\\$\\\$\n?\\begin{align}"
+        end_align = r"\\end{align}\n?\\\$\\\$?"
+
+        txt = replace(txt, beg_align => "\$\$\n\\begin{align}")
+        txt = replace(txt, end_align => "\\end{align}\n\$\$")
+
+        # Make inline math work.
+        inline = r"(?<=[^\\])\$(?!\$)"
         txt = replace(txt, inline => raw"$$")
+
+        # If there's more than three dollar signs together, use only two.
+        extra_dollars = r"\${3,}"
+        txt = replace(txt, extra_dollars => raw"$$")
 
         write(f, txt)
     end

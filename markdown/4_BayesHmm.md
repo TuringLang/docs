@@ -36,7 +36,7 @@ plot(y, xlim = (0,15), ylim = (-1,5), size = (500, 250))
 ````
 
 
-![](/tutorials/figures/4_BayesHmm_2_1.svg)
+![](/tutorials/figures/4_BayesHmm_2_1.png)
 
 
 We can see that we have three states, one for each height of the plot (1, 2, 3). This height is also our emission parameter, so state one produces a value of one, state two produces a value of two, and so on.
@@ -67,10 +67,10 @@ The priors on our transition matrix are noninformative, using `T[i] ~ Dirichlet(
     s = tzeros(Int, N)
 
     # Emission matrix.
-    m = Vector{Real}(undef, K)
+    m = Vector(undef, K)
 
     # Transition matrix.
-    T = Vector{Vector{Real}}(undef, K)
+    T = Vector{Vector}(undef, K)
 
     # Assign distributions to each element
     # of the transition matrix and the
@@ -119,15 +119,18 @@ The code below generates an animation showing the graph of the data above, and t
 using StatsPlots
 
 # Extract our m and s parameters from the chain.
-m_set = c[:m]
-s_set = c[:s]
+m_set = c[:m].value.data
+s_set = c[:s].value.data
 
 # Iterate through the MCMC samples.
 Ns = 1:500
 
 # Make an animation.
-animation = @animate for (i, N) in enumerate(Ns)
-    m = m_set[N]; s = s_set[N];
+animation = @animate for i in Ns
+    m = m_set[i, :]; 
+    s = Int.(s_set[i,:]);
+    emissions = collect(skipmissing(m[s]))
+    
     p = plot(y, c = :red,
         size = (500, 250),
         xlabel = "Time",
@@ -135,7 +138,7 @@ animation = @animate for (i, N) in enumerate(Ns)
         legend = :topright, label = "True data",
         xlim = (0,15),
         ylim = (-1,5));
-    plot!(p, m[s], c = :blue, label = "Sample $$N")
+    plot!(emissions, color = :blue, label = "Sample $$N")
 end every 10;
 ````
 
@@ -147,58 +150,46 @@ end every 10;
 Looks like our model did a pretty good job, but we should also check to make sure our chain converges. A quick check is to examine whether the diagonal (representing the probability of remaining in the current state) of the transition matrix appears to be stationary. The code below extracts the diagonal and shows a traceplot of each persistence probability.
 
 ````julia
-T_diag_trace = [t[i][i] for t in c[:T], i in 1:K];
+# Index the chain with the persistence probabilities.
+subchain = c[:,["T[$$i][$$i]" for i in 1:K],:]
 
-plot(T_diag_trace, ylim = (0,1),
-     label = ["T[$$i,$$i]" for i = 1:K],
-     xlabel = "Sample", ylabel = "Persistence probability")
+# Plot the chain.
+plot(subchain, 
+    colordim = :parameter, 
+    seriestype=:traceplot,
+    title = "Persistence Probability",
+    legend=:right
+    )
 ````
 
 
-![](/tutorials/figures/4_BayesHmm_6_1.svg)
+![](/tutorials/figures/4_BayesHmm_6_1.png)
 
 
 A cursory examination of the traceplot above indicates that at least `T[3,3]` and possibly `T[2,2]` have converged to something resembling stationary. `T[1,1]`, on the other hand, has a slight "wobble", and seems less consistent than the others. We can use the diagnostic functions provided by [MCMCChain](https://github.com/TuringLang/MCMCChain.jl) to engage in some formal tests, like the Heidelberg and Welch diagnostic:
 
 ````julia
-heideldiag(c)
+heideldiag(c[:T])
 ````
 
 
 ````
-Burn-in Stationarity p-value    Mean   Halfwidth Test
- T[2][1]     500            0  0.0002    0.8246    0.0089    1
- T[2][2]     500            0  0.0012    0.1497    0.0098    1
- T[2][3]     200            1  0.1140    0.0249    0.0022    1
-  lf_num     500            0     NaN    7.0000    0.0000    1
-    s[2]     500            0     NaN    2.0000    0.0000    1
-    s[4]     500            0     NaN    2.0000    0.0000    1
-    s[9]     500            0     NaN    1.0000    0.0000    1
-    s[1]     500            0     NaN    2.0000    0.0000    1
-    s[6]     500            0     NaN    1.0000    0.0000    1
-   s[14]     500            0     NaN    2.0000    0.0000    1
- T[1][1]     100            1  0.0969    0.6736    0.0257    1
- T[1][2]       0            1  0.0898    0.2807    0.0216    1
- T[1][3]     300            1  0.5218    0.0455    0.0034    1
- elapsed       0            1  0.7540    0.1734    0.2229    0
-   s[12]     500            0     NaN    1.0000    0.0000    1
- T[3][1]       0            1  0.3270    0.4755    0.0131    1
- T[3][2]       0            1  0.3355    0.4547    0.0120    1
- T[3][3]     500            0  0.0176    0.0612    0.0055    1
-   s[11]     500            0     NaN    1.0000    0.0000    1
-    s[8]     500            0     NaN    1.0000    0.0000    1
- epsilon       0            1  1.0000    0.0010    0.0000    1
-    s[7]     500            0     NaN    1.0000    0.0000    1
-   s[10]     500            0     NaN    1.0000    0.0000    1
-    m[1]     100            1  0.4358    2.3220    0.0191    1
-    s[3]     500            0     NaN    2.0000    0.0000    1
-    m[2]     200            1  0.1679    1.0053    0.0120    1
-eval_num     500            0     NaN   10.0000    0.0000    1
-    s[5]     500            0     NaN    1.0000    0.0000    1
-   s[15]     500            0     NaN    2.0000    0.0000    1
-   s[13]     500            0     NaN    1.0000    0.0000    1
-      lp       0            1  0.1424 -138.8795   14.2975    0
-    m[3]     400            1  0.0697    0.0893    0.1523    0
+Heidelberger and Welch Diagnostic:
+Target Halfwidth Ratio = 0.1
+Alpha = 0.05
+
+parameters
+
+        Burn-in Stationarity p-value  Mean  Halfwidth Test
+T[1][1]     100            1  0.0969 0.6736    0.0257    1
+T[1][2]       0            1  0.0898 0.2807    0.0216    1
+T[1][3]     300            1  0.5218 0.0455    0.0034    1
+T[2][1]     500            0  0.0002 0.8246    0.0089    1
+T[2][2]     500            0  0.0012 0.1497    0.0098    1
+T[2][3]     200            1  0.1140 0.0249    0.0022    1
+T[3][1]       0            1  0.3270 0.4755    0.0131    1
+T[3][2]       0            1  0.3355 0.4547    0.0120    1
+T[3][3]     500            0  0.0176 0.0612    0.0055    1
 ````
 
 
@@ -231,14 +222,6 @@ And that's about it! The code below presents the original `BayesHmm` model with 
     # State sequence.
     s = tzeros(Int, N)
 
-    # Assign distributions to each element
-    # of the transition matrix and the
-    # emission matrix.
-    for i = 1:K
-        T[i] ~ Dirichlet(ones(K)/K)
-        m[i] ~ Normal(i, 0.5)
-    end
-
     # Observe each point of the input.
     s[1] ~ Categorical(K)
     y[1] ~ Normal(m[s[1]], 0.1)
@@ -258,8 +241,9 @@ end;
 Let's extract the parameters we learned from our chain. We're only using the samples starting from 200 to discard the burn-in period.
 
 ````julia
-learned_T = mean(c[:T][200:end]);
-learned_m = mean(c[:m][200:end]);
+average_T = reshape(mean(c[200:end, :T, :].value.data, dims=1), (3,3));
+learned_T = [collect(skipmissing(average_T[:, i])) for i in 1:3]
+learned_m = collect(skipmissing(mean(c[200:end, :m, :].value.data, dims=1)));
 ````
 
 
@@ -274,7 +258,7 @@ plot(generated_data)
 ````
 
 
-![](/tutorials/figures/4_BayesHmm_10_1.svg)
+![](/tutorials/figures/4_BayesHmm_10_1.png)
 
 
 It doesn't look exactly like our model, but it should have all the same properties. Notice that the spikes to level 3 are quite rare, not unlike our original data set.

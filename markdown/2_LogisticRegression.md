@@ -70,7 +70,7 @@ first(data, 6)
 Most machine learning processes require some effort to tidy up the data, and this is no different. We need to convert the `Default` and `Student` columns, which say "Yes" or "No" into 1s and 0s. Afterwards, we'll get rid of the old words-based columns.
 
 ````julia
-# Create new rows, defualted to zero.
+# Create new rows, defaulted to zero.
 data[:DefaultNum] = 0.0
 data[:StudentNum] = 0.0
 
@@ -234,22 +234,22 @@ chain = mapreduce(c -> sample(logistic_regression(train, train_label, n, 1), HMC
 
 ````
 [HMC] Finished with
-  Running time        = 42.78788639999998;
+  Running time        = 32.75128093599998;
   Accept rate         = 0.9946666666666667;
   #lf / sample        = 9.993333333333334;
-  #evals / sample     = 11.993333333333334;
+  #evals / sample     = 0.0006666666666666666;
   pre-cond. metric    = [1.0].
 [HMC] Finished with
-  Running time        = 38.19668059999996;
+  Running time        = 32.45210917600001;
   Accept rate         = 0.9926666666666667;
   #lf / sample        = 9.993333333333334;
-  #evals / sample     = 11.993333333333334;
+  #evals / sample     = 0.0006666666666666666;
   pre-cond. metric    = [1.0].
 [HMC] Finished with
-  Running time        = 44.11348389999992;
+  Running time        = 32.587576130999956;
   Accept rate         = 0.9953333333333333;
   #lf / sample        = 9.993333333333334;
-  #evals / sample     = 11.993333333333334;
+  #evals / sample     = 0.0006666666666666666;
   pre-cond. metric    = [1.0].
 ````
 
@@ -262,30 +262,29 @@ describe(chain)
 
 
 ````
-Log evidence      = 0.0
-Iterations        = 1:1500
-Thinning interval = 1
-Chains            = 1, 2, 3
-Samples per chain = 1500
-parameters        = intercept, balance, income, student
+2-element Array{ChainDataFrame,1}
 
-Empirical Posterior Estimates
-─────────────────────────────────────────────────
-parameters
-            Mean    SD   Naive SE  MCSE   ESS
-  balance  1.6856 0.3155   0.0047 0.0074 1500
-   income -0.0296 0.3771   0.0056 0.0083 1500
-intercept -4.3785 0.5531   0.0082 0.0141 1500
-  student -0.2717 0.3739   0.0056 0.0094 1500
+Summary Statistics
+. Omitted printing of 1 columns
+│ Row │ parameters │ mean       │ std        │ naive_se    │ mcse        │
+│     │ Symbol     │ Float64    │ Float64    │ Float64     │ Float64     │
+├─────┼────────────┼────────────┼────────────┼─────────────┼─────────────┤
+│ 1   │ balance    │ 1.68562    │ 0.315471   │ 0.00470277  │ 0.00735181  │
+│ 2   │ income     │ -0.0296337 │ 0.377066   │ 0.00562096  │ 0.00827714  │
+│ 3   │ intercept  │ -4.3785    │ 0.553123   │ 0.00824547  │ 0.0141316   │
+│ 4   │ lf_eps     │ 0.05       │ 2.0819e-17 │ 3.10351e-19 │ 2.09216e-18 │
+│ 5   │ student    │ -0.271651  │ 0.373947   │ 0.00557447  │ 0.00935029  │
 
 Quantiles
-─────────────────────────────────────────────────
-parameters
-            2.5%    25.0%   50.0%   75.0%   97.5%
-  balance  -2.8694  1.4879  1.6762  1.8702 5.5417
-   income  -2.5360 -0.2805 -0.0299  0.2186 2.9974
-intercept -15.8927 -4.6262 -4.3476 -4.0916 2.2389
-  student  -3.7261 -0.5140 -0.2728 -0.0322 2.4746
+. Omitted printing of 1 columns
+│ Row │ parameters │ 2.5%      │ 25.0%     │ 50.0%      │ 75.0%      │
+│     │ Symbol     │ Float64   │ Float64   │ Float64    │ Float64    │
+├─────┼────────────┼───────────┼───────────┼────────────┼────────────┤
+│ 1   │ balance    │ 1.13784   │ 1.48794   │ 1.67625    │ 1.87022    │
+│ 2   │ income     │ -0.760113 │ -0.280494 │ -0.0298922 │ 0.218566   │
+│ 3   │ intercept  │ -5.21811  │ -4.62621  │ -4.34761   │ -4.09165   │
+│ 4   │ lf_eps     │ 0.05      │ 0.05      │ 0.05       │ 0.05       │
+│ 5   │ student    │ -0.995905 │ -0.513987 │ -0.272845  │ -0.0321513 │
 ````
 
 

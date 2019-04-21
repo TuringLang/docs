@@ -15,7 +15,7 @@ using Distributions, StatsPlots, Random
 # Set a random seed.
 Random.seed!(3)
 
-# Construct 100 data points for each cluster.
+# Construct 30 data points for each cluster.
 N = 30
 
 # Parameters for each cluster, we assume that each cluster is Gaussian distributed in the example.
@@ -35,7 +35,7 @@ scatter(x[1,:], x[2,:], legend = false, title = "Synthetic Dataset")
 ## Gaussian Mixture Model in Turing
 
 
-To cluster the data points shown above, we use a model that consists of three mixture components (clusters) and assigns each datum to one of the components. The assignment thereof determines the distribution that the data point is generated from.
+To cluster the data points shown above, we use a model that consists of two mixture components (clusters) and assigns each datum to one of the components. The assignment thereof determines the distribution that the data point is generated from.
 
 In particular, in a Bayesian Gaussian mixture model with $$1 \leq k \leq K$$ components for 1-D data each data point $$x_i$$ with $$1 \leq i \leq N$$ is generated according to the following generative process.
 First we draw the parameters for each cluster, i.e. in our example we draw location of the distributions from a Normal:

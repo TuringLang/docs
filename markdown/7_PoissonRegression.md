@@ -84,10 +84,10 @@ We plot the distribution of the number of sneezes for the 4 different cases take
 ````julia
 #Data Plotting
 
-p1 = Plots.histogram(df[(df[:alcohol_taken] .== 0) .& (df[:nomeds_taken] .== 0), 1], title = "no_alcohol+meds")  
-p2 = Plots.histogram((df[(df[:alcohol_taken] .== 1) .& (df[:nomeds_taken] .== 0), 1]), title = "alcohol+meds")  
-p3 = Plots.histogram((df[(df[:alcohol_taken] .== 0) .& (df[:nomeds_taken] .== 1), 1]), title = "no_alcohol+no_meds")  
-p4 = Plots.histogram((df[(df[:alcohol_taken] .== 1) .& (df[:nomeds_taken] .== 1), 1]), title = "alcohol+no_meds")  
+p1 = Plots.histogram(df[(df[:,:alcohol_taken] .== 0) .& (df[:,:nomeds_taken] .== 0), 1], title = "no_alcohol+meds")  
+p2 = Plots.histogram((df[(df[:,:alcohol_taken] .== 1) .& (df[:,:nomeds_taken] .== 0), 1]), title = "alcohol+meds")  
+p3 = Plots.histogram((df[(df[:,:alcohol_taken] .== 0) .& (df[:,:nomeds_taken] .== 1), 1]), title = "no_alcohol+no_meds")  
+p4 = Plots.histogram((df[(df[:,:alcohol_taken] .== 1) .& (df[:,:nomeds_taken] .== 1), 1]), title = "alcohol+no_meds")  
 plot(p1, p2, p3, p4, layout = (2, 2), legend = false)
 ````
 
@@ -99,8 +99,8 @@ We must convert our `DataFrame` data into the `Matrix` form as the manipulations
 
 ````julia
 # Convert the DataFrame object to matrices.
-data = Matrix(df[[:alcohol_taken, :nomeds_taken, :product_alcohol_meds]])
-data_labels = df[:nsneeze]
+data = Matrix(df[:,[:alcohol_taken, :nomeds_taken, :product_alcohol_meds]])
+data_labels = df[:,:nsneeze]
 data
 ````
 
@@ -206,40 +206,16 @@ end;
 We use the `NUTS` sampler to sample values from the posterior. We run multiple chains using the `mapreduce` function to nullify the effect of a problematic chain. We then use the Gelman, Rubin, and Brooks Diagnostic to check the convergence of these multiple chains.
 
 ````julia
-# This is temporary while the reverse differentiation backend is being improved.
-Turing.setadbackend(:forward_diff)
-
 # Retrieve the number of observations.
 n, _ = size(data)
 
 # Sample using NUTS.
 
 num_chains = 4
-chains = mapreduce(c -> sample(poisson_regression(data, data_labels, n, 10), NUTS(2500, 200, 0.65) ), chainscat, 1:num_chains);
-````
-
-
-````
-[NUTS] Finished with
-  Running time        = 37.545159871000024;
-  #lf / sample        = 0.0;
-  #evals / sample     = 0.0004;
-  pre-cond. metric    = [1.0, 1.0, 1.0, 1.0].
-[NUTS] Finished with
-  Running time        = 365.7509047770001;
-  #lf / sample        = 0.0;
-  #evals / sample     = 0.0004;
-  pre-cond. metric    = [1.0, 1.0, 1.0, 1.0].
-[NUTS] Finished with
-  Running time        = 35.77645984200004;
-  #lf / sample        = 0.0;
-  #evals / sample     = 0.0004;
-  pre-cond. metric    = [1.0, 1.0, 1.0, 1.0].
-[NUTS] Finished with
-  Running time        = 453.8648650210001;
-  #lf / sample        = 0.0;
-  #evals / sample     = 0.0004;
-  pre-cond. metric    = [1.0, 1.0, 1.0, 1.0].
+chain = mapreduce(
+    c -> sample(poisson_regression(data, data_labels, n, 10), NUTS(200, 0.65), 2500, discard_adapt=false), 
+    chainscat, 
+    1:num_chains);
 ````
 
 
@@ -251,7 +227,7 @@ We use the Gelman, Rubin, and Brooks Diagnostic to check whether our chains have
 We expect the chains to have converged. This is because we have taken sufficient number of iterations (1500) for the NUTS sampler. However, in case the test fails, then we will have to take a larger number of iterations, resulting in longer computation time.
 
 ````julia
-gelmandiag(chains)
+gelmandiag(chain)
 ````
 
 
@@ -261,11 +237,10 @@ Gelman, Rubin, and Brooks Diagnostic
 │ Row │ parameters │ PSRF    │ 97.5%   │
 │     │ Symbol     │ Float64 │ Float64 │
 ├─────┼────────────┼─────────┼─────────┤
-│ 1   │ b0         │ 1.03468 │ 1.03948 │
-│ 2   │ b1         │ 1.05339 │ 1.06082 │
-│ 3   │ b2         │ 1.06552 │ 1.07763 │
-│ 4   │ b3         │ 1.0341  │ 1.04598 │
-│ 5   │ lf_eps     │ 3.11179 │ 5.30209 │
+│ 1   │ b0         │ 1.01214 │ 1.01433 │
+│ 2   │ b1         │ 1.02013 │ 1.03023 │
+│ 3   │ b2         │ 1.00488 │ 1.01261 │
+│ 4   │ b3         │ 1.00523 │ 1.00996 │
 ````
 
 
@@ -277,85 +252,13 @@ So, we have obtained the posterior distributions of the parameters. We transform
 
 ````julia
 # Taking the first chain
-chain = chains[:,:,1]
+c1 = chain[:,:,1]
 
 # Calculating the exponentiated means
-b0_exp = exp(mean(chain[:b0]))
-````
-
-
-````
-Error: MethodError: no method matching iterate(::Chains{Union{Missing, Floa
-t64},Missing,NamedTuple{(:parameters,),Tuple{Array{String,1}}},NamedTuple{(
-:samples, :hashedsummary),Tuple{Array{Turing.Utilities.Sample,1},Base.RefVa
-lue{Tuple{UInt64,ChainDataFrame}}}}})
-Closest candidates are:
-  iterate(!Matched::Core.SimpleVector) at essentials.jl:568
-  iterate(!Matched::Core.SimpleVector, !Matched::Any) at essentials.jl:568
-  iterate(!Matched::ExponentialBackOff) at error.jl:199
-  ...
-````
-
-
-
-````julia
-b1_exp = exp(mean(chain[:b1]))
-````
-
-
-````
-Error: MethodError: no method matching iterate(::Chains{Union{Missing, Floa
-t64},Missing,NamedTuple{(:parameters,),Tuple{Array{String,1}}},NamedTuple{(
-:samples, :hashedsummary),Tuple{Array{Turing.Utilities.Sample,1},Base.RefVa
-lue{Tuple{UInt64,ChainDataFrame}}}}})
-Closest candidates are:
-  iterate(!Matched::Core.SimpleVector) at essentials.jl:568
-  iterate(!Matched::Core.SimpleVector, !Matched::Any) at essentials.jl:568
-  iterate(!Matched::ExponentialBackOff) at error.jl:199
-  ...
-````
-
-
-
-````julia
-b2_exp = exp(mean(chain[:b2]))
-````
-
-
-````
-Error: MethodError: no method matching iterate(::Chains{Union{Missing, Floa
-t64},Missing,NamedTuple{(:parameters,),Tuple{Array{String,1}}},NamedTuple{(
-:samples, :hashedsummary),Tuple{Array{Turing.Utilities.Sample,1},Base.RefVa
-lue{Tuple{UInt64,ChainDataFrame}}}}})
-Closest candidates are:
-  iterate(!Matched::Core.SimpleVector) at essentials.jl:568
-  iterate(!Matched::Core.SimpleVector, !Matched::Any) at essentials.jl:568
-  iterate(!Matched::ExponentialBackOff) at error.jl:199
-  ...
-````
-
-
-
-````julia
-b3_exp = exp(mean(chain[:b3]))
-````
-
-
-````
-Error: MethodError: no method matching iterate(::Chains{Union{Missing, Floa
-t64},Missing,NamedTuple{(:parameters,),Tuple{Array{String,1}}},NamedTuple{(
-:samples, :hashedsummary),Tuple{Array{Turing.Utilities.Sample,1},Base.RefVa
-lue{Tuple{UInt64,ChainDataFrame}}}}})
-Closest candidates are:
-  iterate(!Matched::Core.SimpleVector) at essentials.jl:568
-  iterate(!Matched::Core.SimpleVector, !Matched::Any) at essentials.jl:568
-  iterate(!Matched::ExponentialBackOff) at error.jl:199
-  ...
-````
-
-
-
-````julia
+b0_exp = exp(mean(c1[:b0].value))
+b1_exp = exp(mean(c1[:b1].value))
+b2_exp = exp(mean(c1[:b2].value))
+b3_exp = exp(mean(c1[:b3].value))
 
 print("The exponent of the meaned values of the weights (or coefficients are): \n")
 ````
@@ -373,7 +276,10 @@ print("b0: ", b0_exp, " \n", "b1: ", b1_exp, " \n", "b2: ", b2_exp, " \n", "b3: 
 
 
 ````
-Error: UndefVarError: b0_exp not defined
+b0: 5.304421095375324 
+b1: 1.7119123250916004 
+b2: 2.3943033905854882 
+b3: 1.3194410163141495
 ````
 
 
@@ -393,7 +299,7 @@ The posterior distributions obtained after sampling can be visualised as :
  Visualising the posterior by plotting it:
 
 ````julia
-plot(chains)
+plot(chain)
 ````
 
 
@@ -408,11 +314,11 @@ The exponentiated mean of the coefficient `b1` is roughly half of that of `b2`. 
 
 As can be seen from the plots above, the parameters converge to their final distributions after a few iterations. These initial values during the warmup phase increase the standard deviations of the parameters and are not required after we get the desired distributions. Thus, we remove these warmup values and once again view the diagnostics. 
 
-To remove these warmup values, we take all values except the first 200. This is because we set the second parameter of the NUTS sampler (which is the number of adaptations) to be equal to 200. `describe(chains)` is used to view the standard deviations in the estimates of the parameters. It also gives other useful information such as the means and the quantiles.
+To remove these warmup values, we take all values except the first 200. This is because we set the second parameter of the NUTS sampler (which is the number of adaptations) to be equal to 200. `describe(chain)` is used to view the standard deviations in the estimates of the parameters. It also gives other useful information such as the means and the quantiles.
 
 ````julia
-#Note the standard deviation before removing the warmup samples
-describe(chains)
+# Note the standard deviation before removing the warmup samples
+describe(chain)
 ````
 
 
@@ -421,32 +327,37 @@ describe(chains)
 
 Summary Statistics
 . Omitted printing of 1 columns
-│ Row │ parameters │ mean      │ std        │ naive_se    │ mcse       │
-│     │ Symbol     │ Float64   │ Float64    │ Float64     │ Float64    │
-├─────┼────────────┼───────────┼────────────┼─────────────┼────────────┤
-│ 1   │ b0         │ 1.65616   │ 0.100185   │ 0.00100185  │ 0.00503861 │
-│ 2   │ b1         │ 0.554498  │ 0.124933   │ 0.00124933  │ 0.00704223 │
-│ 3   │ b2         │ 0.890379  │ 0.099313   │ 0.00099313  │ 0.00567049 │
-│ 4   │ b3         │ 0.266706  │ 0.0959565  │ 0.000959565 │ 0.00550219 │
-│ 5   │ lf_eps     │ 0.0117511 │ 0.00881986 │ 8.81986e-5  │ 0.00081771 │
+│ Row │ parameters │ mean     │ std       │ naive_se    │ mcse       │ ess 
+    │
+│     │ Symbol     │ Float64  │ Float64   │ Float64     │ Float64    │ Any 
+    │
+├─────┼────────────┼──────────┼───────────┼─────────────┼────────────┼─────
+────┤
+│ 1   │ b0         │ 1.66519  │ 0.0657517 │ 0.000657517 │ 0.00164098 │ 58.0
+099 │
+│ 2   │ b1         │ 0.544291 │ 0.0640128 │ 0.000640128 │ 0.00199168 │ 165.
+479 │
+│ 3   │ b2         │ 0.878627 │ 0.0557298 │ 0.000557298 │ 0.00128191 │ 396.
+961 │
+│ 4   │ b3         │ 0.2727   │ 0.0621676 │ 0.000621676 │ 0.0012638  │ 153.
+509 │
 
 Quantiles
-. Omitted printing of 1 columns
-│ Row │ parameters │ 2.5%       │ 25.0%     │ 50.0%      │ 75.0%     │
-│     │ Symbol     │ Float64    │ Float64   │ Float64    │ Float64   │
-├─────┼────────────┼────────────┼───────────┼────────────┼───────────┤
-│ 1   │ b0         │ 1.60276    │ 1.64499   │ 1.66497    │ 1.68465   │
-│ 2   │ b1         │ 0.433299   │ 0.513197  │ 0.546945   │ 0.582117  │
-│ 3   │ b2         │ 0.779827   │ 0.850935  │ 0.883772   │ 0.917298  │
-│ 4   │ b3         │ 0.168101   │ 0.234231  │ 0.266756   │ 0.300742  │
-│ 5   │ lf_eps     │ 0.00303898 │ 0.0035558 │ 0.00885919 │ 0.0196162 │
+
+│ Row │ parameters │ 2.5%     │ 25.0%    │ 50.0%    │ 75.0%    │ 97.5%    │
+│     │ Symbol     │ Float64  │ Float64  │ Float64  │ Float64  │ Float64  │
+├─────┼────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ 1   │ b0         │ 1.6054   │ 1.64701  │ 1.66837  │ 1.68773  │ 1.72525  │
+│ 2   │ b1         │ 0.434989 │ 0.505279 │ 0.542411 │ 0.579966 │ 0.657613 │
+│ 3   │ b2         │ 0.778661 │ 0.843105 │ 0.877552 │ 0.913152 │ 0.986658 │
+│ 4   │ b3         │ 0.165151 │ 0.236838 │ 0.272479 │ 0.306697 │ 0.3721   │
 ````
 
 
 
 ````julia
-# Removing the first 200 values of the chains
-chains_new = chains[201:2500,:,:]
+# Removing the first 200 values of the chains.
+chains_new = chain[201:2500,:,:]
 describe(chains_new)
 ````
 
@@ -455,34 +366,24 @@ describe(chains_new)
 2-element Array{ChainDataFrame,1}
 
 Summary Statistics
-. Omitted printing of 1 columns
-│ Row │ parameters │ mean      │ std        │ naive_se    │ mcse        │
-│     │ Symbol     │ Float64   │ Float64    │ Float64     │ Float64     │
-├─────┼────────────┼───────────┼────────────┼─────────────┼─────────────┤
-│ 1   │ b0         │ 1.66534   │ 0.0283822  │ 0.000295904 │ 0.00112915  │
-│ 2   │ b1         │ 0.545759  │ 0.0518339  │ 0.000540406 │ 0.00293611  │
-│ 3   │ b2         │ 0.882892  │ 0.0491197  │ 0.000512108 │ 0.0027571   │
-│ 4   │ b3         │ 0.268301  │ 0.0479853  │ 0.000500281 │ 0.00279344  │
-│ 5   │ lf_eps     │ 0.0117602 │ 0.00847608 │ 8.83693e-5  │ 0.000888486 │
+. Omitted printing of 2 columns
+│ Row │ parameters │ mean     │ std       │ naive_se    │ mcse        │
+│     │ Symbol     │ Float64  │ Float64   │ Float64     │ Float64     │
+├─────┼────────────┼──────────┼───────────┼─────────────┼─────────────┤
+│ 1   │ b0         │ 1.66757  │ 0.0298645 │ 0.000311359 │ 0.000559242 │
+│ 2   │ b1         │ 0.542624 │ 0.0549168 │ 0.000572547 │ 0.00116836  │
+│ 3   │ b2         │ 0.878541 │ 0.0517378 │ 0.000539404 │ 0.0010853   │
+│ 4   │ b3         │ 0.271876 │ 0.0512028 │ 0.000533826 │ 0.0010391   │
 
 Quantiles
 
-│ Row │ parameters │ 2.5%       │ 25.0%     │ 50.0%    │ 75.0%     │ 97.5% 
-    │
-│     │ Symbol     │ Float64    │ Float64   │ Float64  │ Float64   │ Float6
-4   │
-├─────┼────────────┼────────────┼───────────┼──────────┼───────────┼───────
-────┤
-│ 1   │ b0         │ 1.61132    │ 1.64579   │ 1.66522  │ 1.68465   │ 1.7215
-9   │
-│ 2   │ b1         │ 0.439848   │ 0.513478  │ 0.546904 │ 0.581287  │ 0.6420
-88  │
-│ 3   │ b2         │ 0.780957   │ 0.851067  │ 0.883823 │ 0.916287  │ 0.9745
-39  │
-│ 4   │ b3         │ 0.178882   │ 0.234922  │ 0.266776 │ 0.300027  │ 0.3636
-07  │
-│ 5   │ lf_eps     │ 0.00303898 │ 0.0034266 │ 0.011586 │ 0.0199196 │ 0.0208
-297 │
+│ Row │ parameters │ 2.5%     │ 25.0%    │ 50.0%    │ 75.0%    │ 97.5%    │
+│     │ Symbol     │ Float64  │ Float64  │ Float64  │ Float64  │ Float64  │
+├─────┼────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ 1   │ b0         │ 1.60841  │ 1.64748  │ 1.66843  │ 1.68773  │ 1.72456  │
+│ 2   │ b1         │ 0.435986 │ 0.505129 │ 0.542035 │ 0.578746 │ 0.652752 │
+│ 3   │ b2         │ 0.781218 │ 0.842977 │ 0.877341 │ 0.911946 │ 0.982811 │
+│ 4   │ b3         │ 0.168861 │ 0.237627 │ 0.272763 │ 0.306605 │ 0.369301 │
 ````
 
 

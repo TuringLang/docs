@@ -182,17 +182,7 @@ iterations = 1000
 τ = 10
 
 # Start sampling.
-chain = sample(coinflip(data), HMC(iterations, ϵ, τ));
-````
-
-
-````
-[HMC] Finished with
-  Running time        = 5.194402630000002;
-  Accept rate         = 0.997;
-  #lf / sample        = 9.99;
-  #evals / sample     = 11.99;
-  pre-cond. metric    = [1.0].
+chain = sample(coinflip(data), HMC(ϵ, τ), iterations, progress=false);
 ````
 
 

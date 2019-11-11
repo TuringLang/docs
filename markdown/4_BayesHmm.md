@@ -12,11 +12,10 @@ Let's load the libraries we'll need. We also set a random seed (for reproducibil
 using Turing, Plots, Random
 
 # Turn off progress monitor.
-Turing.turnprogress(false)
+Turing.turnprogress(false);
 
 # Set a random seed and use the forward_diff AD mode.
 Random.seed!(1234);
-Turing.setadbackend(:forward_diff);
 ````
 
 
@@ -103,8 +102,20 @@ The parameter `s` is not a continuous variable. It is a vector of **integers**, 
 Time to run our sampler.
 
 ````julia
-g = Gibbs(1000, HMC(2, 0.001, 7, :m, :T), PG(20, 1, :s))
-c = sample(BayesHmm(y, 3), g);
+g = Gibbs(HMC(0.001, 7, :m, :T), PG(20, :s))
+c = sample(BayesHmm(y, 3), g, 100);
+````
+
+
+````
+Error: MethodError: no method matching Float64(::Tracker.TrackedReal{Float6
+4})
+Closest candidates are:
+  Float64(::Real, !Matched::RoundingMode) where T<:AbstractFloat at roundin
+g.jl:185
+  Float64(::T<:Number) where T<:Number at boot.jl:725
+  Float64(!Matched::Int8) at float.jl:60
+  ...
 ````
 
 
@@ -120,10 +131,40 @@ using StatsPlots
 
 # Extract our m and s parameters from the chain.
 m_set = c[:m].value.data
+````
+
+
+````
+Error: UndefVarError: c not defined
+````
+
+
+
+````julia
 s_set = c[:s].value.data
+````
+
+
+````
+Error: UndefVarError: c not defined
+````
+
+
+
+````julia
 
 # Iterate through the MCMC samples.
-Ns = 1:500
+Ns = 1:length(c)
+````
+
+
+````
+Error: UndefVarError: c not defined
+````
+
+
+
+````julia
 
 # Make an animation.
 animation = @animate for i in Ns
@@ -143,6 +184,11 @@ end every 10;
 ````
 
 
+````
+Error: UndefVarError: Ns not defined
+````
+
+
 
 
 ![animation](https://user-images.githubusercontent.com/422990/50612436-de588980-0e8e-11e9-8635-4e3e97c0d7f9.gif)
@@ -152,6 +198,16 @@ Looks like our model did a pretty good job, but we should also check to make sur
 ````julia
 # Index the chain with the persistence probabilities.
 subchain = c[:,["T[$$i][$$i]" for i in 1:K],:]
+````
+
+
+````
+Error: UndefVarError: c not defined
+````
+
+
+
+````julia
 
 # Plot the chain.
 plot(subchain, 
@@ -163,7 +219,11 @@ plot(subchain,
 ````
 
 
-![](/tutorials/figures/4_BayesHmm_6_1.png)
+````
+Error: UndefVarError: subchain not defined
+````
+
+
 
 
 A cursory examination of the traceplot above indicates that at least `T[3,3]` and possibly `T[2,2]` have converged to something resembling stationary. `T[1,1]`, on the other hand, has a slight "wobble", and seems less consistent than the others. We can use the diagnostic functions provided by [MCMCChain](https://github.com/TuringLang/MCMCChain.jl) to engage in some formal tests, like the Heidelberg and Welch diagnostic:
@@ -174,91 +234,10 @@ heideldiag(c[:T])
 
 
 ````
-Heidelberger and Welch Diagnostic:
-Target Halfwidth Ratio = 0.1
-Alpha = 0.05
-
-parameters
-
-        Burn-in Stationarity p-value  Mean  Halfwidth Test
-T[1][1]     100            1  0.0969 0.6736    0.0257    1
-T[1][2]       0            1  0.0898 0.2807    0.0216    1
-T[1][3]     300            1  0.5218 0.0455    0.0034    1
-T[2][1]     500            0  0.0002 0.8246    0.0089    1
-T[2][2]     500            0  0.0012 0.1497    0.0098    1
-T[2][3]     200            1  0.1140 0.0249    0.0022    1
-T[3][1]       0            1  0.3270 0.4755    0.0131    1
-T[3][2]       0            1  0.3355 0.4547    0.0120    1
-T[3][3]     500            0  0.0176 0.0612    0.0055    1
+Error: UndefVarError: c not defined
 ````
 
 
 
 
 The p-values on the test suggest that we cannot reject the hypothesis that the observed sequence comes from a stationary distribution, so we can be somewhat more confident that our transition matrix has converged to something reasonable.
-
-## Modifying a Model to Generate Synthetic Data
-
-With our learned parameters, we can change our model to generate synthetic data. You can do this from the first time you specify a model, but it is conceptually easier to separate these tasks and avoid muddying the waters.
-
-In order to create a model that supports this synthetic generating feature, there are several changes to your typical model specification that need to be made. A general guide can be found [here](http://turing.ml/docs/guide/#generating-vectors-of-quantities).
-
-1. Any parameter you were interested in learning before (`s`, `m`, `T`) needs to be moved to the argument line of the model.
-2. Assign those parameters default values, such as `zeros(Real, 10)`, or whatever is appropriate.
-3. Make sure you add a `return` line at the end of the model containing the variable(s) you want to generate. In our case, this is `y`.
-
-And that's about it! The code below presents the original `BayesHmm` model with the necessary changes included.
-
-````julia
-# Generative model.
-@model BayesHmm(
-    y = Vector{Real}(undef, 15),
-    T = Vector{Vector{Real}}(undef, 3),
-    m = Vector{Real}(undef, 3),
-    K) = begin
-    # Get observation length.
-    N = length(y)
-
-    # State sequence.
-    s = tzeros(Int, N)
-
-    # Observe each point of the input.
-    s[1] ~ Categorical(K)
-    y[1] ~ Normal(m[s[1]], 0.1)
-
-    for i = 2:N
-        s[i] ~ Categorical(vec(T[s[i-1]]))
-        y[i] ~ Normal(m[s[i]], 0.1)
-    end
-
-    return y
-end;
-````
-
-
-
-
-Let's extract the parameters we learned from our chain. We're only using the samples starting from 200 to discard the burn-in period.
-
-````julia
-average_T = reshape(mean(c[200:end, :T, :].value.data, dims=1), (3,3));
-learned_T = [collect(skipmissing(average_T[:, i])) for i in 1:3]
-learned_m = collect(skipmissing(mean(c[200:end, :m, :].value.data, dims=1)));
-````
-
-
-
-
-Finally, we can call our model by passing `nothing` into our parameter of interest, and taking a look at it. Note that we call our model using `BayesHmm(nothing, learned_T, learned_m, 3)()` with an extra set of parentheses at the end. For more on this behaviour, see [this](http://turing.ml/docs/guide/#sampling-from-the-prior) section of the guide focusing on sampling from the prior.
-
-````julia
-# Generate a single sequence.
-generated_data = BayesHmm(nothing, learned_T, learned_m, 3)()
-plot(generated_data)
-````
-
-
-![](/tutorials/figures/4_BayesHmm_10_1.png)
-
-
-It doesn't look exactly like our model, but it should have all the same properties. Notice that the spikes to level 3 are quite rare, not unlike our original data set.

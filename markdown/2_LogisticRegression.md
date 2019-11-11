@@ -70,20 +70,12 @@ first(data, 6)
 Most machine learning processes require some effort to tidy up the data, and this is no different. We need to convert the `Default` and `Student` columns, which say "Yes" or "No" into 1s and 0s. Afterwards, we'll get rid of the old words-based columns.
 
 ````julia
-# Create new rows, defaulted to zero.
-data[:DefaultNum] = 0.0
-data[:StudentNum] = 0.0
-
-for i in 1:length(data.Default)
-    # If a row's "Default" or "Student" columns say "Yes",
-    # set them to 1 in our new columns.
-    data[:DefaultNum][i] = data.Default[i] == "Yes" ? 1.0 : 0.0
-    data[:StudentNum][i] = data.Student[i] == "Yes" ? 1.0 : 0.0
-end
+# Convert "Default" and "Student" to numeric values.
+data[!,:DefaultNum] = [r.Default == "Yes" ? 1.0 : 0.0 for r in eachrow(data)]
+data[!, :StudentNum] = [r.Student == "Yes" ? 1.0 : 0.0 for r in eachrow(data)]
 
 # Delete the old columns which say "Yes" and "No".
-deletecols!(data, :Default)
-deletecols!(data, :Student)
+select!(data, Not([:Default, :Student]))
 
 # Show the first six rows of our edited dataset.
 first(data, 6)
@@ -108,6 +100,8 @@ first(data, 6)
 
 After we've done that tidying, it's time to split our dataset into training and testing sets, and separate the labels from the data. We separate our data into two halves, `train` and `test`. You can use a higher percentage of splitting (or a lower one) by modifying the `at = 0.05` argument. We have highlighted the use of only a 5% sample to show the power of Bayesian inference with small sample sizes.
 
+We must rescale our variables so that they are centered around zero by subtracting each column by the mean and dividing it by the standard deviation. Without this step, Turing's sampler will have a hard time finding a place to start searching for parameter estimates.
+
 ````julia
 # Function to split samples.
 function split_data(df, at = 0.70)
@@ -118,16 +112,20 @@ function split_data(df, at = 0.70)
     return train, test
 end
 
+# Rescale our columns.
+data.Balance = (data.Balance .- mean(data.Balance)) ./ std(data.Balance)
+data.Income = (data.Income .- mean(data.Income)) ./ std(data.Income)
+
 # Split our dataset 5/95 into training/test sets.
 train, test = split_data(data, 0.05);
 
 # Create our labels. These are the values we are trying to predict.
-train_label = train[:DefaultNum]
-test_label = test[:DefaultNum]
+train_label = train[:,:DefaultNum]
+test_label = test[:,:DefaultNum]
 
 # Remove the columns that are not our predictors.
-train = train[[:StudentNum, :Balance, :Income]];
-test = test[[:StudentNum, :Balance, :Income]];
+train = train[:,[:StudentNum, :Balance, :Income]];
+test = test[:,[:StudentNum, :Balance, :Income]];
 ````
 
 
@@ -139,42 +137,6 @@ Our `train` and `test` matrices are still in the `DataFrame` format, which tends
 # Convert the DataFrame objects to matrices.
 train = Matrix(train);
 test = Matrix(test);
-````
-
-
-
-
-This next part is critically important. We must rescale our variables so that they are centered around zero by subtracting each column by the mean and dividing it by the standard deviation. Without this step, Turing's sampler will have a hard time finding a place to start searching for parameter estimates.
-
-````julia
-# Rescale our matrices.
-train = (train .- mean(train, dims=1)) ./ std(train, dims=1)
-test = (test .- mean(test, dims=1)) ./ std(test, dims=1)
-````
-
-
-````
-9500×3 Array{Float64,2}:
-  1.54877    0.267577   -1.28037 
-  1.54877    2.13084    -0.976825
- -0.645608  -0.892311    0.62087 
- -0.645608  -0.500971    0.311075
- -0.645608  -1.72494     0.826565
- -0.645608  -0.193203    0.438225
-  1.54877    0.565783   -1.53722 
- -0.645608  -0.132822    1.19331 
- -0.645608  -0.436599    0.672515
-  1.54877   -0.693263   -0.797271
-  ⋮                              
- -0.645608  -0.365488    1.59521 
- -0.645608   0.568975    0.897238
- -0.645608   0.212375    1.73249 
-  1.54877   -1.36916    -1.39162 
- -0.645608  -0.256626    1.45956 
- -0.645608  -0.160862   -1.03896 
- -0.645608   0.0195917   1.88261 
- -0.645608   1.51275     0.235979
-  1.54877   -1.31033    -1.24868
 ````
 
 
@@ -218,44 +180,14 @@ end;
 Now we can run our sampler. This time we'll use [`HMC`](http://turing.ml/docs/library/#Turing.HMC) to sample from our posterior.
 
 ````julia
-# This is temporary while the reverse differentiation backend is being improved.
-Turing.setadbackend(:forward_diff)
-
 # Retrieve the number of observations.
 n, _ = size(train)
 
 # Sample using HMC.
-chain = mapreduce(c -> sample(logistic_regression(train, train_label, n, 1), HMC(1500, 0.05, 10)),
+chain = mapreduce(c -> sample(logistic_regression(train, train_label, n, 1), HMC(0.05, 10), 1500),
     chainscat,
     1:3
 )
-````
-
-
-````
-[HMC] Finished with
-  Running time        = 32.75128093599998;
-  Accept rate         = 0.9946666666666667;
-  #lf / sample        = 9.993333333333334;
-  #evals / sample     = 0.0006666666666666666;
-  pre-cond. metric    = [1.0].
-[HMC] Finished with
-  Running time        = 32.45210917600001;
-  Accept rate         = 0.9926666666666667;
-  #lf / sample        = 9.993333333333334;
-  #evals / sample     = 0.0006666666666666666;
-  pre-cond. metric    = [1.0].
-[HMC] Finished with
-  Running time        = 32.587576130999956;
-  Accept rate         = 0.9953333333333333;
-  #lf / sample        = 9.993333333333334;
-  #evals / sample     = 0.0006666666666666666;
-  pre-cond. metric    = [1.0].
-````
-
-
-
-````julia
 
 describe(chain)
 ````
@@ -266,25 +198,37 @@ describe(chain)
 
 Summary Statistics
 . Omitted printing of 1 columns
-│ Row │ parameters │ mean       │ std        │ naive_se    │ mcse        │
-│     │ Symbol     │ Float64    │ Float64    │ Float64     │ Float64     │
-├─────┼────────────┼────────────┼────────────┼─────────────┼─────────────┤
-│ 1   │ balance    │ 1.68562    │ 0.315471   │ 0.00470277  │ 0.00735181  │
-│ 2   │ income     │ -0.0296337 │ 0.377066   │ 0.00562096  │ 0.00827714  │
-│ 3   │ intercept  │ -4.3785    │ 0.553123   │ 0.00824547  │ 0.0141316   │
-│ 4   │ lf_eps     │ 0.05       │ 2.0819e-17 │ 3.10351e-19 │ 2.09216e-18 │
-│ 5   │ student    │ -0.271651  │ 0.373947   │ 0.00557447  │ 0.00935029  │
+│ Row │ parameters │ mean      │ std      │ naive_se   │ mcse       │ ess  
+   │
+│     │ Symbol     │ Float64   │ Float64  │ Float64    │ Float64    │ Any  
+   │
+├─────┼────────────┼───────────┼──────────┼────────────┼────────────┼──────
+───┤
+│ 1   │ balance    │ 1.78999   │ 0.331794 │ 0.00494609 │ 0.00848061 │ 186.5
+65 │
+│ 2   │ income     │ -0.139602 │ 0.332703 │ 0.00495964 │ 0.011117   │ 967.8
+64 │
+│ 3   │ intercept  │ -4.12687  │ 0.545573 │ 0.00813292 │ 0.0172957  │ 65.36
+02 │
+│ 4   │ student    │ -0.918551 │ 0.636926 │ 0.00949473 │ 0.0309855  │ 529.7
+24 │
 
 Quantiles
-. Omitted printing of 1 columns
-│ Row │ parameters │ 2.5%      │ 25.0%     │ 50.0%      │ 75.0%      │
-│     │ Symbol     │ Float64   │ Float64   │ Float64    │ Float64    │
-├─────┼────────────┼───────────┼───────────┼────────────┼────────────┤
-│ 1   │ balance    │ 1.13784   │ 1.48794   │ 1.67625    │ 1.87022    │
-│ 2   │ income     │ -0.760113 │ -0.280494 │ -0.0298922 │ 0.218566   │
-│ 3   │ intercept  │ -5.21811  │ -4.62621  │ -4.34761   │ -4.09165   │
-│ 4   │ lf_eps     │ 0.05      │ 0.05      │ 0.05       │ 0.05       │
-│ 5   │ student    │ -0.995905 │ -0.513987 │ -0.272845  │ -0.0321513 │
+
+│ Row │ parameters │ 2.5%      │ 25.0%    │ 50.0%     │ 75.0%     │ 97.5%  
+  │
+│     │ Symbol     │ Float64   │ Float64  │ Float64   │ Float64   │ Float64
+  │
+├─────┼────────────┼───────────┼──────────┼───────────┼───────────┼────────
+──┤
+│ 1   │ balance    │ 1.20484   │ 1.57879  │ 1.77619   │ 1.9798    │ 2.41041
+  │
+│ 2   │ income     │ -0.782103 │ -0.36119 │ -0.135722 │ 0.0840768 │ 0.48844
+8 │
+│ 3   │ intercept  │ -5.01721  │ -4.39229 │ -4.08815  │ -3.81892  │ -3.3217
+8 │
+│ 4   │ student    │ -2.16432  │ -1.33493 │ -0.911954 │ -0.502552 │ 0.33238
+7 │
 ````
 
 
@@ -297,7 +241,7 @@ plot(chain)
 ````
 
 
-![](/tutorials/figures/2_LogisticRegression_9_1.png)
+![](/tutorials/figures/2_LogisticRegression_8_1.png)
 
 
 Looks good!
@@ -308,12 +252,12 @@ We can also use the `corner` function from MCMCChains to show the distributions 
 # The labels to use.
 l = [:student, :balance, :income]
 
-# Use the corner function. Requires StatsPlots and MCMCChain.
+# Use the corner function. Requires StatsPlots and MCMCChains.
 corner(chain, l)
 ````
 
 
-![](/tutorials/figures/2_LogisticRegression_10_1.png)
+![](/tutorials/figures/2_LogisticRegression_9_1.png)
 
 
 Fortunately the corner plot appears to demonstrate unimodal distributions for each of our parameters, so it should be straightforward to take the means of each parameter's sampled values to estimate our model to make predictions.
@@ -368,7 +312,7 @@ loss = sum((predictions - test_label).^2) / length(test_label)
 
 
 ````
-0.08242105263157895
+0.09231578947368421
 ````
 
 
@@ -391,8 +335,8 @@ println("Defaults: $$defaults
 
 ````
 Defaults: 317.0
-    Predictions: 247
-    Percentage defaults correct 0.7791798107255521
+    Predictions: 258
+    Percentage defaults correct 0.8138801261829653
 ````
 
 
@@ -407,8 +351,8 @@ println("Not defaults: $$not_defaults
 
 ````
 Not defaults: 9183.0
-    Predictions: 8470
-    Percentage non-defaults correct 0.9223565283676358
+    Predictions: 8365
+    Percentage non-defaults correct 0.9109223565283676
 ````
 
 

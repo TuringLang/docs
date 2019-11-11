@@ -141,17 +141,7 @@ Inference can now be performed by calling `sample`. We use the `HMC` sampler her
 ````julia
 # Perform inference.
 N = 5000
-ch = sample(bayes_nn(hcat(xs...), ts), HMC(N, 0.05, 4));
-````
-
-
-````
-[HMC] Finished with
-  Running time        = 244.2390099529995;
-  Accept rate         = 0.9048;
-  #lf / sample        = 3.9992;
-  #evals / sample     = 5.9992;
-  pre-cond. metric    = [1.0].
+ch = sample(bayes_nn(hcat(xs...), ts), HMC(0.05, 4), N);
 ````
 
 
@@ -315,16 +305,7 @@ Turing.setadbackend(:reverse_diff)
 
 # Perform inference.
 num_samples = 500
-ch2 = sample(bayes_nn(hcat(xs...), ts, network_shape, num_params), NUTS(num_samples, 0.65));
-````
-
-
-````
-[NUTS] Finished with
-  Running time        = 584.4946359479999;
-  #lf / sample        = 0.0;
-  #evals / sample     = 179.434;
-  pre-cond. metric    = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0,....
+ch2 = sample(bayes_nn(hcat(xs...), ts, network_shape, num_params), NUTS(0.65), num_samples);
 ````
 
 
@@ -342,7 +323,7 @@ plot_data()
 
 x_range = collect(range(-6,stop=6,length=25))
 y_range = collect(range(-6,stop=6,length=25))
-Z = [nn_predict([x, y], params2, num_samples, network_shape)[1] for x=x_range, y=y_range]
+Z = [nn_predict([x, y], params2, length(ch2), network_shape)[1] for x=x_range, y=y_range]
 contour!(x_range, y_range, Z)
 ````
 

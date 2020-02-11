@@ -139,26 +139,27 @@ MPG_i \sim \mathcal{N}(\alpha + \boldsymbol{\beta}^T\boldsymbol{X_i}, \sigma^2)
 
 where $$\alpha$$ is an intercept term common to all observations, $$\boldsymbol{\beta}$$ is a coefficient vector, $$\boldsymbol{X_i}$$ is the observed data for car $$i$$, and $$\sigma^2$$ is a common variance term.
 
-For $$\sigma^2$$, we assign a prior of `TruncatedNormal(0,100,0,Inf)`. This is consistent with [Andrew Gelman's recommendations](http://www.stat.columbia.edu/~gelman/research/published/taumain.pdf) on noninformative priors for variance. The intercept term ($$\alpha$$) is assumed to be normally distributed with a mean of zero and a variance of three. This represents our assumptions that miles per gallon can be explained mostly by our assorted variables, but a high variance term indicates our uncertainty about that. Each coefficient is assumed to be normally distributed with a mean of zero and a variance of 10. We do not know that our coefficients are different from zero, and we don't know which ones are likely to be the most important, so the variance term is quite high. Lastly, each observation $$y_i$$ is distributed according to the calculated `mu` term given by $$\alpha + \boldsymbol{\beta}^T\boldsymbol{X_i}$$.
+For $$\sigma^2$$, we assign a prior of `TruncatedNormal(0,100,0,Inf)`. This is consistent with [Andrew Gelman's recommendations](http://www.stat.columbia.edu/~gelman/research/published/taumain.pdf) on noninformative priors for variance. The intercept term ($$\alpha$$) is assumed to be normally distributed with a mean of zero and a variance of three. This represents our assumptions that miles per gallon can be explained mostly by our assorted variables, but a high variance term indicates our uncertainty about that. Each coefficient is assumed to be normally distributed with a mean of zero and a variance of 10. We do not know that our coefficients are different from zero, and we don't know which ones are likely to be the most important, so the variance term is quite high. The syntax `::Type{T}=Vector{Float64}` allows us to maintain type stability in our model -- for more information, please review the [performance tips](https://turing.ml/dev/docs/using-turing/performancetips#make-your-model-type-stable). Lastly, each observation $$y_i$$ is distributed according to the calculated `mu` term given by $$\alpha + \boldsymbol{\beta}^T\boldsymbol{X_i}$$.
 
 ````julia
 # Bayesian linear regression.
-@model linear_regression(x, y, n_obs, n_vars) = begin
+@model linear_regression(x, y, n_obs, n_vars, ::Type{T}=Vector{Float64}) where {T} = begin
     # Set variance prior.
-    σ₂ ~ TruncatedNormal(0,100, 0, Inf)
+    σ₂ ~ truncated(Normal(0,100), 0, Inf)
     
     # Set intercept prior.
     intercept ~ Normal(0, 3)
     
     # Set the priors on our coefficients.
-    coefficients = Array{Real}(undef, n_vars)
-    coefficients ~ [Normal(0, 10)]
+    coefficients = T(undef, n_vars)
+    
+    for i in 1:n_vars
+        coefficients[i] ~ Normal(0, 10)
+    end
     
     # Calculate all the mu terms.
     mu = intercept .+ x * coefficients
-    for i = 1:n_obs
-        y[i] ~ Normal(mu[i], σ₂)
-    end
+    y ~ MvNormal(mu, σ₂)
 end;
 ````
 
@@ -171,11 +172,6 @@ With our model specified, we can call the sampler. We will use the No U-Turn Sam
 n_obs, n_vars = size(train)
 model = linear_regression(train, train_label, n_obs, n_vars)
 chain = sample(model, NUTS(0.65), 3000);
-````
-
-
-````
-Error: StackOverflowError:
 ````
 
 
@@ -202,38 +198,70 @@ describe(chain)
 2-element Array{ChainDataFrame,1}
 
 Summary Statistics
-. Omitted printing of 1 columns
-│ Row │ parameters │ mean      │ std      │ naive_se   │ mcse       │ ess  
-   │
-│     │ Symbol     │ Float64   │ Float64  │ Float64    │ Float64    │ Any  
-   │
-├─────┼────────────┼───────────┼──────────┼────────────┼────────────┼──────
-───┤
-│ 1   │ balance    │ 1.78999   │ 0.331794 │ 0.00494609 │ 0.00848061 │ 186.5
-65 │
-│ 2   │ income     │ -0.139602 │ 0.332703 │ 0.00495964 │ 0.011117   │ 967.8
-64 │
-│ 3   │ intercept  │ -4.12687  │ 0.545573 │ 0.00813292 │ 0.0172957  │ 65.36
-02 │
-│ 4   │ student    │ -0.918551 │ 0.636926 │ 0.00949473 │ 0.0309855  │ 529.7
-24 │
+. Omitted printing of 2 columns
+│ Row │ parameters       │ mean       │ std      │ naive_se   │ mcse       
+│
+│     │ Symbol           │ Float64    │ Float64  │ Float64    │ Float64    
+│
+├─────┼──────────────────┼────────────┼──────────┼────────────┼────────────
+┤
+│ 1   │ coefficients[1]  │ 0.407842   │ 0.463861 │ 0.0103723  │ 0.0132011  
+│
+│ 2   │ coefficients[2]  │ -0.130214  │ 0.469199 │ 0.0104916  │ 0.0131803  
+│
+│ 3   │ coefficients[3]  │ -0.0982566 │ 0.450733 │ 0.0100787  │ 0.0140963  
+│
+│ 4   │ coefficients[4]  │ 0.620113   │ 0.289531 │ 0.00647411 │ 0.0080144  
+│
+│ 5   │ coefficients[5]  │ 0.0278808  │ 0.439534 │ 0.00982827 │ 0.0126099  
+│
+│ 6   │ coefficients[6]  │ 0.0787792  │ 0.299914 │ 0.00670628 │ 0.00853917 
+│
+│ 7   │ coefficients[7]  │ -0.0765938 │ 0.280072 │ 0.0062626  │ 0.00682248 
+│
+│ 8   │ coefficients[8]  │ 0.131162   │ 0.262825 │ 0.00587694 │ 0.00751492 
+│
+│ 9   │ coefficients[9]  │ 0.282055   │ 0.454028 │ 0.0101524  │ 0.0100279  
+│
+│ 10  │ coefficients[10] │ -0.842593  │ 0.440175 │ 0.0098426  │ 0.0147895  
+│
+│ 11  │ intercept        │ 0.0511282  │ 0.182638 │ 0.0040839  │ 0.004774   
+│
+│ 12  │ σ₂               │ 0.465853   │ 0.11617  │ 0.00259765 │ 0.00488799 
+│
 
 Quantiles
-
-│ Row │ parameters │ 2.5%      │ 25.0%    │ 50.0%     │ 75.0%     │ 97.5%  
-  │
-│     │ Symbol     │ Float64   │ Float64  │ Float64   │ Float64   │ Float64
-  │
-├─────┼────────────┼───────────┼──────────┼───────────┼───────────┼────────
-──┤
-│ 1   │ balance    │ 1.20484   │ 1.57879  │ 1.77619   │ 1.9798    │ 2.41041
-  │
-│ 2   │ income     │ -0.782103 │ -0.36119 │ -0.135722 │ 0.0840768 │ 0.48844
-8 │
-│ 3   │ intercept  │ -5.01721  │ -4.39229 │ -4.08815  │ -3.81892  │ -3.3217
-8 │
-│ 4   │ student    │ -2.16432  │ -1.33493 │ -0.911954 │ -0.502552 │ 0.33238
-7 │
+. Omitted printing of 1 columns
+│ Row │ parameters       │ 2.5%      │ 25.0%       │ 50.0%      │ 75.0%    
+ │
+│     │ Symbol           │ Float64   │ Float64     │ Float64    │ Float64  
+ │
+├─────┼──────────────────┼───────────┼─────────────┼────────────┼──────────
+─┤
+│ 1   │ coefficients[1]  │ -0.504624 │ 0.12914     │ 0.423049   │ 0.678483 
+ │
+│ 2   │ coefficients[2]  │ -1.06901  │ -0.423824   │ -0.132534  │ 0.153955 
+ │
+│ 3   │ coefficients[3]  │ -1.06518  │ -0.367724   │ -0.0824292 │ 0.182855 
+ │
+│ 4   │ coefficients[4]  │ 0.0454532 │ 0.434371    │ 0.620299   │ 0.795896 
+ │
+│ 5   │ coefficients[5]  │ -0.835723 │ -0.252707   │ 0.0243348  │ 0.316249 
+ │
+│ 6   │ coefficients[6]  │ -0.493104 │ -0.115398   │ 0.080025   │ 0.268767 
+ │
+│ 7   │ coefficients[7]  │ -0.651514 │ -0.257678   │ -0.0700555 │ 0.0954144
+ │
+│ 8   │ coefficients[8]  │ -0.369457 │ -0.0378038  │ 0.133924   │ 0.296483 
+ │
+│ 9   │ coefficients[9]  │ -0.592153 │ -0.00703827 │ 0.265888   │ 0.56584  
+ │
+│ 10  │ coefficients[10] │ -1.75055  │ -1.09835    │ -0.832778  │ -0.578763
+ │
+│ 11  │ intercept        │ -0.302891 │ -0.0650322  │ 0.0531147  │ 0.161785 
+ │
+│ 12  │ σ₂               │ 0.300119  │ 0.383562    │ 0.445753   │ 0.526997 
+ │
 ````
 
 
@@ -272,7 +300,7 @@ end
 
 
 ````
-prediction (generic function with 2 methods)
+prediction (generic function with 1 method)
 ````
 
 
@@ -283,27 +311,7 @@ When we make predictions, we unstandardize them so they're more understandable. 
 ````julia
 # Calculate the predictions for the training and testing sets.
 train_cut.BayesPredictions = unstandardize(prediction(chain, train), data.MPG);
-````
-
-
-````
-Error: type NamedTuple has no field coefficients
-````
-
-
-
-````julia
 test_cut.BayesPredictions = unstandardize(prediction(chain, test), data.MPG);
-````
-
-
-````
-Error: type NamedTuple has no field coefficients
-````
-
-
-
-````julia
 
 # Unstandardize the dependent variable.
 train_cut.MPG = unstandardize(train_cut.MPG, data.MPG);
@@ -315,7 +323,7 @@ first(test_cut, 6)
 
 
 ````
-6×12 DataFrame. Omitted printing of 6 columns
+6×13 DataFrame. Omitted printing of 7 columns
 │ Row │ MPG     │ Cyl      │ Disp      │ HP        │ DRat      │ WT       │
 │     │ Float64 │ Float64  │ Float64   │ Float64   │ Float64   │ Float64  │
 ├─────┼─────────┼──────────┼───────────┼───────────┼───────────┼──────────┤
@@ -340,31 +348,9 @@ where $$y_i$$ is the actual value (true MPG) and $$\hat{y_i}$$ is the predicted 
 
 ````julia
 bayes_loss1 = sum((train_cut.BayesPredictions - train_cut.MPG).^2)
-````
-
-
-````
-Error: ArgumentError: column name :BayesPredictions not found in the data f
-rame
-````
-
-
-
-````julia
 ols_loss1 = sum((train_cut.OLSPrediction - train_cut.MPG).^2)
 
 bayes_loss2 = sum((test_cut.BayesPredictions - test_cut.MPG).^2)
-````
-
-
-````
-Error: ArgumentError: column name :BayesPredictions not found in the data f
-rame
-````
-
-
-
-````julia
 ols_loss2 = sum((test_cut.OLSPrediction - test_cut.MPG).^2)
 
 println("Training set:
@@ -377,7 +363,12 @@ Test set:
 
 
 ````
-Error: UndefVarError: bayes_loss1 not defined
+Training set:
+    Bayes loss: 67.58346459563484
+    OLS loss: 67.56037474764642
+Test set: 
+    Bayes loss: 275.9392016063293
+    OLS loss: 270.9481307076011
 ````
 
 

@@ -270,7 +270,7 @@ Next, we'll sample from our posterior using SMC.
 Random.seed!(2)
 iterations = 1000
 model_fun = infiniteGMM(data);
-chain = sample(model_fun, SMC(iterations));
+chain = sample(model_fun, SMC(), iterations);
 ````
 
 

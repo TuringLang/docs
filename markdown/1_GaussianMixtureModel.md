@@ -111,20 +111,6 @@ GaussianMixtureModel (generic function with 2 methods)
 After having specified the model in Turing, we can construct the model function and run a MCMC simulation to obtain assignments of the data points.
 
 ````julia
-# Set the automatic differentiation backend to forward differentiation.
-# Note, this is temporary while the reverse differentiation functionality
-# is being improved.
-Turing.setadbackend(:forward_diff)
-````
-
-
-````
-:forward_diff
-````
-
-
-
-````julia
 gmm_model = GaussianMixtureModel(x);
 ````
 
@@ -136,8 +122,8 @@ To draw observations from the posterior distribution, we use a [particle Gibbs](
 Note that we use a `Gibbs` sampler to combine both samplers for Bayesian inference in our model. We are also calling `mapreduce` to generate multiple chains, particularly so we test for convergence. The `chainscat` function simply adds multiple chains together.
 
 ````julia
-gmm_sampler = Gibbs(100, PG(100, 1, :k), HMC(1, 0.05, 10, :μ1, :μ2))
-tchain = mapreduce(c -> sample(gmm_model, gmm_sampler), chainscat, 1:3);
+gmm_sampler = Gibbs(PG(100, :k), HMC(0.05, 10, :μ1, :μ2))
+tchain = mapreduce(c -> sample(gmm_model, gmm_sampler, 100), chainscat, 1:3);
 ````
 
 
@@ -156,7 +142,7 @@ p=plot(tchain[:, ids, :], legend=true, labels = ["Mu 1" "Mu 2"], colordim=:param
 ````
 
 
-![](/tutorials/figures/1_GaussianMixtureModel_7_1.png)
+![](/tutorials/figures/1_GaussianMixtureModel_6_1.png)
 
 
 You'll note here that it appears the location means are switching between chains. We will address this in future tutorials. For those who are keenly interested, see [this](https://mc-stan.org/users/documentation/case-studies/identifying_mixture_models.html) article on potential solutions.
@@ -198,7 +184,7 @@ scatter!(x[1,:], x[2,:], legend = false, title = "Synthetic Dataset")
 ````
 
 
-![](/tutorials/figures/1_GaussianMixtureModel_10_1.png)
+![](/tutorials/figures/1_GaussianMixtureModel_9_1.png)
 
 
 ## Infered Assignments
@@ -215,4 +201,4 @@ scatter(x[1,:], x[2,:],
 ````
 
 
-![](/tutorials/figures/1_GaussianMixtureModel_11_1.png)
+![](/tutorials/figures/1_GaussianMixtureModel_10_1.png)

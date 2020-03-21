@@ -46,24 +46,15 @@ first(data, 6)
 
 ````
 6×12 DataFrame. Omitted printing of 6 columns
-│ Row │ Model             │ MPG      │ Cyl    │ Disp     │ HP     │ DRat   
-  │
-│     │ String⍰           │ Float64⍰ │ Int64⍰ │ Float64⍰ │ Int64⍰ │ Float64
-⍰ │
-├─────┼───────────────────┼──────────┼────────┼──────────┼────────┼────────
-──┤
-│ 1   │ Mazda RX4         │ 21.0     │ 6      │ 160.0    │ 110    │ 3.9    
-  │
-│ 2   │ Mazda RX4 Wag     │ 21.0     │ 6      │ 160.0    │ 110    │ 3.9    
-  │
-│ 3   │ Datsun 710        │ 22.8     │ 4      │ 108.0    │ 93     │ 3.85   
-  │
-│ 4   │ Hornet 4 Drive    │ 21.4     │ 6      │ 258.0    │ 110    │ 3.08   
-  │
-│ 5   │ Hornet Sportabout │ 18.7     │ 8      │ 360.0    │ 175    │ 3.15   
-  │
-│ 6   │ Valiant           │ 18.1     │ 6      │ 225.0    │ 105    │ 2.76   
-  │
+│ Row │ Model             │ MPG     │ Cyl   │ Disp    │ HP    │ DRat    │
+│     │ String            │ Float64 │ Int64 │ Float64 │ Int64 │ Float64 │
+├─────┼───────────────────┼─────────┼───────┼─────────┼───────┼─────────┤
+│ 1   │ Mazda RX4         │ 21.0    │ 6     │ 160.0   │ 110   │ 3.9     │
+│ 2   │ Mazda RX4 Wag     │ 21.0    │ 6     │ 160.0   │ 110   │ 3.9     │
+│ 3   │ Datsun 710        │ 22.8    │ 4     │ 108.0   │ 93    │ 3.85    │
+│ 4   │ Hornet 4 Drive    │ 21.4    │ 6     │ 258.0   │ 110   │ 3.08    │
+│ 5   │ Hornet Sportabout │ 18.7    │ 8     │ 360.0   │ 175   │ 3.15    │
+│ 6   │ Valiant           │ 18.1    │ 6     │ 225.0   │ 105   │ 2.76    │
 ````
 
 
@@ -87,30 +78,12 @@ The resulting data is not very familiar looking, but this standardization proces
 ````julia
 # Function to split samples.
 function split_data(df, at = 0.70)
-    (r, _) = size(df)
+    r = size(df,1)
     index = Int(round(r * at))
     train = df[1:index, :]
     test  = df[(index+1):end, :]
     return train, test
 end
-
-# Split our dataset 70%/30% into training/test sets.
-train, test = split_data(data, 0.7)
-
-# Save dataframe versions of our dataset.
-train_cut = DataFrame(train)
-test_cut = DataFrame(test)
-
-# Create our labels. These are the values we are trying to predict.
-train_label = train[:, :MPG]
-test_label = test[:, :MPG]
-
-# Get the list of columns to keep.
-remove_names = filter(x->!in(x, [:MPG, :Model]), names(data))
-
-# Filter the test and train sets.
-train = Matrix(train[:,remove_names]);
-test = Matrix(test[:,remove_names]);
 
 # A handy helper function to rescale our dataset.
 function standardize(x)
@@ -119,14 +92,32 @@ end
 
 # Another helper function to unstandardize our datasets.
 function unstandardize(x, orig)
-    return x .* std(orig, dims=1) .+ mean(orig, dims=1)
+    return (x .+ mean(orig, dims=1)) .* std(orig, dims=1)
 end
 
+# Remove the model column.
+select!(data, Not(:Model))
+
 # Standardize our dataset.
-(train, train_orig) = standardize(train)
-(test, test_orig) = standardize(test)
-(train_label, train_l_orig) = standardize(train_label)
-(test_label, test_l_orig) = standardize(test_label);
+(std_data, data_arr) = standardize(Matrix(data))
+
+# Split our dataset 70%/30% into training/test sets.
+train, test = split_data(std_data, 0.7)
+
+# Save dataframe versions of our dataset.
+train_cut = DataFrame(train, names(data))
+test_cut = DataFrame(test, names(data))
+
+# Create our labels. These are the values we are trying to predict.
+train_label = train_cut[:, :MPG]
+test_label = test_cut[:, :MPG]
+
+# Get the list of columns to keep.
+remove_names = filter(x->!in(x, [:MPG, :Model]), names(data))
+
+# Filter the test and train sets.
+train = Matrix(train_cut[:,remove_names]);
+test = Matrix(test_cut[:,remove_names]);
 ````
 
 
@@ -148,26 +139,27 @@ MPG_i \sim \mathcal{N}(\alpha + \boldsymbol{\beta}^T\boldsymbol{X_i}, \sigma^2)
 
 where $$\alpha$$ is an intercept term common to all observations, $$\boldsymbol{\beta}$$ is a coefficient vector, $$\boldsymbol{X_i}$$ is the observed data for car $$i$$, and $$\sigma^2$$ is a common variance term.
 
-For $$\sigma^2$$, we assign a prior of `TruncatedNormal(0,100,0,Inf)`. This is consistent with [Andrew Gelman's recommendations](http://www.stat.columbia.edu/~gelman/research/published/taumain.pdf) on noninformative priors for variance. The intercept term ($$\alpha$$) is assumed to be normally distributed with a mean of zero and a variance of three. This represents our assumptions that miles per gallon can be explained mostly by our assorted variables, but a high variance term indicates our uncertainty about that. Each coefficient is assumed to be normally distributed with a mean of zero and a variance of 10. We do not know that our coefficients are different from zero, and we don't know which ones are likely to be the most important, so the variance term is quite high. Lastly, each observation $$y_i$$ is distributed according to the calculated `mu` term given by $$\alpha + \boldsymbol{\beta}^T\boldsymbol{X_i}$$.
+For $$\sigma^2$$, we assign a prior of `TruncatedNormal(0,100,0,Inf)`. This is consistent with [Andrew Gelman's recommendations](http://www.stat.columbia.edu/~gelman/research/published/taumain.pdf) on noninformative priors for variance. The intercept term ($$\alpha$$) is assumed to be normally distributed with a mean of zero and a variance of three. This represents our assumptions that miles per gallon can be explained mostly by our assorted variables, but a high variance term indicates our uncertainty about that. Each coefficient is assumed to be normally distributed with a mean of zero and a variance of 10. We do not know that our coefficients are different from zero, and we don't know which ones are likely to be the most important, so the variance term is quite high. The syntax `::Type{T}=Vector{Float64}` allows us to maintain type stability in our model -- for more information, please review the [performance tips](https://turing.ml/dev/docs/using-turing/performancetips#make-your-model-type-stable). Lastly, each observation $$y_i$$ is distributed according to the calculated `mu` term given by $$\alpha + \boldsymbol{\beta}^T\boldsymbol{X_i}$$.
 
 ````julia
 # Bayesian linear regression.
-@model linear_regression(x, y, n_obs, n_vars) = begin
+@model linear_regression(x, y, n_obs, n_vars, ::Type{T}=Vector{Float64}) where {T} = begin
     # Set variance prior.
-    σ₂ ~ TruncatedNormal(0,100, 0, Inf)
+    σ₂ ~ truncated(Normal(0,100), 0, Inf)
     
     # Set intercept prior.
     intercept ~ Normal(0, 3)
     
     # Set the priors on our coefficients.
-    coefficients = Array{Real}(undef, n_vars)
-    coefficients ~ [Normal(0, 10)]
+    coefficients = T(undef, n_vars)
+    
+    for i in 1:n_vars
+        coefficients[i] ~ Normal(0, 10)
+    end
     
     # Calculate all the mu terms.
     mu = intercept .+ x * coefficients
-    for i = 1:n_obs
-        y[i] ~ Normal(mu[i], σ₂)
-    end
+    y ~ MvNormal(mu, σ₂)
 end;
 ````
 
@@ -179,16 +171,7 @@ With our model specified, we can call the sampler. We will use the No U-Turn Sam
 ````julia
 n_obs, n_vars = size(train)
 model = linear_regression(train, train_label, n_obs, n_vars)
-chain = sample(model, NUTS(1500, 200, 0.65));
-````
-
-
-````
-[NUTS] Finished with
-  Running time        = 28.76012935999999;
-  #lf / sample        = 0.0;
-  #evals / sample     = 0.0006666666666666666;
-  pre-cond. metric    = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0,....
+chain = sample(model, NUTS(0.65), 3000);
 ````
 
 
@@ -215,39 +198,37 @@ describe(chain)
 2-element Array{ChainDataFrame,1}
 
 Summary Statistics
-. Omitted printing of 1 columns
-│ Row │ parameters       │ mean       │ std       │ naive_se   │ mcse      
- │
-│     │ Symbol           │ Float64    │ Float64   │ Float64    │ Float64   
- │
-├─────┼──────────────────┼────────────┼───────────┼────────────┼───────────
-─┤
-│ 1   │ coefficients[1]  │ 0.374513   │ 0.44485   │ 0.011486   │ 0.0227265 
- │
-│ 2   │ coefficients[2]  │ -0.171117  │ 0.476053  │ 0.0122916  │ 0.0225355 
- │
-│ 3   │ coefficients[3]  │ -0.0681829 │ 0.356122  │ 0.00919503 │ 0.0163717 
- │
-│ 4   │ coefficients[4]  │ 0.66256    │ 0.33855   │ 0.00874132 │ 0.0141081 
- │
-│ 5   │ coefficients[5]  │ 0.0969497  │ 0.483806  │ 0.0124918  │ 0.0278113 
- │
-│ 6   │ coefficients[6]  │ 0.0400533  │ 0.272691  │ 0.00704085 │ 0.016834  
- │
-│ 7   │ coefficients[7]  │ -0.0995777 │ 0.295442  │ 0.00762827 │ 0.0135998 
- │
-│ 8   │ coefficients[8]  │ 0.10959    │ 0.313314  │ 0.00808972 │ 0.0171665 
- │
-│ 9   │ coefficients[9]  │ 0.200219   │ 0.329276  │ 0.00850186 │ 0.0116165 
- │
-│ 10  │ coefficients[10] │ -0.682739  │ 0.361389  │ 0.00933104 │ 0.0179951 
- │
-│ 11  │ intercept        │ 0.0108571  │ 0.170723  │ 0.00440804 │ 0.0106107 
- │
-│ 12  │ lf_eps           │ 0.0581085  │ 0.0402024 │ 0.00103802 │ 0.00132349
- │
-│ 13  │ σ₂               │ 0.484513   │ 0.492571  │ 0.0127181  │ 0.036488  
- │
+. Omitted printing of 2 columns
+│ Row │ parameters       │ mean       │ std      │ naive_se   │ mcse       
+│
+│     │ Symbol           │ Float64    │ Float64  │ Float64    │ Float64    
+│
+├─────┼──────────────────┼────────────┼──────────┼────────────┼────────────
+┤
+│ 1   │ coefficients[1]  │ 0.407842   │ 0.463861 │ 0.0103723  │ 0.0132011  
+│
+│ 2   │ coefficients[2]  │ -0.130214  │ 0.469199 │ 0.0104916  │ 0.0131803  
+│
+│ 3   │ coefficients[3]  │ -0.0982566 │ 0.450733 │ 0.0100787  │ 0.0140963  
+│
+│ 4   │ coefficients[4]  │ 0.620113   │ 0.289531 │ 0.00647411 │ 0.0080144  
+│
+│ 5   │ coefficients[5]  │ 0.0278808  │ 0.439534 │ 0.00982827 │ 0.0126099  
+│
+│ 6   │ coefficients[6]  │ 0.0787792  │ 0.299914 │ 0.00670628 │ 0.00853917 
+│
+│ 7   │ coefficients[7]  │ -0.0765938 │ 0.280072 │ 0.0062626  │ 0.00682248 
+│
+│ 8   │ coefficients[8]  │ 0.131162   │ 0.262825 │ 0.00587694 │ 0.00751492 
+│
+│ 9   │ coefficients[9]  │ 0.282055   │ 0.454028 │ 0.0101524  │ 0.0100279  
+│
+│ 10  │ coefficients[10] │ -0.842593  │ 0.440175 │ 0.0098426  │ 0.0147895  
+│
+│ 11  │ intercept        │ 0.0511282  │ 0.182638 │ 0.0040839  │ 0.004774   
+│
+│ 12  │ σ₂               │ 0.465853   │ 0.11617  │ 0.00259765 │ 0.00488799 
+│
 
 Quantiles
 . Omitted printing of 1 columns
@@ -257,31 +238,29 @@ Quantiles
  │
 ├─────┼──────────────────┼───────────┼─────────────┼────────────┼──────────
 ─┤
-│ 1   │ coefficients[1]  │ -0.497325 │ 0.106879    │ 0.367559   │ 0.650437 
+│ 1   │ coefficients[1]  │ -0.504624 │ 0.12914     │ 0.423049   │ 0.678483 
  │
-│ 2   │ coefficients[2]  │ -1.08863  │ -0.444431   │ -0.174282  │ 0.101657 
+│ 2   │ coefficients[2]  │ -1.06901  │ -0.423824   │ -0.132534  │ 0.153955 
  │
-│ 3   │ coefficients[3]  │ -0.808397 │ -0.294186   │ -0.0607567 │ 0.176866 
+│ 3   │ coefficients[3]  │ -1.06518  │ -0.367724   │ -0.0824292 │ 0.182855 
  │
-│ 4   │ coefficients[4]  │ 0.028891  │ 0.453163    │ 0.669321   │ 0.847996 
+│ 4   │ coefficients[4]  │ 0.0454532 │ 0.434371    │ 0.620299   │ 0.795896 
  │
-│ 5   │ coefficients[5]  │ -0.848829 │ -0.197623   │ 0.0904946  │ 0.384393 
+│ 5   │ coefficients[5]  │ -0.835723 │ -0.252707   │ 0.0243348  │ 0.316249 
  │
-│ 6   │ coefficients[6]  │ -0.495648 │ -0.128853   │ 0.0474724  │ 0.200374 
+│ 6   │ coefficients[6]  │ -0.493104 │ -0.115398   │ 0.080025   │ 0.268767 
  │
-│ 7   │ coefficients[7]  │ -0.662909 │ -0.268329   │ -0.109192  │ 0.0712903
+│ 7   │ coefficients[7]  │ -0.651514 │ -0.257678   │ -0.0700555 │ 0.0954144
  │
-│ 8   │ coefficients[8]  │ -0.421245 │ -0.053784   │ 0.105746   │ 0.24969  
+│ 8   │ coefficients[8]  │ -0.369457 │ -0.0378038  │ 0.133924   │ 0.296483 
  │
-│ 9   │ coefficients[9]  │ -0.438313 │ -0.00346737 │ 0.20142    │ 0.408158 
+│ 9   │ coefficients[9]  │ -0.592153 │ -0.00703827 │ 0.265888   │ 0.56584  
  │
-│ 10  │ coefficients[10] │ -1.38271  │ -0.88346    │ -0.679579  │ -0.460576
+│ 10  │ coefficients[10] │ -1.75055  │ -1.09835    │ -0.832778  │ -0.578763
  │
-│ 11  │ intercept        │ -0.192764 │ -0.0576108  │ 0.00142006 │ 0.0631787
+│ 11  │ intercept        │ -0.302891 │ -0.0650322  │ 0.0531147  │ 0.161785 
  │
-│ 12  │ lf_eps           │ 0.0233708 │ 0.0564162   │ 0.0564162  │ 0.0564162
- │
-│ 13  │ σ₂               │ 0.293726  │ 0.369497    │ 0.435216   │ 0.508814 
+│ 12  │ σ₂               │ 0.300119  │ 0.383562    │ 0.445753   │ 0.526997 
  │
 ````
 
@@ -300,8 +279,8 @@ using GLM
 ols = lm(@formula(MPG ~ Cyl + Disp + HP + DRat + WT + QSec + VS + AM + Gear + Carb), train_cut)
 
 # Store our predictions in the original dataframe.
-train_cut.OLSPrediction = GLM.predict(ols);
-test_cut.OLSPrediction = GLM.predict(ols, test_cut);
+train_cut.OLSPrediction = unstandardize(GLM.predict(ols), data.MPG);
+test_cut.OLSPrediction = unstandardize(GLM.predict(ols, test_cut), data.MPG);
 ````
 
 
@@ -321,7 +300,7 @@ end
 
 
 ````
-prediction (generic function with 2 methods)
+prediction (generic function with 1 method)
 ````
 
 
@@ -331,8 +310,12 @@ When we make predictions, we unstandardize them so they're more understandable. 
 
 ````julia
 # Calculate the predictions for the training and testing sets.
-train_cut.BayesPredictions = unstandardize(prediction(chain, train), train_l_orig);
-test_cut.BayesPredictions = unstandardize(prediction(chain, test), test_l_orig);
+train_cut.BayesPredictions = unstandardize(prediction(chain, train), data.MPG);
+test_cut.BayesPredictions = unstandardize(prediction(chain, test), data.MPG);
+
+# Unstandardize the dependent variable.
+train_cut.MPG = unstandardize(train_cut.MPG, data.MPG);
+test_cut.MPG = unstandardize(test_cut.MPG, data.MPG);
 
 # Show the first side rows of the modified dataframe.
 first(test_cut, 6)
@@ -340,25 +323,16 @@ first(test_cut, 6)
 
 
 ````
-6×14 DataFrame. Omitted printing of 8 columns
-│ Row │ Model            │ MPG      │ Cyl    │ Disp     │ HP     │ DRat    
- │
-│     │ String⍰          │ Float64⍰ │ Int64⍰ │ Float64⍰ │ Int64⍰ │ Float64⍰
- │
-├─────┼──────────────────┼──────────┼────────┼──────────┼────────┼─────────
-─┤
-│ 1   │ AMC Javelin      │ 15.2     │ 8      │ 304.0    │ 150    │ 3.15    
- │
-│ 2   │ Camaro Z28       │ 13.3     │ 8      │ 350.0    │ 245    │ 3.73    
- │
-│ 3   │ Pontiac Firebird │ 19.2     │ 8      │ 400.0    │ 175    │ 3.08    
- │
-│ 4   │ Fiat X1-9        │ 27.3     │ 4      │ 79.0     │ 66     │ 4.08    
- │
-│ 5   │ Porsche 914-2    │ 26.0     │ 4      │ 120.3    │ 91     │ 4.43    
- │
-│ 6   │ Lotus Europa     │ 30.4     │ 4      │ 95.1     │ 113    │ 3.77    
- │
+6×13 DataFrame. Omitted printing of 7 columns
+│ Row │ MPG     │ Cyl      │ Disp      │ HP        │ DRat      │ WT       │
+│     │ Float64 │ Float64  │ Float64   │ Float64   │ Float64   │ Float64  │
+├─────┼─────────┼──────────┼───────────┼───────────┼───────────┼──────────┤
+│ 1   │ 116.195 │ 1.01488  │ 0.591245  │ 0.0483133 │ -0.835198 │ 0.222544 │
+│ 2   │ 114.295 │ 1.01488  │ 0.962396  │ 1.4339    │ 0.249566  │ 0.636461 │
+│ 3   │ 120.195 │ 1.01488  │ 1.36582   │ 0.412942  │ -0.966118 │ 0.641571 │
+│ 4   │ 128.295 │ -1.22486 │ -1.22417  │ -1.17684  │ 0.904164  │ -1.31048 │
+│ 5   │ 126.995 │ -1.22486 │ -0.890939 │ -0.812211 │ 1.55876   │ -1.10097 │
+│ 6   │ 131.395 │ -1.22486 │ -1.09427  │ -0.491337 │ 0.324377  │ -1.74177 │
 ````
 
 
@@ -390,11 +364,11 @@ Test set:
 
 ````
 Training set:
-    Bayes loss: 68.00979321046889
-    OLS loss: 67.56037474764624
+    Bayes loss: 67.58346459563484
+    OLS loss: 67.56037474764642
 Test set: 
-    Bayes loss: 242.57948201282844
-    OLS loss: 270.94813070761944
+    Bayes loss: 275.9392016063293
+    OLS loss: 270.9481307076011
 ````
 
 

@@ -7,7 +7,7 @@ permalink: /:collection/:name/
 
 In this post we'll have a look at what's know as **variational inference (VI)**, a family of _approximate_ Bayesian inference methods, and how to use it in Turing.jl as an alternative to other approaches such as MCMC. In particular, we will focus on one of the more standard VI methods called **Automatic Differentation Variational Inference (ADVI)**.
 
-Here we will focus on how to use VI in Turing and not much on the theory underlying VI. If you're interested in understanding the mathematics you can checkout [our write-up](../../for-developers/variational_inference) or any other resource online (there a lot of great ones).
+Here we will focus on how to use VI in Turing and not much on the theory underlying VI. If you're interested in understanding the mathematics you can checkout [our write-up](../../docs/for-developers/variational_inference) or any other resource online (there a lot of great ones).
 
 
 Using VI in Turing.jl is very straight forward. If `model` denotes a definition of a `Turing.Model`, performing VI is as simple as
@@ -71,7 +71,7 @@ end
 
 
 ````
-##model#2039 (generic function with 2 methods)
+##model#2317 (generic function with 2 methods)
 ````
 
 

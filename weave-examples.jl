@@ -1,4 +1,5 @@
 using Documenter, Turing
+using Plots
 using LibGit2: clone
 using Weave
 

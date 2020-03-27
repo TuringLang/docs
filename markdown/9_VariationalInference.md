@@ -38,13 +38,11 @@ Random.seed!(42);
 
 The Normal-(Inverse)Gamma conjugate model is defined by the following generative process
 
-\begin{equation*}
-\begin{split}
+\begin{align*}
     s &\sim \mathrm{InverseGamma}(2, 3) \\
     m &\sim \mathcal{N}(0, s) \\
     x_i &\overset{\text{i.i.d.}}{=} \mathcal{N}(m, s), \quad i = 1, \dots, n
-\end{split}
-\end{equation*}
+\end{align*}
 
 Recall that *conjugate* refers to the fact that we can obtain a closed-form expression for the posterior. Of course one wouldn't use something like variational inference for a conjugate model, but it's useful as a simple demonstration as we can compare the result to the true posterior.
 
@@ -73,7 +71,7 @@ end
 
 
 ````
-##model#344 (generic function with 2 methods)
+##model#927 (generic function with 2 methods)
 ````
 
 
@@ -102,26 +100,34 @@ samples_nuts = sample(m, NUTS(200, 0.65), 10000);
 Now let's try VI. The most important function you need to now about to do VI in Turing is `vi`:
 
 ````julia
-@doc Variational.vi
+print(@doc(Variational.vi))
 ````
 
 
-
+````
 ```
 vi(model, alg::VariationalInference)
 vi(model, alg::VariationalInference, q::VariationalPosterior)
 vi(model, alg::VariationalInference, getq::Function, θ::AbstractArray)
 ```
 
-Constructs the variational posterior from the `model` and performs the optimization following the configuration of the given `VariationalInference` instance.
+Constructs the variational posterior from the `model` and performs the opti
+mization following the configuration of the given `VariationalInference` in
+stance.
 
 # Arguments
 
-  * `model`: `Turing.Model` or `Function` z ↦ log p(x, z) where `x` denotes the observations
+  * `model`: `Turing.Model` or `Function` z ↦ log p(x, z) where `x` denotes
+ the observations
   * `alg`: the VI algorithm used
-  * `q`: a `VariationalPosterior` for which it is assumed a specialized implementation of the variational objective used exists.
-  * `getq`: function taking parameters `θ` as input and returns a `VariationalPosterior`
-  * `θ`: only required if `getq` is used, in which case it is the initial parameters for the variational posterior
+  * `q`: a `VariationalPosterior` for which it is assumed a specialized imp
+lementation of the variational objective used exists.
+  * `getq`: function taking parameters `θ` as input and returns a `Variatio
+nalPosterior`
+  * `θ`: only required if `getq` is used, in which case it is the initial p
+arameters for the variational posterior
+````
+
 
 
 
@@ -134,33 +140,37 @@ Additionally, you can pass
 By default, i.e. when calling `vi(m, advi)`, Turing use a *mean-field* approximation with a multivariate normal as the base-distribution. Mean-field refers to the fact that we assume all the latent variables to be *independent*. This the "standard" ADVI approach; see [Automatic Differentiation Variational Inference (2016)](https://arxiv.org/abs/1603.00788) for more. In Turing, one can obtain such a mean-field approximation by calling `Variational.meanfield(model)` for which there exists an internal implementation for `update`:
 
 ````julia
-@doc Variational.meanfield
+print(@doc(Variational.meanfield))
 ````
 
 
-
+````
 ```
 meanfield(model::Model)
 meanfield(rng::AbstractRNG, model::Model)
 ```
 
-Creates a mean-field approximation with multivariate normal as underlying distribution.
+Creates a mean-field approximation with multivariate normal as underlying d
+istribution.
+````
+
 
 
 
 Currently the only implementation of `VariationalInference` available is `ADVI`, which is very convenient and applicable as long as your `Model` is differentiable with respect to the *variational parameters*, that is, the parameters of your variational distribution, e.g. mean and variance in the mean-field approximation.
 
 ````julia
-@doc Variational.ADVI
+print(@doc(Variational.ADVI))
 ````
 
 
-
+````
 ```julia
 struct ADVI{AD} <: Turing.Variational.VariationalInference{AD}
 ```
 
-Automatic Differentiation Variational Inference (ADVI) with automatic differentiation backend `AD`.
+Automatic Differentiation Variational Inference (ADVI) with automatic diffe
+rentiation backend `AD`.
 
 # Fields
 
@@ -175,7 +185,10 @@ Automatic Differentiation Variational Inference (ADVI) with automatic differenti
 ADVI([samples_per_step=1, max_iters=1000])
 ```
 
-Create an [`ADVI`](@ref) with the currently enabled automatic differentiation backend `ADBackend()`.
+Create an [`ADVI`](@ref) with the currently enabled automatic differentiati
+on backend `ADBackend()`.
+````
+
 
 
 
@@ -535,10 +548,9 @@ typeof(q0)
 
 
 ````
-Bijectors.TransformedDistribution{DistributionsAD.TuringDiagMvNormal{Array{
-Float64,1},Array{Float64,1}},Bijectors.Stacked{Tuple{Bijectors.Inverse{Bije
-ctors.TruncatedBijector{Float64},0},Bijectors.Identity{0},Bijectors.Identit
-y{1}},3},Multivariate}
+TransformedDistribution{DistributionsAD.TuringDiagMvNormal{Array{Float64,1}
+,Array{Float64,1}},Stacked{Tuple{Inverse{Bijectors.TruncatedBijector{Float6
+4},0},Identity{0},Identity{1}},3},Multivariate}
 ````
 
 
@@ -589,10 +601,9 @@ typeof(q)
 
 
 ````
-Bijectors.TransformedDistribution{DistributionsAD.TuringDiagMvNormal{Array{
-Float64,1},Array{Float64,1}},Bijectors.Stacked{Tuple{Bijectors.Inverse{Bije
-ctors.TruncatedBijector{Float64},0},Bijectors.Identity{0},Bijectors.Identit
-y{1}},3},Multivariate}
+TransformedDistribution{DistributionsAD.TuringDiagMvNormal{Array{Float64,1}
+,Array{Float64,1}},Stacked{Tuple{Inverse{Bijectors.TruncatedBijector{Float6
+4},0},Identity{0},Identity{1}},3},Multivariate}
 ````
 
 

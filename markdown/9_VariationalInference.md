@@ -38,11 +38,13 @@ Random.seed!(42);
 
 The Normal-(Inverse)Gamma conjugate model is defined by the following generative process
 
+\$\$
 \begin{align}
     s &\sim \mathrm{InverseGamma}(2, 3) \\
     m &\sim \mathcal{N}(0, s) \\
     x_i &\overset{\text{i.i.d.}}{=} \mathcal{N}(m, s), \quad i = 1, \dots, n
 \end{align}
+\$\$
 
 Recall that *conjugate* refers to the fact that we can obtain a closed-form expression for the posterior. Of course one wouldn't use something like variational inference for a conjugate model, but it's useful as a simple demonstration as we can compare the result to the true posterior.
 

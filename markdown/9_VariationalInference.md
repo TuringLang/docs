@@ -38,11 +38,11 @@ Random.seed!(42);
 
 The Normal-(Inverse)Gamma conjugate model is defined by the following generative process
 
-\begin{align*}
+\begin{align}
     s &\sim \mathrm{InverseGamma}(2, 3) \\
     m &\sim \mathcal{N}(0, s) \\
     x_i &\overset{\text{i.i.d.}}{=} \mathcal{N}(m, s), \quad i = 1, \dots, n
-\end{align*}
+\end{align}
 
 Recall that *conjugate* refers to the fact that we can obtain a closed-form expression for the posterior. Of course one wouldn't use something like variational inference for a conjugate model, but it's useful as a simple demonstration as we can compare the result to the true posterior.
 
@@ -71,7 +71,7 @@ end
 
 
 ````
-##model#927 (generic function with 2 methods)
+##model#1483 (generic function with 2 methods)
 ````
 
 
@@ -1006,7 +1006,7 @@ title!("MCMC (NUTS)")
 Indeed we see that the MCMC approach generally provides better uncertainty estimates than the mean-field ADVI approach! Good. So all the work we've done to make MCMC fast isn't for nothing.
 
 
-## Alternative: provide $$\theta \mapsto q_{\theta}$$ instead of `q` with`update` implemented
+## Alternative: provide parameter-to-distribution instead of `q` with`update` implemented
 
 
 As mentioned earlier, it's also possible to just provide the mapping $$\theta \mapsto q_{\theta}$$ rather than the variational family / initial variational posterior `q`, i.e. use the interface `vi(m, advi, getq, θ_init)` where `getq` is the mapping $$\theta \mapsto q_{\theta}$$

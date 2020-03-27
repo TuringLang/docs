@@ -40,8 +40,8 @@ The Normal-(Inverse)Gamma conjugate model is defined by the following generative
 
 \$\$
 \begin{align}
-    s &\sim \mathrm{InverseGamma}(2, 3) \\\\
-    m &\sim \mathcal{N}(0, s) \\\\
+    s &\sim \mathrm{InverseGamma}(2, 3) \\\\\\\\
+    m &\sim \mathcal{N}(0, s) \\\\\\\\
     x_i &\overset{\text{i.i.d.}}{=} \mathcal{N}(m, s), \quad i = 1, \dots, n
 \end{align}
 \$\$

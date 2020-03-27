@@ -1,4 +1,5 @@
 using Documenter, Turing
+using Plots
 using LibGit2: clone
 using Weave
 
@@ -74,10 +75,13 @@ try
 
             if mtime(out_path) < mtime(full_path)
                 @warn "Weaving $full_path as it has been updated since the least weave."
-                Weave.weave(full_path,
+                Weave.weave(
+                    full_path,
                     doctype = "github",
                     out_path = out_path,
-                    mod = Main)
+                    mod = Main,
+                    throw_errors = true
+                )
 
                 polish_latex(out_path)
                 add_yaml(out_path)

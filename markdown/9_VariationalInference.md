@@ -7,7 +7,7 @@ permalink: /:collection/:name/
 
 In this post we'll have a look at what's know as **variational inference (VI)**, a family of _approximate_ Bayesian inference methods, and how to use it in Turing.jl as an alternative to other approaches such as MCMC. In particular, we will focus on one of the more standard VI methods called **Automatic Differentation Variational Inference (ADVI)**.
 
-Here we will focus on how to use VI in Turing and not much on the theory underlying VI. If you're interested in understanding the mathematics you can checkout [our write-up](../for-developers/variational_inference) or any other resource online (there a lot of great ones).
+Here we will focus on how to use VI in Turing and not much on the theory underlying VI. If you're interested in understanding the mathematics you can checkout [our write-up](../../for-developers/variational_inference) or any other resource online (there a lot of great ones).
 
 
 Using VI in Turing.jl is very straight forward. If `model` denotes a definition of a `Turing.Model`, performing VI is as simple as
@@ -17,7 +17,7 @@ q = vi(m, vi_alg)  # perform VI on `m` using the VI method `vi_alg`, which retur
 ```
 Thus it's no more work than standard MCMC sampling in Turing.
 
-To get a bit more into what we can do with `vi`, we'll first have a look at a simple example and then we'll reproduce the [tutorial on Bayesian linear regression](../tutorials/5-linearregression) using VI instead of MCMC. Finally we'll look at some of the different parameters of `vi` and how you for example can use your own custom variational family.
+To get a bit more into what we can do with `vi`, we'll first have a look at a simple example and then we'll reproduce the [tutorial on Bayesian linear regression](../../tutorials/5-linearregression) using VI instead of MCMC. Finally we'll look at some of the different parameters of `vi` and how you for example can use your own custom variational family.
 
 
 ## Setup
@@ -38,13 +38,11 @@ Random.seed!(42);
 
 The Normal-(Inverse)Gamma conjugate model is defined by the following generative process
 
-\$\$
 \begin{align}
     s &\sim \mathrm{InverseGamma}(2, 3) \\\\\\\\
     m &\sim \mathcal{N}(0, s) \\\\\\\\
     x_i &\overset{\text{i.i.d.}}{=} \mathcal{N}(m, s), \quad i = 1, \dots, n
 \end{align}
-\$\$
 
 Recall that *conjugate* refers to the fact that we can obtain a closed-form expression for the posterior. Of course one wouldn't use something like variational inference for a conjugate model, but it's useful as a simple demonstration as we can compare the result to the true posterior.
 
@@ -73,7 +71,7 @@ end
 
 
 ````
-##model#1483 (generic function with 2 methods)
+##model#2039 (generic function with 2 methods)
 ````
 
 
@@ -404,15 +402,15 @@ p = plot(p1, p2; layout=(2, 1), size=(900, 500))
 # Bayesian linear regression example using `ADVI`
 
 
-This is simply a duplication of the tutorial [5. Linear regression](../tutorials/5-linearregression) but now with the addition of an approximate posterior obtained using `ADVI`.
+This is simply a duplication of the tutorial [5. Linear regression](../../tutorials/5-linearregression) but now with the addition of an approximate posterior obtained using `ADVI`.
 
 As we'll see, there is really no additional work required to apply variational inference to a more complex `Model`.
 
 
-## Copy-paste from [5. Linear regression](../tutorials/5-linearregression)
+## Copy-paste from [5. Linear regression](../../tutorials/5-linearregression)
 
 
-This section is basically copy-pasting the code from the [linear regression tutorial](../tutorials/5-linearregression).
+This section is basically copy-pasting the code from the [linear regression tutorial](../../tutorials/5-linearregression).
 
 ````julia
 Random.seed!(1);

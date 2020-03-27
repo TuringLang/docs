@@ -17,7 +17,7 @@ q = vi(m, vi_alg)  # perform VI on `m` using the VI method `vi_alg`, which retur
 ```
 Thus it's no more work than standard MCMC sampling in Turing.
 
-To get a bit more into what we can do with `vi`, we'll first have a look at a simple example and then we'll reproduce the [tutorial on Bayesian linear regression](5-linearregression) using VI instead of MCMC. Finally we'll look at some of the different parameters of `vi` and how you for example can use your own custom variational family.
+To get a bit more into what we can do with `vi`, we'll first have a look at a simple example and then we'll reproduce the [tutorial on Bayesian linear regression](../tutorials/5-linearregression) using VI instead of MCMC. Finally we'll look at some of the different parameters of `vi` and how you for example can use your own custom variational family.
 
 
 ## Setup
@@ -42,7 +42,7 @@ The Normal-(Inverse)Gamma conjugate model is defined by the following generative
 \begin{split}
     s &\sim \mathrm{InverseGamma}(2, 3) \\
     m &\sim \mathcal{N}(0, s) \\
-    x\_i &\overset{\text{i.i.d.}}{=} \mathcal{N}(m, s), \quad i = 1, \dots, n
+    x_i &\overset{\text{i.i.d.}}{=} \mathcal{N}(m, s), \quad i = 1, \dots, n
 \end{split}
 \end{equation*}
 
@@ -171,8 +171,6 @@ Automatic Differentiation Variational Inference (ADVI) with automatic differenti
 
     Maximum number of gradient steps.
 
----
-
 ```
 ADVI([samples_per_step=1, max_iters=1000])
 ```
@@ -278,7 +276,13 @@ samples = rand(q, 10000);
 
 ````julia
 # setup for plotting
-using Plots, StatsPlots, LaTeXStrings
+using Plots, LaTeXStrings, StatsPlots
+pyplot()
+````
+
+
+````
+Plots.PyPlotBackend()
 ````
 
 
@@ -385,15 +389,15 @@ p = plot(p1, p2; layout=(2, 1), size=(900, 500))
 # Bayesian linear regression example using `ADVI`
 
 
-This is simply a duplication of the tutorial [5. Linear regression](5-linearregression) but now with the addition of an approximate posterior obtained using `ADVI`.
+This is simply a duplication of the tutorial [5. Linear regression](../tutorials/5-linearregression) but now with the addition of an approximate posterior obtained using `ADVI`.
 
 As we'll see, there is really no additional work required to apply variational inference to a more complex `Model`.
 
 
-## Copy-paste from [5. Linear regression](5-linearregression)
+## Copy-paste from [5. Linear regression](../tutorials/5-linearregression)
 
 
-This section is basically copy-pasting the code from the [linear regression tutorial](5-linearregression).
+This section is basically copy-pasting the code from the [linear regression tutorial](../tutorials/5-linearregression).
 
 ````julia
 Random.seed!(1);
@@ -1287,3 +1291,6 @@ plot(p1, p2, p3, layout = (1, 3), size = (900, 250), label="")
 
 
 Here we actually see that indeed both the full ADVI and the MCMC approaches does a much better job of quantifying the uncertainty of predictions for never-before-seen samples, with full ADVI seemingly *overestimating* the variance slightly compared to MCMC.
+
+
+So now you know how to do perform VI on your Turing.jl model! Great isn't it?

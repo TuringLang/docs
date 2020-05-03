@@ -2,12 +2,12 @@
 title: Bayesian Hidden Markov Models
 permalink: /:collection/:name/
 ---
-
 This tutorial illustrates training Bayesian [Hidden Markov Models](https://en.wikipedia.org/wiki/Hidden_Markov_model) (HMM) using Turing. The main goals are learning the transition matrix, emission parameter, and hidden states. For a more rigorous academic overview on Hidden Markov Models, see [An introduction to Hidden Markov Models and Bayesian Networks](http://mlg.eng.cam.ac.uk/zoubin/papers/ijprai.pdf) (Ghahramani, 2001).
 
 Let's load the libraries we'll need. We also set a random seed (for reproducibility) and the automatic differentiation backend to forward mode (more [here](http://turing.ml/docs/autodiff/) on why this is useful).
 
-````julia
+
+```julia
 # Load libraries.
 using Turing, Plots, Random
 
@@ -16,26 +16,31 @@ Turing.turnprogress(false);
 
 # Set a random seed and use the forward_diff AD mode.
 Random.seed!(1234);
-````
+```
 
-
+    ┌ Info: [Turing]: progress logging is disabled globally
+    └ @ Turing /home/cameron/.julia/packages/Turing/cReBm/src/Turing.jl:22
 
 
 ## Simple State Detection
 
 In this example, we'll use something where the states and emission parameters are straightforward.
 
-````julia
+
+```julia
 # Define the emission parameter.
 y = [ 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0, 2.0, 2.0, 2.0, 1.0, 1.0 ];
 N = length(y);  K = 3;
 
 # Plot the data we just made.
 plot(y, xlim = (0,15), ylim = (-1,5), size = (500, 250))
-````
+```
 
 
-![](/tutorials/figures/4_BayesHmm_2_1.png)
+
+
+![svg](4_BayesHmm_files/4_BayesHmm_3_0.svg)
+
 
 
 We can see that we have three states, one for each height of the plot (1, 2, 3). This height is also our emission parameter, so state one produces a value of one, state two produces a value of two, and so on.
@@ -56,7 +61,8 @@ Simply put, this says that we expect state one to emit values in a Normally dist
 
 The priors on our transition matrix are noninformative, using `T[i] ~ Dirichlet(ones(K)/K)`. The Dirichlet prior used in this way assumes that the state is likely to change to any other state with equal probability. As we'll see, this transition matrix prior will be overwritten as we observe data.
 
-````julia
+
+```julia
 # Turing model definition.
 @model BayesHmm(y, K) = begin
     # Get observation length.
@@ -88,10 +94,7 @@ The priors on our transition matrix are noninformative, using `T[i] ~ Dirichlet(
         y[i] ~ Normal(m[s[i]], 0.1)
     end
 end;
-````
-
-
-
+```
 
 We will use a combination of two samplers ([HMC](http://turing.ml/docs/library/#Turing.HMC) and [Particle Gibbs](http://turing.ml/docs/library/#Turing.PG)) by passing them to the [Gibbs](http://turing.ml/docs/library/#Turing.Gibbs) sampler. The Gibbs sampler allows for compositional inference, where we can utilize different samplers on different parameters.
 
@@ -101,70 +104,27 @@ The parameter `s` is not a continuous variable. It is a vector of **integers**, 
 
 Time to run our sampler.
 
-````julia
+
+```julia
 g = Gibbs(HMC(0.001, 7, :m, :T), PG(20, :s))
 c = sample(BayesHmm(y, 3), g, 100);
-````
-
-
-````
-Error: MethodError: no method matching Float64(::Tracker.TrackedReal{Float6
-4})
-Closest candidates are:
-  Float64(::Real, !Matched::RoundingMode) where T<:AbstractFloat at roundin
-g.jl:185
-  Float64(::T<:Number) where T<:Number at boot.jl:725
-  Float64(!Matched::Int8) at float.jl:60
-  ...
-````
-
-
-
+```
 
 Let's see how well our chain performed. Ordinarily, using the `describe` function from [MCMCChain](https://github.com/TuringLang/MCMCChain.jl) would be a good first step, but we have generated a lot of parameters here (`s[1]`, `s[2]`, `m[1]`, and so on). It's a bit easier to show how our model performed graphically.
 
 The code below generates an animation showing the graph of the data above, and the data our model generates in each sample.
 
-````julia
+
+```julia
 # Import StatsPlots for animating purposes.
 using StatsPlots
 
 # Extract our m and s parameters from the chain.
 m_set = c[:m].value.data
-````
-
-
-````
-Error: UndefVarError: c not defined
-````
-
-
-
-````julia
 s_set = c[:s].value.data
-````
-
-
-````
-Error: UndefVarError: c not defined
-````
-
-
-
-````julia
 
 # Iterate through the MCMC samples.
 Ns = 1:length(c)
-````
-
-
-````
-Error: UndefVarError: c not defined
-````
-
-
-
-````julia
 
 # Make an animation.
 animation = @animate for i in Ns
@@ -181,33 +141,16 @@ animation = @animate for i in Ns
         ylim = (-1,5));
     plot!(emissions, color = :blue, label = "Sample $$N")
 end every 10;
-````
-
-
-````
-Error: UndefVarError: Ns not defined
-````
-
-
-
+```
 
 ![animation](https://user-images.githubusercontent.com/422990/50612436-de588980-0e8e-11e9-8635-4e3e97c0d7f9.gif)
 
 Looks like our model did a pretty good job, but we should also check to make sure our chain converges. A quick check is to examine whether the diagonal (representing the probability of remaining in the current state) of the transition matrix appears to be stationary. The code below extracts the diagonal and shows a traceplot of each persistence probability.
 
-````julia
+
+```julia
 # Index the chain with the persistence probabilities.
 subchain = c[:,["T[$$i][$$i]" for i in 1:K],:]
-````
-
-
-````
-Error: UndefVarError: c not defined
-````
-
-
-
-````julia
 
 # Plot the chain.
 plot(subchain, 
@@ -216,26 +159,38 @@ plot(subchain,
     title = "Persistence Probability",
     legend=:right
     )
-````
+```
 
 
-````
-Error: UndefVarError: subchain not defined
-````
 
+
+![svg](4_BayesHmm_files/4_BayesHmm_11_0.svg)
 
 
 
 A cursory examination of the traceplot above indicates that at least `T[3,3]` and possibly `T[2,2]` have converged to something resembling stationary. `T[1,1]`, on the other hand, has a slight "wobble", and seems less consistent than the others. We can use the diagnostic functions provided by [MCMCChain](https://github.com/TuringLang/MCMCChain.jl) to engage in some formal tests, like the Heidelberg and Welch diagnostic:
 
-````julia
+
+```julia
 heideldiag(c[:T])
-````
+```
 
 
-````
-Error: UndefVarError: c not defined
-````
+
+
+    1-element Array{ChainDataFrame{NamedTuple{(:parameters, Symbol("Burn-in"), :Stationarity, Symbol("p-value"), :Mean, :Halfwidth, :Test),Tuple{Array{String,1},Array{Float64,1},Array{Float64,1},Array{Float64,1},Array{Float64,1},Array{Float64,1},Array{Float64,1}}}},1}:
+     Heidelberger and Welch Diagnostic - Chain 1
+      parameters  Burn-in  Stationarity  p-value    Mean  Halfwidth    Test
+      ──────────  ───────  ────────────  ───────  ──────  ─────────  ──────
+         T[1][1]  50.0000        0.0000   0.0001  0.5329     0.0063  1.0000
+         T[1][2]  50.0000        0.0000   0.0189  0.1291     0.0043  1.0000
+         T[1][3]  50.0000        0.0000   0.0230  0.3381     0.0032  1.0000
+         T[2][1]  30.0000        1.0000   0.2757  0.0037     0.0000  1.0000
+         T[2][2]   0.0000        1.0000   0.1689  0.0707     0.0022  1.0000
+         T[2][3]   0.0000        1.0000   0.1365  0.9255     0.0022  1.0000
+         T[3][1]  50.0000        0.0000   0.0454  0.4177     0.0147  1.0000
+         T[3][2]  40.0000        1.0000   0.0909  0.2549     0.0080  1.0000
+         T[3][3]  50.0000        0.0000   0.0098  0.3274     0.0067  1.0000
 
 
 

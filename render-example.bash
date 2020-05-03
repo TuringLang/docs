@@ -49,7 +49,7 @@ for filename in *.ipynb; do
             # We had an error code -- terminate early.
             # Note: Remove this line if you want to run all the notebooks and ignore
             #       any errors that might appear.
-            echo "Error converting notebooks."
+            echo "Error converting $filename"
 
             # Return the error code we got.
             # exit $retVal
@@ -58,7 +58,6 @@ for filename in *.ipynb; do
             env/bin/jupyter-nbconvert "$filename" --to markdown --output-dir="markdown"
         fi
     fi
-
 done
 
 # exit 0

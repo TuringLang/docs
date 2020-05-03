@@ -94,3 +94,33 @@ catch e
     println("Weaving error: $e")
     rethrow(e)
 end
+
+try 
+    for file in readdir(@__DIR__)
+        if endswith(file, ".ipynb") || endswith(file, ".jmd")
+            out_name = split(file, ".")[1] * ".md"
+            out_path = joinpath(markdown_path, out_name)
+
+            full_path = joinpath(@__DIR__, file)
+
+            if mtime(out_path) < mtime(full_path)
+                @warn "Weaving $full_path as it has been updated since the least weave."
+                Weave.weave(
+                    full_path,
+                    doctype = "github",
+                    out_path = out_path,
+                    mod = Main,
+                    throw_errors = true
+                )
+
+                polish_latex(out_path)
+                add_yaml(out_path)
+            else
+                @warn "Skipping $full_path as it has not been updated."
+            end
+        end
+    end
+catch e
+    println("Weaving error: $e")
+    rethrow(e)
+end

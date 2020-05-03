@@ -1,15 +1,11 @@
----
-title: Unsupervised Learning using Bayesian Mixture Models
-permalink: /:collection/:name/
----
-
-
+# Unsupervised Learning using Bayesian Mixture Models
 
 The following tutorial illustrates the use *Turing* for clustering data using a Bayesian mixture model. The aim of this task is to infer a latent grouping (hidden structure) from unlabelled data.
 
-More specifically, we are interested in discovering the grouping illustrated in figure below. This example consists of 2-D data points, i.e. $$\boldsymbol{x} = \{x_i\}_{i=1}^N \,, x_i \in \mathcal{R}^2$$, which are distributed according to Gaussian distributions. For simplicity, we use isotropic Gaussian distributions but this assumption can easily be relaxed by introducing additional parameters. 
+More specifically, we are interested in discovering the grouping illustrated in figure below. This example consists of 2-D data points, i.e. $\boldsymbol{x} = \{x_i\}_{i=1}^N \,, x_i \in \mathcal{R}^2$, which are distributed according to Gaussian distributions. For simplicity, we use isotropic Gaussian distributions but this assumption can easily be relaxed by introducing additional parameters. 
 
-````julia
+
+```julia
 using Distributions, StatsPlots, Random
 
 # Set a random seed.
@@ -26,57 +22,65 @@ x = mapreduce(c -> rand(MvNormal([μs[c], μs[c]], 1.), N), hcat, 1:2)
 
 # Visualization.
 scatter(x[1,:], x[2,:], legend = false, title = "Synthetic Dataset")
-````
+```
 
 
-![](/tutorials/figures/1_GaussianMixtureModel_1_1.png)
+
+
+![svg](1_GaussianMixtureModel_files/1_GaussianMixtureModel_2_0.svg)
+
 
 
 ## Gaussian Mixture Model in Turing
 
-
 To cluster the data points shown above, we use a model that consists of two mixture components (clusters) and assigns each datum to one of the components. The assignment thereof determines the distribution that the data point is generated from.
 
-In particular, in a Bayesian Gaussian mixture model with $$1 \leq k \leq K$$ components for 1-D data each data point $$x_i$$ with $$1 \leq i \leq N$$ is generated according to the following generative process.
+In particular, in a Bayesian Gaussian mixture model with $1 \leq k \leq K$ components for 1-D data each data point $x_i$ with $1 \leq i \leq N$ is generated according to the following generative process.
 First we draw the parameters for each cluster, i.e. in our example we draw location of the distributions from a Normal:
-\$\$
+$$
 \mu_k \sim Normal() \, , \;  \forall k \\
-\$\$
-and then draw mixing weight for the $$K$$ clusters from a Dirichlet distribution, i.e.
-\$\$
+$$
+and then draw mixing weight for the $K$ clusters from a Dirichlet distribution, i.e.
+$$
     w \sim Dirichlet(K, \alpha) \, . \\
-\$\$
+$$
 After having constructed all the necessary model parameters, we can generate an observation by first selecting one of the clusters and then drawing the datum accordingly, i.e.
-\$\$
+$$
     z_i \sim Categorical(w) \, , \;  \forall i \\
     x_i \sim Normal(\mu_{z_i}, 1.) \, , \;  \forall i
-\$\$
+$$
 
 For more details on Gaussian mixture models, we refer to Christopher M. Bishop, *Pattern Recognition and Machine Learning*, Section 9.
 
-````julia
+
+```julia
 using Turing, MCMCChains
 
 # Turn off the progress monitor.
 Turing.turnprogress(false)
-````
+```
+
+    ┌ Info: [Turing]: progress logging is disabled globally
+    └ @ Turing /home/cameron/.julia/packages/Turing/cReBm/src/Turing.jl:22
 
 
-````
-false
-````
 
 
 
-````julia
+    false
+
+
+
+
+```julia
 @model GaussianMixtureModel(x) = begin
     
     D, N = size(x)
 
-    # Draw the paramters for cluster 1.
+    # Draw the parameters for cluster 1.
     μ1 ~ Normal()
     
-    # Draw the paramters for cluster 2.
+    # Draw the parameters for cluster 2.
     μ2 ~ Normal()
     
     μ = [μ1, μ2]
@@ -98,67 +102,64 @@ false
     end
     return k
 end
-````
+```
 
 
-````
-GaussianMixtureModel (generic function with 2 methods)
-````
 
+
+    ##GaussianMixtureModel#361 (generic function with 2 methods)
 
 
 
 After having specified the model in Turing, we can construct the model function and run a MCMC simulation to obtain assignments of the data points.
 
-````julia
+
+```julia
 gmm_model = GaussianMixtureModel(x);
-````
-
-
-
+```
 
 To draw observations from the posterior distribution, we use a [particle Gibbs](https://www.stats.ox.ac.uk/~doucet/andrieu_doucet_holenstein_PMCMC.pdf) sampler to draw the discrete assignment parameters as well as a Hamiltonion Monte Carlo sampler for continous parameters.
 
 Note that we use a `Gibbs` sampler to combine both samplers for Bayesian inference in our model. We are also calling `mapreduce` to generate multiple chains, particularly so we test for convergence. The `chainscat` function simply adds multiple chains together.
 
-````julia
+
+```julia
 gmm_sampler = Gibbs(PG(100, :k), HMC(0.05, 10, :μ1, :μ2))
 tchain = mapreduce(c -> sample(gmm_model, gmm_sampler, 100), chainscat, 1:3);
-````
-
-
-
+```
 
 ## Visualize the Density Region of the Mixture Model
-
 
 After sucessfully doing posterior inference, we can first visualize the trace and density of the parameters of interest.
 
 In particular, in this example we consider the sample values of the location parameter for the two clusters.
 
-````julia
+
+```julia
 ids = findall(map(name -> occursin("μ", name), names(tchain)));
 p=plot(tchain[:, ids, :], legend=true, labels = ["Mu 1" "Mu 2"], colordim=:parameter)
-````
+```
 
 
-![](/tutorials/figures/1_GaussianMixtureModel_6_1.png)
+
+
+![svg](1_GaussianMixtureModel_files/1_GaussianMixtureModel_13_0.svg)
+
 
 
 You'll note here that it appears the location means are switching between chains. We will address this in future tutorials. For those who are keenly interested, see [this](https://mc-stan.org/users/documentation/case-studies/identifying_mixture_models.html) article on potential solutions.
 
 For the moment, we will just use the first chain to ensure the validity of our inference.
 
-````julia
+
+```julia
 tchain = tchain[:, :, 1];
-````
-
-
-
+```
 
 As the samples for the location parameter for both clusters are unimodal, we can safely visualize the density region of our model using the average location.
 
-````julia
+
+```julia
 # Helper function used for visualizing the density region.
 function predict(x, y, w, μ)
     # Use log-sum-exp trick for numeric stability.
@@ -167,38 +168,46 @@ function predict(x, y, w, μ)
         log(w[2]) + logpdf(MvNormal([μ[2], μ[2]], 1.), [x, y])
     )
 end
-````
-
-
-````
-predict (generic function with 1 method)
-````
+```
 
 
 
-````julia
+
+    predict (generic function with 1 method)
+
+
+
+
+```julia
 contour(range(-5, stop = 3), range(-6, stop = 2), 
     (x, y) -> predict(x, y, [0.5, 0.5], [mean(tchain[:μ1].value), mean(tchain[:μ2].value)])
 )
 scatter!(x[1,:], x[2,:], legend = false, title = "Synthetic Dataset")
-````
+```
 
 
-![](/tutorials/figures/1_GaussianMixtureModel_9_1.png)
+
+
+![svg](1_GaussianMixtureModel_files/1_GaussianMixtureModel_18_0.svg)
+
 
 
 ## Infered Assignments
 
-
 Finally, we can inspect the assignments of the data points infered using Turing. As we can see, the dataset is partitioned into two distinct groups.
 
-````julia
+
+```julia
 assignments = collect(skipmissing(mean(tchain[:k].value, dims=1).data))
 scatter(x[1,:], x[2,:], 
     legend = false, 
     title = "Assignments on Synthetic Dataset", 
     zcolor = assignments)
-````
+```
 
 
-![](/tutorials/figures/1_GaussianMixtureModel_10_1.png)
+
+
+![svg](1_GaussianMixtureModel_files/1_GaussianMixtureModel_21_0.svg)
+
+

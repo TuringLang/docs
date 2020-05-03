@@ -1,8 +1,4 @@
----
-title: Bayesian Poisson Regression
-permalink: /:collection/:name/
----
-
+# Bayesian Poisson Regression
 This notebook is ported from the [example notebook](https://docs.pymc.io/notebooks/GLM-poisson-regression.html) of PyMC3 on Poisson Regression.  
 
 [Poisson Regression](https://en.wikipedia.org/wiki/Poisson_regression) is a technique commonly used to model count data. Some of the applications include predicting the number of people defaulting on their loans or the number of cars running on a highway on a given day. This example describes a method to implement the Bayesian version of this technique using Turing.
@@ -11,7 +7,8 @@ We will generate the dataset that we will be working on which describes the rela
 
 We start by importing the required libraries.
 
-````julia
+
+```julia
 #Import Turing, Distributions and DataFrames
 using Turing, Distributions, DataFrames, Distributed
 
@@ -24,13 +21,16 @@ Random.seed!(12);
 
 # Turn off progress monitor.
 Turing.turnprogress(false)
-````
+```
+
+    ┌ Info: [Turing]: progress logging is disabled globally
+    └ @ Turing /home/cameron/.julia/packages/Turing/cReBm/src/Turing.jl:22
 
 
-````
-false
-````
 
+
+
+    false
 
 
 
@@ -39,7 +39,8 @@ We start off by creating a toy dataset. We take the case of a person who takes m
 
 5 random rows are printed from the generated data to get a gist of the data generated.
 
-````julia
+
+```julia
 theta_noalcohol_meds = 1    # no alcohol, took medicine
 theta_alcohol_meds = 3      # alcohol, took medicine
 theta_noalcohol_nomeds = 6  # no alcohol, no medicine
@@ -60,28 +61,20 @@ meds_data = vcat(zeros(q), zeros(q), ones(q), ones(q) )
 
 df = DataFrame(nsneeze = nsneeze_data, alcohol_taken = alcohol_data, nomeds_taken = meds_data, product_alcohol_meds = meds_data.*alcohol_data)
 df[sample(1:nrow(df), 5, replace = false), :]
-````
+```
 
 
-````
-5×4 DataFrame
-│ Row │ nsneeze │ alcohol_taken │ nomeds_taken │ product_alcohol_meds │
-│     │ Int64   │ Float64       │ Float64      │ Float64              │
-├─────┼─────────┼───────────────┼──────────────┼──────────────────────┤
-│ 1   │ 8       │ 0.0           │ 1.0          │ 0.0                  │
-│ 2   │ 5       │ 1.0           │ 0.0          │ 0.0                  │
-│ 3   │ 0       │ 0.0           │ 0.0          │ 0.0                  │
-│ 4   │ 0       │ 0.0           │ 0.0          │ 0.0                  │
-│ 5   │ 38      │ 1.0           │ 1.0          │ 1.0                  │
-````
 
+
+<table class="data-frame"><thead><tr><th></th><th>nsneeze</th><th>alcohol_taken</th><th>nomeds_taken</th><th>product_alcohol_meds</th></tr><tr><th></th><th>Int64</th><th>Float64</th><th>Float64</th><th>Float64</th></tr></thead><tbody><p>5 rows × 4 columns</p><tr><th>1</th><td>5</td><td>0.0</td><td>0.0</td><td>0.0</td></tr><tr><th>2</th><td>5</td><td>1.0</td><td>0.0</td><td>0.0</td></tr><tr><th>3</th><td>8</td><td>1.0</td><td>0.0</td><td>0.0</td></tr><tr><th>4</th><td>1</td><td>0.0</td><td>0.0</td><td>0.0</td></tr><tr><th>5</th><td>38</td><td>1.0</td><td>1.0</td><td>1.0</td></tr></tbody></table>
 
 
 
 # Visualisation of the dataset
 We plot the distribution of the number of sneezes for the 4 different cases taken above. As expected, the person sneezes the most when he has taken alcohol and not taken his medicine. He sneezes the least when he doesn't consume alcohol and takes his medicine.
 
-````julia
+
+```julia
 #Data Plotting
 
 p1 = Plots.histogram(df[(df[:,:alcohol_taken] .== 0) .& (df[:,:nomeds_taken] .== 0), 1], title = "no_alcohol+meds")  
@@ -89,81 +82,96 @@ p2 = Plots.histogram((df[(df[:,:alcohol_taken] .== 1) .& (df[:,:nomeds_taken] .=
 p3 = Plots.histogram((df[(df[:,:alcohol_taken] .== 0) .& (df[:,:nomeds_taken] .== 1), 1]), title = "no_alcohol+no_meds")  
 p4 = Plots.histogram((df[(df[:,:alcohol_taken] .== 1) .& (df[:,:nomeds_taken] .== 1), 1]), title = "alcohol+no_meds")  
 plot(p1, p2, p3, p4, layout = (2, 2), legend = false)
-````
+```
 
 
-![](/tutorials/figures/7_PoissonRegression_3_1.png)
+
+
+![svg](7_PoissonRegression_files/7_PoissonRegression_5_0.svg)
+
 
 
 We must convert our `DataFrame` data into the `Matrix` form as the manipulations that we are about are designed to work with `Matrix` data. We also separate the features from the labels which will be later used by the Turing sampler to generate samples from the posterior.
 
-````julia
+
+```julia
 # Convert the DataFrame object to matrices.
 data = Matrix(df[:,[:alcohol_taken, :nomeds_taken, :product_alcohol_meds]])
 data_labels = df[:,:nsneeze]
 data
-````
+```
 
 
-````
-400×3 Array{Float64,2}:
- 0.0  0.0  0.0
- 0.0  0.0  0.0
- 0.0  0.0  0.0
- 0.0  0.0  0.0
- 0.0  0.0  0.0
- 0.0  0.0  0.0
- 0.0  0.0  0.0
- 0.0  0.0  0.0
- 0.0  0.0  0.0
- 0.0  0.0  0.0
- ⋮            
- 1.0  1.0  1.0
- 1.0  1.0  1.0
- 1.0  1.0  1.0
- 1.0  1.0  1.0
- 1.0  1.0  1.0
- 1.0  1.0  1.0
- 1.0  1.0  1.0
- 1.0  1.0  1.0
- 1.0  1.0  1.0
-````
 
+
+    400×3 Array{Float64,2}:
+     0.0  0.0  0.0
+     0.0  0.0  0.0
+     0.0  0.0  0.0
+     0.0  0.0  0.0
+     0.0  0.0  0.0
+     0.0  0.0  0.0
+     0.0  0.0  0.0
+     0.0  0.0  0.0
+     0.0  0.0  0.0
+     0.0  0.0  0.0
+     0.0  0.0  0.0
+     0.0  0.0  0.0
+     0.0  0.0  0.0
+     ⋮         
+     1.0  1.0  1.0
+     1.0  1.0  1.0
+     1.0  1.0  1.0
+     1.0  1.0  1.0
+     1.0  1.0  1.0
+     1.0  1.0  1.0
+     1.0  1.0  1.0
+     1.0  1.0  1.0
+     1.0  1.0  1.0
+     1.0  1.0  1.0
+     1.0  1.0  1.0
+     1.0  1.0  1.0
 
 
 
 We must recenter our data about 0 to help the Turing sampler in initialising the parameter estimates. So, normalising the data in each column by subtracting the mean and dividing by the standard deviation:
 
-````julia
+
+```julia
 # # Rescale our matrices.
 data = (data .- mean(data, dims=1)) ./ std(data, dims=1)
-````
+```
 
 
-````
-400×3 Array{Float64,2}:
- -0.998749  -0.998749  -0.576628
- -0.998749  -0.998749  -0.576628
- -0.998749  -0.998749  -0.576628
- -0.998749  -0.998749  -0.576628
- -0.998749  -0.998749  -0.576628
- -0.998749  -0.998749  -0.576628
- -0.998749  -0.998749  -0.576628
- -0.998749  -0.998749  -0.576628
- -0.998749  -0.998749  -0.576628
- -0.998749  -0.998749  -0.576628
-  ⋮                             
-  0.998749   0.998749   1.72988 
-  0.998749   0.998749   1.72988 
-  0.998749   0.998749   1.72988 
-  0.998749   0.998749   1.72988 
-  0.998749   0.998749   1.72988 
-  0.998749   0.998749   1.72988 
-  0.998749   0.998749   1.72988 
-  0.998749   0.998749   1.72988 
-  0.998749   0.998749   1.72988
-````
 
+
+    400×3 Array{Float64,2}:
+     -0.998749  -0.998749  -0.576628
+     -0.998749  -0.998749  -0.576628
+     -0.998749  -0.998749  -0.576628
+     -0.998749  -0.998749  -0.576628
+     -0.998749  -0.998749  -0.576628
+     -0.998749  -0.998749  -0.576628
+     -0.998749  -0.998749  -0.576628
+     -0.998749  -0.998749  -0.576628
+     -0.998749  -0.998749  -0.576628
+     -0.998749  -0.998749  -0.576628
+     -0.998749  -0.998749  -0.576628
+     -0.998749  -0.998749  -0.576628
+     -0.998749  -0.998749  -0.576628
+      ⋮                    
+      0.998749   0.998749   1.72988
+      0.998749   0.998749   1.72988
+      0.998749   0.998749   1.72988
+      0.998749   0.998749   1.72988
+      0.998749   0.998749   1.72988
+      0.998749   0.998749   1.72988
+      0.998749   0.998749   1.72988
+      0.998749   0.998749   1.72988
+      0.998749   0.998749   1.72988
+      0.998749   0.998749   1.72988
+      0.998749   0.998749   1.72988
+      0.998749   0.998749   1.72988
 
 
 
@@ -185,7 +193,8 @@ Intuitively, we can think of the coefficients as:
 
 The `for` block creates a variable `theta` which is the weighted combination of the input features. We have defined the priors on these weights above. We then observe the likelihood of calculating `theta` given the actual label, `y[i]`.
 
-````julia
+
+```julia
 # Bayesian poisson regression (LR)
 @model poisson_regression(x, y, n, σ²) = begin
     b0 ~ Normal(0, σ²)
@@ -197,15 +206,13 @@ The `for` block creates a variable `theta` which is the weighted combination of 
         y[i] ~ Poisson(exp(theta))
     end
 end;
-````
-
-
-
+```
 
 # Sampling from the posterior
 We use the `NUTS` sampler to sample values from the posterior. We run multiple chains using the `mapreduce` function to nullify the effect of a problematic chain. We then use the Gelman, Rubin, and Brooks Diagnostic to check the convergence of these multiple chains.
 
-````julia
+
+```julia
 # Retrieve the number of observations.
 n, _ = size(data)
 
@@ -216,9 +223,110 @@ chain = mapreduce(
     c -> sample(poisson_regression(data, data_labels, n, 10), NUTS(200, 0.65), 2500, discard_adapt=false), 
     chainscat, 
     1:num_chains);
-````
+```
 
-
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Info: Found initial step size
+    │   ϵ = 2.384185791015625e-8
+    └ @ Turing.Inference /home/cameron/.julia/packages/Turing/cReBm/src/inference/hmc.jl:556
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Info: Found initial step size
+    │   ϵ = 0.00078125
+    └ @ Turing.Inference /home/cameron/.julia/packages/Turing/cReBm/src/inference/hmc.jl:556
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
+    ┌ Info: Found initial step size
+    │   ϵ = 0.000390625
+    └ @ Turing.Inference /home/cameron/.julia/packages/Turing/cReBm/src/inference/hmc.jl:556
+    ┌ Info: Found initial step size
+    │   ϵ = 0.05
+    └ @ Turing.Inference /home/cameron/.julia/packages/Turing/cReBm/src/inference/hmc.jl:556
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/WJCQA/src/hamiltonian.jl:47
 
 
 # Viewing the Diagnostics 
@@ -226,22 +334,21 @@ We use the Gelman, Rubin, and Brooks Diagnostic to check whether our chains have
 
 We expect the chains to have converged. This is because we have taken sufficient number of iterations (1500) for the NUTS sampler. However, in case the test fails, then we will have to take a larger number of iterations, resulting in longer computation time.
 
-````julia
+
+```julia
 gelmandiag(chain)
-````
+```
 
 
-````
-Gelman, Rubin, and Brooks Diagnostic
 
-│ Row │ parameters │ PSRF    │ 97.5%   │
-│     │ Symbol     │ Float64 │ Float64 │
-├─────┼────────────┼─────────┼─────────┤
-│ 1   │ b0         │ 1.01214 │ 1.01433 │
-│ 2   │ b1         │ 1.02013 │ 1.03023 │
-│ 3   │ b2         │ 1.00488 │ 1.01261 │
-│ 4   │ b3         │ 1.00523 │ 1.00996 │
-````
+
+    Gelman, Rubin, and Brooks Diagnostic
+      parameters    PSRF   97.5%
+      ──────────  ──────  ──────
+              b0  1.1861  1.3924
+              b1  1.1307  1.2582
+              b2  1.1350  1.2865
+              b3  1.0660  1.1118
 
 
 
@@ -250,7 +357,8 @@ From the above diagnostic, we can conclude that the chains have converged becaus
 
 So, we have obtained the posterior distributions of the parameters. We transform the coefficients and recover theta values by taking the exponent of the meaned values of the coefficients `b0`, `b1`, `b2` and `b3`. We take the exponent of the means to get a better comparison of the relative values of the coefficients. We then compare this with the intuitive meaning that was described earlier. 
 
-````julia
+
+```julia
 # Taking the first chain
 c1 = chain[:,:,1]
 
@@ -261,54 +369,34 @@ b2_exp = exp(mean(c1[:b2].value))
 b3_exp = exp(mean(c1[:b3].value))
 
 print("The exponent of the meaned values of the weights (or coefficients are): \n")
-````
-
-
-````
-The exponent of the meaned values of the weights (or coefficients are):
-````
-
-
-
-````julia
 print("b0: ", b0_exp, " \n", "b1: ", b1_exp, " \n", "b2: ", b2_exp, " \n", "b3: ", b3_exp, " \n")
-````
-
-
-````
-b0: 5.304421095375324 
-b1: 1.7119123250916004 
-b2: 2.3943033905854882 
-b3: 1.3194410163141495
-````
-
-
-
-````julia
 print("The posterior distributions obtained after sampling can be visualised as :\n")
-````
+```
 
-
-````
-The posterior distributions obtained after sampling can be visualised as :
-````
-
-
+    The exponent of the meaned values of the weights (or coefficients are): 
+    b0: 5.116678482496325 
+    b1: 1.8791946940293356 
+    b2: 2.5245646467859904 
+    b3: 1.3005130214177183 
+    The posterior distributions obtained after sampling can be visualised as :
 
 
  Visualising the posterior by plotting it:
 
-````julia
+
+```julia
 plot(chain)
-````
+```
 
 
-![](/tutorials/figures/7_PoissonRegression_10_1.png)
+
+
+![svg](7_PoissonRegression_files/7_PoissonRegression_19_0.svg)
+
 
 
 # Interpreting the Obtained Mean Values
 The exponentiated mean of the coefficient `b1` is roughly half of that of `b2`. This makes sense because in the data that we generated, the number of sneezes was more sensitive to the medicinal intake as compared to the alcohol consumption. We also get a weaker dependence on the interaction between the alcohol consumption and the medicinal intake as can be seen from the value of `b3`.
-
 
 # Removing the Warmup Samples
 
@@ -316,87 +404,79 @@ As can be seen from the plots above, the parameters converge to their final dist
 
 To remove these warmup values, we take all values except the first 200. This is because we set the second parameter of the NUTS sampler (which is the number of adaptations) to be equal to 200. `describe(chain)` is used to view the standard deviations in the estimates of the parameters. It also gives other useful information such as the means and the quantiles.
 
-````julia
+
+```julia
 # Note the standard deviation before removing the warmup samples
 describe(chain)
-````
-
-
-````
-2-element Array{ChainDataFrame,1}
-
-Summary Statistics
-. Omitted printing of 1 columns
-│ Row │ parameters │ mean     │ std       │ naive_se    │ mcse       │ ess 
-    │
-│     │ Symbol     │ Float64  │ Float64   │ Float64     │ Float64    │ Any 
-    │
-├─────┼────────────┼──────────┼───────────┼─────────────┼────────────┼─────
-────┤
-│ 1   │ b0         │ 1.66519  │ 0.0657517 │ 0.000657517 │ 0.00164098 │ 58.0
-099 │
-│ 2   │ b1         │ 0.544291 │ 0.0640128 │ 0.000640128 │ 0.00199168 │ 165.
-479 │
-│ 3   │ b2         │ 0.878627 │ 0.0557298 │ 0.000557298 │ 0.00128191 │ 396.
-961 │
-│ 4   │ b3         │ 0.2727   │ 0.0621676 │ 0.000621676 │ 0.0012638  │ 153.
-509 │
-
-Quantiles
-
-│ Row │ parameters │ 2.5%     │ 25.0%    │ 50.0%    │ 75.0%    │ 97.5%    │
-│     │ Symbol     │ Float64  │ Float64  │ Float64  │ Float64  │ Float64  │
-├─────┼────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
-│ 1   │ b0         │ 1.6054   │ 1.64701  │ 1.66837  │ 1.68773  │ 1.72525  │
-│ 2   │ b1         │ 0.434989 │ 0.505279 │ 0.542411 │ 0.579966 │ 0.657613 │
-│ 3   │ b2         │ 0.778661 │ 0.843105 │ 0.877552 │ 0.913152 │ 0.986658 │
-│ 4   │ b3         │ 0.165151 │ 0.236838 │ 0.272479 │ 0.306697 │ 0.3721   │
-````
+```
 
 
 
-````julia
+
+    2-element Array{ChainDataFrame,1}
+    
+    Summary Statistics
+      parameters    mean     std  naive_se    mcse      ess   r_hat
+      ──────────  ──────  ──────  ────────  ──────  ───────  ──────
+              b0  1.2639  2.1637    0.0216  0.2114  42.6654  1.0565
+              b1  0.7091  0.8433    0.0084  0.0728  41.7860  1.0620
+              b2  1.1998  1.7572    0.0176  0.1676  42.5718  1.0675
+              b3  0.2357  0.7392    0.0074  0.0596  91.3888  1.0240
+    
+    Quantiles
+      parameters     2.5%   25.0%   50.0%   75.0%   97.5%
+      ──────────  ───────  ──────  ──────  ──────  ──────
+              b0  -4.7815  1.6189  1.6409  1.6624  1.7026
+              b1   0.4366  0.5151  0.5548  0.5986  3.7771
+              b2   0.7707  0.8461  0.8848  0.9259  8.4861
+              b3  -1.7651  0.2497  0.2882  0.3275  0.4136
+
+
+
+
+
+```julia
 # Removing the first 200 values of the chains.
 chains_new = chain[201:2500,:,:]
 describe(chains_new)
-````
+```
 
 
-````
-2-element Array{ChainDataFrame,1}
 
-Summary Statistics
-. Omitted printing of 2 columns
-│ Row │ parameters │ mean     │ std       │ naive_se    │ mcse        │
-│     │ Symbol     │ Float64  │ Float64   │ Float64     │ Float64     │
-├─────┼────────────┼──────────┼───────────┼─────────────┼─────────────┤
-│ 1   │ b0         │ 1.66757  │ 0.0298645 │ 0.000311359 │ 0.000559242 │
-│ 2   │ b1         │ 0.542624 │ 0.0549168 │ 0.000572547 │ 0.00116836  │
-│ 3   │ b2         │ 0.878541 │ 0.0517378 │ 0.000539404 │ 0.0010853   │
-│ 4   │ b3         │ 0.271876 │ 0.0512028 │ 0.000533826 │ 0.0010391   │
 
-Quantiles
-
-│ Row │ parameters │ 2.5%     │ 25.0%    │ 50.0%    │ 75.0%    │ 97.5%    │
-│     │ Symbol     │ Float64  │ Float64  │ Float64  │ Float64  │ Float64  │
-├─────┼────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
-│ 1   │ b0         │ 1.60841  │ 1.64748  │ 1.66843  │ 1.68773  │ 1.72456  │
-│ 2   │ b1         │ 0.435986 │ 0.505129 │ 0.542035 │ 0.578746 │ 0.652752 │
-│ 3   │ b2         │ 0.781218 │ 0.842977 │ 0.877341 │ 0.911946 │ 0.982811 │
-│ 4   │ b3         │ 0.168861 │ 0.237627 │ 0.272763 │ 0.306605 │ 0.369301 │
-````
+    2-element Array{ChainDataFrame,1}
+    
+    Summary Statistics
+      parameters    mean     std  naive_se    mcse      ess   r_hat
+      ──────────  ──────  ──────  ────────  ──────  ───────  ──────
+              b0  1.6378  0.0823    0.0009  0.0055  46.6518  1.0182
+              b1  0.5639  0.1729    0.0018  0.0117  45.5782  1.0196
+              b2  0.8932  0.1727    0.0018  0.0118  45.0961  1.0195
+              b3  0.2798  0.1544    0.0016  0.0104  46.0058  1.0195
+    
+    Quantiles
+      parameters    2.5%   25.0%   50.0%   75.0%   97.5%
+      ──────────  ──────  ──────  ──────  ──────  ──────
+              b0  1.5791  1.6226  1.6427  1.6637  1.7024
+              b1  0.4413  0.5142  0.5516  0.5919  0.6726
+              b2  0.7764  0.8448  0.8819  0.9187  0.9973
+              b3  0.1785  0.2544  0.2893  0.3266  0.3942
 
 
 
 
 Visualising the new posterior by plotting it:
 
-````julia
+
+```julia
 plot(chains_new)
-````
+```
 
 
-![](/tutorials/figures/7_PoissonRegression_13_1.png)
+
+
+![svg](7_PoissonRegression_files/7_PoissonRegression_25_0.svg)
+
 
 
 As can be seen from the numeric values and the plots above, the standard deviation values have decreased and all the plotted values are from the estimated posteriors. The exponentiated mean values, with the warmup samples removed, have not changed by much and they are still in accordance with their intuitive meanings as described earlier.

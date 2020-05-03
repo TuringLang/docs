@@ -1,4 +1,7 @@
-# Bayesian Poisson Regression
+---
+title: Bayesian Poisson Regression
+permalink: /:collection/:name/
+---
 This notebook is ported from the [example notebook](https://docs.pymc.io/notebooks/GLM-poisson-regression.html) of PyMC3 on Poisson Regression.  
 
 [Poisson Regression](https://en.wikipedia.org/wiki/Poisson_regression) is a technique commonly used to model count data. Some of the applications include predicting the number of people defaulting on their loans or the number of cars running on a highway on a given day. This example describes a method to implement the Bayesian version of this technique using Turing.

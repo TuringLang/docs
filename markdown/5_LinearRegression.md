@@ -1,4 +1,7 @@
-# Linear Regression
+---
+title: Linear Regression
+permalink: /:collection/:name/
+---
 
 Turing is powerful when applied to complex hierarchical models, but it can also be put to task at common statistical procedures, like [linear regression](https://en.wikipedia.org/wiki/Linear_regression). This tutorial covers how to implement a linear regression model in Turing.
 
@@ -115,19 +118,19 @@ test = Matrix(test_cut[:,remove_names]);
 
 In a traditional frequentist model using [OLS](https://en.wikipedia.org/wiki/Ordinary_least_squares), our model might look like:
 
-$$
+\$\$
 MPG_i = \alpha + \boldsymbol{\beta}^T\boldsymbol{X_i}
-$$
+\$\$
 
-where $\boldsymbol{\beta}$ is a vector of coefficients and $\boldsymbol{X}$ is a vector of inputs for observation $i$. The Bayesian model we are more concerned with is the following:
+where $$\boldsymbol{\beta}$$ is a vector of coefficients and $$\boldsymbol{X}$$ is a vector of inputs for observation $$i$$. The Bayesian model we are more concerned with is the following:
 
-$$
+\$\$
 MPG_i \sim \mathcal{N}(\alpha + \boldsymbol{\beta}^T\boldsymbol{X_i}, \sigma^2)
-$$
+\$\$
 
-where $\alpha$ is an intercept term common to all observations, $\boldsymbol{\beta}$ is a coefficient vector, $\boldsymbol{X_i}$ is the observed data for car $i$, and $\sigma^2$ is a common variance term.
+where $$\alpha$$ is an intercept term common to all observations, $$\boldsymbol{\beta}$$ is a coefficient vector, $$\boldsymbol{X_i}$$ is the observed data for car $$i$$, and $$\sigma^2$$ is a common variance term.
 
-For $\sigma^2$, we assign a prior of `TruncatedNormal(0,100,0,Inf)`. This is consistent with [Andrew Gelman's recommendations](http://www.stat.columbia.edu/~gelman/research/published/taumain.pdf) on noninformative priors for variance. The intercept term ($\alpha$) is assumed to be normally distributed with a mean of zero and a variance of three. This represents our assumptions that miles per gallon can be explained mostly by our assorted variables, but a high variance term indicates our uncertainty about that. Each coefficient is assumed to be normally distributed with a mean of zero and a variance of 10. We do not know that our coefficients are different from zero, and we don't know which ones are likely to be the most important, so the variance term is quite high. The syntax `::Type{T}=Vector{Float64}` allows us to maintain type stability in our model -- for more information, please review the [performance tips](https://turing.ml/dev/docs/using-turing/performancetips#make-your-model-type-stable). Lastly, each observation $y_i$ is distributed according to the calculated `mu` term given by $\alpha + \boldsymbol{\beta}^T\boldsymbol{X_i}$.
+For $$\sigma^2$$, we assign a prior of `TruncatedNormal(0,100,0,Inf)`. This is consistent with [Andrew Gelman's recommendations](http://www.stat.columbia.edu/~gelman/research/published/taumain.pdf) on noninformative priors for variance. The intercept term ($$\alpha$$) is assumed to be normally distributed with a mean of zero and a variance of three. This represents our assumptions that miles per gallon can be explained mostly by our assorted variables, but a high variance term indicates our uncertainty about that. Each coefficient is assumed to be normally distributed with a mean of zero and a variance of 10. We do not know that our coefficients are different from zero, and we don't know which ones are likely to be the most important, so the variance term is quite high. The syntax `::Type{T}=Vector{Float64}` allows us to maintain type stability in our model -- for more information, please review the [performance tips](https://turing.ml/dev/docs/using-turing/performancetips#make-your-model-type-stable). Lastly, each observation $$y_i$$ is distributed according to the calculated `mu` term given by $$\alpha + \boldsymbol{\beta}^T\boldsymbol{X_i}$$.
 
 
 ```julia
@@ -293,11 +296,11 @@ first(test_cut, 6)
 
 Now let's evaluate the loss for each method, and each prediction set. We will use sum of squared error function to evaluate loss, given by 
 
-$$
+\$\$
 \text{SSE} = \sum{(y_i - \hat{y_i})^2}
-$$
+\$\$
 
-where $y_i$ is the actual value (true MPG) and $\hat{y_i}$ is the predicted value using either OLS or Bayesian linear regression. A lower SSE indicates a closer fit to the data.
+where $$y_i$$ is the actual value (true MPG) and $$\hat{y_i}$$ is the predicted value using either OLS or Bayesian linear regression. A lower SSE indicates a closer fit to the data.
 
 
 ```julia
@@ -308,11 +311,11 @@ bayes_loss2 = sum((test_cut.BayesPredictions - test_cut.MPG).^2)
 ols_loss2 = sum((test_cut.OLSPrediction - test_cut.MPG).^2)
 
 println("Training set:
-    Bayes loss: $bayes_loss1
-    OLS loss: $ols_loss1
+    Bayes loss: $$bayes_loss1
+    OLS loss: $$ols_loss1
 Test set: 
-    Bayes loss: $bayes_loss2
-    OLS loss: $ols_loss2")
+    Bayes loss: $$bayes_loss2
+    OLS loss: $$ols_loss2")
 ```
 
     Training set:

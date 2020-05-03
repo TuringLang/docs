@@ -1,4 +1,7 @@
-# Variational inference (VI) in Turing.jl
+---
+title: Variational inference (VI) in Turing.jl
+permalink: /:collection/:name/
+---
 
 In this post we'll have a look at what's know as **variational inference (VI)**, a family of _approximate_ Bayesian inference methods, and how to use it in Turing.jl as an alternative to other approaches such as MCMC. In particular, we will focus on one of the more standard VI methods called **Automatic Differentation Variational Inference (ADVI)**.
 
@@ -115,7 +118,7 @@ print(@doc(Variational.vi))
 
 Additionally, you can pass
 - an initial variational posterior `q`, for which we assume there exists a implementation of `update(::typeof(q), θ::AbstractVector)` returning an updated posterior `q` with parameters `θ`.
-- a function mapping $\theta \mapsto q_{\theta}$ (denoted above `getq`) together with initial parameters `θ`. This provides more flexibility in the types of variational families that we can use, and can sometimes be slightly more convenient for quick and rough work.
+- a function mapping $$\theta \mapsto q_{\theta}$$ (denoted above `getq`) together with initial parameters `θ`. This provides more flexibility in the types of variational families that we can use, and can sometimes be slightly more convenient for quick and rough work.
 
 By default, i.e. when calling `vi(m, advi)`, Turing use a *mean-field* approximation with a multivariate normal as the base-distribution. Mean-field refers to the fact that we assume all the latent variables to be *independent*. This the "standard" ADVI approach; see [Automatic Differentiation Variational Inference (2016)](https://arxiv.org/abs/1603.00788) for more. In Turing, one can obtain such a mean-field approximation by calling `Variational.meanfield(model)` for which there exists an internal implementation for `update`:
 
@@ -302,9 +305,9 @@ plot(p1, p2, layout=(2, 1), size=(900, 500))
 
 
 
-For this particular `Model`, we can in fact obtain the posterior of the latent variables in closed form. This allows us to compare both `NUTS` and `ADVI` to the true posterior $p(s, m \mid \{x_i\}_{i = 1}^n )$.
+For this particular `Model`, we can in fact obtain the posterior of the latent variables in closed form. This allows us to compare both `NUTS` and `ADVI` to the true posterior $$p(s, m \mid \{x_i\}_{i = 1}^n )$$.
 
-*The code below is just work to get the marginals $p(s \mid \{x_i\}_{i = 1}^n)$ and $p(m \mid \{x_i\}_{i = 1}^n$ from the posterior obtained using ConjugatePriors.jl. Feel free to skip it.*
+*The code below is just work to get the marginals $$p(s \mid \{x_i\}_{i = 1}^n)$$ and $$p(m \mid \{x_i\}_{i = 1}^n$$ from the posterior obtained using ConjugatePriors.jl. Feel free to skip it.*
 
 
 ```julia
@@ -589,7 +592,7 @@ typeof(q)
 
 *Note: as mentioned before, we internally define a `update(q::TransformedDistribution{<:TuringDiagMvNormal}, θ::AbstractVector)` method which takes in the current variational approximation `q` together with new parameters `z` and returns the new variational approximation. This is required so that we can actually update the `Distribution` object after each optimization step.*
 
-*Alternatively, we can instead provide the mapping $\theta \mapsto q_{\theta}$ directly together with initial parameters using the signature `vi(m, advi, getq, θ_init)` as mentioned earlier. We'll see an explicit example of this later on!*
+*Alternatively, we can instead provide the mapping $$\theta \mapsto q_{\theta}$$ directly together with initial parameters using the signature `vi(m, advi, getq, θ_init)` as mentioned earlier. We'll see an explicit example of this later on!*
 
 To compute statistics for our approximation we need samples:
 
@@ -702,14 +705,14 @@ function plot_variational_marginals(z, sym2range)
             offset = 1
             for r in indices
                 for j in r
-                    p = density(z[j, :], title = "$(sym)[$offset]", titlefontsize = 10, label = "")
+                    p = density(z[j, :], title = "$$(sym)[$$offset]", titlefontsize = 10, label = "")
                     push!(ps, p)
 
                     offset += 1
                 end
             end
         else
-            p = density(z[first(indices), :], title = "$(sym)", titlefontsize = 10, label = "")
+            p = density(z[first(indices), :], title = "$$(sym)", titlefontsize = 10, label = "")
             push!(ps, p)
         end
     end
@@ -930,13 +933,13 @@ bayes_loss2 = mean((test_cut.BayesPredictions - test_cut.MPG).^2)
 ols_loss2 = mean((test_cut.OLSPrediction - test_cut.MPG).^2)
 
 println("Training set:
-    VI loss: $vi_loss1
-    Bayes loss: $bayes_loss1
-    OLS loss: $ols_loss1
+    VI loss: $$vi_loss1
+    Bayes loss: $$bayes_loss1
+    OLS loss: $$ols_loss1
 Test set: 
-    VI loss: $vi_loss2
-    Bayes loss: $bayes_loss2
-    OLS loss: $ols_loss2")
+    VI loss: $$vi_loss2
+    Bayes loss: $$bayes_loss2
+    OLS loss: $$ols_loss2")
 ```
 
     Training set:
@@ -992,7 +995,7 @@ Indeed we see that the MCMC approach generally provides better uncertainty estim
 
 ## Alternative: provide parameter-to-distribution instead of `q` with`update` implemented
 
-As mentioned earlier, it's also possible to just provide the mapping $\theta \mapsto q_{\theta}$ rather than the variational family / initial variational posterior `q`, i.e. use the interface `vi(m, advi, getq, θ_init)` where `getq` is the mapping $\theta \mapsto q_{\theta}$
+As mentioned earlier, it's also possible to just provide the mapping $$\theta \mapsto q_{\theta}$$ rather than the variational family / initial variational posterior `q`, i.e. use the interface `vi(m, advi, getq, θ_init)` where `getq` is the mapping $$\theta \mapsto q_{\theta}$$
 
 In this section we're going to construct a mean-field approximation to the model by hand using a composition of`Shift` and `Scale` from Bijectors.jl togheter with a standard multivariate Gaussian as the base distribution. 
 
@@ -1224,15 +1227,15 @@ bayes_loss2 = mean((test_cut.BayesPredictions - test_cut.MPG).^2)
 ols_loss2 = mean((test_cut.OLSPrediction - test_cut.MPG).^2)
 
 println("Training set:
-    VI loss:        $vi_loss1
-    VI (full) loss: $vifull_loss1
-    Bayes loss:     $bayes_loss1
-    OLS loss:       $ols_loss1
+    VI loss:        $$vi_loss1
+    VI (full) loss: $$vifull_loss1
+    Bayes loss:     $$bayes_loss1
+    OLS loss:       $$ols_loss1
 Test set: 
-    VI loss:        $vi_loss2
-    VI (full) loss: $vifull_loss2
-    Bayes loss:     $bayes_loss2
-    OLS loss:       $ols_loss2")
+    VI loss:        $$vi_loss2
+    VI (full) loss: $$vifull_loss2
+    Bayes loss:     $$bayes_loss2
+    OLS loss:       $$ols_loss2")
 ```
 
     Training set:

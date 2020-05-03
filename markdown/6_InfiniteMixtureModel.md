@@ -1,4 +1,7 @@
-# Probabilistic Modelling using the Infinite Mixture Model
+---
+title: Probabilistic Modelling using the Infinite Mixture Model
+permalink: /:collection/:name/
+---
 
 In many applications it is desirable to allow the model to adjust its complexity to the amount the data. Consider for example the task of assigning objects into clusters or groups. This task often involves the specification of the number of groups. However, often times it is not known beforehand how many groups exist. Moreover, in some applictions, e.g. modelling topics in text documents or grouping species, the number of examples per group is heavy tailed. This makes it impossible to predefine the number of groups and requiring the model to form new groups when data points from previously unseen groups are observed.
 
@@ -29,7 +32,7 @@ x_i &\sim Normal(\mu_{z_i}, \Sigma)
 \end{align}
 $$
 
-where $\pi_1, \pi_2$ are the mixing weights of the mixture model, i.e. $\pi_1 + \pi_2 = 1$, and $z_i$ is a latent assignment of the observation $x_i$ to a component (Gaussian).
+where $$\pi_1, \pi_2$$ are the mixing weights of the mixture model, i.e. $$\pi_1 + \pi_2 = 1$$, and $$z_i$$ is a latent assignment of the observation $$x_i$$ to a component (Gaussian).
 
 We can implement this model in Turing for 1D data as follows:
 
@@ -70,7 +73,7 @@ end
 
 #### Finite Mixture Model
 
-If we have more than two components, this model can elegantly be extend using a Dirichlet distribution as prior for the mixing weights $\pi_1, \dots, \pi_K$. Note that the Dirichlet distribution is the multivariate generalization of the beta distribution. The resulting model can be written as:
+If we have more than two components, this model can elegantly be extend using a Dirichlet distribution as prior for the mixing weights $$\pi_1, \dots, \pi_K$$. Note that the Dirichlet distribution is the multivariate generalization of the beta distribution. The resulting model can be written as:
 
 $$
 \begin{align}
@@ -85,7 +88,7 @@ which resembles the model in the [Gaussian mixture model tutorial](1_GaussianMix
 
 ## Infinite Mixture Model
 
-The question now arises, is there a generalization of a Dirichlet distribution for which the dimensionality $K$ is infinite, i.e. $K = \infty$?
+The question now arises, is there a generalization of a Dirichlet distribution for which the dimensionality $$K$$ is infinite, i.e. $$K = \infty$$?
 
 But first, to implement an infinite Gaussian mixture model in Turing, we first need to load the `Turing.RandomMeasures` module. `RandomMeasures` contains a variety of tools useful in nonparametrics.
 
@@ -96,29 +99,29 @@ using Turing.RandomMeasures
 
 We now will utilize the fact that one can integrate out the mixing weights in a Gaussian mixture model allowing us to arrive at the Chinese restaurant process construction. See Carl E. Rasmussen: [The Infinite Gaussian Mixture Model](https://www.seas.harvard.edu/courses/cs281/papers/rasmussen-1999a.pdf), NIPS (2000) for details.
 
-In fact, if the mixing weights are integrated out, the conditional prior for the latent variable $z$ is given by:
+In fact, if the mixing weights are integrated out, the conditional prior for the latent variable $$z$$ is given by:
 
-$$ 
+\$\$ 
 p(z_i = k \mid z_{\not i}, \alpha) = \frac{n_k + \alpha/K}{N - 1 + \alpha}
-$$
+\$\$
 
-where $z_{\not i}$ are the latent assignments of all observations except observation $i$. Note that we use $n_k$ to denote the number of observations at component $k$ excluding observation $i$. The parameter $\alpha$ is the concentration parameter of the Dirichlet distribution used as prior over the mixing weights.
+where $$z_{\not i}$$ are the latent assignments of all observations except observation $$i$$. Note that we use $$n_k$$ to denote the number of observations at component $$k$$ excluding observation $$i$$. The parameter $$\alpha$$ is the concentration parameter of the Dirichlet distribution used as prior over the mixing weights.
 
 #### Chinese Restaurant Process
 
-To obtain the Chinese restaurant process construction, we can now derive the conditional prior if $K \rightarrow \infty$.
+To obtain the Chinese restaurant process construction, we can now derive the conditional prior if $$K \rightarrow \infty$$.
 
-For $n_k > 0$ we obtain:
+For $$n_k > 0$$ we obtain:
 
-$$
+\$\$
 p(z_i = k \mid z_{\not i}, \alpha) = \frac{n_k}{N - 1 + \alpha}
-$$
+\$\$
 
 and for all infinitely many clusters that are empty (combined) we get:
 
-$$
+\$\$
 p(z_i = k \mid z_{\not i}, \alpha) = \frac{\alpha}{N - 1 + \alpha}
-$$
+\$\$
 
 
 Those equations show that the conditional prior for component assignments is proportional to the number of such observations, meaning that the Chinese restaurant process has a rich get richer property.
@@ -168,11 +171,11 @@ end;
 
 Further, we can see that the number of clusters is logarithmic in the number of observations and data points. This is a side-effect of the "rich get richer" phenomenon, i.e. we expect large clusters and thus the number of clusters has to be smaller than the number of observations.
 
-$$ 
+\$\$ 
 E[K \mid N] \approx \alpha * log \big(1 - \frac{N}{\alpha}\big)
-$$
+\$\$
 
-We can see from the equation that the concetration parameter $\alpha$ allows use to control the number of cluster formed a priori.
+We can see from the equation that the concetration parameter $$\alpha$$ allows use to control the number of cluster formed a priori.
 
 In Turing we can implement an infinite Gaussian mixture model using the Chinese restaurant process construction of a Dirichlet process as follows:
 
@@ -290,21 +293,21 @@ One issue with the Chinese restaurant process construction is that the number of
 
 Size-Biased Sampling Process
 
-$$
+\$\$
 j_k \sim Beta(1, \alpha) * surplus
-$$
+\$\$
 
 Stick-Breaking Process
-$$
+\$\$
 v_k \sim Beta(1, \alpha)
-$$
+\$\$
 
 Chinese Restaurant Process
-$$
+\$\$
 p(z_n = k | z_{1:n-1}) \propto \begin{cases} 
         \frac{m_k}{n-1+\alpha}, \text{ if } m_k > 0\\\
         \frac{\alpha}{n-1+\alpha}
     \end{cases}
-$$
+\$\$
 
 For more details see [this article](https://www.stats.ox.ac.uk/~teh/research/npbayes/Teh2010a.pdf).

@@ -25,9 +25,10 @@ source env/bin/activate
 
 for filename in *.ipynb; do
     ipyAge=$(stat -c %Y -- "$filename")
+    outPath="markdown/${filename/.ipynb/.md}"
 
-    if [ -f "markdown/${filename/.ipynb/.md}" ]; then
-        mdAge=$(stat -c %Y -- "markdown/${filename/.ipynb/.md}")
+    if [ -f $outPath ]; then
+        mdAge=$(stat -c %Y -- $outPath)
         mdExists=0
     else
         mdAge=0
@@ -56,6 +57,7 @@ for filename in *.ipynb; do
         else
             # No errors happened, so we can convert the notebook to markdown.
             env/bin/jupyter-nbconvert "$filename" --to markdown --output-dir="markdown"
+            julia -e "include("weave-examples.jl"); handle_file("$outPath")"
         fi
     fi
 done

@@ -1,4 +1,7 @@
-# Bayesian Multinomial Logistic Regression
+---
+title: Bayesian Multinomial Logistic Regression
+permalink: /:collection/:name/
+---
 [Multinomial logistic regression](https://en.wikipedia.org/wiki/Multinomial_logistic_regression) is an extension of logistic regression. Logistic regression is used to model problems in which there are exactly two possible discrete outcomes. Multinomial logistic regression is used to model problems in which there are two or more possible discrete outcomes.
 
 In our example, we'll be using the iris dataset. The goal of the iris multiclass problem is to predict the species of a flower given measurements (in centimeters) of sepal length and width and petal length and width. There are three possible species: Iris setosa, Iris versicolor, and Iris virginica.
@@ -353,13 +356,13 @@ setosa_rows = test[!, :Species] .== "setosa"
 versicolor_rows = test[!, :Species] .== "versicolor"
 virginica_rows = test[!, :Species] .== "virginica"
 
-println("Number of setosa: $(sum(setosa_rows))")
-println("Number of versicolor: $(sum(versicolor_rows))")
-println("Number of virginica: $(sum(virginica_rows))")
+println("Number of setosa: $$(sum(setosa_rows))")
+println("Number of versicolor: $$(sum(versicolor_rows))")
+println("Number of virginica: $$(sum(virginica_rows))")
 
-println("Percentage of setosa predicted correctly: $(mean(predictions[setosa_rows] .== test[setosa_rows, :Species]))")
-println("Percentage of versicolor predicted correctly: $(mean(predictions[versicolor_rows] .== test[versicolor_rows, :Species]))")
-println("Percentage of virginica predicted correctly: $(mean(predictions[virginica_rows] .== test[virginica_rows, :Species]))")
+println("Percentage of setosa predicted correctly: $$(mean(predictions[setosa_rows] .== test[setosa_rows, :Species]))")
+println("Percentage of versicolor predicted correctly: $$(mean(predictions[versicolor_rows] .== test[versicolor_rows, :Species]))")
+println("Percentage of virginica predicted correctly: $$(mean(predictions[virginica_rows] .== test[virginica_rows, :Species]))")
 ```
 
     Number of setosa: 32

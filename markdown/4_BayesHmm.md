@@ -1,4 +1,7 @@
-# Bayesian Hidden Markov Models
+---
+title: Bayesian Hidden Markov Models
+permalink: /:collection/:name/
+---
 This tutorial illustrates training Bayesian [Hidden Markov Models](https://en.wikipedia.org/wiki/Hidden_Markov_model) (HMM) using Turing. The main goals are learning the transition matrix, emission parameter, and hidden states. For a more rigorous academic overview on Hidden Markov Models, see [An introduction to Hidden Markov Models and Bayesian Networks](http://mlg.eng.cam.ac.uk/zoubin/papers/ijprai.pdf) (Ghahramani, 2001).
 
 Let's load the libraries we'll need. We also set a random seed (for reproducibility) and the automatic differentiation backend to forward mode (more [here](http://turing.ml/docs/autodiff/) on why this is useful).
@@ -50,9 +53,9 @@ Ultimately, we would like to understand three major parameters:
 
 With this in mind, let's set up our model. We are going to use some of our knowledge as modelers to provide additional information about our system. This takes the form of the prior on our emission parameter.
 
-$$
+\$\$
 m_i \sim Normal(i, 0.5), \space m = \{1,2,3\}
-$$
+\$\$
 
 Simply put, this says that we expect state one to emit values in a Normally distributed manner, where the mean of each state's emissions is that state's value. The variance of 0.5 helps the model converge more quickly — consider the case where we have a variance of 1 or 2. In this case, the likelihood of observing a 2 when we are in state 1 is actually quite high, as it is within a standard deviation of the true emission value. Applying the prior that we are likely to be tightly centered around the mean prevents our model from being too confused about the state that is generating our observations.
 
@@ -136,7 +139,7 @@ animation = @animate for i in Ns
         legend = :topright, label = "True data",
         xlim = (0,15),
         ylim = (-1,5));
-    plot!(emissions, color = :blue, label = "Sample $N")
+    plot!(emissions, color = :blue, label = "Sample $$N")
 end every 10;
 ```
 
@@ -147,7 +150,7 @@ Looks like our model did a pretty good job, but we should also check to make sur
 
 ```julia
 # Index the chain with the persistence probabilities.
-subchain = c[:,["T[$i][$i]" for i in 1:K],:]
+subchain = c[:,["T[$$i][$$i]" for i in 1:K],:]
 
 # Plot the chain.
 plot(subchain, 

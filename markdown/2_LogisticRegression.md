@@ -1,4 +1,7 @@
-# Bayesian Logistic Regression
+---
+title: Bayesian Logistic Regression
+permalink: /:collection/:name/
+---
 [Bayesian logistic regression](https://en.wikipedia.org/wiki/Logistic_regression#Bayesian) is the Bayesian counterpart to a common tool in machine learning, logistic regression. The goal of logistic regression is to predict a one or a zero for a given training item. An example might be predicting whether someone is sick or ill given their symptoms and personal information.
 
 In our example, we'll be working to predict whether someone is likely to default with a synthetic dataset found in the `RDatasets` package. This dataset, `Defaults`, comes from R's [ISLR](https://cran.r-project.org/web/packages/ISLR/index.html) package and contains information on borrowers.
@@ -295,13 +298,13 @@ not_defaults = length(test_label) - defaults
 predicted_defaults = sum(test_label .== predictions .== 1)
 predicted_not_defaults = sum(test_label .== predictions .== 0)
 
-println("Defaults: $defaults
-    Predictions: $predicted_defaults
-    Percentage defaults correct $(predicted_defaults/defaults)")
+println("Defaults: $$defaults
+    Predictions: $$predicted_defaults
+    Percentage defaults correct $$(predicted_defaults/defaults)")
 
-println("Not defaults: $not_defaults
-    Predictions: $predicted_not_defaults
-    Percentage non-defaults correct $(predicted_not_defaults/not_defaults)")
+println("Not defaults: $$not_defaults
+    Predictions: $$predicted_not_defaults
+    Percentage non-defaults correct $$(predicted_not_defaults/not_defaults)")
 ```
 
     Defaults: 317.0

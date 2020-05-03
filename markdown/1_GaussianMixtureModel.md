@@ -1,8 +1,11 @@
-# Unsupervised Learning using Bayesian Mixture Models
+---
+title: Unsupervised Learning using Bayesian Mixture Models
+permalink: /:collection/:name/
+---
 
 The following tutorial illustrates the use *Turing* for clustering data using a Bayesian mixture model. The aim of this task is to infer a latent grouping (hidden structure) from unlabelled data.
 
-More specifically, we are interested in discovering the grouping illustrated in figure below. This example consists of 2-D data points, i.e. $\boldsymbol{x} = \{x_i\}_{i=1}^N \,, x_i \in \mathcal{R}^2$, which are distributed according to Gaussian distributions. For simplicity, we use isotropic Gaussian distributions but this assumption can easily be relaxed by introducing additional parameters. 
+More specifically, we are interested in discovering the grouping illustrated in figure below. This example consists of 2-D data points, i.e. $$\boldsymbol{x} = \{x_i\}_{i=1}^N \,, x_i \in \mathcal{R}^2$$, which are distributed according to Gaussian distributions. For simplicity, we use isotropic Gaussian distributions but this assumption can easily be relaxed by introducing additional parameters. 
 
 
 ```julia
@@ -35,20 +38,20 @@ scatter(x[1,:], x[2,:], legend = false, title = "Synthetic Dataset")
 
 To cluster the data points shown above, we use a model that consists of two mixture components (clusters) and assigns each datum to one of the components. The assignment thereof determines the distribution that the data point is generated from.
 
-In particular, in a Bayesian Gaussian mixture model with $1 \leq k \leq K$ components for 1-D data each data point $x_i$ with $1 \leq i \leq N$ is generated according to the following generative process.
+In particular, in a Bayesian Gaussian mixture model with $$1 \leq k \leq K$$ components for 1-D data each data point $$x_i$$ with $$1 \leq i \leq N$$ is generated according to the following generative process.
 First we draw the parameters for each cluster, i.e. in our example we draw location of the distributions from a Normal:
-$$
+\$\$
 \mu_k \sim Normal() \, , \;  \forall k \\
-$$
-and then draw mixing weight for the $K$ clusters from a Dirichlet distribution, i.e.
-$$
+\$\$
+and then draw mixing weight for the $$K$$ clusters from a Dirichlet distribution, i.e.
+\$\$
     w \sim Dirichlet(K, \alpha) \, . \\
-$$
+\$\$
 After having constructed all the necessary model parameters, we can generate an observation by first selecting one of the clusters and then drawing the datum accordingly, i.e.
-$$
+\$\$
     z_i \sim Categorical(w) \, , \;  \forall i \\
     x_i \sim Normal(\mu_{z_i}, 1.) \, , \;  \forall i
-$$
+\$\$
 
 For more details on Gaussian mixture models, we refer to Christopher M. Bishop, *Pattern Recognition and Machine Learning*, Section 9.
 

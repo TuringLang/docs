@@ -22,6 +22,9 @@ using MCMCChains, Plots, StatsPlots
 # We need a logistic function, which is provided by StatsFuns.
 using StatsFuns: logistic
 
+# Functionality for splitting and normalizing the data
+using MLDataUtils: shuffleobs, stratifiedobs, rescale!
+
 # Set a seed for reproducibility.
 using Random
 Random.seed!(0);
@@ -30,8 +33,6 @@ Random.seed!(0);
 Turing.turnprogress(false)
 ```
 
-    ┌ Info: Precompiling RDatasets [ce6b1742-4840-55fa-b093-852dadbb1d8b]
-    └ @ Base loading.jl:1260
     ┌ Info: [Turing]: progress logging is disabled globally
     └ @ Turing /home/cameron/.julia/packages/Turing/cReBm/src/Turing.jl:22
 
@@ -45,7 +46,7 @@ Turing.turnprogress(false)
 
 ## Data Cleaning & Set Up
 
-Now we're going to import our dataset. The first six rows of the dataset are shown below so you capn get a good feel for what kind of data we have.
+Now we're going to import our dataset. The first six rows of the dataset are shown below so you can get a good feel for what kind of data we have.
 
 
 ```julia
@@ -69,7 +70,7 @@ Most machine learning processes require some effort to tidy up the data, and thi
 ```julia
 # Convert "Default" and "Student" to numeric values.
 data[!,:DefaultNum] = [r.Default == "Yes" ? 1.0 : 0.0 for r in eachrow(data)]
-data[!, :StudentNum] = [r.Student == "Yes" ? 1.0 : 0.0 for r in eachrow(data)]
+data[!,:StudentNum] = [r.Student == "Yes" ? 1.0 : 0.0 for r in eachrow(data)]
 
 # Delete the old columns which say "Yes" and "No".
 select!(data, Not([:Default, :Student]))
@@ -87,42 +88,31 @@ first(data, 6)
 
 After we've done that tidying, it's time to split our dataset into training and testing sets, and separate the labels from the data. We separate our data into two halves, `train` and `test`. You can use a higher percentage of splitting (or a lower one) by modifying the `at = 0.05` argument. We have highlighted the use of only a 5% sample to show the power of Bayesian inference with small sample sizes.
 
-We must rescale our variables so that they are centered around zero by subtracting each column by the mean and dividing it by the standard deviation. Without this step, Turing's sampler will have a hard time finding a place to start searching for parameter estimates.
+We must rescale our variables so that they are centered around zero by subtracting each column by the mean and dividing it by the standard deviation. Without this step, Turing's sampler will have a hard time finding a place to start searching for parameter estimates. To do this we will leverage `MLDataUtils`, which also lets us effortlessly shuffle our observations and perform a stratified split to get a representative test set.
 
 
 ```julia
-# Function to split samples.
-function split_data(df, at = 0.70)
-    (r, _) = size(df)
-    index = Int(round(r * at))
-    train = df[1:index, :]
-    test  = df[(index+1):end, :]
-    return train, test
+function split_data(df, target; at = 0.70)
+    shuffled = shuffleobs(df)
+    trainset, testset = stratifiedobs(row -> row[target], 
+                                      shuffled, p = at)
 end
 
-# Rescale our columns.
-data.Balance = (data.Balance .- mean(data.Balance)) ./ std(data.Balance)
-data.Income = (data.Income .- mean(data.Income)) ./ std(data.Income)
+features = [:StudentNum, :Balance, :Income]
+numerics = [:Balance, :Income]
+target = :DefaultNum
 
-# Split our dataset 5/95 into training/test sets.
-train, test = split_data(data, 0.05);
+trainset, testset = split_data(data, target, at = 0.05)
+for feature in numerics
+  μ, σ = rescale!(trainset[!, feature], obsdim=1)
+  rescale!(testset[!, feature], μ, σ, obsdim=1)
+end
 
-# Create our labels. These are the values we are trying to predict.
-train_label = train[:,:DefaultNum]
-test_label = test[:,:DefaultNum]
-
-# Remove the columns that are not our predictors.
-train = train[:,[:StudentNum, :Balance, :Income]];
-test = test[:,[:StudentNum, :Balance, :Income]];
-```
-
-Our `train` and `test` matrices are still in the `DataFrame` format, which tends not to play too well with the kind of manipulations we're about to do, so we convert them into `Matrix` objects.
-
-
-```julia
-# Convert the DataFrame objects to matrices.
-train = Matrix(train);
-test = Matrix(test);
+# Turing requires data in matrix form, not dataframe
+train = Matrix(trainset[:, features])
+test = Matrix(testset[:, features])
+train_label = trainset[:, target]
+test_label = testset[:, target];
 ```
 
 ## Model Declaration 
@@ -180,20 +170,20 @@ describe(chain)
     2-element Array{ChainDataFrame,1}
     
     Summary Statistics
-      parameters     mean     std  naive_se    mcse       ess   r_hat
-      ──────────  ───────  ──────  ────────  ──────  ────────  ──────
-         balance   1.7910  0.3220    0.0048  0.0087  271.8875  1.0019
-          income  -0.1394  0.3320    0.0049  0.0111  991.7991  1.0010
-       intercept  -4.1193  0.4756    0.0071  0.0147  163.4210  1.0001
-         student  -0.9149  0.6302    0.0094  0.0302  650.1722  1.0046
+      parameters     mean     std  naive_se    mcse        ess   r_hat
+      ──────────  ───────  ──────  ────────  ──────  ─────────  ──────
+         balance   1.6517  0.3099    0.0046  0.0080   110.2122  1.0004
+          income  -0.5174  0.3241    0.0048  0.0081  1440.4337  1.0010
+       intercept  -3.8265  0.5148    0.0077  0.0148    54.8792  1.0004
+         student  -1.8662  0.6088    0.0091  0.0223   840.9122  1.0037
     
     Quantiles
       parameters     2.5%    25.0%    50.0%    75.0%    97.5%
       ──────────  ───────  ───────  ───────  ───────  ───────
-         balance   1.2168   1.5819   1.7784   1.9798   2.3970
-          income  -0.7735  -0.3582  -0.1372   0.0831   0.4892
-       intercept  -5.0109  -4.3876  -4.0866  -3.8198  -3.3232
-         student  -2.1533  -1.3321  -0.9115  -0.5011   0.3324
+         balance   1.1418   1.4534   1.6331   1.8242   2.2196
+          income  -1.1678  -0.7300  -0.5094  -0.3006   0.1079
+       intercept  -4.6202  -4.0685  -3.7947  -3.5465  -3.0855
+         student  -3.0690  -2.2803  -1.8574  -1.4528  -0.7137
 
 
 
@@ -208,7 +198,7 @@ plot(chain)
 
 
 
-![svg](2_LogisticRegression_files/2_LogisticRegression_15_0.svg)
+![svg](2_LogisticRegression_files/2_LogisticRegression_13_0.svg)
 
 
 
@@ -228,7 +218,7 @@ corner(chain, l)
 
 
 
-![svg](2_LogisticRegression_files/2_LogisticRegression_17_0.svg)
+![svg](2_LogisticRegression_files/2_LogisticRegression_15_0.svg)
 
 
 
@@ -267,12 +257,12 @@ function prediction(x::Matrix, chain, threshold)
 end;
 ```
 
-Let's see how we did! We run the test matrix through the prediction function, and compute the [mean squared error](https://en.wikipedia.org/wiki/Mean_squared_error) (MSE) for our prediction. The `threshold` variable sets the sensitivity of the predictions. For example, a threshold of 0.10 will predict a defualt value of 1 for any predicted value greater than 1.0 and no default if it is less than 0.10.
+Let's see how we did! We run the test matrix through the prediction function, and compute the [mean squared error](https://en.wikipedia.org/wiki/Mean_squared_error) (MSE) for our prediction. The `threshold` variable sets the sensitivity of the predictions. For example, a threshold of 0.07 will predict a defualt value of 1 for any predicted value greater than 0.07 and no default if it is less than 0.07.
 
 
 ```julia
 # Set the prediction threshold.
-threshold = 0.10
+threshold = 0.07
 
 # Make the predictions.
 predictions = prediction(test, chain, threshold)
@@ -284,7 +274,7 @@ loss = sum((predictions - test_label).^2) / length(test_label)
 
 
 
-    0.09273684210526316
+    0.1163157894736842
 
 
 
@@ -307,14 +297,14 @@ println("Not defaults: $$not_defaults
     Percentage non-defaults correct $$(predicted_not_defaults/not_defaults)")
 ```
 
-    Defaults: 317.0
-        Predictions: 259
-        Percentage defaults correct 0.8170347003154574
-    Not defaults: 9183.0
-        Predictions: 8360
-        Percentage non-defaults correct 0.9103778721550692
+    Defaults: 316.0
+        Predictions: 265
+        Percentage defaults correct 0.8386075949367089
+    Not defaults: 9184.0
+        Predictions: 8130
+        Percentage non-defaults correct 0.8852351916376306
 
 
-The above shows that with a threshold of 0.10, we correctly predict a respectable portion of the defaults, and correctly identify most non-defaults. This is fairly sensitive to a choice of threshold, and you may wish to experiment with it.
+The above shows that with a threshold of 0.07, we correctly predict a respectable portion of the defaults, and correctly identify most non-defaults. This is fairly sensitive to a choice of threshold, and you may wish to experiment with it.
 
 This tutorial has demonstrated how to use Turing to perform Bayesian logistic regression. 

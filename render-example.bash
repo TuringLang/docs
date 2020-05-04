@@ -56,8 +56,11 @@ for filename in *.ipynb; do
             # exit $retVal
         else
             # No errors happened, so we can convert the notebook to markdown.
+            echo "Converting $filename to $outPath"
             env/bin/jupyter-nbconvert "$filename" --to markdown --output-dir="markdown"
-            julia -e "include("weave-examples.jl"); handle_file("$outPath")"
+
+            echo "Adding YAML headers to $outpath"
+            julia -e "include(\"weave-examples.jl\"); handle_file(\"$outPath\")"
         fi
     fi
 done

@@ -71,7 +71,7 @@ plot_data()
 
 
 
-![svg](3_BayesNN_files/3_BayesNN_4_0.svg)
+![svg](/tutorials/3_BayesNN_files/3_BayesNN_4_0.svg)
 
 
 
@@ -178,7 +178,7 @@ contour!(x_range, y_range, Z)
 
 
 
-![svg](3_BayesNN_files/3_BayesNN_16_0.svg)
+![svg](/tutorials/3_BayesNN_files/3_BayesNN_16_0.svg)
 
 
 
@@ -218,7 +218,7 @@ contour!(x_range, y_range, Z)
 
 
 
-![svg](3_BayesNN_files/3_BayesNN_21_0.svg)
+![svg](/tutorials/3_BayesNN_files/3_BayesNN_21_0.svg)
 
 
 
@@ -301,7 +301,7 @@ contour!(x_range, y_range, Z)
 
 
 
-![svg](3_BayesNN_files/3_BayesNN_28_0.svg)
+![svg](/tutorials/3_BayesNN_files/3_BayesNN_28_0.svg)
 
 
 
@@ -403,7 +403,7 @@ contour!(x_range, y_range, Z)
 
 
 
-![svg](3_BayesNN_files/3_BayesNN_31_0.svg)
+![svg](/tutorials/3_BayesNN_files/3_BayesNN_31_0.svg)
 
 
 

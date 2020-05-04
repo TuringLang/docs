@@ -90,7 +90,7 @@ plot(p1, p2, p3, p4, layout = (2, 2), legend = false)
 
 
 
-![svg](7_PoissonRegression_files/7_PoissonRegression_5_0.svg)
+![svg](/tutorials/7_PoissonRegression_files/7_PoissonRegression_5_0.svg)
 
 
 
@@ -394,7 +394,7 @@ plot(chain)
 
 
 
-![svg](7_PoissonRegression_files/7_PoissonRegression_19_0.svg)
+![svg](/tutorials/7_PoissonRegression_files/7_PoissonRegression_19_0.svg)
 
 
 
@@ -478,7 +478,7 @@ plot(chains_new)
 
 
 
-![svg](7_PoissonRegression_files/7_PoissonRegression_25_0.svg)
+![svg](/tutorials/7_PoissonRegression_files/7_PoissonRegression_25_0.svg)
 
 
 

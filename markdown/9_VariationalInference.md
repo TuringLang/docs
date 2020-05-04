@@ -301,7 +301,7 @@ plot(p1, p2, layout=(2, 1), size=(900, 500))
 
 
 
-![png](9_VariationalInference_files/9_VariationalInference_34_0.png)
+![png](/tutorials/9_VariationalInference_files/9_VariationalInference_34_0.png)
 
 
 
@@ -388,7 +388,7 @@ p = plot(p1, p2; layout=(2, 1), size=(900, 500))
 
 
 
-![png](9_VariationalInference_files/9_VariationalInference_36_1.png)
+![png](/tutorials/9_VariationalInference_files/9_VariationalInference_36_1.png)
 
 
 
@@ -736,7 +736,7 @@ plot_variational_marginals(z, sym2range)
 
 
 
-![png](9_VariationalInference_files/9_VariationalInference_68_0.png)
+![png](/tutorials/9_VariationalInference_files/9_VariationalInference_68_0.png)
 
 
 
@@ -761,7 +761,7 @@ plot(chain)
 
 
 
-![png](9_VariationalInference_files/9_VariationalInference_71_0.png)
+![png](/tutorials/9_VariationalInference_files/9_VariationalInference_71_0.png)
 
 
 
@@ -969,7 +969,7 @@ title!("Mean-field ADVI (Normal)")
 
 
 
-![png](9_VariationalInference_files/9_VariationalInference_88_0.png)
+![png](/tutorials/9_VariationalInference_files/9_VariationalInference_88_0.png)
 
 
 
@@ -987,7 +987,7 @@ title!("MCMC (NUTS)")
 
 
 
-![png](9_VariationalInference_files/9_VariationalInference_89_0.png)
+![png](/tutorials/9_VariationalInference_files/9_VariationalInference_89_0.png)
 
 
 
@@ -1075,7 +1075,7 @@ plot(p1, p2, layout = (1, 2), size = (800, 2000))
 
 
 
-![png](9_VariationalInference_files/9_VariationalInference_100_0.png)
+![png](/tutorials/9_VariationalInference_files/9_VariationalInference_100_0.png)
 
 
 
@@ -1174,7 +1174,7 @@ heatmap(cov(A * A'))
 
 
 
-![png](9_VariationalInference_files/9_VariationalInference_110_0.png)
+![png](/tutorials/9_VariationalInference_files/9_VariationalInference_110_0.png)
 
 
 
@@ -1194,7 +1194,7 @@ plot(p1, p2, layout = (1, 2), size = (800, 2000))
 
 
 
-![png](9_VariationalInference_files/9_VariationalInference_112_0.png)
+![png](/tutorials/9_VariationalInference_files/9_VariationalInference_112_0.png)
 
 
 
@@ -1265,7 +1265,7 @@ title!("Mean-field ADVI (Normal)")
 
 
 
-![png](9_VariationalInference_files/9_VariationalInference_117_0.png)
+![png](/tutorials/9_VariationalInference_files/9_VariationalInference_117_0.png)
 
 
 
@@ -1284,7 +1284,7 @@ title!("Full ADVI (Normal)")
 
 
 
-![png](9_VariationalInference_files/9_VariationalInference_118_0.png)
+![png](/tutorials/9_VariationalInference_files/9_VariationalInference_118_0.png)
 
 
 
@@ -1302,7 +1302,7 @@ title!("MCMC (NUTS)")
 
 
 
-![png](9_VariationalInference_files/9_VariationalInference_119_0.png)
+![png](/tutorials/9_VariationalInference_files/9_VariationalInference_119_0.png)
 
 
 
@@ -1314,7 +1314,7 @@ plot(p1, p2, p3, layout = (1, 3), size = (900, 250), label="")
 
 
 
-![png](9_VariationalInference_files/9_VariationalInference_120_0.png)
+![png](/tutorials/9_VariationalInference_files/9_VariationalInference_120_0.png)
 
 
 

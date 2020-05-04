@@ -245,7 +245,7 @@ plot(chain)
 
 
 
-![svg](8_MultinomialLogisticRegression_files/8_MultinomialLogisticRegression_15_0.svg)
+![svg](/tutorials/8_MultinomialLogisticRegression_files/8_MultinomialLogisticRegression_15_0.svg)
 
 
 
@@ -261,7 +261,7 @@ corner(chain, [:SepalLength_versicolor, :SepalWidth_versicolor, :PetalLength_ver
 
 
 
-![svg](8_MultinomialLogisticRegression_files/8_MultinomialLogisticRegression_17_0.svg)
+![svg](/tutorials/8_MultinomialLogisticRegression_files/8_MultinomialLogisticRegression_17_0.svg)
 
 
 
@@ -273,7 +273,7 @@ corner(chain, [:SepalLength_versicolor, :SepalWidth_versicolor, :PetalLength_ver
 
 
 
-![svg](8_MultinomialLogisticRegression_files/8_MultinomialLogisticRegression_18_0.svg)
+![svg](/tutorials/8_MultinomialLogisticRegression_files/8_MultinomialLogisticRegression_18_0.svg)
 
 
 

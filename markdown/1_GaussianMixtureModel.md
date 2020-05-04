@@ -30,7 +30,7 @@ scatter(x[1,:], x[2,:], legend = false, title = "Synthetic Dataset")
 
 
 
-![svg](1_GaussianMixtureModel_files/1_GaussianMixtureModel_2_0.svg)
+![svg](/tutorials/1_GaussianMixtureModel_files/1_GaussianMixtureModel_2_0.svg)
 
 
 
@@ -146,7 +146,7 @@ p=plot(tchain[:, ids, :], legend=true, labels = ["Mu 1" "Mu 2"], colordim=:param
 
 
 
-![svg](1_GaussianMixtureModel_files/1_GaussianMixtureModel_13_0.svg)
+![svg](/tutorials/1_GaussianMixtureModel_files/1_GaussianMixtureModel_13_0.svg)
 
 
 
@@ -191,7 +191,7 @@ scatter!(x[1,:], x[2,:], legend = false, title = "Synthetic Dataset")
 
 
 
-![svg](1_GaussianMixtureModel_files/1_GaussianMixtureModel_18_0.svg)
+![svg](/tutorials/1_GaussianMixtureModel_files/1_GaussianMixtureModel_18_0.svg)
 
 
 
@@ -211,6 +211,6 @@ scatter(x[1,:], x[2,:],
 
 
 
-![svg](1_GaussianMixtureModel_files/1_GaussianMixtureModel_21_0.svg)
+![svg](/tutorials/1_GaussianMixtureModel_files/1_GaussianMixtureModel_21_0.svg)
 
 

@@ -198,7 +198,7 @@ plot(chain)
 
 
 
-![svg](2_LogisticRegression_files/2_LogisticRegression_13_0.svg)
+![svg](/tutorials/2_LogisticRegression_files/2_LogisticRegression_13_0.svg)
 
 
 
@@ -218,7 +218,7 @@ corner(chain, l)
 
 
 
-![svg](2_LogisticRegression_files/2_LogisticRegression_15_0.svg)
+![svg](/tutorials/2_LogisticRegression_files/2_LogisticRegression_15_0.svg)
 
 
 

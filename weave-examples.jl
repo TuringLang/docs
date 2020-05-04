@@ -51,7 +51,7 @@ function add_yaml(path)
     yaml_lines = ["---\n", "title: $title\n", "permalink: $permalink\n", "---\n"]
 
     # Write lines back.
-    open(path, "w") do f
+    open(path, "w+") do f
         # Prepend YAML.
         if !has_yaml
             for line in yaml_lines

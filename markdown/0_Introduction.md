@@ -19,10 +19,8 @@ First, let's load some of the packages we need to flip a coin (`Random`, `Distri
 
 
 ```julia
-# Using Base modules.
 using Random
 
-# Load a plotting library.
 using Plots
 
 # Load the distributions library.
@@ -186,7 +184,7 @@ plot(p_summary, seriestype = :histogram)
 
 
 
-![svg](0_Introduction_files/0_Introduction_21_0.svg)
+![svg](/tutorials/0_Introduction_files/0_Introduction_21_0.svg)
 
 
 
@@ -214,7 +212,7 @@ vline!(p, [p_true], label = "True probability", c = :red)
 
 
 
-![svg](0_Introduction_files/0_Introduction_23_0.svg)
+![svg](/tutorials/0_Introduction_files/0_Introduction_23_0.svg)
 
 
 

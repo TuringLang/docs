@@ -271,7 +271,7 @@ plot(k, xlabel = "Iteration", ylabel = "Number of clusters", label = "Chain 1")
 
 
 
-![svg](6_InfiniteMixtureModel_files/6_InfiniteMixtureModel_31_0.svg)
+![svg](/tutorials/6_InfiniteMixtureModel_files/6_InfiniteMixtureModel_31_0.svg)
 
 
 
@@ -285,7 +285,7 @@ histogram(k, xlabel = "Number of clusters", legend = false)
 
 
 
-![svg](6_InfiniteMixtureModel_files/6_InfiniteMixtureModel_33_0.svg)
+![svg](/tutorials/6_InfiniteMixtureModel_files/6_InfiniteMixtureModel_33_0.svg)
 
 
 

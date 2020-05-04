@@ -179,7 +179,7 @@ plot(chain)
 
 
 
-![svg](5_LinearRegression_files/5_LinearRegression_12_0.svg)
+![svg](/tutorials/5_LinearRegression_files/5_LinearRegression_12_0.svg)
 
 
 

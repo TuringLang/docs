@@ -39,7 +39,7 @@ plot(y, xlim = (0,15), ylim = (-1,5), size = (500, 250))
 
 
 
-![svg](4_BayesHmm_files/4_BayesHmm_3_0.svg)
+![svg](/tutorials/4_BayesHmm_files/4_BayesHmm_3_0.svg)
 
 
 
@@ -164,7 +164,7 @@ plot(subchain,
 
 
 
-![svg](4_BayesHmm_files/4_BayesHmm_11_0.svg)
+![svg](/tutorials/4_BayesHmm_files/4_BayesHmm_11_0.svg)
 
 
 

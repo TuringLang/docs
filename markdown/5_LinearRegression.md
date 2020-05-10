@@ -28,6 +28,12 @@ Random.seed!(0);
 Turing.turnprogress(false);
 ```
 
+    ┌ Info: Precompiling Turing [fce5fe82-541a-59a6-adf8-730c64b5f9a0]
+    └ @ Base loading.jl:1260
+    ┌ Info: Precompiling Plots [91a5bcdd-55d7-5caf-9e0b-520d859cae80]
+    └ @ Base loading.jl:1260
+    ┌ Info: Precompiling StatsPlots [f3b207a7-027a-5e70-b257-86293d7955fd]
+    └ @ Base loading.jl:1260
     ┌ Info: [Turing]: progress logging is disabled globally
     └ @ Turing /home/cameron/.julia/packages/Turing/cReBm/src/Turing.jl:22
 
@@ -247,10 +253,6 @@ train_cut.OLSPrediction = unstandardize(GLM.predict(ols), data.MPG);
 test_cut.OLSPrediction = unstandardize(GLM.predict(ols, test_cut), data.MPG);
 ```
 
-    ┌ Info: Precompiling GLM [38e38edf-8417-5370-95a0-9cbb8c7f171a]
-    └ @ Base loading.jl:1260
-
-
 The function below accepts a chain and an input matrix and calculates predictions. We use the mean observation of each parameter in the model starting with sample 200, which is where the warm-up period for the NUTS sampler ended.
 
 
@@ -326,4 +328,4 @@ Test set:
         OLS loss: 270.9481307076011
 
 
-As we can see above, OLS and our Bayesian model fit our training set about the same. This is to be expected, given that it is our training set. But when we look at our test set, we see that the Bayesian linear regression model is better able to predict out of sample.
+As we can see above, OLS and our Bayesian model fit our training set about the same. This is to be expected, given that it is our training set. However, the Bayesian linear regression model is less able to predict out of sample -- this is likely due to our selection of priors, and that fact that point estimates were used to forecast instead of the true posteriors.

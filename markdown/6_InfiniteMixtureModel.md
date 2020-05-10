@@ -84,7 +84,7 @@ x &\sim Normal(\mu_z, \Sigma)
 \end{align}
 $$
 
-which resembles the model in the [Gaussian mixture model tutorial](1_GaussianMixtureModel.ipynb) with a slightly different notation.
+which resembles the model in the [Gaussian mixture model tutorial](https://turing.ml/dev/tutorials/1-gaussianmixturemodel/) with a slightly different notation.
 
 ## Infinite Mixture Model
 

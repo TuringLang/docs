@@ -13,6 +13,7 @@ if [ ! -d "./env" ]; then
 
     # Install needed packages
     pip install jupyter
+    pip install jupyter_contrib_nbextensions
 fi
 
 # check to see if the markdown directory exists
@@ -24,19 +25,29 @@ fi
 source env/bin/activate
 
 for filename in *.ipynb; do
-    ipyAge=$(stat -c %Y -- "$filename")
+    
+    if [ "$(uname)" == "Darwin" ]; then
+        ipyAge=$(stat -f %Y -- "$filename")
+    elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
+        ipyAge=$(stat -c %Y -- "$filename")
+    fi
     outPath="markdown/${filename/.ipynb/.md}"
 
+    
     if [ -f $outPath ]; then
-        mdAge=$(stat -c %Y -- $outPath)
+        if [ "$(uname)" == "Darwin" ]; then
+            mdAge=$(stat -f %Y -- $outPath)
+        elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
+            mdAge=$(stat -c %Y -- $outPath)
+        fi
         mdExists=0
     else
         mdAge=0
         mdExists=0
     fi
 
-
-    if [ $mdExists -ne 0 ] || (( $ipyAge > $mdAge )); then
+    #if [ $mdExists -ne 0 ] || (( $ipyAge > $mdAge )); then
+    if [ $mdExists -ne 0 ] || $( $ipyAge > $mdAge ); then
         echo "$filename needs to be reconverted as it has been updated."
 
         # Update the notebook itself by executing everything.

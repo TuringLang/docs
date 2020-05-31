@@ -22,7 +22,7 @@ Random.seed!(12);
 The Lotka–Volterra equations, also known as the predator–prey equations, are a pair of first-order nonlinear differential equations, frequently used to describe the dynamics of biological systems in which two species interact, one as a predator and the other as prey. The populations change through time according to the pair of equations:
 
 $$\frac{dx}{dt} = (\alpha - \beta y)x$$
- 
+
 $$\frac{dy}{dt} = (\delta x - \gamma)y$$
 
 
@@ -48,8 +48,8 @@ plot(sol)
 
 
 
-We'll generate the data to use for the parameter estimation from simulation. 
-With the `saveat` [argument](https://docs.sciml.ai/latest/basics/common_solver_opts/) we specify that the solution is stored only at `0.1` time units. 
+We'll generate the data to use for the parameter estimation from simulation.
+With the `saveat` [argument](https://docs.sciml.ai/latest/basics/common_solver_opts/) we specify that the solution is stored only at `0.1` time units.
 
 
 ```julia
@@ -446,16 +446,16 @@ bayesian_result_turing = turing_inference(prob,Tsit5(),t,odedata,priors,num_samp
 
 
     Object of type Chains, with data of type 9000×17×1 Array{Float64,3}
-    
+
     Iterations        = 1:9000
     Thinning interval = 1
     Chains            = 1
     Samples per chain = 9000
     internals         = acceptance_rate, hamiltonian_energy, hamiltonian_energy_error, is_accept, log_density, lp, max_hamiltonian_energy_error, n_steps, nom_step_size, numerical_error, step_size, tree_depth
     parameters        = theta[1], theta[2], theta[3], theta[4], σ[1]
-    
+
     2-element Array{ChainDataFrame,1}
-    
+
     Summary Statistics
       parameters    mean     std  naive_se    mcse       ess   r_hat
       ──────────  ──────  ──────  ────────  ──────  ────────  ──────
@@ -464,7 +464,7 @@ bayesian_result_turing = turing_inference(prob,Tsit5(),t,odedata,priors,num_samp
         theta[3]  2.6787  0.1880    0.0020  0.0075  149.3134  1.0161
         theta[4]  1.7144  0.5741    0.0061  0.0605   36.1446  1.1525
             σ[1]  1.2880  0.0680    0.0007  0.0034   79.4361  1.0392
-    
+
     Quantiles
       parameters    2.5%   25.0%   50.0%   75.0%   97.5%
       ──────────  ──────  ──────  ──────  ──────  ──────
@@ -543,16 +543,16 @@ chain = sample(model, NUTS(.65),10000)
 
 
     Object of type Chains, with data of type 9000×17×1 Array{Float64,3}
-    
+
     Iterations        = 1:9000
     Thinning interval = 1
     Chains            = 1
     Samples per chain = 9000
     internals         = acceptance_rate, hamiltonian_energy, hamiltonian_energy_error, is_accept, log_density, lp, max_hamiltonian_energy_error, n_steps, nom_step_size, numerical_error, step_size, tree_depth
     parameters        = α, β, γ, δ, σ
-    
+
     2-element Array{ChainDataFrame,1}
-    
+
     Summary Statistics
       parameters    mean     std  naive_se    mcse        ess   r_hat
       ──────────  ──────  ──────  ────────  ──────  ─────────  ──────
@@ -561,7 +561,7 @@ chain = sample(model, NUTS(.65),10000)
                γ  2.0000  0.0028    0.0000  0.0001  2853.0168  1.0023
                δ  0.4000  0.0006    0.0000  0.0000  2108.4542  1.0004
                σ  0.0151  0.0011    0.0000  0.0000  6389.0453  1.0000
-    
+
     Quantiles
       parameters    2.5%   25.0%   50.0%   75.0%   97.5%
       ──────────  ──────  ──────  ──────  ──────  ──────
@@ -576,12 +576,12 @@ chain = sample(model, NUTS(.65),10000)
 
 ## Scaling to Large Models: Adjoint Sensitivities
 
-DifferentialEquations.jl's efficiency for large stiff models has been shown in multiple [benchmarks](https://github.com/SciML/DiffEqBenchmarks.jl). To learn more about how to optimize solving performance for stiff problems you can take a look at the [docs](https://docs.sciml.ai/latest/tutorials/advanced_ode_example/). 
+DifferentialEquations.jl's efficiency for large stiff models has been shown in multiple [benchmarks](https://github.com/SciML/DiffEqBenchmarks.jl). To learn more about how to optimize solving performance for stiff problems you can take a look at the [docs](https://docs.sciml.ai/latest/tutorials/advanced_ode_example/).
 
 [Sensitivity analysis](https://docs.sciml.ai/latest/analysis/sensitivity/), or automatic differentiation (AD) of the solver, is provided by the DiffEq suite. The model sensitivities are the derivatives of the solution $$u(t)$$ with respect to the parameters. Specifically, the local sensitivity of the solution to a parameter is defined by how much the solution would change by changes in the parameter. Sensitivity analysis provides a cheap way to calculate the gradient of the solution which can be used in parameter estimation and other optimization tasks.
 
 
-The AD ecosystem in Julia allows you to switch between forward mode, reverse mode, source to source and other choices of AD and have it work with any Julia code. For a user to make use of this within [SciML](https://sciml.ai) a high level function [`concrete_solve`](https://docs.sciml.ai/latest/analysis/sensitivity/#High-Level-Interface:-concrete_solve-1) plugs into those AD systems to allow for choosing advanced sensitivity analysis (derivative calculation) [methods](https://docs.sciml.ai/latest/analysis/sensitivity/#Sensitivity-Algorithms-1). 
+The AD ecosystem in Julia allows you to switch between forward mode, reverse mode, source to source and other choices of AD and have it work with any Julia code. For a user to make use of this within [SciML](https://sciml.ai), [high level interactions in `solve`](https://docs.sciml.ai/latest/analysis/sensitivity/#High-Level-Interface:-sensealg-1) automatically plug into those AD systems to allow for choosing advanced sensitivity analysis (derivative calculation) [methods](https://docs.sciml.ai/latest/analysis/sensitivity/#Sensitivity-Algorithms-1).
 
 More theoretical details on these methods can be found at: https://docs.sciml.ai/latest/extras/sensitivity_math/.
 
@@ -600,7 +600,7 @@ Turing.setadbackend(:zygote)
     δ ~ truncated(Normal(1.0,0.5),0,2)
     p = [α,β,γ,δ]
     prob = ODEProblem(lotka_volterra,u0,(0.0,10.0),p)
-    predicted = concrete_solve(prob,nothing,saveat=0.1)
+    predicted = solve(prob,saveat=0.1)
     for i = 1:length(predicted)
         data[:,i] ~ MvNormal(predicted[i], σ)
     end
@@ -622,16 +622,16 @@ chain = sample(model, NUTS(.65),1000)
 
 
     Object of type Chains, with data of type 500×17×1 Array{Float64,3}
-    
+
     Iterations        = 1:500
     Thinning interval = 1
     Chains            = 1
     Samples per chain = 500
     internals         = acceptance_rate, hamiltonian_energy, hamiltonian_energy_error, is_accept, log_density, lp, max_hamiltonian_energy_error, n_steps, nom_step_size, numerical_error, step_size, tree_depth
     parameters        = α, β, γ, δ, σ
-    
+
     2-element Array{ChainDataFrame,1}
-    
+
     Summary Statistics
       parameters    mean     std  naive_se    mcse       ess   r_hat
       ──────────  ──────  ──────  ────────  ──────  ────────  ──────
@@ -640,7 +640,7 @@ chain = sample(model, NUTS(.65),1000)
                γ  2.0000  0.0028    0.0001  0.0001  221.2757  0.9999
                δ  0.4000  0.0007    0.0000  0.0000  146.7523  0.9983
                σ  0.0151  0.0011    0.0000  0.0000  219.6837  1.0048
-    
+
     Quantiles
       parameters    2.5%   25.0%   50.0%   75.0%   97.5%
       ──────────  ──────  ──────  ──────  ──────  ──────
@@ -665,7 +665,7 @@ Now we can exercise control of the sensitivity analysis method that is used by u
     δ ~ truncated(Normal(1.0,0.5),0,2)
     p = [α,β,γ,δ]
     prob = ODEProblem(lotka_volterra,u0,(0.0,10.0),p)
-    predicted = concrete_solve(prob,nothing,saveat=0.1,sensealg=InterpolatingAdjoint(autojacvec=ReverseDiffVJP(true)))
+    predicted = solve(prob,saveat=0.1,sensealg=InterpolatingAdjoint(autojacvec=ReverseDiffVJP(true)))
     for i = 1:length(predicted)
         data[:,i] ~ MvNormal(predicted[i], σ)
     end
@@ -699,16 +699,16 @@ model = fitlv(odedata)
 
 
     Object of type Chains, with data of type 500×17×1 Array{Float64,3}
-    
+
     Iterations        = 1:500
     Thinning interval = 1
     Chains            = 1
     Samples per chain = 500
     internals         = acceptance_rate, hamiltonian_energy, hamiltonian_energy_error, is_accept, log_density, lp, max_hamiltonian_energy_error, n_steps, nom_step_size, numerical_error, step_size, tree_depth
     parameters        = α, β, γ, δ, σ
-    
+
     2-element Array{ChainDataFrame,1}
-    
+
     Summary Statistics
       parameters    mean     std  naive_se    mcse       ess   r_hat
       ──────────  ──────  ──────  ────────  ──────  ────────  ──────
@@ -717,7 +717,7 @@ model = fitlv(odedata)
                γ  2.0915  0.2014    0.0090  0.0177  149.4003  1.0095
                δ  1.1443  0.1543    0.0069  0.0153  112.7753  1.0100
                σ  1.1358  0.0542    0.0024  0.0018  406.1583  0.9982
-    
+
     Quantiles
       parameters    2.5%   25.0%   50.0%   75.0%   97.5%
       ──────────  ──────  ──────  ──────  ──────  ──────
@@ -869,16 +869,16 @@ chain = sample(model, NUTS(.65),500)
 
 
     Object of type Chains, with data of type 250×19×1 Array{Float64,3}
-    
+
     Iterations        = 1:250
     Thinning interval = 1
     Chains            = 1
     Samples per chain = 250
     internals         = acceptance_rate, hamiltonian_energy, hamiltonian_energy_error, is_accept, log_density, lp, max_hamiltonian_energy_error, n_steps, nom_step_size, numerical_error, step_size, tree_depth
     parameters        = α, β, γ, δ, σ, ϕ1, ϕ2
-    
+
     2-element Array{ChainDataFrame,1}
-    
+
     Summary Statistics
       parameters    mean     std  naive_se    mcse     ess   r_hat
       ──────────  ──────  ──────  ────────  ──────  ──────  ──────
@@ -889,7 +889,7 @@ chain = sample(model, NUTS(.65),500)
                σ  0.4002  0.0000    0.0000  0.0000  2.0325  1.7251
               ϕ1  0.9069  0.0000    0.0000  0.0000  2.0325  5.0295
               ϕ2  0.2177  0.0000    0.0000  0.0000  2.0325  3.4342
-    
+
     Quantiles
       parameters    2.5%   25.0%   50.0%   75.0%   97.5%
       ──────────  ──────  ──────  ──────  ──────  ──────
@@ -900,6 +900,3 @@ chain = sample(model, NUTS(.65),500)
                σ  0.4002  0.4002  0.4002  0.4002  0.4002
               ϕ1  0.9069  0.9069  0.9069  0.9069  0.9069
               ϕ2  0.2177  0.2177  0.2177  0.2177  0.2177
-
-
-

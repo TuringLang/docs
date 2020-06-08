@@ -20,9 +20,15 @@ using RDatasets
 # Import MCMCChains, Plots, and StatPlots for visualizations and diagnostics.
 using MCMCChains, Plots, StatsPlots
 
+# Functionality for splitting and normalizing the data.
+using MLDataUtils: shuffleobs, splitobs, rescale!
+
+# Functionality for evaluating the model predictions.
+using Distances
+
 # Set a seed for reproducibility.
 using Random
-Random.seed!(0);
+Random.seed!(0)
 
 # Hide the progress prompt while sampling.
 Turing.turnprogress(false);
@@ -30,12 +36,16 @@ Turing.turnprogress(false);
 
     ┌ Info: Precompiling Turing [fce5fe82-541a-59a6-adf8-730c64b5f9a0]
     └ @ Base loading.jl:1260
+    ┌ Info: Precompiling RDatasets [ce6b1742-4840-55fa-b093-852dadbb1d8b]
+    └ @ Base loading.jl:1260
     ┌ Info: Precompiling Plots [91a5bcdd-55d7-5caf-9e0b-520d859cae80]
     └ @ Base loading.jl:1260
     ┌ Info: Precompiling StatsPlots [f3b207a7-027a-5e70-b257-86293d7955fd]
     └ @ Base loading.jl:1260
+    ┌ Info: Precompiling MLDataUtils [cc2ba9b6-d476-5e6d-8eaf-a92d5412d41d]
+    └ @ Base loading.jl:1260
     ┌ Info: [Turing]: progress logging is disabled globally
-    └ @ Turing /home/cameron/.julia/packages/Turing/cReBm/src/Turing.jl:22
+    └ @ Turing /home/cameron/.julia/packages/Turing/GMBTf/src/Turing.jl:22
 
 
 We will use the `mtcars` dataset from the [RDatasets](https://github.com/johnmyleswhite/RDatasets.jl) package. `mtcars` contains a variety of statistics on different car models, including their miles per gallon, number of cylinders, and horsepower, among others.
@@ -70,54 +80,30 @@ size(data)
 
 
 
-The next step is to get our data ready for testing. We'll split the `mtcars` dataset into two subsets, one for training our model and one for evaluating our model. Then, we separate the labels we want to learn (`MPG`, in this case) and standardize the datasets by subtracting each column's means and dividing by the standard deviation of that column.
-
-The resulting data is not very familiar looking, but this standardization process helps the sampler converge far easier. We also create a function called `unstandardize`, which returns the standardized values to their original form. We will use this function later on when we make predictions.
+The next step is to get our data ready for testing. We'll split the `mtcars` dataset into two subsets, one for training our model and one for evaluating our model. Then, we separate the targets we want to learn (`MPG`, in this case) and standardize the datasets by subtracting each column's means and dividing by the standard deviation of that column. The resulting data is not very familiar looking, but this standardization process helps the sampler converge far easier.
 
 
 ```julia
-# Function to split samples.
-function split_data(df, at = 0.70)
-    r = size(df,1)
-    index = Int(round(r * at))
-    train = df[1:index, :]
-    test  = df[(index+1):end, :]
-    return train, test
-end
-
-# A handy helper function to rescale our dataset.
-function standardize(x)
-    return (x .- mean(x, dims=1)) ./ std(x, dims=1), x
-end
-
-# Another helper function to unstandardize our datasets.
-function unstandardize(x, orig)
-    return (x .+ mean(orig, dims=1)) .* std(orig, dims=1)
-end
-
 # Remove the model column.
 select!(data, Not(:Model))
 
-# Standardize our dataset.
-(std_data, data_arr) = standardize(Matrix(data))
-
 # Split our dataset 70%/30% into training/test sets.
-train, test = split_data(std_data, 0.7)
+trainset, testset = splitobs(shuffleobs(data), 0.7)
 
-# Save dataframe versions of our dataset.
-train_cut = DataFrame(train, names(data))
-test_cut = DataFrame(test, names(data))
+# Turing requires data in matrix form.
+target = :MPG
+train = Matrix(select(trainset, Not(target)))
+test = Matrix(select(testset, Not(target)))
+train_target = trainset[:, target]
+test_target = testset[:, target]
 
-# Create our labels. These are the values we are trying to predict.
-train_label = train_cut[:, :MPG]
-test_label = test_cut[:, :MPG]
+# Standardize the features.
+μ, σ = rescale!(train; obsdim = 1)
+rescale!(test, μ, σ; obsdim = 1)
 
-# Get the list of columns to keep.
-remove_names = filter(x->!in(x, [:MPG, :Model]), names(data))
-
-# Filter the test and train sets.
-train = Matrix(train_cut[:,remove_names]);
-test = Matrix(test_cut[:,remove_names]);
+# Standardize the targets.
+μtarget, σtarget = rescale!(train_target; obsdim = 1)
+rescale!(test_target, μtarget, σtarget; obsdim = 1);
 ```
 
 ## Model Specification
@@ -125,54 +111,63 @@ test = Matrix(test_cut[:,remove_names]);
 In a traditional frequentist model using [OLS](https://en.wikipedia.org/wiki/Ordinary_least_squares), our model might look like:
 
 \$\$
-MPG_i = \alpha + \boldsymbol{\beta}^T\boldsymbol{X_i}
+MPG_i = \alpha + \boldsymbol{\beta}^\mathsf{T}\boldsymbol{X_i}
 \$\$
 
 where $$\boldsymbol{\beta}$$ is a vector of coefficients and $$\boldsymbol{X}$$ is a vector of inputs for observation $$i$$. The Bayesian model we are more concerned with is the following:
 
 \$\$
-MPG_i \sim \mathcal{N}(\alpha + \boldsymbol{\beta}^T\boldsymbol{X_i}, \sigma^2)
+MPG_i \sim \mathcal{N}(\alpha + \boldsymbol{\beta}^\mathsf{T}\boldsymbol{X_i}, \sigma^2)
 \$\$
 
 where $$\alpha$$ is an intercept term common to all observations, $$\boldsymbol{\beta}$$ is a coefficient vector, $$\boldsymbol{X_i}$$ is the observed data for car $$i$$, and $$\sigma^2$$ is a common variance term.
 
-For $$\sigma^2$$, we assign a prior of `TruncatedNormal(0,100,0,Inf)`. This is consistent with [Andrew Gelman's recommendations](http://www.stat.columbia.edu/~gelman/research/published/taumain.pdf) on noninformative priors for variance. The intercept term ($$\alpha$$) is assumed to be normally distributed with a mean of zero and a variance of three. This represents our assumptions that miles per gallon can be explained mostly by our assorted variables, but a high variance term indicates our uncertainty about that. Each coefficient is assumed to be normally distributed with a mean of zero and a variance of 10. We do not know that our coefficients are different from zero, and we don't know which ones are likely to be the most important, so the variance term is quite high. The syntax `::Type{T}=Vector{Float64}` allows us to maintain type stability in our model -- for more information, please review the [performance tips](https://turing.ml/dev/docs/using-turing/performancetips#make-your-model-type-stable). Lastly, each observation $$y_i$$ is distributed according to the calculated `mu` term given by $$\alpha + \boldsymbol{\beta}^T\boldsymbol{X_i}$$.
+For $$\sigma^2$$, we assign a prior of `truncated(Normal(0, 100), 0, Inf)`. This is consistent with [Andrew Gelman's recommendations](http://www.stat.columbia.edu/~gelman/research/published/taumain.pdf) on noninformative priors for variance. The intercept term ($$\alpha$$) is assumed to be normally distributed with a mean of zero and a variance of three. This represents our assumptions that miles per gallon can be explained mostly by our assorted variables, but a high variance term indicates our uncertainty about that. Each coefficient is assumed to be normally distributed with a mean of zero and a variance of 10. We do not know that our coefficients are different from zero, and we don't know which ones are likely to be the most important, so the variance term is quite high. Lastly, each observation $$y_i$$ is distributed according to the calculated `mu` term given by $$\alpha + \boldsymbol{\beta}^\mathsf{T}\boldsymbol{X_i}$$.
 
 
 ```julia
 # Bayesian linear regression.
-@model linear_regression(x, y, n_obs, n_vars, ::Type{T}=Vector{Float64}) where {T} = begin
+@model function linear_regression(x, y)
     # Set variance prior.
-    σ₂ ~ truncated(Normal(0,100), 0, Inf)
+    σ₂ ~ truncated(Normal(0, 100), 0, Inf)
     
     # Set intercept prior.
-    intercept ~ Normal(0, 3)
+    intercept ~ Normal(0, sqrt(3))
     
     # Set the priors on our coefficients.
-    coefficients = T(undef, n_vars)
-    
-    for i in 1:n_vars
-        coefficients[i] ~ Normal(0, 10)
-    end
+    nfeatures = size(x, 2)
+    coefficients ~ MvNormal(nfeatures, sqrt(10))
     
     # Calculate all the mu terms.
     mu = intercept .+ x * coefficients
-    y ~ MvNormal(mu, σ₂)
-end;
+    y ~ MvNormal(mu, sqrt(σ₂))
+end
 ```
+
+
+
+
+    DynamicPPL.ModelGen{var"###generator#273",(:x, :y),(),Tuple{}}(##generator#273, NamedTuple())
+
+
 
 With our model specified, we can call the sampler. We will use the No U-Turn Sampler ([NUTS](http://turing.ml/docs/library/#-turingnuts--type)) here. 
 
 
 ```julia
-n_obs, n_vars = size(train)
-model = linear_regression(train, train_label, n_obs, n_vars)
-chain = sample(model, NUTS(0.65), 3000);
+model = linear_regression(train, train_target)
+chain = sample(model, NUTS(0.65), 3_000);
 ```
 
     ┌ Info: Found initial step size
-    │   ϵ = 0.8
-    └ @ Turing.Inference /home/cameron/.julia/packages/Turing/cReBm/src/inference/hmc.jl:556
+    │   ϵ = 1.6
+    └ @ Turing.Inference /home/cameron/.julia/packages/Turing/GMBTf/src/inference/hmc.jl:629
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /home/cameron/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
 
 
 As a visual check to confirm that our coefficients have converged, we show the densities and trace plots for our parameters using the `plot` functionality.
@@ -202,36 +197,36 @@ describe(chain)
     2-element Array{ChainDataFrame,1}
     
     Summary Statistics
-            parameters     mean     std  naive_se    mcse        ess   r_hat
-      ────────────────  ───────  ──────  ────────  ──────  ─────────  ──────
-       coefficients[1]   0.4016  0.4323    0.0097  0.0126  1418.0304  1.0027
-       coefficients[2]  -0.1277  0.4637    0.0104  0.0135  1181.7039  1.0005
-       coefficients[3]  -0.1022  0.4395    0.0098  0.0109  1431.9877  0.9995
-       coefficients[4]   0.6234  0.2929    0.0065  0.0084  1283.4786  0.9999
-       coefficients[5]   0.0228  0.4389    0.0098  0.0122   952.5486  1.0011
-       coefficients[6]   0.0806  0.3023    0.0068  0.0070  1172.3970  1.0005
-       coefficients[7]  -0.0882  0.2855    0.0064  0.0107  1301.0501  0.9995
-       coefficients[8]   0.1230  0.2741    0.0061  0.0092  1205.5582  0.9996
-       coefficients[9]   0.2870  0.4770    0.0107  0.0200  1142.3295  1.0007
-      coefficients[10]  -0.8466  0.4473    0.0100  0.0155  1028.5133  0.9999
-             intercept   0.0488  0.1879    0.0042  0.0069  1318.5615  0.9998
-                    σ₂   0.4690  0.1216    0.0027  0.0065   441.0666  1.0029
+            parameters     mean     std  naive_se    mcse       ess   r_hat
+      ────────────────  ───────  ──────  ────────  ──────  ────────  ──────
+       coefficients[1]  -0.0413  0.5648    0.0126  0.0389  265.1907  1.0010
+       coefficients[2]   0.2770  0.6994    0.0156  0.0401  375.2777  1.0067
+       coefficients[3]  -0.4116  0.3850    0.0086  0.0160  695.3990  1.0032
+       coefficients[4]   0.1805  0.2948    0.0066  0.0126  479.9290  1.0010
+       coefficients[5]  -0.2669  0.7168    0.0160  0.0316  373.0291  1.0009
+       coefficients[6]   0.0256  0.3461    0.0077  0.0119  571.0954  1.0028
+       coefficients[7]   0.0277  0.3899    0.0087  0.0174  637.1596  1.0007
+       coefficients[8]   0.1535  0.3050    0.0068  0.0117  579.1998  1.0032
+       coefficients[9]   0.1223  0.2839    0.0063  0.0105  587.6752  0.9995
+      coefficients[10]  -0.2839  0.3975    0.0089  0.0195  360.9612  1.0019
+             intercept   0.0058  0.1179    0.0026  0.0044  580.0222  0.9995
+                    σ₂   0.3017  0.1955    0.0044  0.0132  227.2322  1.0005
     
     Quantiles
             parameters     2.5%    25.0%    50.0%    75.0%   97.5%
       ────────────────  ───────  ───────  ───────  ───────  ──────
-       coefficients[1]  -0.4586   0.1308   0.3952   0.6760  1.2983
-       coefficients[2]  -1.0837  -0.4147  -0.1183   0.1735  0.7539
-       coefficients[3]  -0.9534  -0.3692  -0.0970   0.1754  0.7399
-       coefficients[4]   0.0657   0.4384   0.6213   0.8051  1.2116
-       coefficients[5]  -0.8295  -0.2490   0.0233   0.2867  0.8957
-       coefficients[6]  -0.5154  -0.1071   0.0786   0.2649  0.6782
-       coefficients[7]  -0.6629  -0.2700  -0.0815   0.0969  0.4499
-       coefficients[8]  -0.4245  -0.0580   0.1305   0.3092  0.6471
-       coefficients[9]  -0.6654  -0.0012   0.2929   0.5712  1.2670
-      coefficients[10]  -1.7458  -1.1247  -0.8455  -0.5655  0.0667
-             intercept  -0.3131  -0.0670   0.0432   0.1618  0.4354
-                    σ₂   0.3089   0.3868   0.4441   0.5243  0.7552
+       coefficients[1]  -1.0991  -0.4265  -0.0199   0.3244  1.1093
+       coefficients[2]  -1.1369  -0.1523   0.2854   0.7154  1.6488
+       coefficients[3]  -1.1957  -0.6272  -0.3986  -0.1800  0.3587
+       coefficients[4]  -0.3896  -0.0155   0.1663   0.3593  0.7818
+       coefficients[5]  -1.6858  -0.6835  -0.2683   0.1378  1.1995
+       coefficients[6]  -0.6865  -0.1672   0.0325   0.2214  0.7251
+       coefficients[7]  -0.7644  -0.1976   0.0090   0.2835  0.8185
+       coefficients[8]  -0.4980  -0.0194   0.1451   0.3428  0.7685
+       coefficients[9]  -0.4643  -0.0294   0.1237   0.2807  0.7218
+      coefficients[10]  -1.0898  -0.5091  -0.2846  -0.0413  0.5163
+             intercept  -0.2240  -0.0671   0.0083   0.0746  0.2364
+                    σ₂   0.1043   0.1860   0.2525   0.3530  0.8490
 
 
 
@@ -246,23 +241,34 @@ A satisfactory test of our model is to evaluate how well it predicts. Importantl
 using GLM
 
 # Perform multiple regression OLS.
-ols = lm(@formula(MPG ~ Cyl + Disp + HP + DRat + WT + QSec + VS + AM + Gear + Carb), train_cut)
+train_with_intercept = hcat(ones(size(train, 1)), train)
+ols = lm(train_with_intercept, train_target)
 
-# Store our predictions in the original dataframe.
-train_cut.OLSPrediction = unstandardize(GLM.predict(ols), data.MPG);
-test_cut.OLSPrediction = unstandardize(GLM.predict(ols, test_cut), data.MPG);
+# Compute predictions on the training data set
+# and unstandardize them.
+p = GLM.predict(ols)
+train_prediction_ols = μtarget .+ σtarget .* p
+
+# Compute predictions on the test data set
+# and unstandardize them.
+test_with_intercept = hcat(ones(size(test, 1)), test)
+p = GLM.predict(ols, test_with_intercept)
+test_prediction_ols = μtarget .+ σtarget .* p;
 ```
 
-The function below accepts a chain and an input matrix and calculates predictions. We use the mean observation of each parameter in the model starting with sample 200, which is where the warm-up period for the NUTS sampler ended.
+    ┌ Info: Precompiling GLM [38e38edf-8417-5370-95a0-9cbb8c7f171a]
+    └ @ Base loading.jl:1260
+
+
+The function below accepts a chain and an input matrix and calculates predictions. We use the samples of the model parameters in the chain starting with sample 200, which is where the warm-up period for the NUTS sampler ended.
 
 
 ```julia
 # Make a prediction given an input vector.
 function prediction(chain, x)
     p = get_params(chain[200:end, :, :])
-    α = mean(p.intercept)
-    β = collect(mean.(p.coefficients))
-    return  α .+ x * β
+    targets = p.intercept' .+ x * reduce(hcat, p.coefficients)'
+    return vec(mean(targets; dims = 2))
 end
 ```
 
@@ -273,59 +279,63 @@ end
 
 
 
-When we make predictions, we unstandardize them so they're more understandable. We also add them to the original dataframes so they can be placed in context.
+When we make predictions, we unstandardize them so they are more understandable.
 
 
 ```julia
-# Calculate the predictions for the training and testing sets.
-train_cut.BayesPredictions = unstandardize(prediction(chain, train), data.MPG);
-test_cut.BayesPredictions = unstandardize(prediction(chain, test), data.MPG);
+# Calculate the predictions for the training and testing sets
+# and unstandardize them.
+p = prediction(chain, train)
+train_prediction_bayes = μtarget .+ σtarget .* p
+p = prediction(chain, test)
+test_prediction_bayes = μtarget .+ σtarget .* p
 
-# Unstandardize the dependent variable.
-train_cut.MPG = unstandardize(train_cut.MPG, data.MPG);
-test_cut.MPG = unstandardize(test_cut.MPG, data.MPG);
-
-# Show the first side rows of the modified dataframe.
-first(test_cut, 6)
+# Show the predictions on the test data set.
+DataFrame(
+    MPG = testset[!, target],
+    Bayes = test_prediction_bayes,
+    OLS = test_prediction_ols
+)
 ```
 
 
 
 
-<table class="data-frame"><thead><tr><th></th><th>MPG</th><th>Cyl</th><th>Disp</th><th>HP</th><th>DRat</th><th>WT</th><th>QSec</th><th>VS</th></tr><tr><th></th><th>Float64</th><th>Float64</th><th>Float64</th><th>Float64</th><th>Float64</th><th>Float64</th><th>Float64</th><th>Float64</th></tr></thead><tbody><p>6 rows × 13 columns (omitted printing of 5 columns)</p><tr><th>1</th><td>116.195</td><td>1.01488</td><td>0.591245</td><td>0.0483133</td><td>-0.835198</td><td>0.222544</td><td>-0.307089</td><td>-0.868028</td></tr><tr><th>2</th><td>114.295</td><td>1.01488</td><td>0.962396</td><td>1.4339</td><td>0.249566</td><td>0.636461</td><td>-1.36476</td><td>-0.868028</td></tr><tr><th>3</th><td>120.195</td><td>1.01488</td><td>1.36582</td><td>0.412942</td><td>-0.966118</td><td>0.641571</td><td>-0.446992</td><td>-0.868028</td></tr><tr><th>4</th><td>128.295</td><td>-1.22486</td><td>-1.22417</td><td>-1.17684</td><td>0.904164</td><td>-1.31048</td><td>0.588295</td><td>1.11604</td></tr><tr><th>5</th><td>126.995</td><td>-1.22486</td><td>-0.890939</td><td>-0.812211</td><td>1.55876</td><td>-1.10097</td><td>-0.642858</td><td>-0.868028</td></tr><tr><th>6</th><td>131.395</td><td>-1.22486</td><td>-1.09427</td><td>-0.491337</td><td>0.324377</td><td>-1.74177</td><td>-0.530935</td><td>1.11604</td></tr></tbody></table>
+<table class="data-frame"><thead><tr><th></th><th>MPG</th><th>Bayes</th><th>OLS</th></tr><tr><th></th><th>Float64</th><th>Float64</th><th>Float64</th></tr></thead><tbody><p>10 rows × 3 columns</p><tr><th>1</th><td>19.2</td><td>18.3766</td><td>18.1265</td></tr><tr><th>2</th><td>15.0</td><td>6.4176</td><td>6.37891</td></tr><tr><th>3</th><td>16.4</td><td>13.9125</td><td>13.883</td></tr><tr><th>4</th><td>14.3</td><td>11.8393</td><td>11.7337</td></tr><tr><th>5</th><td>21.4</td><td>25.3622</td><td>25.1916</td></tr><tr><th>6</th><td>18.1</td><td>20.7687</td><td>20.672</td></tr><tr><th>7</th><td>19.7</td><td>16.03</td><td>15.8408</td></tr><tr><th>8</th><td>15.2</td><td>18.2903</td><td>18.3391</td></tr><tr><th>9</th><td>26.0</td><td>28.5191</td><td>28.4865</td></tr><tr><th>10</th><td>17.3</td><td>14.498</td><td>14.534</td></tr></tbody></table>
 
 
 
-Now let's evaluate the loss for each method, and each prediction set. We will use sum of squared error function to evaluate loss, given by 
-
+Now let's evaluate the loss for each method, and each prediction set. We will use the mean squared error to evaluate loss, given by 
 \$\$
-\text{SSE} = \sum{(y_i - \hat{y_i})^2}
+\text{MSE} = \frac{1}{n} \sum_{i=1}^n {(y_i - \hat{y_i})^2}
 \$\$
-
 where $$y_i$$ is the actual value (true MPG) and $$\hat{y_i}$$ is the predicted value using either OLS or Bayesian linear regression. A lower SSE indicates a closer fit to the data.
 
 
 ```julia
-bayes_loss1 = sum((train_cut.BayesPredictions - train_cut.MPG).^2)
-ols_loss1 = sum((train_cut.OLSPrediction - train_cut.MPG).^2)
+println(
+    "Training set:",
+    "\n\tBayes loss: ",
+    msd(train_prediction_bayes, trainset[!, target]),
+    "\n\tOLS loss: ",
+    msd(train_prediction_ols, trainset[!, target])
+)
 
-bayes_loss2 = sum((test_cut.BayesPredictions - test_cut.MPG).^2)
-ols_loss2 = sum((test_cut.OLSPrediction - test_cut.MPG).^2)
-
-println("Training set:
-    Bayes loss: $$bayes_loss1
-    OLS loss: $$ols_loss1
-Test set: 
-    Bayes loss: $$bayes_loss2
-    OLS loss: $$ols_loss2")
+println(
+    "Test set:",
+    "\n\tBayes loss: ",
+    msd(test_prediction_bayes, testset[!, target]),
+    "\n\tOLS loss: ",
+    msd(test_prediction_ols, testset[!, target])
+)
 ```
 
     Training set:
-        Bayes loss: 67.61488347514008
-        OLS loss: 67.56037474764642
-    Test set: 
-        Bayes loss: 278.859606131571
-        OLS loss: 270.9481307076011
+    	Bayes loss: 4.664508273535872
+    	OLS loss: 4.648142085690519
+    Test set:
+    	Bayes loss: 14.66153554719035
+    	OLS loss: 14.796847779051628
 
 
-As we can see above, OLS and our Bayesian model fit our training set about the same. This is to be expected, given that it is our training set. However, the Bayesian linear regression model is less able to predict out of sample -- this is likely due to our selection of priors, and that fact that point estimates were used to forecast instead of the true posteriors.
+As we can see above, OLS and our Bayesian model fit our training and test data set about the same.

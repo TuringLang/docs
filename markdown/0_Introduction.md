@@ -4,23 +4,26 @@ permalink: /:collection/:name/
 ---
 
 ## Introduction
+
 This is the first of a series of tutorials on the universal probabilistic programming language **Turing**.
 
-Turing is probabilistic programming system written entirely in Julia. It has an intuitive modelling syntax and supports a wide range of sampling-based inference algorithms. Most importantly, Turing inference is composable: it combines Markov chain sampling operations on subsets of model variables, e.g. using a combination of a Hamiltonian Monte Carlo (HMC) engine and a particle Gibbs (PG) engine. This composable inference engine allows the user to easily switch between black-box style inference methods such as HMC and customized inference methods.
+Turing is a probabilistic programming system written entirely in Julia. It has an intuitive modelling syntax and supports a wide range of sampling-based inference algorithms. Most importantly, Turing inference is composable: it combines Markov chain sampling operations on subsets of model variables, e.g. using a combination of a Hamiltonian Monte Carlo (HMC) engine and a particle Gibbs (PG) engine. This composable inference engine allows the user to easily switch between black-box style inference methods such as HMC and customized inference methods.
  
 Familiarity with Julia is assumed through out this tutorial. If you are new to Julia, [Learning Julia](https://julialang.org/learning/) is a good starting point.
 
 For users new to Bayesian machine learning, please consider more thorough introductions to the field, such as [Pattern Recognition and Machine Learning](https://www.springer.com/us/book/9780387310732). This tutorial tries to provide an intuition for Bayesian inference and gives a simple example on how to use Turing. Note that this is not a comprehensive introduction to Bayesian machine learning.
 
-### Coin-Flipping Without Turing
+### Coin Flipping Without Turing
 The following example illustrates the effect of updating our beliefs with every piece of new evidence we observe. In particular, assume that we are unsure about the probability of heads in a coin flip. To get an intuitive understanding of what "updating our beliefs" is, we will visualize the probability of heads in a coin flip after each observed evidence.
 
 First, let's load some of the packages we need to flip a coin (`Random`, `Distributions`) and show our results (`Plots`). You will note that Turing is not an import here — we do not need it for this example. If you are already familiar with posterior updates, you can proceed to the next step.
 
 
 ```julia
+# Using Base modules.
 using Random
 
+# Load a plotting library.
 using Plots
 
 # Load the distributions library.
@@ -116,7 +119,7 @@ end;
 
     ┌ Info: Saved animation to 
     │   fn = /home/cameron/code/TuringTutorials/tmp.gif
-    └ @ Plots /home/cameron/.julia/packages/Plots/cc8wh/src/animation.jl:98
+    └ @ Plots /home/cameron/.julia/packages/Plots/Xnzc7/src/animation.jl:104
 
 
 ![animation](https://user-images.githubusercontent.com/7974003/44995702-37c1b200-af9c-11e8-8b26-c88a528956af.gif)

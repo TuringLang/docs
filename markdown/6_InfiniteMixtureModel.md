@@ -67,7 +67,7 @@ end
 
 
 
-    ##two_model#362 (generic function with 2 methods)
+    DynamicPPL.ModelGen{var"###generator#282",(:x,),(),Tuple{}}(##generator#282, NamedTuple())
 
 
 
@@ -164,18 +164,18 @@ end;
 
     ┌ Info: Saved animation to 
     │   fn = /home/cameron/code/TuringTutorials/tmp.gif
-    └ @ Plots /home/cameron/.julia/packages/Plots/cc8wh/src/animation.jl:98
+    └ @ Plots /home/cameron/.julia/packages/Plots/Xnzc7/src/animation.jl:104
 
 
 ![tmp](https://user-images.githubusercontent.com/422990/55284032-90cfa980-5323-11e9-8a99-f9315db170cb.gif)
 
-Further, we can see that the number of clusters is logarithmic in the number of observations and data points. This is a side-effect of the "rich get richer" phenomenon, i.e. we expect large clusters and thus the number of clusters has to be smaller than the number of observations.
+Further, we can see that the number of clusters is logarithmic in the number of observations and data points. This is a side-effect of the "rich-get-richer" phenomenon, i.e. we expect large clusters and thus the number of clusters has to be smaller than the number of observations.
 
-\$\$ 
-E[K \mid N] \approx \alpha * log \big(1 - \frac{N}{\alpha}\big)
+\$\$
+E[K \mid N] \approx \alpha \cdot log \big(1 + \frac{N}{\alpha}\big)
 \$\$
 
-We can see from the equation that the concetration parameter $$\alpha$$ allows use to control the number of cluster formed a priori.
+We can see from the equation that the concentration parameter $$\alpha$$ allows us to control the number of clusters formed *a priori*.
 
 In Turing we can implement an infinite Gaussian mixture model using the Chinese restaurant process construction of a Dirichlet process as follows:
 
@@ -226,7 +226,7 @@ end
 
 
 
-    ##infiniteGMM#903 (generic function with 2 methods)
+    DynamicPPL.ModelGen{var"###generator#800",(:x,),(),Tuple{}}(##generator#800, NamedTuple())
 
 
 

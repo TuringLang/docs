@@ -1,4 +1,7 @@
-# Bayesian Estimation of Differential Equations
+---
+title: Bayesian Estimation of Differential Equations
+permalink: /:collection/:name/
+---
 
 Most of the scientific community deals with the basic problem of trying to mathematically model the reality around them and this often involves dynamical systems. The general trend to model these complex dynamical systems is through the use of differential equations. Differential equation models often have non-measurable parameters. The popular “forward-problem” of simulation consists of solving the differential equations for a given set of parameters, the “inverse problem” to simulation, known as parameter estimation, is the process of utilizing data to determine these model parameters. Bayesian inference provides a robust approach to parameter estimation with quantified uncertainty.
 
@@ -40,9 +43,9 @@ false
 
 The Lotka–Volterra equations, also known as the predator–prey equations, are a pair of first-order nonlinear differential equations, frequently used to describe the dynamics of biological systems in which two species interact, one as a predator and the other as prey. The populations change through time according to the pair of equations:
 
-$\frac{dx}{dt} = (\alpha - \beta y)x$
+$$\frac{dx}{dt} = (\alpha - \beta y)x$$
  
-$\frac{dy}{dt} = (\delta x - \gamma)y$
+$$\frac{dy}{dt} = (\delta x - \gamma)y$$
 
 
 
@@ -63,7 +66,7 @@ plot(sol)
 
 
 
-![svg](10_diffeq_files/10_diffeq_4_0.svg)
+![svg](/tutorials/10_diffeq_files/10_diffeq_4_0.svg)
 
 
 
@@ -80,7 +83,7 @@ plot(sol1, alpha = 0.3, legend = false); scatter!(sol1.t, odedata')
 
 
 
-![svg](10_diffeq_files/10_diffeq_6_0.svg)
+![svg](/tutorials/10_diffeq_files/10_diffeq_6_0.svg)
 
 
 
@@ -184,7 +187,7 @@ plot(chain)
 
 
 
-![svg](10_diffeq_files/10_diffeq_11_0.svg)
+![svg](/tutorials/10_diffeq_files/10_diffeq_11_0.svg)
 
 
 
@@ -210,7 +213,7 @@ plot!(sol1, w=1, legend = false)
 
 
 
-![svg](10_diffeq_files/10_diffeq_14_0.svg)
+![svg](/tutorials/10_diffeq_files/10_diffeq_14_0.svg)
 
 
 
@@ -218,7 +221,7 @@ In the plot above, the 300 retrodicted time courses from the posterior are plott
 
 ## Lokta Volterra with missing predator data
 
-Thanks to the known structure of the problem, encoded by the Lokta-Volterra ODEs, one can also fit a model with incomplete data - even without any data for one of the two variables. For instance, let's suppose you have observations for the prey only, but none for the predator. We test this case by fitting the model only to the $y$ variable of the system, without providing any data for $x$:
+Thanks to the known structure of the problem, encoded by the Lokta-Volterra ODEs, one can also fit a model with incomplete data - even without any data for one of the two variables. For instance, let's suppose you have observations for the prey only, but none for the predator. We test this case by fitting the model only to the $$y$$ variable of the system, without providing any data for $$x$$:
 
 
 ```julia
@@ -452,11 +455,11 @@ plot!(sol1, w=1, legend = false)
 
 
 
-![svg](10_diffeq_files/10_diffeq_23_0.svg)
+![svg](/tutorials/10_diffeq_files/10_diffeq_23_0.svg)
 
 
 
-Note that here, the data values of $x$ (blue dots) were not given to the model! Yet, the model could predict the values of $x$ relatively accurately, albeit with a wider distribution of solutions, reflecting the greater uncertainty in the prediction of the $x$ values.
+Note that here, the data values of $$x$$ (blue dots) were not given to the model! Yet, the model could predict the values of $$x$$ relatively accurately, albeit with a wider distribution of solutions, reflecting the greater uncertainty in the prediction of the $$x$$ values.
 
 ## Inference of Delay Differential Equations
 
@@ -466,24 +469,26 @@ For this, we will define a [`DDEProblem`](https://diffeq.sciml.ai/stable/tutoria
 
 Here is a delayed version of the lokta voltera system:
 
-$\frac{dx}{dt} = \alpha x(t-\tau) - \beta y(t) x(t)$
+$$\frac{dx}{dt} = \alpha x(t-\tau) - \beta y(t) x(t)$$
  
-$\frac{dy}{dt} = - \gamma y(t) + \delta x(t) y(t) $
+$$\frac{dy}{dt} = - \gamma y(t) + \delta x(t) y(t) $$
 
-Where $x(t-\tau)$ is the variable $x$ at an earlier time point. We specify the delayed variable with a function `h(p, t)`, as described in the [DDE example](https://diffeq.sciml.ai/stable/tutorials/dde_example/).
+Where $$x(t-\tau)$$ is the variable $$x$$ at an earlier time point. We specify the delayed variable with a function `h(p, t)`, as described in the [DDE example](https://diffeq.sciml.ai/stable/tutorials/dde_example/).
 
 
 ```julia
-function delay_lotka_volterra(du,u,h,p,t)
-    x, y = u
-    α,β,γ,δ = p
-    du[1] = α*h(p,t-1)[1] - β*x*y
-    du[2] = -γ*y + δ*x*y
+function delay_lotka_volterra(du, u, h, p, t)
+   x, y = u
+   α, β, γ, δ = p
+   du[1] = α * h(p, t-1; idxs=1) - β * x * y
+   du[2] = -γ * y + δ * x * y
+   return
 end
 
-p = (1.5,1.0,3.0,1.0); u0 = [1.0;1.0]
+p = (1.5,1.0,3.0,1.0)
+u0 = [1.0; 1.0]
 tspan = (0.0,10.0)
-h(p,t) = 1.0
+h(p, t; idxs::Int) = 1.0
 prob1 = DDEProblem(delay_lotka_volterra,u0,h,tspan,p)
 ```
 
@@ -522,7 +527,7 @@ scatter(sol.t, ddedata'); plot!(sol)
 
 
 
-![svg](10_diffeq_files/10_diffeq_30_0.svg)
+![svg](/tutorials/10_diffeq_files/10_diffeq_30_0.svg)
 
 
 
@@ -554,7 +559,7 @@ model = fitlv(ddedata)
 
 
 
-    DynamicPPL.Model{var"###evaluator#417",(:data,),Tuple{Array{Float64,2}},(),DynamicPPL.ModelGen{var"###generator#418",(:data,),(),Tuple{}}}(##evaluator#417, (data = [1.950151269970946 1.1012009481956744 … 3.2596243979896546 2.8073795220348914; -0.42817779725188676 0.6938535469441495 … 0.9996569502656769 2.136773691914533],), DynamicPPL.ModelGen{var"###generator#418",(:data,),(),Tuple{}}(##generator#418, NamedTuple()))
+    DynamicPPL.Model{var"###evaluator#417",(:data,),Tuple{Array{Float64,2}},(),DynamicPPL.ModelGen{var"###generator#418",(:data,),(),Tuple{}}}(##evaluator#417, (data = [1.950151269970946 1.1012009481956744 … 3.259624397989658 2.807379522034895; -0.42817779725188676 0.6938535469441495 … 0.9996569502656734 2.13677369191453],), DynamicPPL.ModelGen{var"###generator#418",(:data,),(),Tuple{}}(##generator#418, NamedTuple()))
 
 
 
@@ -575,12 +580,13 @@ plot(chain)
     ┌ Info: Found initial step size
     │   ϵ = 0.00625
     └ @ Turing.Inference /Users/vaibhavdixit/.julia/packages/Turing/GMBTf/src/inference/hmc.jl:629
+    [32mSampling (4 threads): 100%|█████████████████████████████████████████| Time: 0:00:00[39m
 
 
 
 
 
-![svg](10_diffeq_files/10_diffeq_34_1.svg)
+![svg](/tutorials/10_diffeq_files/10_diffeq_34_1.svg)
 
 
 
@@ -608,20 +614,20 @@ chain
     Summary Statistics
       parameters    mean     std  naive_se    mcse       ess   r_hat
       ──────────  ──────  ──────  ────────  ──────  ────────  ──────
-               α  1.5787  0.0721    0.0034  0.0068  105.1689  1.0077
-               β  0.9922  0.0516    0.0024  0.0037  130.5338  0.9976
-               γ  2.7984  0.1344    0.0063  0.0133  112.2369  1.0138
-               δ  0.9305  0.0473    0.0022  0.0049  105.1380  1.0125
-               σ  0.5143  0.0248    0.0012  0.0013  333.2133  0.9983
+               α  1.5900  0.0777    0.0037  0.0114  162.2798  1.0386
+               β  0.9997  0.0540    0.0025  0.0071  189.3562  1.0271
+               γ  2.7816  0.1417    0.0067  0.0173  176.2037  1.0235
+               δ  0.9256  0.0486    0.0023  0.0065  159.8625  1.0284
+               σ  0.5124  0.0252    0.0012  0.0008  491.1995  0.9974
     
     Quantiles
       parameters    2.5%   25.0%   50.0%   75.0%   97.5%
       ──────────  ──────  ──────  ──────  ──────  ──────
-               α  1.4312  1.5303  1.5779  1.6279  1.7172
-               β  0.8893  0.9566  0.9909  1.0267  1.0974
-               γ  2.5669  2.7041  2.7906  2.8810  3.0942
-               δ  0.8474  0.8954  0.9273  0.9592  1.0364
-               σ  0.4678  0.4976  0.5127  0.5287  0.5690
+               α  1.4562  1.5332  1.5826  1.6399  1.7644
+               β  0.9013  0.9623  0.9977  1.0329  1.1150
+               γ  2.4838  2.6831  2.7912  2.8744  3.0488
+               δ  0.8277  0.8934  0.9286  0.9583  1.0196
+               σ  0.4668  0.4954  0.5113  0.5282  0.5627
 
 
 
@@ -645,7 +651,7 @@ plot!(sol)
 
 
 
-![svg](10_diffeq_files/10_diffeq_37_0.svg)
+![svg](/tutorials/10_diffeq_files/10_diffeq_37_0.svg)
 
 
 
@@ -655,7 +661,7 @@ Here again, the dots is the data fed to the model, the continuous colored line i
 
 DifferentialEquations.jl's efficiency for large stiff models has been shown in multiple [benchmarks](https://github.com/SciML/DiffEqBenchmarks.jl). To learn more about how to optimize solving performance for stiff problems you can take a look at the [docs](https://docs.sciml.ai/latest/tutorials/advanced_ode_example/). 
 
-[Sensitivity analysis](https://docs.sciml.ai/latest/analysis/sensitivity/), or automatic differentiation (AD) of the solver, is provided by the DiffEq suite. The model sensitivities are the derivatives of the solution $u(t)$ with respect to the parameters. Specifically, the local sensitivity of the solution to a parameter is defined by how much the solution would change by changes in the parameter. Sensitivity analysis provides a cheap way to calculate the gradient of the solution which can be used in parameter estimation and other optimization tasks.
+[Sensitivity analysis](https://docs.sciml.ai/latest/analysis/sensitivity/), or automatic differentiation (AD) of the solver, is provided by the DiffEq suite. The model sensitivities are the derivatives of the solution $$u(t)$$ with respect to the parameters. Specifically, the local sensitivity of the solution to a parameter is defined by how much the solution would change by changes in the parameter. Sensitivity analysis provides a cheap way to calculate the gradient of the solution which can be used in parameter estimation and other optimization tasks.
 
 
 The AD ecosystem in Julia allows you to switch between forward mode, reverse mode, source to source and other choices of AD and have it work with any Julia code. For a user to make use of this within [SciML](https://sciml.ai), [high level interactions in `solve`](https://docs.sciml.ai/latest/analysis/sensitivity/#High-Level-Interface:-sensealg-1) automatically plug into those AD systems to allow for choosing advanced sensitivity analysis (derivative calculation) [methods](https://docs.sciml.ai/latest/analysis/sensitivity/#Sensitivity-Algorithms-1). 
@@ -688,8 +694,17 @@ chain = sample(model, NUTS(.65),1000)
 ```
 
     ┌ Info: Found initial step size
-    │   ϵ = 0.2
+    │   ϵ = 0.05
     └ @ Turing.Inference /Users/vaibhavdixit/.julia/packages/Turing/GMBTf/src/inference/hmc.jl:629
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
+    ┌ Warning: The current proposal will be rejected due to numerical error(s).
+    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
+    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
     ┌ Warning: The current proposal will be rejected due to numerical error(s).
     │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
     └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
@@ -764,22 +779,22 @@ chain = sample(model, NUTS(.65),1000)
     2-element Array{ChainDataFrame,1}
     
     Summary Statistics
-      parameters    mean     std  naive_se    mcse       ess   r_hat
-      ──────────  ──────  ──────  ────────  ──────  ────────  ──────
-               α  1.2556  0.0822    0.0037  0.0090   88.5274  1.0212
-               β  0.8769  0.1056    0.0047  0.0061  152.6190  1.0135
-               γ  1.0922  0.0955    0.0043  0.0108   93.9549  1.0138
-               δ  0.5369  0.0565    0.0025  0.0060  109.2372  1.0140
-               σ  2.0539  0.1064    0.0048  0.0049  173.6449  1.0081
+      parameters    mean     std  naive_se    mcse      ess   r_hat
+      ──────────  ──────  ──────  ────────  ──────  ───────  ──────
+               α  1.2425  0.0951    0.0043  0.0131  21.0597  1.0584
+               β  0.8797  0.1174    0.0053  0.0094  57.0848  1.0335
+               γ  1.1090  0.1083    0.0048  0.0163  16.0508  1.0569
+               δ  0.5449  0.0626    0.0028  0.0091  14.9693  1.0765
+               σ  2.0637  0.1035    0.0046  0.0076  83.4009  1.0135
     
     Quantiles
       parameters    2.5%   25.0%   50.0%   75.0%   97.5%
       ──────────  ──────  ──────  ──────  ──────  ──────
-               α  1.0866  1.2013  1.2736  1.3120  1.3887
-               β  0.7007  0.7988  0.8638  0.9398  1.1046
-               γ  1.0019  1.0226  1.0575  1.1270  1.3626
-               δ  0.4517  0.4995  0.5276  0.5662  0.6779
-               σ  1.8685  1.9811  2.0575  2.1186  2.2729
+               α  1.0377  1.1849  1.2513  1.3149  1.4007
+               β  0.6986  0.7858  0.8649  0.9616  1.1255
+               γ  1.0020  1.0301  1.0733  1.1494  1.3975
+               δ  0.4553  0.5031  0.5333  0.5713  0.6938
+               σ  1.8802  1.9943  2.0524  2.1231  2.3159
 
 
 
@@ -806,119 +821,11 @@ model = fitlv(odedata)
 ```
 
     ┌ Info: Found initial step size
-    │   ϵ = 0.025
+    │   ϵ = 0.2
     └ @ Turing.Inference /Users/vaibhavdixit/.julia/packages/Turing/GMBTf/src/inference/hmc.jl:629
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
 
 
-    187.587922 seconds (1.23 G allocations: 69.351 GiB, 8.40% gc time)
+    464.088461 seconds (2.60 G allocations: 144.833 GiB, 8.02% gc time)
 
 
 
@@ -938,20 +845,20 @@ model = fitlv(odedata)
     Summary Statistics
       parameters    mean     std  naive_se    mcse       ess   r_hat
       ──────────  ──────  ──────  ────────  ──────  ────────  ──────
-               α  1.2570  0.0758    0.0034  0.0034  167.5210  0.9981
-               β  0.8897  0.1157    0.0052  0.0107  177.7335  0.9983
-               γ  1.0922  0.0812    0.0036  0.0049  119.3555  0.9993
-               δ  0.5360  0.0500    0.0022  0.0033  132.2755  0.9988
-               σ  2.0580  0.1024    0.0046  0.0086  189.4302  1.0069
+               α  1.5554  0.0524    0.0023  0.0068   95.2633  1.0048
+               β  1.0914  0.0531    0.0024  0.0066  122.1511  1.0030
+               γ  2.8837  0.1397    0.0062  0.0172  102.6885  1.0050
+               δ  0.9390  0.0500    0.0022  0.0061  102.1186  1.0064
+               σ  0.8131  0.0421    0.0019  0.0027  300.0565  0.9992
     
     Quantiles
       parameters    2.5%   25.0%   50.0%   75.0%   97.5%
       ──────────  ──────  ──────  ──────  ──────  ──────
-               α  1.1136  1.2001  1.2617  1.3096  1.3986
-               β  0.6977  0.8082  0.8740  0.9521  1.1808
-               γ  1.0055  1.0299  1.0694  1.1302  1.2989
-               δ  0.4488  0.5018  0.5314  0.5711  0.6442
-               σ  1.8783  1.9843  2.0510  2.1239  2.2673
+               α  1.4528  1.5206  1.5584  1.5881  1.6575
+               β  0.9933  1.0533  1.0944  1.1279  1.1916
+               γ  2.6215  2.7896  2.8793  2.9717  3.1938
+               δ  0.8507  0.9065  0.9334  0.9702  1.0450
+               σ  0.7360  0.7823  0.8126  0.8386  0.9015
 
 
 
@@ -985,13 +892,13 @@ ensembleprob = EnsembleProblem(prob)
 plot(EnsembleSummary(data))
 ```
 
-     14.408065 seconds (53.33 M allocations: 4.900 GiB, 8.75% gc time)
+     15.415100 seconds (54.59 M allocations: 4.953 GiB, 7.98% gc time)
 
 
 
 
 
-![svg](10_diffeq_files/10_diffeq_47_1.svg)
+![svg](/tutorials/10_diffeq_files/10_diffeq_47_1.svg)
 
 
 
@@ -1047,7 +954,7 @@ plot(chain)
     │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
     └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
     ┌ Info: Found initial step size
-    │   ϵ = 0.0026680213783972003
+    │   ϵ = 1.9073487483867169e-7
     └ @ Turing.Inference /Users/vaibhavdixit/.julia/packages/Turing/GMBTf/src/inference/hmc.jl:629
     ┌ Info: Using passed-in initial variable values
     │   init_theta = [1.5, 1.3, 1.2, 2.7, 1.2, 0.12, 0.12]
@@ -1061,26 +968,11 @@ plot(chain)
     ┌ Warning: The current proposal will be rejected due to numerical error(s).
     │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
     └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
-    ┌ Warning: The current proposal will be rejected due to numerical error(s).
-    │   isfinite.((θ, r, ℓπ, ℓκ)) = (true, false, false, false)
-    └ @ AdvancedHMC /Users/vaibhavdixit/.julia/packages/AdvancedHMC/P9wqk/src/hamiltonian.jl:47
 
 
 
 
 
-![svg](10_diffeq_files/10_diffeq_50_1.svg)
+![svg](/tutorials/10_diffeq_files/10_diffeq_50_1.svg)
 
 

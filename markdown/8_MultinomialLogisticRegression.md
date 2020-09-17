@@ -10,22 +10,42 @@ To start, let's import all the libraries we'll need.
 
 
 ```julia
-# Import Turing and Distributions.
-using Turing, Distributions
+# Load Turing.
+using Turing
 
-# Import RDatasets.
+# Load RDatasets.
 using RDatasets
 
-# Import MCMCChains, Plots, and StatsPlots for visualizations and diagnostics.
-using MCMCChains, Plots, StatsPlots
+# Load StatsPlots for visualizations and diagnostics.
+using StatsPlots
 
-# We need a softmax function, which is provided by NNlin.
+# Functionality for splitting and normalizing the data.
+using MLDataUtils: shuffleobs, splitobs, rescale!
+
+# We need a softmax function which is provided by NNlib.
 using NNlib: softmax
 
 # Set a seed for reproducibility.
 using Random
-Random.seed!(0);
+Random.seed!(0)
+
+# Hide the progress prompt while sampling.
+Turing.turnprogress(false);
 ```
+
+    ┌ Info: Precompiling Turing [fce5fe82-541a-59a6-adf8-730c64b5f9a0]
+    └ @ Base loading.jl:1260
+    ┌ Info: Precompiling RDatasets [ce6b1742-4840-55fa-b093-852dadbb1d8b]
+    └ @ Base loading.jl:1260
+    ┌ Info: Precompiling StatsPlots [f3b207a7-027a-5e70-b257-86293d7955fd]
+    └ @ Base loading.jl:1260
+    ┌ Info: Precompiling MLDataUtils [cc2ba9b6-d476-5e6d-8eaf-a92d5412d41d]
+    └ @ Base loading.jl:1260
+    ┌ Info: [Turing]: progress logging is disabled globally
+    └ @ Turing /home/cameron/.julia/packages/Turing/3goIa/src/Turing.jl:23
+    ┌ Info: [AdvancedVI]: global PROGRESS is set as false
+    └ @ AdvancedVI /home/cameron/.julia/packages/AdvancedVI/PaSeO/src/AdvancedVI.jl:15
+
 
 ## Data Cleaning & Set Up
 
@@ -36,142 +56,88 @@ Now we're going to import our dataset. Twenty rows of the dataset are shown belo
 # Import the "iris" dataset.
 data = RDatasets.dataset("datasets", "iris");
 
-# Randomly shuffle the rows of the dataset
-num_rows = size(data, 1)
-data = data[Random.shuffle(1:num_rows), :]
-
-# Show twenty rows
-first(data, 20)
+# Show twenty random rows.
+data[rand(1:size(data, 1), 20), :]
 ```
 
 
 
 
-<table class="data-frame"><thead><tr><th></th><th>SepalLength</th><th>SepalWidth</th><th>PetalLength</th><th>PetalWidth</th><th>Species</th></tr><tr><th></th><th>Float64</th><th>Float64</th><th>Float64</th><th>Float64</th><th>Categorical…</th></tr></thead><tbody><p>20 rows × 5 columns</p><tr><th>1</th><td>6.9</td><td>3.2</td><td>5.7</td><td>2.3</td><td>virginica</td></tr><tr><th>2</th><td>5.8</td><td>2.7</td><td>5.1</td><td>1.9</td><td>virginica</td></tr><tr><th>3</th><td>6.6</td><td>2.9</td><td>4.6</td><td>1.3</td><td>versicolor</td></tr><tr><th>4</th><td>6.3</td><td>2.5</td><td>5.0</td><td>1.9</td><td>virginica</td></tr><tr><th>5</th><td>5.0</td><td>2.0</td><td>3.5</td><td>1.0</td><td>versicolor</td></tr><tr><th>6</th><td>5.8</td><td>4.0</td><td>1.2</td><td>0.2</td><td>setosa</td></tr><tr><th>7</th><td>6.7</td><td>3.1</td><td>4.7</td><td>1.5</td><td>versicolor</td></tr><tr><th>8</th><td>5.7</td><td>2.8</td><td>4.5</td><td>1.3</td><td>versicolor</td></tr><tr><th>9</th><td>6.3</td><td>2.9</td><td>5.6</td><td>1.8</td><td>virginica</td></tr><tr><th>10</th><td>5.6</td><td>3.0</td><td>4.1</td><td>1.3</td><td>versicolor</td></tr><tr><th>11</th><td>5.6</td><td>2.7</td><td>4.2</td><td>1.3</td><td>versicolor</td></tr><tr><th>12</th><td>5.1</td><td>3.4</td><td>1.5</td><td>0.2</td><td>setosa</td></tr><tr><th>13</th><td>6.7</td><td>3.3</td><td>5.7</td><td>2.1</td><td>virginica</td></tr><tr><th>14</th><td>5.8</td><td>2.6</td><td>4.0</td><td>1.2</td><td>versicolor</td></tr><tr><th>15</th><td>6.4</td><td>2.9</td><td>4.3</td><td>1.3</td><td>versicolor</td></tr><tr><th>16</th><td>4.8</td><td>3.0</td><td>1.4</td><td>0.1</td><td>setosa</td></tr><tr><th>17</th><td>6.3</td><td>3.4</td><td>5.6</td><td>2.4</td><td>virginica</td></tr><tr><th>18</th><td>4.9</td><td>2.5</td><td>4.5</td><td>1.7</td><td>virginica</td></tr><tr><th>19</th><td>4.8</td><td>3.4</td><td>1.6</td><td>0.2</td><td>setosa</td></tr><tr><th>20</th><td>5.0</td><td>2.3</td><td>3.3</td><td>1.0</td><td>versicolor</td></tr></tbody></table>
+<table class="data-frame"><thead><tr><th></th><th>SepalLength</th><th>SepalWidth</th><th>PetalLength</th><th>PetalWidth</th><th>Species</th></tr><tr><th></th><th>Float64</th><th>Float64</th><th>Float64</th><th>Float64</th><th>Cat…</th></tr></thead><tbody><p>20 rows × 5 columns</p><tr><th>1</th><td>5.6</td><td>2.9</td><td>3.6</td><td>1.3</td><td>versicolor</td></tr><tr><th>2</th><td>5.8</td><td>2.7</td><td>3.9</td><td>1.2</td><td>versicolor</td></tr><tr><th>3</th><td>5.5</td><td>2.3</td><td>4.0</td><td>1.3</td><td>versicolor</td></tr><tr><th>4</th><td>6.7</td><td>3.3</td><td>5.7</td><td>2.5</td><td>virginica</td></tr><tr><th>5</th><td>5.1</td><td>3.5</td><td>1.4</td><td>0.2</td><td>setosa</td></tr><tr><th>6</th><td>5.1</td><td>3.8</td><td>1.5</td><td>0.3</td><td>setosa</td></tr><tr><th>7</th><td>4.8</td><td>3.4</td><td>1.9</td><td>0.2</td><td>setosa</td></tr><tr><th>8</th><td>6.0</td><td>2.9</td><td>4.5</td><td>1.5</td><td>versicolor</td></tr><tr><th>9</th><td>6.9</td><td>3.1</td><td>5.4</td><td>2.1</td><td>virginica</td></tr><tr><th>10</th><td>5.4</td><td>3.9</td><td>1.7</td><td>0.4</td><td>setosa</td></tr><tr><th>11</th><td>5.0</td><td>3.6</td><td>1.4</td><td>0.2</td><td>setosa</td></tr><tr><th>12</th><td>5.7</td><td>3.0</td><td>4.2</td><td>1.2</td><td>versicolor</td></tr><tr><th>13</th><td>5.0</td><td>3.3</td><td>1.4</td><td>0.2</td><td>setosa</td></tr><tr><th>14</th><td>7.7</td><td>3.0</td><td>6.1</td><td>2.3</td><td>virginica</td></tr><tr><th>15</th><td>5.8</td><td>2.8</td><td>5.1</td><td>2.4</td><td>virginica</td></tr><tr><th>16</th><td>4.4</td><td>3.0</td><td>1.3</td><td>0.2</td><td>setosa</td></tr><tr><th>17</th><td>6.3</td><td>3.3</td><td>4.7</td><td>1.6</td><td>versicolor</td></tr><tr><th>18</th><td>6.0</td><td>2.7</td><td>5.1</td><td>1.6</td><td>versicolor</td></tr><tr><th>19</th><td>4.6</td><td>3.4</td><td>1.4</td><td>0.3</td><td>setosa</td></tr><tr><th>20</th><td>6.0</td><td>2.2</td><td>4.0</td><td>1.0</td><td>versicolor</td></tr></tbody></table>
 
 
 
-In this data set, the outcome `Species` is currently coded as a string. We need to convert the `Species` into 1s and 0s.
-
-We will create three new columns: `Species_setosa`, `Species_versicolor` and `Species_virginica`.
-
-- If a row has `setosa` as the species, then it will have `Species_setosa = 1`, `Species_versicolor = 0`, and `Species_virginica = 0`.
-- If a row has `versicolor` as the species, then it will have `Species_setosa = 0`, `Species_versicolor = 1`, and `Species_virginica = 0`.
-- If a row has `virginica` as the species, then it will have `Species_setosa = 0`, `Species_versicolor = 0`, and `Species_virginica = 1`.
+In this data set, the outcome `Species` is currently coded as a string. We convert it to a numerical value by using indices `1`, `2`, and `3` to indicate species `setosa`, `versicolor`, and `virginica`, respectively.
 
 
 ```julia
-# Recode the `Species` column
-data[!, :Species_setosa] = [r.Species == "setosa" ? 1.0 : 0.0 for r in eachrow(data)]
-data[!, :Species_versicolor] = [r.Species == "versicolor" ? 1.0 : 0.0 for r in eachrow(data)]
-data[!, :Species_virginica] = [r.Species == "virginica" ? 1.0 : 0.0 for r in eachrow(data)]
+# Recode the `Species` column.
+species = ["setosa", "versicolor", "virginica"]
+data[!, :Species_index] = indexin(data[!, :Species], species)
 
-# Show twenty rows of the new species columns
-first(data[!, [:Species, :Species_setosa, :Species_versicolor, :Species_virginica]], 20)
+# Show twenty random rows of the new species columns
+data[rand(1:size(data, 1), 20), [:Species, :Species_index]]
 ```
 
 
 
 
-<table class="data-frame"><thead><tr><th></th><th>Species</th><th>Species_setosa</th><th>Species_versicolor</th><th>Species_virginica</th></tr><tr><th></th><th>Categorical…</th><th>Float64</th><th>Float64</th><th>Float64</th></tr></thead><tbody><p>20 rows × 4 columns</p><tr><th>1</th><td>virginica</td><td>0.0</td><td>0.0</td><td>1.0</td></tr><tr><th>2</th><td>virginica</td><td>0.0</td><td>0.0</td><td>1.0</td></tr><tr><th>3</th><td>versicolor</td><td>0.0</td><td>1.0</td><td>0.0</td></tr><tr><th>4</th><td>virginica</td><td>0.0</td><td>0.0</td><td>1.0</td></tr><tr><th>5</th><td>versicolor</td><td>0.0</td><td>1.0</td><td>0.0</td></tr><tr><th>6</th><td>setosa</td><td>1.0</td><td>0.0</td><td>0.0</td></tr><tr><th>7</th><td>versicolor</td><td>0.0</td><td>1.0</td><td>0.0</td></tr><tr><th>8</th><td>versicolor</td><td>0.0</td><td>1.0</td><td>0.0</td></tr><tr><th>9</th><td>virginica</td><td>0.0</td><td>0.0</td><td>1.0</td></tr><tr><th>10</th><td>versicolor</td><td>0.0</td><td>1.0</td><td>0.0</td></tr><tr><th>11</th><td>versicolor</td><td>0.0</td><td>1.0</td><td>0.0</td></tr><tr><th>12</th><td>setosa</td><td>1.0</td><td>0.0</td><td>0.0</td></tr><tr><th>13</th><td>virginica</td><td>0.0</td><td>0.0</td><td>1.0</td></tr><tr><th>14</th><td>versicolor</td><td>0.0</td><td>1.0</td><td>0.0</td></tr><tr><th>15</th><td>versicolor</td><td>0.0</td><td>1.0</td><td>0.0</td></tr><tr><th>16</th><td>setosa</td><td>1.0</td><td>0.0</td><td>0.0</td></tr><tr><th>17</th><td>virginica</td><td>0.0</td><td>0.0</td><td>1.0</td></tr><tr><th>18</th><td>virginica</td><td>0.0</td><td>0.0</td><td>1.0</td></tr><tr><th>19</th><td>setosa</td><td>1.0</td><td>0.0</td><td>0.0</td></tr><tr><th>20</th><td>versicolor</td><td>0.0</td><td>1.0</td><td>0.0</td></tr></tbody></table>
+<table class="data-frame"><thead><tr><th></th><th>Species</th><th>Species_index</th></tr><tr><th></th><th>Cat…</th><th>Union…</th></tr></thead><tbody><p>20 rows × 2 columns</p><tr><th>1</th><td>versicolor</td><td>2</td></tr><tr><th>2</th><td>setosa</td><td>1</td></tr><tr><th>3</th><td>setosa</td><td>1</td></tr><tr><th>4</th><td>versicolor</td><td>2</td></tr><tr><th>5</th><td>setosa</td><td>1</td></tr><tr><th>6</th><td>virginica</td><td>3</td></tr><tr><th>7</th><td>versicolor</td><td>2</td></tr><tr><th>8</th><td>versicolor</td><td>2</td></tr><tr><th>9</th><td>setosa</td><td>1</td></tr><tr><th>10</th><td>virginica</td><td>3</td></tr><tr><th>11</th><td>setosa</td><td>1</td></tr><tr><th>12</th><td>setosa</td><td>1</td></tr><tr><th>13</th><td>versicolor</td><td>2</td></tr><tr><th>14</th><td>versicolor</td><td>2</td></tr><tr><th>15</th><td>virginica</td><td>3</td></tr><tr><th>16</th><td>versicolor</td><td>2</td></tr><tr><th>17</th><td>setosa</td><td>1</td></tr><tr><th>18</th><td>setosa</td><td>1</td></tr><tr><th>19</th><td>virginica</td><td>3</td></tr><tr><th>20</th><td>setosa</td><td>1</td></tr></tbody></table>
 
 
 
-After we've done that tidying, it's time to split our dataset into training and testing sets, and separate the labels from the data. We separate our data into two halves, `train` and `test`.
-
-We must rescale our feature variables so that they are centered around zero by subtracting each column by the mean and dividing it by the standard deviation. Without this step, Turing's sampler will have a hard time finding a place to start searching for parameter estimates.
+After we've done that tidying, it's time to split our dataset into training and testing sets, and separate the features and target from the data. Additionally, we must rescale our feature variables so that they are centered around zero by subtracting each column by the mean and dividing it by the standard deviation. Without this step, Turing's sampler will have a hard time finding a place to start searching for parameter estimates.
 
 
 ```julia
-# Function to split samples.
-function split_data(df, at)
-    (r, _) = size(df)
-    index = Int(round(r * at))
-    train = df[1:index, :]
-    test  = df[(index+1):end, :]
-    return train, test
-end
+# Split our dataset 50%/50% into training/test sets.
+trainset, testset = splitobs(shuffleobs(data), 0.5)
 
-# Rescale our feature variables.
-data.SepalLength = (data.SepalLength .- mean(data.SepalLength)) ./ std(data.SepalLength)
-data.SepalWidth = (data.SepalWidth .- mean(data.SepalWidth)) ./ std(data.SepalWidth)
-data.PetalLength = (data.PetalLength .- mean(data.PetalLength)) ./ std(data.PetalLength)
-data.PetalWidth = (data.PetalWidth .- mean(data.PetalWidth)) ./ std(data.PetalWidth)
+# Define features and target.
+features = [:SepalLength, :SepalWidth, :PetalLength, :PetalWidth]
+target = :Species_index
 
-# Split our dataset 50/50 into training/test sets.
-train, test = split_data(data, 0.50);
+# Turing requires data in matrix and vector form.
+train_features = Matrix(trainset[!, features])
+test_features = Matrix(testset[!, features])
+train_target = trainset[!, target]
+test_target = testset[!, target]
 
-label_names = [:Species_setosa, :Species_versicolor, :Species_virginica]
-feature_names = [:SepalLength, :SepalWidth, :PetalLength, :PetalWidth]
-
-# Create our labels. These are the values we are trying to predict.
-train_labels = train[:, label_names]
-test_labels = test[:, label_names]
-
-# Create our features. These are our predictors.
-train_features = train[:, feature_names];
-test_features = test[:, feature_names];
+# Standardize the features.
+μ, σ = rescale!(train_features; obsdim = 1)
+rescale!(test_features, μ, σ; obsdim = 1);
 ```
 
-Our `train` and `test` matrices are still in the `DataFrame` format, which tends not to play too well with the kind of manipulations we're about to do, so we convert them into `Matrix` objects.
+## Model Declaration
 
-
-```julia
-# Convert the DataFrame objects to matrices.
-train_labels = Matrix(train_labels);
-test_labels = Matrix(test_labels);
-
-train_features = Matrix(train_features);
-test_features = Matrix(test_features);
-```
-
-## Model Declaration 
-Finally, we can define our model.
-
-`logistic_regression` takes four arguments:
+Finally, we can define our model `logistic_regression`. It is a function that takes three arguments where
 
 - `x` is our set of independent variables;
 - `y` is the element we want to predict;
-- `n` is the number of observations we have; and
 - `σ` is the standard deviation we want to assume for our priors.
 
-We need to create our coefficients. To do so, we first need to select one of the species as the baseline species. The selection of the baseline class does not matter. Then we create our coefficients against that baseline.
-
-Let us select `"setosa"` as the baseline. We create ten coefficients (`intercept_versicolor`, `intercept_virginica`, `SepalLength_versicolor`, `SepalLength_virginica`, `SepalWidth_versicolor`, `SepalWidth_virginica`, `PetalLength_versicolor`, `PetalLength_virginica`, `PetalWidth_versicolor`, and `PetalWidth_virginica`) and assign a prior of normally distributed with means of zero and standard deviations of `σ`. We want to find values of these ten coefficients to predict any given `y`.
-
-The `for` block creates a variable `v` which is the softmax function. We then observe the liklihood of calculating `v` given the actual label, `y[i]`.
+We select the `setosa` species as the baseline class (the choice does not matter). Then we create the intercepts and vectors of coefficients for the other classes against that baseline. More concretely, we create scalar intercepts `intercept_versicolor` and `intersept_virginica` and coefficient vectors `coefficients_versicolor` and `coefficients_virginica` with four coefficients each for the features `SepalLength`, `SepalWidth`, `PetalLength` and `PetalWidth`. We assume a normal distribution with mean zero and standard deviation `σ` as prior for each scalar parameter. We want to find the posterior distribution of these, in total ten, parameters to be able to predict the species for any given set of features.
 
 
 ```julia
 # Bayesian multinomial logistic regression
-@model logistic_regression(x, y, n, σ) = begin
+@model function logistic_regression(x, y, σ)
+    n = size(x, 1)
+    length(y) == n || throw(DimensionMismatch("number of observations in `x` and `y` is not equal"))
+
+    # Priors of intercepts and coefficients.
     intercept_versicolor ~ Normal(0, σ)
     intercept_virginica ~ Normal(0, σ)
-    
-    SepalLength_versicolor ~ Normal(0, σ)
-    SepalLength_virginica ~ Normal(0, σ)
-    
-    SepalWidth_versicolor ~ Normal(0, σ)
-    SepalWidth_virginica ~ Normal(0, σ)
-    
-    PetalLength_versicolor  ~ Normal(0, σ)
-    PetalLength_virginica  ~ Normal(0, σ)
-    
-    PetalWidth_versicolor ~ Normal(0, σ)
-    PetalWidth_virginica  ~ Normal(0, σ)
+    coefficients_versicolor ~ MvNormal(4, σ)
+    coefficients_virginica ~ MvNormal(4, σ)
 
-
-    for i = 1:n
-        v = softmax([0, # this 0 corresponds to the base category `setosa`
-                     intercept_versicolor + SepalLength_versicolor*x[i, 1] +
-                                            SepalWidth_versicolor*x[i, 1] +
-                                            PetalLength_versicolor*x[i, 2] +
-                                            PetalWidth_versicolor*x[i, 2],
-                     intercept_virginica + SepalLength_virginica*x[i, 3] +
-                                           SepalWidth_virginica*x[i, 3] +
-                                           PetalLength_virginica*x[i, 4] +
-                                           PetalWidth_virginica*x[i, 4]])
-        y[i, :] ~ Multinomial(1, v)
+    # Compute the likelihood of the observations.
+    values_versicolor = intercept_versicolor .+ x * coefficients_versicolor
+    values_virginica = intercept_virginica .+ x * coefficients_virginica
+    for i in 1:n
+        # the 0 corresponds to the base category `setosa`
+        v = softmax([0, values_versicolor[i], values_virginica[i]])
+        y[i] ~ Categorical(v)
     end
 end;
 ```
@@ -182,55 +148,50 @@ Now we can run our sampler. This time we'll use [`HMC`](http://turing.ml/docs/li
 
 
 ```julia
-# Retrieve the number of observations.
-n, _ = size(train_features)
-
-# Sample using HMC.
-chain = mapreduce(c -> sample(logistic_regression(train_features, train_labels, n, 1), HMC(0.05, 10), 1500),
-    chainscat,
-    1:3
-)
-
-describe(chain)
+chain = sample(logistic_regression(train_features, train_target, 1), HMC(0.05, 10), MCMCThreads(), 1500, 3)
 ```
 
-    [32mSampling: 100%|█████████████████████████████████████████| Time: 0:00:05[39m
-    [32mSampling: 100%|█████████████████████████████████████████| Time: 0:00:04[39m
-    [32mSampling: 100%|█████████████████████████████████████████| Time: 0:00:04[39m
 
 
 
-
-
-    2-element Array{ChainDataFrame,1}
+    Chains MCMC chain (1500×19×3 Array{Float64,3}):
+    
+    Iterations        = 1:1500
+    Thinning interval = 1
+    Chains            = 1, 2, 3
+    Samples per chain = 1500
+    parameters        = coefficients_versicolor[1], coefficients_versicolor[2], coefficients_versicolor[3], coefficients_versicolor[4], coefficients_virginica[1], coefficients_virginica[2], coefficients_virginica[3], coefficients_virginica[4], intercept_versicolor, intercept_virginica
+    internals         = acceptance_rate, hamiltonian_energy, hamiltonian_energy_error, is_accept, log_density, lp, n_steps, nom_step_size, step_size
     
     Summary Statistics
-                  parameters     mean     std  naive_se    mcse        ess   r_hat
-      ──────────────────────  ───────  ──────  ────────  ──────  ─────────  ──────
-      PetalLength_versicolor  -0.7982  0.7341    0.0109  0.0353   330.7338  1.0022
-       PetalLength_virginica   1.7376  0.8532    0.0127  0.0424   415.6667  1.0023
-       PetalWidth_versicolor  -0.7018  0.7335    0.0109  0.0339   355.4789  1.0017
-        PetalWidth_virginica   1.6843  0.8452    0.0126  0.0382   447.2635  1.0089
-      SepalLength_versicolor   0.8642  0.7315    0.0109  0.0357   370.1195  1.0052
-       SepalLength_virginica   1.5303  0.8641    0.0129  0.0452   321.9949  1.0078
-       SepalWidth_versicolor   0.8227  0.7506    0.0112  0.0363   364.8514  1.0036
-        SepalWidth_virginica   1.5765  0.8516    0.0127  0.0468   405.3356  1.0078
-        intercept_versicolor   1.0275  0.4539    0.0068  0.0156  1004.6000  1.0029
-         intercept_virginica  -0.9449  0.6155    0.0092  0.0246   700.5740  1.0033
+     [0m[1m                 parameters [0m [0m[1m    mean [0m [0m[1m     std [0m [0m[1m naive_se [0m [0m[1m    mcse [0m [0m[1m      ess [0m [0m[1m    rhat [0m [0m
+     [0m[90m                     Symbol [0m [0m[90m Float64 [0m [0m[90m Float64 [0m [0m[90m  Float64 [0m [0m[90m Float64 [0m [0m[90m  Float64 [0m [0m[90m Float64 [0m [0m
+     [0m                            [0m [0m         [0m [0m         [0m [0m          [0m [0m         [0m [0m          [0m [0m         [0m [0m
+     [0m coefficients_versicolor[1] [0m [0m  1.5404 [0m [0m  0.6753 [0m [0m   0.0101 [0m [0m  0.0335 [0m [0m 332.4769 [0m [0m  1.0017 [0m [0m
+     [0m coefficients_versicolor[2] [0m [0m -1.4298 [0m [0m  0.5098 [0m [0m   0.0076 [0m [0m  0.0171 [0m [0m 786.5622 [0m [0m  1.0015 [0m [0m
+     [0m coefficients_versicolor[3] [0m [0m  1.1382 [0m [0m  0.7772 [0m [0m   0.0116 [0m [0m  0.0398 [0m [0m 328.8508 [0m [0m  1.0091 [0m [0m
+     [0m coefficients_versicolor[4] [0m [0m  0.0693 [0m [0m  0.7300 [0m [0m   0.0109 [0m [0m  0.0374 [0m [0m 368.3007 [0m [0m  1.0048 [0m [0m
+     [0m  coefficients_virginica[1] [0m [0m  0.4251 [0m [0m  0.6983 [0m [0m   0.0104 [0m [0m  0.0294 [0m [0m 381.6545 [0m [0m  1.0017 [0m [0m
+     [0m  coefficients_virginica[2] [0m [0m -0.6744 [0m [0m  0.6036 [0m [0m   0.0090 [0m [0m  0.0250 [0m [0m 654.1030 [0m [0m  1.0012 [0m [0m
+     [0m  coefficients_virginica[3] [0m [0m  2.0076 [0m [0m  0.8424 [0m [0m   0.0126 [0m [0m  0.0390 [0m [0m 344.6077 [0m [0m  1.0067 [0m [0m
+     [0m  coefficients_virginica[4] [0m [0m  2.6704 [0m [0m  0.7982 [0m [0m   0.0119 [0m [0m  0.0423 [0m [0m 337.9600 [0m [0m  1.0043 [0m [0m
+     [0m       intercept_versicolor [0m [0m  0.8408 [0m [0m  0.5257 [0m [0m   0.0078 [0m [0m  0.0167 [0m [0m 874.4821 [0m [0m  1.0044 [0m [0m
+     [0m        intercept_virginica [0m [0m -0.7351 [0m [0m  0.6639 [0m [0m   0.0099 [0m [0m  0.0285 [0m [0m 525.8135 [0m [0m  1.0039 [0m [0m
     
     Quantiles
-                  parameters     2.5%    25.0%    50.0%    75.0%   97.5%
-      ──────────────────────  ───────  ───────  ───────  ───────  ──────
-      PetalLength_versicolor  -2.2429  -1.2926  -0.7839  -0.2936  0.5790
-       PetalLength_virginica   0.0566   1.1492   1.7495   2.3157  3.4072
-       PetalWidth_versicolor  -2.1443  -1.2000  -0.7049  -0.2173  0.7632
-        PetalWidth_virginica  -0.0565   1.1274   1.6940   2.2695  3.2582
-      SepalLength_versicolor  -0.5667   0.3953   0.8762   1.3547  2.2408
-       SepalLength_virginica  -0.1067   0.9405   1.5259   2.0997  3.2549
-       SepalWidth_versicolor  -0.5795   0.3072   0.8086   1.3063  2.3417
-        SepalWidth_virginica  -0.1364   1.0034   1.5684   2.1657  3.2340
-        intercept_versicolor   0.1491   0.7267   1.0235   1.3287  1.9327
-         intercept_virginica  -2.1602  -1.3516  -0.9434  -0.5233  0.2201
+     [0m[1m                 parameters [0m [0m[1m    2.5% [0m [0m[1m   25.0% [0m [0m[1m   50.0% [0m [0m[1m   75.0% [0m [0m[1m   97.5% [0m [0m
+     [0m[90m                     Symbol [0m [0m[90m Float64 [0m [0m[90m Float64 [0m [0m[90m Float64 [0m [0m[90m Float64 [0m [0m[90m Float64 [0m [0m
+     [0m                            [0m [0m         [0m [0m         [0m [0m         [0m [0m         [0m [0m         [0m [0m
+     [0m coefficients_versicolor[1] [0m [0m  0.2659 [0m [0m  1.0755 [0m [0m  1.5231 [0m [0m  1.9860 [0m [0m  2.9059 [0m [0m
+     [0m coefficients_versicolor[2] [0m [0m -2.4714 [0m [0m -1.7610 [0m [0m -1.4109 [0m [0m -1.0749 [0m [0m -0.4921 [0m [0m
+     [0m coefficients_versicolor[3] [0m [0m -0.4377 [0m [0m  0.6358 [0m [0m  1.1456 [0m [0m  1.6500 [0m [0m  2.6215 [0m [0m
+     [0m coefficients_versicolor[4] [0m [0m -1.3741 [0m [0m -0.4381 [0m [0m  0.0652 [0m [0m  0.5711 [0m [0m  1.4808 [0m [0m
+     [0m  coefficients_virginica[1] [0m [0m -0.9452 [0m [0m -0.0487 [0m [0m  0.4287 [0m [0m  0.8991 [0m [0m  1.7973 [0m [0m
+     [0m  coefficients_virginica[2] [0m [0m -1.8717 [0m [0m -1.0756 [0m [0m -0.6641 [0m [0m -0.2501 [0m [0m  0.4867 [0m [0m
+     [0m  coefficients_virginica[3] [0m [0m  0.3740 [0m [0m  1.4180 [0m [0m  1.9941 [0m [0m  2.5862 [0m [0m  3.6788 [0m [0m
+     [0m  coefficients_virginica[4] [0m [0m  1.1985 [0m [0m  2.1347 [0m [0m  2.6359 [0m [0m  3.1795 [0m [0m  4.3502 [0m [0m
+     [0m       intercept_versicolor [0m [0m -0.1652 [0m [0m  0.4888 [0m [0m  0.8340 [0m [0m  1.1858 [0m [0m  1.8891 [0m [0m
+     [0m        intercept_virginica [0m [0m -2.0101 [0m [0m -1.1944 [0m [0m -0.7453 [0m [0m -0.2834 [0m [0m  0.5836 [0m [0m
 
 
 
@@ -245,7 +206,7 @@ plot(chain)
 
 
 
-![svg](/tutorials/8_MultinomialLogisticRegression_files/8_MultinomialLogisticRegression_15_0.svg)
+![svg](/tutorials/8_MultinomialLogisticRegression_files/8_MultinomialLogisticRegression_13_0.svg)
 
 
 
@@ -255,78 +216,57 @@ We can also use the `corner` function from MCMCChains to show the distributions 
 
 
 ```julia
-corner(chain, [:SepalLength_versicolor, :SepalWidth_versicolor, :PetalLength_versicolor, :PetalWidth_versicolor])
+corner(
+    chain, [Symbol("coefficients_versicolor[$$i]") for i in 1:4];
+    label=[string(i) for i in 1:4], fmt=:png
+)
 ```
 
 
 
 
-![svg](/tutorials/8_MultinomialLogisticRegression_files/8_MultinomialLogisticRegression_17_0.svg)
+![png](/tutorials/8_MultinomialLogisticRegression_files/8_MultinomialLogisticRegression_15_0.png)
 
 
 
 
 ```julia
-corner(chain, [:SepalLength_versicolor, :SepalWidth_versicolor, :PetalLength_versicolor, :PetalWidth_versicolor])
+corner(
+    chain, [Symbol("coefficients_virginica[$$i]") for i in 1:4];
+    label=[string(i) for i in 1:4], fmt=:png
+)
 ```
 
 
 
 
-![svg](/tutorials/8_MultinomialLogisticRegression_files/8_MultinomialLogisticRegression_18_0.svg)
+![png](/tutorials/8_MultinomialLogisticRegression_files/8_MultinomialLogisticRegression_16_0.png)
 
 
 
 Fortunately the corner plots appear to demonstrate unimodal distributions for each of our parameters, so it should be straightforward to take the means of each parameter's sampled values to estimate our model to make predictions.
 
 ## Making Predictions
-How do we test how well the model actually predicts whether someone is likely to default? We need to build a prediction function that takes the `test` object we made earlier and runs it through the average parameter calculated during sampling.
 
-The `prediction` function below takes a `Matrix` and a `Chain` object. It takes the mean of each parameter's sampled values and re-runs the softmax function using those mean values for every element in the test set.
+How do we test how well the model actually predicts whether someone is likely to default? We need to build a `prediction` function that takes the test dataset and runs it through the average parameter calculated during sampling.
+
+The `prediction` function below takes a `Matrix` and a `Chains` object. It computes the mean of the sampled parameters and calculates the species with the highest probability for each observation. Note that we do not have to evaluate the `softmax` function since it does not affect the order of its inputs.
 
 
 ```julia
 function prediction(x::Matrix, chain)
     # Pull the means from each parameter's sampled values in the chain.
-    intercept_versicolor = mean(chain[:intercept_versicolor].value)
-    intercept_virginica = mean(chain[:intercept_virginica].value)
-    SepalLength_versicolor = mean(chain[:SepalLength_versicolor].value)
-    SepalLength_virginica = mean(chain[:SepalLength_virginica].value)
-    SepalWidth_versicolor = mean(chain[:SepalWidth_versicolor].value)
-    SepalWidth_virginica = mean(chain[:SepalWidth_virginica].value)
-    PetalLength_versicolor = mean(chain[:PetalLength_versicolor].value)
-    PetalLength_virginica = mean(chain[:PetalLength_virginica].value)
-    PetalWidth_versicolor = mean(chain[:PetalWidth_versicolor].value)
-    PetalWidth_virginica = mean(chain[:PetalWidth_virginica].value)
+    intercept_versicolor = mean(chain, :intercept_versicolor)
+    intercept_virginica = mean(chain, :intercept_virginica)
+    coefficients_versicolor = [mean(chain, "coefficients_versicolor[$$i]") for i in 1:4]
+    coefficients_virginica = [mean(chain, "coefficients_virginica[$$i]") for i in 1:4]
 
-    # Retrieve the number of rows.
-    n, _ = size(x)
-
-    # Generate a vector to store our predictions.
-    v = Vector{String}(undef, n)
-
-    # Calculate the softmax function for each element in the test set.
-    for i in 1:n
-        num = softmax([0, # this 0 corresponds to the base category `setosa`
-                     intercept_versicolor + SepalLength_versicolor*x[i, 1] +
-                                            SepalWidth_versicolor*x[i, 1] +
-                                            PetalLength_versicolor*x[i, 2] +
-                                            PetalWidth_versicolor*x[i, 2],
-                     intercept_virginica + SepalLength_virginica*x[i, 3] +
-                                           SepalWidth_virginica*x[i, 3] +
-                                           PetalLength_virginica*x[i, 4] +
-                                           PetalWidth_virginica*x[i, 4]])
-        c = argmax(num) # we pick the class with the highest probability
-        if c == 1
-            v[i] = "setosa"
-        elseif c == 2
-            v[i] = "versicolor"
-        else # c == 3
-            @assert c == 3
-            v[i] = "virginica"
-        end
-    end
-    return v
+    # Compute the index of the species with the highest probability for each observation.
+    values_versicolor = intercept_versicolor .+ x * coefficients_versicolor
+    values_virginica = intercept_virginica .+ x * coefficients_virginica
+    species_indices = [argmax((0, x, y)) for (x, y) in zip(values_versicolor, values_virginica)]
+    
+    return species_indices
 end;
 ```
 
@@ -338,13 +278,13 @@ Let's see how we did! We run the test matrix through the prediction function, an
 predictions = prediction(test_features, chain)
 
 # Calculate accuracy for our test set.
-mean(predictions .== test[!, :Species])
+mean(predictions .== testset[!, :Species_index])
 ```
 
 
 
 
-    0.8933333333333333
+    0.8533333333333334
 
 
 
@@ -352,25 +292,20 @@ Perhaps more important is to see the accuracy per class.
 
 
 ```julia
-setosa_rows = test[!, :Species] .== "setosa"
-versicolor_rows = test[!, :Species] .== "versicolor"
-virginica_rows = test[!, :Species] .== "virginica"
-
-println("Number of setosa: $$(sum(setosa_rows))")
-println("Number of versicolor: $$(sum(versicolor_rows))")
-println("Number of virginica: $$(sum(virginica_rows))")
-
-println("Percentage of setosa predicted correctly: $$(mean(predictions[setosa_rows] .== test[setosa_rows, :Species]))")
-println("Percentage of versicolor predicted correctly: $$(mean(predictions[versicolor_rows] .== test[versicolor_rows, :Species]))")
-println("Percentage of virginica predicted correctly: $$(mean(predictions[virginica_rows] .== test[virginica_rows, :Species]))")
+for s in 1:3
+    rows = testset[!, :Species_index] .== s
+    println("Number of `", species[s], "`: ", count(rows))
+    println("Percentage of `", species[s], "` predicted correctly: ",
+        mean(predictions[rows] .== testset[rows, :Species_index]))
+end
 ```
 
-    Number of setosa: 32
-    Number of versicolor: 25
-    Number of virginica: 18
-    Percentage of setosa predicted correctly: 0.96875
-    Percentage of versicolor predicted correctly: 0.76
-    Percentage of virginica predicted correctly: 0.9444444444444444
+    Number of `setosa`: 22
+    Percentage of `setosa` predicted correctly: 1.0
+    Number of `versicolor`: 24
+    Percentage of `versicolor` predicted correctly: 0.875
+    Number of `virginica`: 29
+    Percentage of `virginica` predicted correctly: 0.7241379310344828
 
 
 This tutorial has demonstrated how to use Turing to perform Bayesian multinomial logistic regression. 

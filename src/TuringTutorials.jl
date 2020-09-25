@@ -7,117 +7,120 @@ cssfile = joinpath(@__DIR__, "..", "templates", "skeleton_css.css")
 latexfile = joinpath(@__DIR__, "..", "templates", "julia_tex.tpl")
 
 function weave_file(folder,file,build_list=(:script,:html,:pdf,:github,:notebook); kwargs...)
-  tmp = joinpath(repo_directory,"tutorials",folder,file)
-  Pkg.activate(dirname(tmp))
-  Pkg.instantiate()
-  args = Dict{Symbol,String}(:folder=>folder,:file=>file)
-  if :script ∈ build_list
-    println("Building Script")
-    dir = joinpath(repo_directory,"script",folder)
-    isdir(dir) || mkpath(dir)
-    args[:doctype] = "script"
-    tangle(tmp;out_path=dir)
-  end
-  if :html ∈ build_list
-    println("Building HTML")
-    dir = joinpath(repo_directory,"html",folder)
-    isdir(dir) || mkpath(dir)
-    args[:doctype] = "html"
-    weave(tmp,doctype = "md2html",out_path=dir,args=args; fig_ext=".svg", css=cssfile, kwargs...)
-  end
-  if :pdf ∈ build_list
-    println("Building PDF")
-    dir = joinpath(repo_directory,"pdf",folder)
-    isdir(dir) || mkpath(dir)
-    args[:doctype] = "pdf"
-    try
-      weave(tmp,doctype="md2pdf",out_path=dir,args=args; template=latexfile, kwargs...)
-    catch ex
-      @warn "PDF generation failed" exception=(ex, catch_backtrace())
+    tmp = joinpath(repo_directory,"tutorials",folder,file)
+    Pkg.activate(dirname(tmp))
+    Pkg.instantiate()
+    args = Dict{Symbol,String}(:folder=>folder,:file=>file)
+    if :script ∈ build_list
+        println("Building Script")
+        dir = joinpath(repo_directory,"script",folder)
+        isdir(dir) || mkpath(dir)
+        args[:doctype] = "script"
+        tangle(tmp;out_path=dir)
     end
-  end
-  if :github ∈ build_list
-    println("Building Github Markdown")
-    dir = joinpath(repo_directory,"markdown",folder)
-    isdir(dir) || mkpath(dir)
-    args[:doctype] = "github"
-    weave(tmp,doctype = "github",out_path=dir,args=args; kwargs...)
-  end
-  if :notebook ∈ build_list
-    println("Building Notebook")
-    dir = joinpath(repo_directory,"notebook",folder)
-    isdir(dir) || mkpath(dir)
-    args[:doctype] = "notebook"
-    Weave.convert_doc(tmp,joinpath(dir,file[1:end-4]*".ipynb"))
-  end
+    if :html ∈ build_list
+        println("Building HTML")
+        dir = joinpath(repo_directory,"html",folder)
+        isdir(dir) || mkpath(dir)
+        args[:doctype] = "html"
+        weave(tmp,doctype = "md2html",out_path=dir,args=args; fig_ext=".svg", css=cssfile, kwargs...)
+    end
+    if :pdf ∈ build_list
+        println("Building PDF")
+        dir = joinpath(repo_directory,"pdf",folder)
+        isdir(dir) || mkpath(dir)
+        args[:doctype] = "pdf"
+        try
+            weave(tmp,doctype="md2pdf",out_path=dir,args=args; template=latexfile, kwargs...)
+        catch ex
+            @warn "PDF generation failed" exception=(ex, catch_backtrace())
+        end
+    end
+    if :github ∈ build_list
+        println("Building Github Markdown")
+        dir = joinpath(repo_directory,"markdown",folder)
+        isdir(dir) || mkpath(dir)
+        args[:doctype] = "github"
+        weave(tmp,doctype = "github",out_path=dir,args=args; kwargs...)
+    end
+    if :notebook ∈ build_list
+        println("Building Notebook")
+        dir = joinpath(repo_directory,"notebook",folder)
+        isdir(dir) || mkpath(dir)
+        args[:doctype] = "notebook"
+        Weave.convert_doc(tmp,joinpath(dir,file[1:end-4]*".ipynb"))
+    end
 end
 
-function weave_all()
-  for folder in readdir(joinpath(repo_directory,"tutorials"))
-    folder == "test.jmd" && continue
-    weave_folder(folder)
-  end
+function weave_all(build_list=(:script,:html,:pdf,:github,:notebook); kwargs...)
+    for folder in readdir(joinpath(repo_directory,"tutorials"))
+        folder == "test.jmd" && continue
+        weave_folder(folder, build_list; kwargs...)
+    end
 end
 
-function weave_folder(folder)
-  for file in readdir(joinpath(repo_directory,"tutorials",folder))
-    println("Building $(joinpath(folder,file)))")
-    try
-      weave_file(folder,file)
-    catch
+function weave_folder(
+    folder, build_list=(:script,:html,:pdf,:github,:notebook);
+    ext = r"^\.[Jj]md", kwargs...
+)
+    for file in readdir(joinpath(repo_directory,"tutorials",folder))
+        try
+            # HACK: just making sure that we're never going to 
+            if occursin(ext, splitext(file)[2])
+                println("Building $(joinpath(folder,file))")
+                weave_file(folder, file, build_list; kwargs...)
+            else
+                println("Skipping $(joinpath(folder,file))")
+            end
+        catch ex
+            @warn "Weave failed" ex
+        end
     end
-  end
 end
 
 function tutorial_footer(folder=nothing, file=nothing; remove_homedir=true)
     display("text/markdown", """
-    ## Appendix
-     This tutorial is part of the TuringTutorials.jl repository, found at: <https://github.com/TuringLang/TuringTutorials.jl>..
-    """)
+        ## Appendix
+         This tutorial is part of the TuringTutorials.jl repository, found at: <https://github.com/TuringLang/TuringTutorials.jl>.
+        """)
     if folder !== nothing && file !== nothing
         display("text/markdown", """
-        To locally run this tutorial, do the following commands:
-        ```
-        using TuringTutorials
-        TuringTutorials.weave_file("$folder","$file")
-        ```
-        """)
+            To locally run this tutorial, do the following commands:
+            ```{julia; eval = false}
+            using TuringTutorials
+            TuringTutorials.weave_file("$folder", "$file")
+            ```
+            """)
     end
     display("text/markdown", "Computer Information:")
     vinfo = sprint(InteractiveUtils.versioninfo)
     display("text/markdown",  """
-    ```
-    $(vinfo)
-    ```
-    """)
+        ```
+        $(vinfo)
+        ```
+        """)
 
     ctx = Pkg.API.Context()
-    pkgs = Pkg.Display.status(Pkg.API.Context(), use_as_api=true);
+
+    pkg_status = let io = IOBuffer()
+        Pkg.status(Pkg.API.Context(); io = io)
+        String(take!(io))
+    end
     projfile = ctx.env.project_file
     remove_homedir && (projfile = replace(projfile, homedir() => "~"))
 
     display("text/markdown","""
-    Package Information:
-    """)
+        Package Information:
+        """)
 
-    md = ""
-    md *= "```\nStatus `$(projfile)`\n"
-
-    for pkg in pkgs
-        if !isnothing(pkg.old) && pkg.old.ver !== nothing
-          md *= "[$(string(pkg.uuid))] $(string(pkg.name)) $(string(pkg.old.ver))\n"
-        else
-          md *= "[$(string(pkg.uuid))] $(string(pkg.name))\n"
-        end
-    end
-    md *= "```"
+    md = "```\n$(pkg_status)\n```"
     display("text/markdown", md)
 end
 
 function open_notebooks()
-  Base.eval(Main, Meta.parse("import IJulia"))
-  path = joinpath(repo_directory,"notebook")
-  IJulia.notebook(;dir=path)
+    Base.eval(Main, Meta.parse("import IJulia"))
+    path = joinpath(repo_directory,"notebook")
+    IJulia.notebook(;dir=path)
 end
 
 end

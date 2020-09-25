@@ -27,31 +27,24 @@ x = mapreduce(c -> rand(MvNormal([μs[c], μs[c]], 1.), N), hcat, 1:2)
 scatter(x[1,:], x[2,:], legend = false, title = "Synthetic Dataset")
 ```
 
-
-
-
-![svg](/tutorials/1_GaussianMixtureModel_files/1_GaussianMixtureModel_2_0.svg)
-
-
-
 ## Gaussian Mixture Model in Turing
 
 To cluster the data points shown above, we use a model that consists of two mixture components (clusters) and assigns each datum to one of the components. The assignment thereof determines the distribution that the data point is generated from.
 
 In particular, in a Bayesian Gaussian mixture model with $$1 \leq k \leq K$$ components for 1-D data each data point $$x_i$$ with $$1 \leq i \leq N$$ is generated according to the following generative process.
 First we draw the parameters for each cluster, i.e. in our example we draw location of the distributions from a Normal:
-\$\$
-\mu_k \sim Normal() \, , \;  \forall k \\
-\$\$
+$$
+\mu_k \sim \mathrm{Normal}() \, , \;  \forall k
+$$
 and then draw mixing weight for the $$K$$ clusters from a Dirichlet distribution, i.e.
-\$\$
-    w \sim Dirichlet(K, \alpha) \, . \\
-\$\$
+$$
+    w \sim \mathrm{Dirichlet}(K, \alpha) \, .
+$$
 After having constructed all the necessary model parameters, we can generate an observation by first selecting one of the clusters and then drawing the datum accordingly, i.e.
-\$\$
-    z_i \sim Categorical(w) \, , \;  \forall i \\
-    x_i \sim Normal(\mu_{z_i}, 1.) \, , \;  \forall i
-\$\$
+$$
+    z_i \sim \mathrm{Categorical}(w) \, , \;  \forall i \\
+    x_i \sim \mathrm{Normal}(\mu_{z_i}, 1.) \, , \;  \forall i
+$$
 
 For more details on Gaussian mixture models, we refer to Christopher M. Bishop, *Pattern Recognition and Machine Learning*, Section 9.
 
@@ -60,20 +53,8 @@ For more details on Gaussian mixture models, we refer to Christopher M. Bishop, 
 using Turing, MCMCChains
 
 # Turn off the progress monitor.
-Turing.turnprogress(false)
+Turing.turnprogress(false);
 ```
-
-    ┌ Info: [Turing]: progress logging is disabled globally
-    └ @ Turing /home/cameron/.julia/packages/Turing/cReBm/src/Turing.jl:22
-
-
-
-
-
-    false
-
-
-
 
 ```julia
 @model GaussianMixtureModel(x) = begin
@@ -107,13 +88,6 @@ Turing.turnprogress(false)
 end
 ```
 
-
-
-
-    ##GaussianMixtureModel#361 (generic function with 2 methods)
-
-
-
 After having specified the model in Turing, we can construct the model function and run a MCMC simulation to obtain assignments of the data points.
 
 
@@ -139,16 +113,9 @@ In particular, in this example we consider the sample values of the location par
 
 
 ```julia
-ids = findall(map(name -> occursin("μ", name), names(tchain)));
+ids = findall(map(name -> occursin("μ", string(name)), names(tchain)));
 p=plot(tchain[:, ids, :], legend=true, labels = ["Mu 1" "Mu 2"], colordim=:parameter)
 ```
-
-
-
-
-![svg](/tutorials/1_GaussianMixtureModel_files/1_GaussianMixtureModel_13_0.svg)
-
-
 
 You'll note here that it appears the location means are switching between chains. We will address this in future tutorials. For those who are keenly interested, see [this](https://mc-stan.org/users/documentation/case-studies/identifying_mixture_models.html) article on potential solutions.
 
@@ -173,27 +140,12 @@ function predict(x, y, w, μ)
 end
 ```
 
-
-
-
-    predict (generic function with 1 method)
-
-
-
-
 ```julia
 contour(range(-5, stop = 3), range(-6, stop = 2), 
-    (x, y) -> predict(x, y, [0.5, 0.5], [mean(tchain[:μ1].value), mean(tchain[:μ2].value)])
+    (x, y) -> predict(x, y, [0.5, 0.5], [mean(tchain[:μ1]), mean(tchain[:μ2])])
 )
 scatter!(x[1,:], x[2,:], legend = false, title = "Synthetic Dataset")
 ```
-
-
-
-
-![svg](/tutorials/1_GaussianMixtureModel_files/1_GaussianMixtureModel_18_0.svg)
-
-
 
 ## Infered Assignments
 
@@ -201,16 +153,10 @@ Finally, we can inspect the assignments of the data points infered using Turing.
 
 
 ```julia
-assignments = collect(skipmissing(mean(tchain[:k].value, dims=1).data))
+# TODO: is there a better way than this icky `.nt.mean` stuff?
+assignments = mean(MCMCChains.group(tchain, :k)).nt.mean
 scatter(x[1,:], x[2,:], 
     legend = false, 
     title = "Assignments on Synthetic Dataset", 
     zcolor = assignments)
 ```
-
-
-
-
-![svg](/tutorials/1_GaussianMixtureModel_files/1_GaussianMixtureModel_21_0.svg)
-
-

@@ -18,7 +18,7 @@ To get a bit more into what we can do with `vi`, we'll first have a look at a si
 
 ## Setup
 
-```julia; results = "hidden"
+```julia
 using Random
 using Turing
 using Turing: Variational
@@ -40,7 +40,7 @@ Recall that *conjugate* refers to the fact that we can obtain a closed-form expr
 
 First we generate some synthetic data, define the `Turing.Model` and instantiate the model on the data:
 
-```julia; results = "hidden"
+```julia
 # generate data
 x = randn(2000);
 ```
@@ -55,7 +55,7 @@ x = randn(2000);
 end;
 ```
 
-```julia; results = "hidden"
+```julia
 # Instantiate model
 m = model(x);
 ```
@@ -67,7 +67,7 @@ We'll produce 10 000 samples with 200 steps used for adaptation and a target acc
 If you don't understand what "adaptation" or "target acceptance rate" refers to, all you really need to know is that `NUTS` is known to be one of the most accurate and efficient samplers (when applicable) while requiring little to no hand-tuning to work well.
 
 
-```julia; results = "hidden"
+```julia
 samples_nuts = sample(m, NUTS(200, 0.65), 10000);
 ```
 
@@ -99,7 +99,7 @@ print(@doc(Variational.ADVI))
 To perform VI on the model `m` using 10 samples for gradient estimation and taking 1000 gradient steps is then as simple as:
 
 
-```julia; results = "hidden"
+```julia
 # ADVI
 advi = ADVI(10, 1000)
 q = vi(m, advi);
@@ -147,7 +147,7 @@ Let's instead look the actual density `q`.
 For that we need samples:
 
 
-```julia; results = "hidden"
+```julia
 samples = rand(q, 10000);
 ```
 
@@ -261,12 +261,12 @@ As we'll see, there is really no additional work required to apply variational i
 This section is basically copy-pasting the code from the [linear regression tutorial](../../tutorials/5-linearregression).
 
 
-```julia; results = "hidden"
+```julia
 Random.seed!(1);
 ```
 
 
-```julia; results = "hidden"
+```julia
 # Import RDatasets.
 using RDatasets
 
@@ -304,7 +304,7 @@ function unstandardize(x, orig)
 end
 ```
 
-```julia; results = "hidden"
+```julia
 # Remove the model column.
 select!(data, Not(:Model))
 
@@ -350,7 +350,7 @@ end;
 ```
 
 
-```julia; results = "hidden"
+```julia
 n_obs, n_vars = size(train)
 m = linear_regression(train, train_label, n_obs, n_vars);
 ```
@@ -403,7 +403,7 @@ typeof(q)
 To compute statistics for our approximation we need samples:
 
 
-```julia; results = "hidden"
+```julia
 z = rand(q, 10_000);
 ```
 
@@ -473,7 +473,7 @@ plot_variational_marginals(z, sym2range)
 And let's compare this to using the `NUTS` sampler:
 
 
-```julia; results = "hidden"
+```julia
 chain = sample(m, NUTS(0.65), 10_000);
 ```
 
@@ -504,7 +504,7 @@ That looks pretty good! But let's see how the predictive distributions looks for
 Similarily to the linear regression tutorial, we're going to compare to multivariate ordinary linear regression using the `GLM` package:
 
 
-```julia; results = "hidden"
+```julia
 # Import the GLM package.
 using GLM
 
@@ -542,7 +542,7 @@ function prediction(samples::AbstractMatrix, sym2ranges, x)
 end
 ```
 
-```julia; results = "hidden"
+```julia
 # Unstandardize the dependent variable.
 train_cut.MPG = unstandardize(train_cut.MPG, data.MPG);
 test_cut.MPG = unstandardize(test_cut.MPG, data.MPG);
@@ -554,12 +554,12 @@ test_cut.MPG = unstandardize(test_cut.MPG, data.MPG);
 first(test_cut, 6)
 ```
 
-```julia; results = "hidden"
+```julia
 z = rand(q, 10_000);
 ```
 
 
-```julia; results = "hidden"
+```julia
 # Calculate the predictions for the training and testing sets using the samples `z` from variational posterior
 train_cut.VIPredictions = unstandardize(prediction(z, sym2range, train), data.MPG);
 test_cut.VIPredictions = unstandardize(prediction(z, sym2range, test), data.MPG);
@@ -640,7 +640,7 @@ base_dist = Turing.DistributionsAD.TuringDiagMvNormal(zeros(d), ones(d))
 `bijector(model::Turing.Model)` is defined by Turing, and will return a `bijector` which takes you from the space of the latent variables to the real space. In this particular case, this is a mapping `((0, ∞) × ℝ × ℝ¹⁰) → ℝ¹²`. We're interested in using a normal distribution as a base-distribution and transform samples to the latent space, thus we need the inverse mapping from the reals to the latent space:
 
 
-```julia; results = "hidden"
+```julia
 to_constrained = inv(bijector(m));
 ```
 
@@ -657,7 +657,7 @@ function getq(θ)
 end
 ```
 
-```julia; results = "hidden"
+```julia
 q_mf_normal = vi(m, advi, getq, randn(2 * d));
 ```
 
@@ -713,7 +713,7 @@ end
 advi = ADVI(10, 20_000)
 ```
 
-```julia; results = "hidden"
+```julia
 q_full_normal = vi(m, advi, getq, randn(num_params); optimizer = Variational.DecayedADAGrad(1e-2));
 ```
 
@@ -728,7 +728,7 @@ A = q_full_normal.transform.ts[1].a
 heatmap(cov(A * A'))
 ```
 
-```julia; results = "hidden"
+```julia
 zs = rand(q_full_normal, 10_000);
 ```
 
@@ -744,7 +744,7 @@ plot(p1, p2, layout = (1, 2), size = (800, 2000))
 So it seems like the "full" ADVI approach, i.e. no mean-field assumption, obtain the same modes as the mean-field approach but with greater uncertainty for some of the `coefficients`. This 
 
 
-```julia; results = "hidden"
+```julia
 # Unfortunately, it seems like this has quite a high variance which is likely to be due to numerical instability, 
 # so we consider a larger number of samples. If we get a couple of outliers due to numerical issues, 
 # these kind affect the mean prediction greatly.
@@ -752,7 +752,7 @@ z = rand(q_full_normal, 10_000);
 ```
 
 
-```julia; results = "hidden"
+```julia
 train_cut.VIFullPredictions = unstandardize(prediction(z, sym2range, train), data.MPG);
 test_cut.VIFullPredictions = unstandardize(prediction(z, sym2range, test), data.MPG);
 ```

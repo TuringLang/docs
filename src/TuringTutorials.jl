@@ -6,7 +6,10 @@ repo_directory = joinpath(@__DIR__,"..")
 cssfile = joinpath(@__DIR__, "..", "templates", "skeleton_css.css")
 latexfile = joinpath(@__DIR__, "..", "templates", "julia_tex.tpl")
 
-function weave_file(folder,file,build_list=(:script,:html,:pdf,:github,:notebook); kwargs...)
+function weave_file(
+    folder, file, build_list=(:script ,:html, :github, :notebook);
+    kwargs...
+)
     tmp = joinpath(repo_directory,"tutorials",folder,file)
     Pkg.activate(dirname(tmp))
     Pkg.instantiate()
@@ -23,7 +26,10 @@ function weave_file(folder,file,build_list=(:script,:html,:pdf,:github,:notebook
         dir = joinpath(repo_directory,"html",folder)
         isdir(dir) || mkpath(dir)
         args[:doctype] = "html"
-        weave(tmp,doctype = "md2html",out_path=dir,args=args; fig_ext=".svg", css=cssfile, kwargs...)
+        weave(
+            tmp, doctype = "md2html", out_path=dir, args=args;
+            fig_ext=".svg", css=cssfile, kwargs...
+        )
     end
     if :pdf ∈ build_list
         println("Building PDF")
@@ -31,7 +37,10 @@ function weave_file(folder,file,build_list=(:script,:html,:pdf,:github,:notebook
         isdir(dir) || mkpath(dir)
         args[:doctype] = "pdf"
         try
-            weave(tmp,doctype="md2pdf",out_path=dir,args=args; template=latexfile, kwargs...)
+            weave(
+                tmp, doctype="md2pdf", out_path=dir, args=args;
+                template=latexfile, kwargs...
+            )
         catch ex
             @warn "PDF generation failed" exception=(ex, catch_backtrace())
         end
@@ -81,7 +90,7 @@ end
 function tutorial_footer(folder=nothing, file=nothing; remove_homedir=true)
     display("text/markdown", """
         ## Appendix
-         This tutorial is part of the TuringTutorials.jl repository, found at: <https://github.com/TuringLang/TuringTutorials.jl>.
+         This tutorial is part of the TuringTutorials repository, found at: <https://github.com/TuringLang/TuringTutorials>.
         """)
     if folder !== nothing && file !== nothing
         display("text/markdown", """
@@ -115,12 +124,6 @@ function tutorial_footer(folder=nothing, file=nothing; remove_homedir=true)
 
     md = "```\n$(pkg_status)\n```"
     display("text/markdown", md)
-end
-
-function open_notebooks()
-    Base.eval(Main, Meta.parse("import IJulia"))
-    path = joinpath(repo_directory,"notebook")
-    IJulia.notebook(;dir=path)
 end
 
 end

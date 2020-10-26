@@ -17,8 +17,8 @@ using Turing, Distributions
 # Import RDatasets.
 using RDatasets
 
-# Import MCMCChains, Plots, and StatPlots for visualizations and diagnostics.
-using MCMCChains, Plots, StatsPlots
+# Import MCMCChains, and StatPlots for visualizations and diagnostics.
+using MCMCChains, StatsPlots
 
 # Functionality for splitting and normalizing the data.
 using MLDataUtils: shuffleobs, splitobs, rescale!

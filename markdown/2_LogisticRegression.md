@@ -16,8 +16,8 @@ using Turing, Distributions
 # Import RDatasets.
 using RDatasets
 
-# Import MCMCChains, Plots, and StatsPlots for visualizations and diagnostics.
-using MCMCChains, Plots, StatsPlots
+# Import MCMCChains, and StatsPlots for visualizations and diagnostics.
+using MCMCChains, StatsPlots
 
 # We need a logistic function, which is provided by StatsFuns.
 using StatsFuns: logistic

@@ -24,7 +24,7 @@ First, let's load some of the packages we need to flip a coin (`Random`, `Distri
 using Random
 
 # Load a plotting library.
-using Plots
+using StatsPlots
 
 # Load the distributions library.
 using Distributions
@@ -91,9 +91,6 @@ The intuition about this definition is that the variance of the distribution wil
 
 
 ```julia
-# Import StatsPlots for animating purposes.
-using StatsPlots
-
 # Make an animation.
 animation = @gif for (i, N) in enumerate(Ns)
 

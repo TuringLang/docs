@@ -9,8 +9,8 @@ Most of the scientific community deals with the basic problem of trying to mathe
 ```julia
 using Turing, Distributions, DataFrames, DifferentialEquations, DiffEqSensitivity
 
-# Import MCMCChain, Plots, and StatsPlots for visualizations and diagnostics.
-using MCMCChains, Plots, StatsPlots
+# Import MCMCChain, and StatsPlots for visualizations and diagnostics.
+using MCMCChains, StatsPlots
 
 # Set a seed for reproducibility.
 using Random

@@ -15,8 +15,8 @@ We start by importing the required libraries.
 #Import Turing, Distributions and DataFrames
 using Turing, Distributions, DataFrames, Distributed
 
-# Import MCMCChain, Plots, and StatsPlots for visualizations and diagnostics.
-using MCMCChains, Plots, StatsPlots
+# Import MCMCChain, and StatsPlots for visualizations and diagnostics.
+using MCMCChains, StatsPlots
 
 # Set a seed for reproducibility.
 using Random

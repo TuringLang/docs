@@ -9,7 +9,7 @@ Let's load the libraries we'll need. We also set a random seed (for reproducibil
 
 ```julia
 # Load libraries.
-using Turing, Plots, Random
+using Turing, StatsPlots, Random
 
 # Turn off progress monitor.
 Turing.turnprogress(false);
@@ -116,9 +116,6 @@ The code below generates an animation showing the graph of the data above, and t
 
 
 ```julia
-# Import StatsPlots for animating purposes.
-using StatsPlots
-
 # Extract our m and s parameters from the chain.
 m_set = c[:m].value.data
 s_set = c[:s].value.data

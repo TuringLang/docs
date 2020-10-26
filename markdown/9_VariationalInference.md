@@ -266,7 +266,7 @@ samples = rand(q, 10000);
 
 ```julia
 # setup for plotting
-using Plots, LaTeXStrings, StatsPlots
+using LaTeXStrings, StatsPlots
 pyplot()
 ```
 
@@ -277,7 +277,7 @@ pyplot()
 
 
 
-    Plots.PyPlotBackend()
+    StatsPlots.PyPlotBackend()
 
 
 

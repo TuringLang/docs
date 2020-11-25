@@ -74,7 +74,7 @@ function weave_folder(
 )
     for file in readdir(joinpath(repo_directory,"tutorials",folder))
         try
-            # HACK: just making sure that we're never going to 
+            # HACK: only weave (j)md files
             if occursin(ext, splitext(file)[2])
                 println("Building $(joinpath(folder,file))")
                 weave_file(folder, file, build_list; kwargs...)
@@ -95,7 +95,7 @@ function tutorial_footer(folder=nothing, file=nothing; remove_homedir=true)
     if folder !== nothing && file !== nothing
         display("text/markdown", """
             To locally run this tutorial, do the following commands:
-            ```{julia; eval = false}
+            ```julia, eval = false
             using TuringTutorials
             TuringTutorials.weave_file("$folder", "$file")
             ```

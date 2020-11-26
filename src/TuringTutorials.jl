@@ -6,6 +6,18 @@ repo_directory = joinpath(@__DIR__,"..")
 cssfile = joinpath(@__DIR__, "..", "templates", "skeleton_css.css")
 latexfile = joinpath(@__DIR__, "..", "templates", "julia_tex.tpl")
 
+
+function polish_latex(path::String)
+    # TODO: Is it maybe better to overload https://github.com/JunoLab/Weave.jl/blob/b5ba227e757520f389a6d6e0f2cacb731eab8b12/src/WeaveMarkdown/markdown.jl#L10-L17
+    # and replace the `tex.formula` there? Only negative part is that this of course
+    # will affect all of the markdown parsers, which is not necessarily desirable.
+    txt = open(f -> read(f, String), path)
+    open(path, "w+") do f
+        txt = replace(txt, "\\\\\n" => "\\\\\\\\\n")
+        write(f, txt)
+    end
+end
+
 function weave_file(
     folder, file, build_list=(:script ,:html, :github, :notebook);
     kwargs...
@@ -50,7 +62,8 @@ function weave_file(
         dir = joinpath(repo_directory,"markdown",folder)
         isdir(dir) || mkpath(dir)
         args[:doctype] = "github"
-        weave(tmp,doctype = "github",out_path=dir,args=args; kwargs...)
+        out_path = weave(tmp,doctype = "github",out_path=dir,args=args; kwargs...)
+        polish_latex(out_path)
     end
     if :notebook ∈ build_list
         println("Building Notebook")

@@ -81,7 +81,7 @@ plot(sol)
 
 
 
-![svg](/tutorials/10_diffeq_files/10_diffeq_5_0.svg)
+![svg](/tutorials/10_BayesianDiffEq_files/10_BayesianDiffEq_5_0.svg)
 
 
 
@@ -98,7 +98,7 @@ plot(sol1, alpha = 0.3, legend = false); scatter!(sol1.t, odedata')
 
 
 
-![svg](/tutorials/10_diffeq_files/10_diffeq_7_0.svg)
+![svg](/tutorials/10_BayesianDiffEq_files/10_BayesianDiffEq_7_0.svg)
 
 
 
@@ -179,7 +179,7 @@ plot(chain)
 
 
 
-![svg](/tutorials/10_diffeq_files/10_diffeq_12_0.svg)
+![svg](/tutorials/10_BayesianDiffEq_files/10_BayesianDiffEq_12_0.svg)
 
 
 
@@ -205,7 +205,7 @@ plot!(sol1, w=1, legend = false)
 
 
 
-![svg](/tutorials/10_diffeq_files/10_diffeq_15_0.svg)
+![svg](/tutorials/10_BayesianDiffEq_files/10_BayesianDiffEq_15_0.svg)
 
 
 
@@ -317,7 +317,7 @@ plot!(sol1, w=1, legend = false)
 
 
 
-![svg](/tutorials/10_diffeq_files/10_diffeq_23_0.svg)
+![svg](/tutorials/10_BayesianDiffEq_files/10_BayesianDiffEq_23_0.svg)
 
 
 
@@ -389,7 +389,7 @@ scatter(sol.t, ddedata'); plot!(sol)
 
 
 
-![svg](/tutorials/10_diffeq_files/10_diffeq_30_0.svg)
+![svg](/tutorials/10_BayesianDiffEq_files/10_BayesianDiffEq_30_0.svg)
 
 
 
@@ -438,7 +438,7 @@ plot(chain)
 
 
 
-![svg](/tutorials/10_diffeq_files/10_diffeq_34_0.svg)
+![svg](/tutorials/10_BayesianDiffEq_files/10_BayesianDiffEq_34_0.svg)
 
 
 
@@ -503,7 +503,7 @@ plot!(sol)
 
 
 
-![svg](/tutorials/10_diffeq_files/10_diffeq_37_0.svg)
+![svg](/tutorials/10_BayesianDiffEq_files/10_BayesianDiffEq_37_0.svg)
 
 
 
@@ -693,7 +693,7 @@ plot(EnsembleSummary(data))
 
 
 
-![svg](/tutorials/10_diffeq_files/10_diffeq_48_1.svg)
+![svg](/tutorials/10_BayesianDiffEq_files/10_BayesianDiffEq_48_1.svg)
 
 
 
@@ -735,7 +735,7 @@ plot(chain)
 
 
 
-![svg](/tutorials/10_diffeq_files/10_diffeq_51_0.svg)
+![svg](/tutorials/10_BayesianDiffEq_files/10_BayesianDiffEq_51_0.svg)
 
 
 

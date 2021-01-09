@@ -155,14 +155,14 @@ chain = sample(logistic_regression(train_features, train_target, 1), HMC(0.05, 1
 
 
     Chains MCMC chain (1500×19×3 Array{Float64,3}):
-    
+
     Iterations        = 1:1500
     Thinning interval = 1
     Chains            = 1, 2, 3
     Samples per chain = 1500
     parameters        = coefficients_versicolor[1], coefficients_versicolor[2], coefficients_versicolor[3], coefficients_versicolor[4], coefficients_virginica[1], coefficients_virginica[2], coefficients_virginica[3], coefficients_virginica[4], intercept_versicolor, intercept_virginica
     internals         = acceptance_rate, hamiltonian_energy, hamiltonian_energy_error, is_accept, log_density, lp, n_steps, nom_step_size, step_size
-    
+
     Summary Statistics
      [0m[1m                 parameters [0m [0m[1m    mean [0m [0m[1m     std [0m [0m[1m naive_se [0m [0m[1m    mcse [0m [0m[1m      ess [0m [0m[1m    rhat [0m [0m
      [0m[90m                     Symbol [0m [0m[90m Float64 [0m [0m[90m Float64 [0m [0m[90m  Float64 [0m [0m[90m Float64 [0m [0m[90m  Float64 [0m [0m[90m Float64 [0m [0m
@@ -177,7 +177,7 @@ chain = sample(logistic_regression(train_features, train_target, 1), HMC(0.05, 1
      [0m  coefficients_virginica[4] [0m [0m  2.6704 [0m [0m  0.7982 [0m [0m   0.0119 [0m [0m  0.0423 [0m [0m 337.9600 [0m [0m  1.0043 [0m [0m
      [0m       intercept_versicolor [0m [0m  0.8408 [0m [0m  0.5257 [0m [0m   0.0078 [0m [0m  0.0167 [0m [0m 874.4821 [0m [0m  1.0044 [0m [0m
      [0m        intercept_virginica [0m [0m -0.7351 [0m [0m  0.6639 [0m [0m   0.0099 [0m [0m  0.0285 [0m [0m 525.8135 [0m [0m  1.0039 [0m [0m
-    
+
     Quantiles
      [0m[1m                 parameters [0m [0m[1m    2.5% [0m [0m[1m   25.0% [0m [0m[1m   50.0% [0m [0m[1m   75.0% [0m [0m[1m   97.5% [0m [0m
      [0m[90m                     Symbol [0m [0m[90m Float64 [0m [0m[90m Float64 [0m [0m[90m Float64 [0m [0m[90m Float64 [0m [0m[90m Float64 [0m [0m
@@ -217,7 +217,7 @@ We can also use the `corner` function from MCMCChains to show the distributions 
 
 ```julia
 corner(
-    chain, [Symbol("coefficients_versicolor[$$i]") for i in 1:4];
+    chain, [Symbol("coefficients_versicolor[$i]") for i in 1:4];
     label=[string(i) for i in 1:4], fmt=:png
 )
 ```
@@ -232,7 +232,7 @@ corner(
 
 ```julia
 corner(
-    chain, [Symbol("coefficients_virginica[$$i]") for i in 1:4];
+    chain, [Symbol("coefficients_virginica[$i]") for i in 1:4];
     label=[string(i) for i in 1:4], fmt=:png
 )
 ```
@@ -258,14 +258,14 @@ function prediction(x::Matrix, chain)
     # Pull the means from each parameter's sampled values in the chain.
     intercept_versicolor = mean(chain, :intercept_versicolor)
     intercept_virginica = mean(chain, :intercept_virginica)
-    coefficients_versicolor = [mean(chain, "coefficients_versicolor[$$i]") for i in 1:4]
-    coefficients_virginica = [mean(chain, "coefficients_virginica[$$i]") for i in 1:4]
+    coefficients_versicolor = [mean(chain, "coefficients_versicolor[$i]") for i in 1:4]
+    coefficients_virginica = [mean(chain, "coefficients_virginica[$i]") for i in 1:4]
 
     # Compute the index of the species with the highest probability for each observation.
     values_versicolor = intercept_versicolor .+ x * coefficients_versicolor
     values_virginica = intercept_virginica .+ x * coefficients_virginica
     species_indices = [argmax((0, x, y)) for (x, y) in zip(values_versicolor, values_virginica)]
-    
+
     return species_indices
 end;
 ```
@@ -308,4 +308,4 @@ end
     Percentage of `virginica` predicted correctly: 0.7241379310344828
 
 
-This tutorial has demonstrated how to use Turing to perform Bayesian multinomial logistic regression. 
+This tutorial has demonstrated how to use Turing to perform Bayesian multinomial logistic regression.

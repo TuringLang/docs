@@ -128,10 +128,10 @@ Ns = 1:length(c)
 
 # Make an animation.
 animation = @animate for i in Ns
-    m = m_set[i, :]; 
+    m = m_set[i, :];
     s = Int.(s_set[i,:]);
     emissions = collect(skipmissing(m[s]))
-    
+
     p = plot(y, c = :red,
         size = (500, 250),
         xlabel = "Time",
@@ -139,7 +139,7 @@ animation = @animate for i in Ns
         legend = :topright, label = "True data",
         xlim = (0,15),
         ylim = (-1,5));
-    plot!(emissions, color = :blue, label = "Sample $$N")
+    plot!(emissions, color = :blue, label = "Sample $N")
 end every 10;
 ```
 
@@ -150,11 +150,11 @@ Looks like our model did a pretty good job, but we should also check to make sur
 
 ```julia
 # Index the chain with the persistence probabilities.
-subchain = c[:,["T[$$i][$$i]" for i in 1:K],:]
+subchain = c[:,["T[$i][$i]" for i in 1:K],:]
 
 # Plot the chain.
-plot(subchain, 
-    colordim = :parameter, 
+plot(subchain,
+    colordim = :parameter,
     seriestype=:traceplot,
     title = "Persistence Probability",
     legend=:right

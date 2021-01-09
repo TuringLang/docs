@@ -40,14 +40,14 @@ M = round(Int, N / 4)
 Random.seed!(1234)
 
 # Generate artificial data.
-x1s = rand(M) * 4.5; x2s = rand(M) * 4.5; 
+x1s = rand(M) * 4.5; x2s = rand(M) * 4.5;
 xt1s = Array([[x1s[i] + 0.5; x2s[i] + 0.5] for i = 1:M])
-x1s = rand(M) * 4.5; x2s = rand(M) * 4.5; 
+x1s = rand(M) * 4.5; x2s = rand(M) * 4.5;
 append!(xt1s, Array([[x1s[i] - 5; x2s[i] - 5] for i = 1:M]))
 
-x1s = rand(M) * 4.5; x2s = rand(M) * 4.5; 
+x1s = rand(M) * 4.5; x2s = rand(M) * 4.5;
 xt0s = Array([[x1s[i] + 0.5; x2s[i] - 5] for i = 1:M])
-x1s = rand(M) * 4.5; x2s = rand(M) * 4.5; 
+x1s = rand(M) * 4.5; x2s = rand(M) * 4.5;
 append!(xt0s, Array([[x1s[i] - 5; x2s[i] + 0.5] for i = 1:M]))
 
 # Store all the data for later.
@@ -91,14 +91,14 @@ The end of this tutorial provides some code that can be used to generate more ge
 ```julia
 # Turn a vector into a set of weights and biases.
 function unpack(nn_params::AbstractVector)
-    W₁ = reshape(nn_params[1:6], 3, 2);   
+    W₁ = reshape(nn_params[1:6], 3, 2);
     b₁ = reshape(nn_params[7:9], 3)
-    
-    W₂ = reshape(nn_params[10:15], 2, 3); 
+
+    W₂ = reshape(nn_params[10:15], 2, 3);
     b₂ = reshape(nn_params[16:17], 2)
-    
-    Wₒ = reshape(nn_params[18:19], 1, 2); 
-    bₒ = reshape(nn_params[20:20], 1)   
+
+    Wₒ = reshape(nn_params[18:19], 1, 2);
+    bₒ = reshape(nn_params[20:20], 1)
     return W₁, b₁, W₂, b₂, Wₒ, bₒ
 end
 
@@ -124,11 +124,11 @@ sig = sqrt(1.0 / alpha)
 @model bayes_nn(xs, ts) = begin
     # Create the weight and bias vector.
     nn_params ~ MvNormal(zeros(20), sig .* ones(20))
-    
+
     # Calculate predictions for the inputs given the weights
     # and biases in theta.
     preds = nn_forward(xs, nn_params)
-    
+
     # Observe each prediction.
     for i = 1:length(ts)
         ts[i] ~ Bernoulli(preds[i])
@@ -186,8 +186,8 @@ The contour plot above shows that the MAP method is not too bad at classifying o
 
 Now we can visualize our predictions.
 
-\$\$ 
-p(\tilde{x} | X, \alpha) = \int_{\theta} p(\tilde{x} | \theta) p(\theta | X, \alpha) \approx \sum_{\theta \sim p(\theta | X, \alpha)}f_{\theta}(\tilde{x}) 
+\$\$
+p(\tilde{x} | X, \alpha) = \int_{\theta} p(\tilde{x} | \theta) p(\theta | X, \alpha) \approx \sum_{\theta \sim p(\theta | X, \alpha)}f_{\theta}(\tilde{x})
 \$\$
 
 The `nn_predict` function takes the average predicted value from a network parameterized by weights drawn from the MCMC chain.
@@ -222,7 +222,7 @@ contour!(x_range, y_range, Z)
 
 
 
-If you are interested in how the predictive power of our Bayesian neural network evolved between samples, the following graph displays an animation of the contour plot generated from the network weights in samples 1 to 1,000. 
+If you are interested in how the predictive power of our Bayesian neural network evolved between samples, the following graph displays an animation of the contour plot generated from the network weights in samples 1 to 1,000.
 
 
 ```julia
@@ -232,13 +232,13 @@ n_end = 500
 anim = @gif for i=1:n_end
     plot_data()
     Z = [nn_forward([x, y], theta[i,:])[1] for x=x_range, y=y_range]
-    contour!(x_range, y_range, Z, title="Iteration $$i", clim = (0,1))
+    contour!(x_range, y_range, Z, title="Iteration $i", clim = (0,1))
 end every 5
 
 
 ```
 
-    ┌ Info: Saved animation to 
+    ┌ Info: Saved animation to
     │   fn = /home/cameron/code/TuringTutorials/tmp.gif
     └ @ Plots /home/cameron/.julia/packages/Plots/cc8wh/src/animation.jl:98
 
@@ -280,7 +280,7 @@ q_hat = vi(m, advi, q);
 
 ```julia
 samples = transpose(rand(q_hat, 5000))
-ch_vi = Chains(reshape(samples, size(samples)..., 1), ["nn_params[$$i]" for i = 1:20]);
+ch_vi = Chains(reshape(samples, size(samples)..., 1), ["nn_params[$i]" for i = 1:20]);
 
 # Extract all weight and bias parameters.
 theta = ch_vi[:nn_params].value.data;
@@ -316,7 +316,7 @@ Here, we solve the same problem as above, but with three additional 2x2 `tanh` h
 # Specify the network architecture.
 network_shape = [
     (3,2, :tanh),
-    (2,3, :tanh), 
+    (2,3, :tanh),
     (1,2, :σ)]
 
 # Regularization, parameter variance, and total number of
@@ -343,7 +343,7 @@ function unpack(θ::AbstractVector, network_shape::AbstractVector)
     return weights, biases
 end
 
-# Generate an abstract neural network given a shape, 
+# Generate an abstract neural network given a shape,
 # and return a prediction.
 function nn_forward(x, θ::AbstractVector, network_shape::AbstractVector)
     weights, biases = unpack(θ, network_shape)

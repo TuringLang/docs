@@ -18,7 +18,7 @@ Before introducing infinite mixture models in Turing, we will briefly review the
 
 #### Two-Component Model
 
-First, consider the simple case of a mixture model with two Gaussian components with fixed covariance. 
+First, consider the simple case of a mixture model with two Gaussian components with fixed covariance.
 The generative process of such a model can be written as:
 
 $$
@@ -39,22 +39,22 @@ We can implement this model in Turing for 1D data as follows:
 
 ```julia
 @model two_model(x) = begin
-    
+
     # Hyper-parameters
     μ0 = 0.0
     σ0 = 1.0
-    
+
     # Draw weights.
     π1 ~ Beta(1,1)
     π2 = 1-π1
-    
+
     # Draw locations of the components.
     μ1 ~ Normal(μ0, σ0)
     μ2 ~ Normal(μ0, σ0)
-    
+
     # Draw latent assignment.
     z ~ Categorical([π1, π2])
-    
+
     # Draw observation from selected component.
     if z == 1
         x ~ Normal(μ1, 1.0)
@@ -80,7 +80,7 @@ $$
 (\pi_1, \dots, \pi_K) &\sim Dirichlet(K, \alpha) \\
 \mu_k &\sim Normal(\mu_0, \Sigma_0), \;\; \forall k \\
 z &\sim Categorical(\pi_1, \dots, \pi_K) \\
-x &\sim Normal(\mu_z, \Sigma) 
+x &\sim Normal(\mu_z, \Sigma)
 \end{align}
 $$
 
@@ -101,7 +101,7 @@ We now will utilize the fact that one can integrate out the mixing weights in a 
 
 In fact, if the mixing weights are integrated out, the conditional prior for the latent variable $$z$$ is given by:
 
-\$\$ 
+\$\$
 p(z_i = k \mid z_{\not i}, \alpha) = \frac{n_k + \alpha/K}{N - 1 + \alpha}
 \$\$
 
@@ -146,7 +146,7 @@ for i in 1:Nmax
     # Number of observations per cluster.
     K = isempty(z) ? 0 : maximum(z)
     nk = Vector{Int}(map(k -> sum(z .== k), 1:K))
-    
+
     # Draw new assignment.
     push!(z, rand(ChineseRestaurantProcess(rpm, nk)))
 end
@@ -156,13 +156,13 @@ end
 ```julia
 using Plots
 
-# Plot the cluster assignments over time 
+# Plot the cluster assignments over time
 @gif for i in 1:Nmax
     scatter(collect(1:i), z[1:i], markersize = 2, xlabel = "observation (i)", ylabel = "cluster (k)", legend = false)
 end;
 ```
 
-    ┌ Info: Saved animation to 
+    ┌ Info: Saved animation to
     │   fn = /home/cameron/code/TuringTutorials/tmp.gif
     └ @ Plots /home/cameron/.julia/packages/Plots/Xnzc7/src/animation.jl:104
 
@@ -182,33 +182,33 @@ In Turing we can implement an infinite Gaussian mixture model using the Chinese 
 
 ```julia
 @model infiniteGMM(x) = begin
-    
+
     # Hyper-parameters, i.e. concentration parameter and parameters of H.
     α = 1.0
     μ0 = 0.0
     σ0 = 1.0
-    
+
     # Define random measure, e.g. Dirichlet process.
     rpm = DirichletProcess(α)
-    
+
     # Define the base distribution, i.e. expected value of the Dirichlet process.
     H = Normal(μ0, σ0)
-    
+
     # Latent assignment.
     z = tzeros(Int, length(x))
-        
+
     # Locations of the infinitely many clusters.
     μ = tzeros(Float64, 0)
-    
+
     for i in 1:length(x)
-        
+
         # Number of clusters.
         K = maximum(z)
         nk = Vector{Int}(map(k -> sum(z .== k), 1:K))
 
         # Draw the latent assignment.
         z[i] ~ ChineseRestaurantProcess(rpm, nk)
-        
+
         # Create a new cluster?
         if z[i] > K
             push!(μ, 0.0)
@@ -216,7 +216,7 @@ In Turing we can implement an infinite Gaussian mixture model using the Chinese 
             # Draw location of new cluster.
             μ[z[i]] ~ H
         end
-                
+
         # Draw observation.
         x[i] ~ Normal(μ[z[i]], 1.0)
     end
@@ -304,7 +304,7 @@ v_k \sim Beta(1, \alpha)
 
 Chinese Restaurant Process
 \$\$
-p(z_n = k | z_{1:n-1}) \propto \begin{cases} 
+p(z_n = k | z_{1:n-1}) \propto \begin{cases}
         \frac{m_k}{n-1+\alpha}, \text{ if } m_k > 0\\\
         \frac{\alpha}{n-1+\alpha}
     \end{cases}

@@ -102,11 +102,11 @@ print(@doc(Variational.vi))
     vi(model, alg::VariationalInference, q::VariationalPosterior)
     vi(model, alg::VariationalInference, getq::Function, θ::AbstractArray)
     ```
-    
+
     Constructs the variational posterior from the `model` and performs the optimization following the configuration of the given `VariationalInference` instance.
-    
+
     # Arguments
-    
+
       * `model`: `Turing.Model` or `Function` z ↦ log p(x, z) where `x` denotes the observations
       * `alg`: the VI algorithm used
       * `q`: a `VariationalPosterior` for which it is assumed a specialized implementation of the variational objective used exists.
@@ -114,7 +114,7 @@ print(@doc(Variational.vi))
       * `θ`: only required if `getq` is used, in which case it is the initial parameters for the variational posterior
 
 
-`vi` takes the `Model` you want to approximate, a `VariationalInference` whose type specifies the method to use and then its fields specify the configuration of the method. 
+`vi` takes the `Model` you want to approximate, a `VariationalInference` whose type specifies the method to use and then its fields specify the configuration of the method.
 
 Additionally, you can pass
 - an initial variational posterior `q`, for which we assume there exists a implementation of `update(::typeof(q), θ::AbstractVector)` returning an updated posterior `q` with parameters `θ`.
@@ -131,7 +131,7 @@ print(@doc(Variational.meanfield))
     meanfield(model::Model)
     meanfield(rng::AbstractRNG, model::Model)
     ```
-    
+
     Creates a mean-field approximation with multivariate normal as underlying distribution.
 
 
@@ -145,22 +145,22 @@ print(@doc(Variational.ADVI))
     ```julia
     struct ADVI{AD} <: Turing.Variational.VariationalInference{AD}
     ```
-    
+
     Automatic Differentiation Variational Inference (ADVI) with automatic differentiation backend `AD`.
-    
+
     # Fields
-    
+
       * `samples_per_step::Int64`
-    
+
         Number of samples used to estimate the ELBO in each optimization step.
       * `max_iters::Int64`
-    
+
         Maximum number of gradient steps.
-    
+
     ```
     ADVI([samples_per_step=1, max_iters=1000])
     ```
-    
+
     Create an [`ADVI`](@ref) with the currently enabled automatic differentiation backend `ADBackend()`.
 
 
@@ -254,7 +254,7 @@ var(x), mean(x)
 
 
 That's pretty close! But we're Bayesian so we're not interested in *just* matching the mean.
-Let's instead look the actual density `q`. 
+Let's instead look the actual density `q`.
 
 For that we need samples:
 
@@ -332,7 +332,7 @@ post = posterior(pri, Normal, x)
 # Eq. (90) in "Conjugate Bayesian analysis of the Gaussian distribution" by Murphy
 # `scale(post)` = θ
 p_τ = Gamma(post.shape, scale(post))
-p_σ²_pdf = z -> pdf(p_τ, 1 / z) # τ => 1 / σ² 
+p_σ²_pdf = z -> pdf(p_τ, 1 / z) # τ => 1 / σ²
 
 # marginal of μ
 # Eq. (91) in "Conjugate Bayesian analysis of the Gaussian distribution" by Murphy
@@ -344,7 +344,7 @@ p_μ = TDist(2 * post.shape)
 βₙ = post.rate  # β → rate
 
 # numerically more stable but doesn't seem to have effect; issue is probably internal to
-# `pdf` which needs to compute ≈ Γ(1000) 
+# `pdf` which needs to compute ≈ Γ(1000)
 p_μ_pdf = z -> exp(logpdf(p_μ, (z - μₙ) * exp(- 0.5 * log(βₙ) + 0.5 * log(αₙ) + 0.5 * log(κₙ))))
 
 # posterior plots
@@ -498,13 +498,13 @@ test = Matrix(test_cut[:,remove_names]);
 @model linear_regression(x, y, n_obs, n_vars, ::Type{T}=Vector{Float64}) where {T} = begin
     # Set variance prior.
     σ₂ ~ truncated(Normal(0,100), 0, Inf)
-    
+
     # Set intercept prior.
     intercept ~ Normal(0, 3)
-    
+
     # Set the priors on our coefficients.
     coefficients ~ MvNormal(zeros(n_vars), 10 * ones(n_vars))
-    
+
     # Calculate all the mu terms.
     mu = intercept .+ x * coefficients
     y ~ MvNormal(mu, σ₂)
@@ -705,18 +705,18 @@ function plot_variational_marginals(z, sym2range)
             offset = 1
             for r in indices
                 for j in r
-                    p = density(z[j, :], title = "$$(sym)[$$offset]", titlefontsize = 10, label = "")
+                    p = density(z[j, :], title = "$(sym)[$offset]", titlefontsize = 10, label = "")
                     push!(ps, p)
 
                     offset += 1
                 end
             end
         else
-            p = density(z[first(indices), :], title = "$$(sym)", titlefontsize = 10, label = "")
+            p = density(z[first(indices), :], title = "$(sym)", titlefontsize = 10, label = "")
             push!(ps, p)
         end
     end
-    
+
     return plot(ps..., layout = (length(ps), 1), size = (500, 1500))
 end
 ```
@@ -933,20 +933,20 @@ bayes_loss2 = mean((test_cut.BayesPredictions - test_cut.MPG).^2)
 ols_loss2 = mean((test_cut.OLSPrediction - test_cut.MPG).^2)
 
 println("Training set:
-    VI loss: $$vi_loss1
-    Bayes loss: $$bayes_loss1
-    OLS loss: $$ols_loss1
-Test set: 
-    VI loss: $$vi_loss2
-    Bayes loss: $$bayes_loss2
-    OLS loss: $$ols_loss2")
+    VI loss: $vi_loss1
+    Bayes loss: $bayes_loss1
+    OLS loss: $ols_loss1
+Test set:
+    VI loss: $vi_loss2
+    Bayes loss: $bayes_loss2
+    OLS loss: $ols_loss2")
 ```
 
     Training set:
         VI loss: 3.0784608943296643
         Bayes loss: 3.0716118391411906
         OLS loss: 3.070926124893019
-    Test set: 
+    Test set:
         VI loss: 27.159605003619333
         Bayes loss: 26.58835451660728
         OLS loss: 27.094813070760107
@@ -997,7 +997,7 @@ Indeed we see that the MCMC approach generally provides better uncertainty estim
 
 As mentioned earlier, it's also possible to just provide the mapping $$\theta \mapsto q_{\theta}$$ rather than the variational family / initial variational posterior `q`, i.e. use the interface `vi(m, advi, getq, θ_init)` where `getq` is the mapping $$\theta \mapsto q_{\theta}$$
 
-In this section we're going to construct a mean-field approximation to the model by hand using a composition of`Shift` and `Scale` from Bijectors.jl togheter with a standard multivariate Gaussian as the base distribution. 
+In this section we're going to construct a mean-field approximation to the model by hand using a composition of`Shift` and `Scale` from Bijectors.jl togheter with a standard multivariate Gaussian as the base distribution.
 
 
 ```julia
@@ -1039,9 +1039,9 @@ function getq(θ)
     d = length(θ) ÷ 2
     A = @inbounds θ[1:d]
     b = @inbounds θ[d + 1: 2 * d]
-    
+
     b = to_constrained ∘ Shift(b; dim = Val(1)) ∘ Scale(exp.(A); dim = Val(1))
-    
+
     return transformed(base_dist, b)
 end
 ```
@@ -1101,14 +1101,14 @@ function getq(θ)
     L = LowerTriangular(reshape(@inbounds(θ[offset + 1: offset + d^2]), (d, d)))
     offset += d^2
     b = @inbounds θ[offset + 1: offset + d]
-    
+
     # For this to represent a covariance matrix we need to ensure that the diagonal is positive.
     # We can enforce this by zeroing out the diagonal and then adding back the diagonal exponentiated.
     D = Diagonal(diag(L))
     A = L - D + exp(D) # exp for Diagonal is the same as exponentiating only the diagonal entries
-    
+
     b = to_constrained ∘ Shift(b; dim = Val(1)) ∘ Scale(A; dim = Val(1))
-    
+
     return transformed(base_dist, b)
 end
 ```
@@ -1151,17 +1151,17 @@ A = q_full_normal.transform.ts[1].a
 
 
     12×12 LowerTriangular{Float64,Array{Float64,2}}:
-      0.154572       ⋅           ⋅          …    ⋅           ⋅           ⋅ 
-      0.00674249    0.169072     ⋅               ⋅           ⋅           ⋅ 
-     -0.00288782   -0.0283984   0.413288         ⋅           ⋅           ⋅ 
-     -0.030621      0.0450533  -0.0415525        ⋅           ⋅           ⋅ 
-     -0.0115003     0.208366   -0.0420414        ⋅           ⋅           ⋅ 
-      0.00139553   -0.0619506   0.0853589   …    ⋅           ⋅           ⋅ 
-      0.0129097    -0.0647154   0.00228644       ⋅           ⋅           ⋅ 
-     -0.0128701    -0.0531755   0.0999936        ⋅           ⋅           ⋅ 
-      0.00169318    0.0274239   0.0903744        ⋅           ⋅           ⋅ 
-     -0.0172387    -0.0304655   0.0661713       0.14843      ⋅           ⋅ 
-     -0.000468924   0.300281    0.0789093   …  -0.131391    0.128256     ⋅ 
+      0.154572       ⋅           ⋅          …    ⋅           ⋅           ⋅
+      0.00674249    0.169072     ⋅               ⋅           ⋅           ⋅
+     -0.00288782   -0.0283984   0.413288         ⋅           ⋅           ⋅
+     -0.030621      0.0450533  -0.0415525        ⋅           ⋅           ⋅
+     -0.0115003     0.208366   -0.0420414        ⋅           ⋅           ⋅
+      0.00139553   -0.0619506   0.0853589   …    ⋅           ⋅           ⋅
+      0.0129097    -0.0647154   0.00228644       ⋅           ⋅           ⋅
+     -0.0128701    -0.0531755   0.0999936        ⋅           ⋅           ⋅
+      0.00169318    0.0274239   0.0903744        ⋅           ⋅           ⋅
+     -0.0172387    -0.0304655   0.0661713       0.14843      ⋅           ⋅
+     -0.000468924   0.300281    0.0789093   …  -0.131391    0.128256     ⋅
       0.00160201   -0.122274   -0.0776935       0.0468996  -0.00752499  0.120458
 
 
@@ -1198,12 +1198,12 @@ plot(p1, p2, layout = (1, 2), size = (800, 2000))
 
 
 
-So it seems like the "full" ADVI approach, i.e. no mean-field assumption, obtain the same modes as the mean-field approach but with greater uncertainty for some of the `coefficients`. This 
+So it seems like the "full" ADVI approach, i.e. no mean-field assumption, obtain the same modes as the mean-field approach but with greater uncertainty for some of the `coefficients`. This
 
 
 ```julia
-# Unfortunately, it seems like this has quite a high variance which is likely to be due to numerical instability, 
-# so we consider a larger number of samples. If we get a couple of outliers due to numerical issues, 
+# Unfortunately, it seems like this has quite a high variance which is likely to be due to numerical instability,
+# so we consider a larger number of samples. If we get a couple of outliers due to numerical issues,
 # these kind affect the mean prediction greatly.
 z = rand(q_full_normal, 10_000);
 ```
@@ -1227,15 +1227,15 @@ bayes_loss2 = mean((test_cut.BayesPredictions - test_cut.MPG).^2)
 ols_loss2 = mean((test_cut.OLSPrediction - test_cut.MPG).^2)
 
 println("Training set:
-    VI loss:        $$vi_loss1
-    VI (full) loss: $$vifull_loss1
-    Bayes loss:     $$bayes_loss1
-    OLS loss:       $$ols_loss1
-Test set: 
-    VI loss:        $$vi_loss2
-    VI (full) loss: $$vifull_loss2
-    Bayes loss:     $$bayes_loss2
-    OLS loss:       $$ols_loss2")
+    VI loss:        $vi_loss1
+    VI (full) loss: $vifull_loss1
+    Bayes loss:     $bayes_loss1
+    OLS loss:       $ols_loss1
+Test set:
+    VI loss:        $vi_loss2
+    VI (full) loss: $vifull_loss2
+    Bayes loss:     $bayes_loss2
+    OLS loss:       $ols_loss2")
 ```
 
     Training set:
@@ -1243,7 +1243,7 @@ Test set:
         VI (full) loss: 3.0926834377972288
         Bayes loss:     3.0716118391411906
         OLS loss:       3.070926124893019
-    Test set: 
+    Test set:
         VI loss:        27.159605003619333
         VI (full) loss: 26.912162732716684
         Bayes loss:     26.58835451660728

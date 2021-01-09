@@ -94,7 +94,7 @@ We must rescale our variables so that they are centered around zero by subtracti
 ```julia
 function split_data(df, target; at = 0.70)
     shuffled = shuffleobs(df)
-    trainset, testset = stratifiedobs(row -> row[target], 
+    trainset, testset = stratifiedobs(row -> row[target],
                                       shuffled, p = at)
 end
 
@@ -115,7 +115,7 @@ train_label = trainset[:, target]
 test_label = testset[:, target];
 ```
 
-## Model Declaration 
+## Model Declaration
 Finally, we can define our model.
 
 `logistic_regression` takes four arguments:
@@ -168,7 +168,7 @@ describe(chain)
 
 
     2-element Array{ChainDataFrame,1}
-    
+
     Summary Statistics
       parameters     mean     std  naive_se    mcse        ess   r_hat
       ──────────  ───────  ──────  ────────  ──────  ─────────  ──────
@@ -176,7 +176,7 @@ describe(chain)
           income  -0.5174  0.3241    0.0048  0.0081  1440.4337  1.0010
        intercept  -3.8265  0.5148    0.0077  0.0148    54.8792  1.0004
          student  -1.8662  0.6088    0.0091  0.0223   840.9122  1.0037
-    
+
     Quantiles
       parameters     2.5%    25.0%    50.0%    75.0%    97.5%
       ──────────  ───────  ───────  ───────  ───────  ───────
@@ -204,7 +204,7 @@ plot(chain)
 
 Looks good!
 
-We can also use the `corner` function from MCMCChains to show the distributions of the various parameters of our logistic regression. 
+We can also use the `corner` function from MCMCChains to show the distributions of the various parameters of our logistic regression.
 
 
 ```julia
@@ -278,7 +278,7 @@ loss = sum((predictions - test_label).^2) / length(test_label)
 
 
 
-Perhaps more important is to see what percentage of defaults we correctly predicted. The code below simply counts defaults and predictions and presents the results. 
+Perhaps more important is to see what percentage of defaults we correctly predicted. The code below simply counts defaults and predictions and presents the results.
 
 
 ```julia
@@ -288,13 +288,13 @@ not_defaults = length(test_label) - defaults
 predicted_defaults = sum(test_label .== predictions .== 1)
 predicted_not_defaults = sum(test_label .== predictions .== 0)
 
-println("Defaults: $$defaults
-    Predictions: $$predicted_defaults
-    Percentage defaults correct $$(predicted_defaults/defaults)")
+println("Defaults: $defaults
+    Predictions: $predicted_defaults
+    Percentage defaults correct $(predicted_defaults/defaults)")
 
-println("Not defaults: $$not_defaults
-    Predictions: $$predicted_not_defaults
-    Percentage non-defaults correct $$(predicted_not_defaults/not_defaults)")
+println("Not defaults: $not_defaults
+    Predictions: $predicted_not_defaults
+    Percentage non-defaults correct $(predicted_not_defaults/not_defaults)")
 ```
 
     Defaults: 316.0
@@ -307,4 +307,4 @@ println("Not defaults: $$not_defaults
 
 The above shows that with a threshold of 0.07, we correctly predict a respectable portion of the defaults, and correctly identify most non-defaults. This is fairly sensitive to a choice of threshold, and you may wish to experiment with it.
 
-This tutorial has demonstrated how to use Turing to perform Bayesian logistic regression. 
+This tutorial has demonstrated how to use Turing to perform Bayesian logistic regression.

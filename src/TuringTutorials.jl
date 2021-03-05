@@ -2,10 +2,32 @@ module TuringTutorials
 
 using Weave, Pkg, InteractiveUtils, IJulia
 
+# HACK: So Weave.jl has a submodule `WeavePlots` which is loaded using Requires.jl if Plots.jl is available.
+# This means that if we want to overload methods in that submodule we need to wait until `Plots.jl` has been loaded.
+using Requires, Plots
+function __init__()
+    @require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" begin
+        # HACK
+        function Weave.WeavePlots.add_plots_figure(report::Weave.Report, plot::Plots.AnimatedGif, ext)
+            chunk = report.cur_chunk
+            full_name, rel_name = Weave.get_figname(report, chunk, ext = ext)
+
+            # A `AnimatedGif` has been saved somewhere temporarily, so make a copy to `full_name`.
+            cp(plot.filename, full_name; force = true)
+            push!(report.figures, rel_name)
+            report.fignum += 1
+            return full_name
+        end
+
+        function Base.display(report::Weave.Report, m::MIME"text/plain", plot::Plots.AnimatedGif)
+            Weave.WeavePlots.add_plots_figure(report, plot, ".gif")
+        end
+    end
+end
+
 repo_directory = joinpath(@__DIR__,"..")
 cssfile = joinpath(@__DIR__, "..", "templates", "skeleton_css.css")
 latexfile = joinpath(@__DIR__, "..", "templates", "julia_tex.tpl")
-
 
 function polish_latex(path::String)
     # TODO: Is it maybe better to overload https://github.com/JunoLab/Weave.jl/blob/b5ba227e757520f389a6d6e0f2cacb731eab8b12/src/WeaveMarkdown/markdown.jl#L10-L17

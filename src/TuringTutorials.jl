@@ -47,7 +47,7 @@ function weave_file(
     tmp = joinpath(repo_directory,"tutorials",folder,file)
     Pkg.activate(dirname(tmp))
     Pkg.instantiate()
-    args = Dict{Symbol,String}(:folder=>folder,:file=>file)
+    args = Dict{Symbol,String}(:folder => folder, :file => file)
     if :script ∈ build_list
         println("Building Script")
         dir = joinpath(repo_directory,"script",folder)

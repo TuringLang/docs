@@ -1,4 +1,5 @@
 ---
+redirect_from: "tutorials/10-bayesiandiffeq/"
 title: "Bayesian Estimation of Differential Equations"
 permalink: "/:collection/:name/"
 ---

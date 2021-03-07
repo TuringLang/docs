@@ -1,4 +1,5 @@
 ---
+redirect_from: "tutorials/2-logisticregression/"
 title: "Bayesian Logistic Regression"
 permalink: "/:collection/:name/"
 ---

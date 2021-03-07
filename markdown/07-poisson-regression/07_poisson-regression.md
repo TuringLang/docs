@@ -1,4 +1,5 @@
 ---
+redirect_from: "tutorials/7-poissonregression/"
 title: "Bayesian Poisson Regression"
 permalink: "/:collection/:name/"
 ---

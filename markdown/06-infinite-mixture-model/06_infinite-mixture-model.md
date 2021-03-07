@@ -1,4 +1,5 @@
 ---
+redirect_from: "tutorials/6-infinitemixturemodel/"
 title: "Probabilistic Modelling using the Infinite Mixture Model"
 permalink: "/:collection/:name/"
 ---

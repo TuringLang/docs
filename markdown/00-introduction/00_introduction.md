@@ -1,4 +1,5 @@
 ---
+redirect_from: "tutorials/0-introduction/"
 title: "Introduction to Turing"
 permalink: "/:collection/:name/"
 ---

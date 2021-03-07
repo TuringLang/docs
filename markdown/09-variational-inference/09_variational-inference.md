@@ -1,4 +1,5 @@
 ---
+redirect_from: "tutorials/9-variationalinference/"
 title: "Variational inference (VI) in Turing.jl"
 permalink: "/:collection/:name/"
 ---

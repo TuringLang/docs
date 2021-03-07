@@ -1,4 +1,5 @@
 ---
+redirect_from: "tutorials/5-linearregression/"
 title: "Linear Regression"
 permalink: "/:collection/:name/"
 ---

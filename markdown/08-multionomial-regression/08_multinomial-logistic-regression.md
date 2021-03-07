@@ -1,4 +1,5 @@
 ---
+redirect_from: "tutorials/8-multinomiallogisticregression/"
 title: "Bayesian Multinomial Logistic Regression"
 permalink: "/:collection/:name/"
 ---

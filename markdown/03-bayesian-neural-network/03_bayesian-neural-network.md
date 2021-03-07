@@ -1,4 +1,5 @@
 ---
+redirect_from: "tutorials/3-bayesnn/"
 title: "Bayesian Neural Networks"
 permalink: "/:collection/:name/"
 ---

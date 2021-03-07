@@ -1,4 +1,5 @@
 ---
+redirect_from: "tutorials/4-bayeshmm/"
 title: "Bayesian Hidden Markov Models"
 permalink: "/:collection/:name/"
 ---

@@ -1,4 +1,5 @@
 ---
+redirect_from: "tutorials/1-gaussianmixturemodel/"
 title: "Unsupervised Learning using Bayesian Mixture Models"
 permalink: "/:collection/:name/"
 ---

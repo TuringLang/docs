@@ -217,24 +217,25 @@ Julia Version 1.5.3
 Commit 788b2c77c1 (2020-11-09 13:37 UTC)
 Platform Info:
   OS: Linux (x86_64-pc-linux-gnu)
-  CPU: Intel(R) Core(TM) i7-10710U CPU @ 1.10GHz
+  CPU: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
   WORD_SIZE: 64
   LIBM: libopenlibm
   LLVM: libLLVM-9.0.1 (ORCJIT, skylake)
 Environment:
-  JULIA_NUM_THREADS = 6
+  JULIA_CMDSTAN_HOME = /home/cameron/stan/
+  JULIA_NUM_THREADS = 16
 
 ```
 
 Package Information:
 
 ```
-Status `~/Projects/public/TuringTutorials/tutorials/01-gaussian-mixture-model/Project.toml`
+Status `~/.julia/dev/TuringTutorials/tutorials/01-gaussian-mixture-model/Project.toml`
   [31c24e10] Distributions v0.24.15
-  [c7f686f2] MCMCChains v4.7.0
-  [91a5bcdd] Plots v1.10.6
+  [c7f686f2] MCMCChains v4.7.3
+  [91a5bcdd] Plots v1.11.1
   [f3b207a7] StatsPlots v0.14.19
-  [fce5fe82] Turing v0.15.11
+  [fce5fe82] Turing v0.15.12
   [9a3f8284] Random
 
 ```

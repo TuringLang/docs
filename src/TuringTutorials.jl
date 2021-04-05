@@ -103,6 +103,13 @@ function weave_all(build_list=(:script,:html,:pdf,:github,:notebook); kwargs...)
     end
 end
 
+function weave_md(; kwargs...)
+    for folder in readdir(joinpath(repo_directory,"tutorials"))
+        folder == "test.jmd" && continue
+        weave_folder(folder, (:github,); kwargs...)
+    end
+end
+
 function weave_folder(
     folder, build_list=(:script,:html,:pdf,:github,:notebook);
     ext = r"^\.[Jj]md", kwargs...
@@ -117,7 +124,7 @@ function weave_folder(
                 println("Skipping $(joinpath(folder,file))")
             end
         catch ex
-            @warn "Weave failed" ex
+            rethrow(ex)
         end
     end
 end

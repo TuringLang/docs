@@ -199,9 +199,9 @@ rand(q)
 ```
 
 ```
-2-element Array{Float64,1}:
-  1.0786295499476042
- -0.042370317247471936
+2-element Vector{Float64}:
+  0.9928019487772597
+ -0.028604053183764914
 ```
 
 
@@ -216,7 +216,7 @@ logpdf(q, rand(q))
 ```
 
 ```
-4.268921703144813
+4.023324390811785
 ```
 
 
@@ -241,7 +241,7 @@ var(x), mean(x)
 ```
 
 ```
-(1.0302721641867068, -0.027767503306100567)
+(1.023994570402229, -0.026903362671990064)
 ```
 
 
@@ -506,10 +506,14 @@ typeof(q0)
 ```
 
 ```
-Bijectors.TransformedDistribution{DistributionsAD.TuringDiagMvNormal{Array{
-Float64,1},Array{Float64,1}},Bijectors.Stacked{Tuple{Bijectors.Inverse{Bije
-ctors.TruncatedBijector{0,Float64,Float64},0},Bijectors.Identity{0},Bijecto
-rs.Identity{1}},3},Distributions.Multivariate}
+Bijectors.MultivariateTransformed{DistributionsAD.TuringDiagMvNormal{Vector
+{Float64}, Vector{Float64}}, Bijectors.Stacked{Tuple{Bijectors.Inverse{Bije
+ctors.TruncatedBijector{0, Float64, Float64}, 0}, Bijectors.Identity{0}, Bi
+jectors.Identity{1}}, 3}} (alias for Bijectors.TransformedDistribution{Dist
+ributionsAD.TuringDiagMvNormal{Array{Float64, 1}, Array{Float64, 1}}, Bijec
+tors.Stacked{Tuple{Bijectors.Inverse{Bijectors.TruncatedBijector{0, Float64
+, Float64}, 0}, Bijectors.Identity{0}, Bijectors.Identity{1}}, 3}, Distribu
+tions.Multivariate})
 ```
 
 
@@ -550,7 +554,7 @@ opt = Variational.DecayedADAGrad(1e-2, 1.1, 0.9)
 ```
 
 ```
-AdvancedVI.DecayedADAGrad(0.01, 1.1, 0.9, IdDict{Any,Any}())
+AdvancedVI.DecayedADAGrad(0.01, 1.1, 0.9, IdDict{Any, Any}())
 ```
 
 
@@ -561,10 +565,14 @@ typeof(q)
 ```
 
 ```
-Bijectors.TransformedDistribution{DistributionsAD.TuringDiagMvNormal{Array{
-Float64,1},Array{Float64,1}},Bijectors.Stacked{Tuple{Bijectors.Inverse{Bije
-ctors.TruncatedBijector{0,Float64,Float64},0},Bijectors.Identity{0},Bijecto
-rs.Identity{1}},3},Distributions.Multivariate}
+Bijectors.MultivariateTransformed{DistributionsAD.TuringDiagMvNormal{Vector
+{Float64}, Vector{Float64}}, Bijectors.Stacked{Tuple{Bijectors.Inverse{Bije
+ctors.TruncatedBijector{0, Float64, Float64}, 0}, Bijectors.Identity{0}, Bi
+jectors.Identity{1}}, 3}} (alias for Bijectors.TransformedDistribution{Dist
+ributionsAD.TuringDiagMvNormal{Array{Float64, 1}, Array{Float64, 1}}, Bijec
+tors.Stacked{Tuple{Bijectors.Inverse{Bijectors.TruncatedBijector{0, Float64
+, Float64}, 0}, Bijectors.Identity{0}, Bijectors.Identity{1}}, 3}, Distribu
+tions.Multivariate})
 ```
 
 
@@ -593,20 +601,20 @@ avg = vec(mean(z; dims = 2))
 ```
 
 ```
-13-element Array{Float64,1}:
-  0.020117192340218665
-  0.0002796669830116502
-  1.0010658079947254
- -0.00027613100477009924
-  0.0019703203129575017
-  0.0011012413001283284
- -0.002683222755889248
- -0.0017262666130412618
- -0.0010564941529113507
- -8.207373094640307e-5
-  5.198685294519674e-5
-  5.285097329590308e-5
-  0.0031336481988493855
+13-element Vector{Float64}:
+  0.020117192340222023
+  0.00027966698300958685
+  1.0010658079947332
+ -0.0002761310047822649
+  0.0019703203129624054
+  0.0011012413001242553
+ -0.0026832227558975024
+ -0.001726266613044902
+ -0.0010564941529127988
+ -8.207373094662644e-5
+  5.1986852944718734e-5
+  5.285097328632646e-5
+  0.0031336481988645574
 ```
 
 
@@ -633,8 +641,8 @@ avg[union(sym2range[:σ₂]...)]
 ```
 
 ```
-1-element Array{Float64,1}:
- 0.020117192340218665
+1-element Vector{Float64}:
+ 0.020117192340222023
 ```
 
 
@@ -644,8 +652,8 @@ avg[union(sym2range[:intercept]...)]
 ```
 
 ```
-1-element Array{Float64,1}:
- 0.0002796669830116502
+1-element Vector{Float64}:
+ 0.00027966698300958685
 ```
 
 
@@ -655,18 +663,18 @@ avg[union(sym2range[:coefficients]...)]
 ```
 
 ```
-11-element Array{Float64,1}:
-  1.0010658079947254
- -0.00027613100477009924
-  0.0019703203129575017
-  0.0011012413001283284
- -0.002683222755889248
- -0.0017262666130412618
- -0.0010564941529113507
- -8.207373094640307e-5
-  5.198685294519674e-5
-  5.285097329590308e-5
-  0.0031336481988493855
+11-element Vector{Float64}:
+  1.0010658079947332
+ -0.0002761310047822649
+  0.0019703203129624054
+  0.0011012413001242553
+ -0.0026832227558975024
+ -0.001726266613044902
+ -0.0010564941529127988
+ -8.207373094662644e-5
+  5.1986852944718734e-5
+  5.285097328632646e-5
+  0.0031336481988645574
 ```
 
 
@@ -737,20 +745,20 @@ vi_mean = vec(mean(z; dims = 2))[[union(sym2range[:coefficients]...)..., union(s
 ```
 
 ```
-13-element Array{Float64,1}:
-  1.0010658079947254
- -0.00027613100477009924
-  0.0019703203129575017
-  0.0011012413001283284
- -0.002683222755889248
- -0.0017262666130412618
- -0.0010564941529113507
- -8.207373094640307e-5
-  5.198685294519674e-5
-  5.285097329590308e-5
-  0.0031336481988493855
-  0.0002796669830116502
-  0.020117192340218665
+13-element Vector{Float64}:
+  1.0010658079947332
+ -0.0002761310047822649
+  0.0019703203129624054
+  0.0011012413001242553
+ -0.0026832227558975024
+ -0.001726266613044902
+ -0.0010564941529127988
+ -8.207373094662644e-5
+  5.1986852944718734e-5
+  5.285097328632646e-5
+  0.0031336481988645574
+  0.00027966698300958685
+  0.020117192340222023
 ```
 
 
@@ -760,20 +768,20 @@ mean(chain).nt.mean
 ```
 
 ```
-13-element Array{Float64,1}:
-  1.0000000399377265
- -3.418828635857032e-8
-  2.4761590570486984e-9
-  1.8477962723990843e-8
- -4.0801944678703214e-8
-  3.6899324841451007e-9
-  6.991847816704769e-10
-  8.432730884578574e-9
-  1.72177428312298e-8
- -3.3881239715188653e-8
-  4.439930725536783e-8
- -6.963225118208367e-10
-  1.9275537805998484e-6
+13-element Vector{Float64}:
+  1.0000000011250336
+  1.009198206585129e-8
+ -5.826587442302376e-8
+  4.683465715015341e-9
+  1.1931213059658072e-8
+  7.036397371836441e-8
+ -1.3735903665501081e-8
+ -1.9999809937884377e-8
+  4.504722290819777e-9
+  1.1356594047253053e-8
+ -4.5108567683750024e-8
+ -1.583138564806686e-8
+  2.701987600063391e-6
 ```
 
 
@@ -788,7 +796,7 @@ sum(abs2, mean(chain).nt.mean .- vi_mean)
 ```
 
 ```
-0.0004321363903591653
+0.00043210665600633636
 ```
 
 
@@ -915,13 +923,13 @@ Test set:
 
 ```
 Training set:
-    VI loss: 0.0007001199110321286
-    Bayes loss: 1.3743352742545003e-14
-    OLS loss: 3.070926124893026
+    VI loss: 0.0006896402974333885
+    Bayes loss: 2.1878051706901742e-14
+    OLS loss: 3.070926124893025
 Test set: 
-    VI loss: 0.0014915402827578768
-    Bayes loss: 9.410239119029718e-14
-    OLS loss: 27.09481307076062
+    VI loss: 0.0014956446181500012
+    Bayes loss: 4.4961492970883404e-14
+    OLS loss: 27.094813070760445
 ```
 
 
@@ -984,7 +992,7 @@ base_dist = Turing.DistributionsAD.TuringDiagMvNormal(zeros(d), ones(d))
 ```
 
 ```
-DistributionsAD.TuringDiagMvNormal{Array{Float64,1},Array{Float64,1}}(
+DistributionsAD.TuringDiagMvNormal{Vector{Float64}, Vector{Float64}}(
 m: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 σ: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 )
@@ -1110,20 +1118,20 @@ A = q_full_normal.transform.ts[1].a
 ```
 
 ```
-13×13 LinearAlgebra.LowerTriangular{Float64,Array{Float64,2}}:
-  0.149061       ⋅          …    ⋅            ⋅           ⋅ 
- -0.00838251    0.0250901        ⋅            ⋅           ⋅ 
- -3.58984e-5   -0.00630153       ⋅            ⋅           ⋅ 
-  0.00137296   -0.00359297       ⋅            ⋅           ⋅ 
- -0.00172894    0.00475108       ⋅            ⋅           ⋅ 
- -0.0027409     0.029463    …    ⋅            ⋅           ⋅ 
- -0.00595888   -0.00512494       ⋅            ⋅           ⋅ 
-  0.000255923  -0.00644225       ⋅            ⋅           ⋅ 
- -0.000385188  -0.00519724       ⋅            ⋅           ⋅ 
-  0.000447806  -0.00146935       ⋅            ⋅           ⋅ 
-  0.0104856    -0.0052661   …   0.0216549     ⋅           ⋅ 
- -0.0169155     0.0415363      -0.0114656    0.0180672    ⋅ 
-  0.0111835    -0.0243803       0.00163862  -0.00261288  0.0180538
+13×13 LinearAlgebra.LowerTriangular{Float64, Matrix{Float64}}:
+  0.150948       ⋅           …    ⋅            ⋅           ⋅ 
+  0.0106978     0.0259496         ⋅            ⋅           ⋅ 
+ -0.0126447    -0.0118086         ⋅            ⋅           ⋅ 
+  0.00837687   -0.000423802       ⋅            ⋅           ⋅ 
+  0.00428079    0.00947369        ⋅            ⋅           ⋅ 
+  0.0105919     0.037953     …    ⋅            ⋅           ⋅ 
+  0.000270247  -0.00984967        ⋅            ⋅           ⋅ 
+  0.00690396   -0.0128867         ⋅            ⋅           ⋅ 
+ -0.00491782   -0.00550941        ⋅            ⋅           ⋅ 
+ -0.00456972    0.00281252        ⋅            ⋅           ⋅ 
+ -0.00278391    0.000391165  …   0.0219282     ⋅           ⋅ 
+  0.0234638     0.0505595       -0.0191301    0.0196672    ⋅ 
+ -0.0223783    -0.0235539        0.00641923  -0.00721388  0.018823
 ```
 
 
@@ -1191,13 +1199,13 @@ Test set:
 
 ```
 Training set:
-    VI loss: 0.0007001199110321286
-    Bayes loss: 1.3743352742545003e-14
-    OLS loss: 3.070926124893026
+    VI loss: 0.0006896402974333885
+    Bayes loss: 2.1878051706901742e-14
+    OLS loss: 3.070926124893025
 Test set: 
-    VI loss: 0.0014915402827578768
-    Bayes loss: 9.410239119029718e-14
-    OLS loss: 27.09481307076062
+    VI loss: 0.0014956446181500012
+    Bayes loss: 4.4961492970883404e-14
+    OLS loss: 27.094813070760445
 ```
 
 
@@ -1264,28 +1272,31 @@ TuringTutorials.weave_file("09-variational-inference", "09_variational-inference
 
 Computer Information:
 ```
-Julia Version 1.5.3
-Commit 788b2c77c1 (2020-11-09 13:37 UTC)
+Julia Version 1.6.0
+Commit f9720dc2eb (2021-03-24 12:55 UTC)
 Platform Info:
   OS: Linux (x86_64-pc-linux-gnu)
-  CPU: Intel(R) Core(TM) i7-10710U CPU @ 1.10GHz
+  CPU: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
   WORD_SIZE: 64
   LIBM: libopenlibm
-  LLVM: libLLVM-9.0.1 (ORCJIT, skylake)
+  LLVM: libLLVM-11.0.1 (ORCJIT, skylake)
+Environment:
+  JULIA_CMDSTAN_HOME = /home/cameron/stan/
+  JULIA_NUM_THREADS = 16
 
 ```
 
 Package Information:
 
 ```
-Status `~/Projects/public/TuringTutorials/tutorials/09-variational-inference/Project.toml`
-  [76274a88] Bijectors v0.8.14
-  [b0b7db55] ComponentArrays v0.8.21
+      Status `~/.julia/dev/TuringTutorials/tutorials/09-variational-inference/Project.toml`
+  [76274a88] Bijectors v0.8.16
+  [b0b7db55] ComponentArrays v0.8.22
   [1624bea9] ConjugatePriors v0.4.0
-  [5789e2e9] FileIO v1.5.0
-  [38e38edf] GLM v1.4.0
+  [5789e2e9] FileIO v1.6.5
+  [38e38edf] GLM v1.4.1
   [b964fa9f] LaTeXStrings v1.2.1
-  [91a5bcdd] Plots v1.10.6
+  [91a5bcdd] Plots v1.11.1
   [d330b81b] PyPlot v2.9.0
   [ce6b1742] RDatasets v0.6.10
   [f3b207a7] StatsPlots v0.14.19

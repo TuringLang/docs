@@ -10,7 +10,7 @@ Let's load the libraries we'll need. We also set a random seed (for reproducibil
 
 ```julia
 # Load libraries.
-using Turing, Plots, Random
+using Turing, Plots, Random, StatsPlots
 
 # Turn off progress monitor.
 Turing.setprogress!(false);
@@ -30,11 +30,11 @@ In this example, we'll use something where the states and emission parameters ar
 
 ```julia
 # Define the emission parameter.
-y = [ 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0, 2.0, 2.0, 2.0, 1.0, 1.0 ];
+y = [ 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0, 3.0, 2.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0];
 N = length(y);  K = 3;
 
 # Plot the data we just made.
-plot(y, xlim = (0,15), ylim = (-1,5), size = (500, 250))
+plot(y, xlim = (0,25), ylim = (-1,5), size = (500, 250))
 ```
 
 We can see that we have three states, one for each height of the plot (1, 2, 3). This height is also our emission parameter, so state one produces a value of one, state two produces a value of two, and so on.
@@ -100,8 +100,8 @@ Time to run our sampler.
 
 
 ```julia
-g = Gibbs(HMC(0.001, 7, :m, :T), PG(20, :s))
-c = sample(BayesHmm(y, 3), g, 100);
+g = Gibbs(HMC(0.001, 20, :m, :T), PG(80, :s))
+chn = sample(BayesHmm(y, 3), g, 500);
 ```
 
 Let's see how well our chain performed. Ordinarily, using the `describe` function from [MCMCChain](https://github.com/TuringLang/MCMCChain.jl) would be a good first step, but we have generated a lot of parameters here (`s[1]`, `s[2]`, `m[1]`, and so on). It's a bit easier to show how our model performed graphically.
@@ -110,15 +110,13 @@ The code below generates an animation showing the graph of the data above, and t
 
 
 ```julia
-# Import StatsPlots for animating purposes.
-using StatsPlots
 
 # Extract our m and s parameters from the chain.
-m_set = MCMCChains.group(c, :m).value
-s_set = MCMCChains.group(c, :s).value
+m_set = MCMCChains.group(chn, :m).value
+s_set = MCMCChains.group(chn, :s).value
 
 # Iterate through the MCMC samples.
-Ns = 1:length(c)
+Ns = 1:length(chn)
 
 # Make an animation.
 animation = @gif for i in Ns
@@ -126,14 +124,14 @@ animation = @gif for i in Ns
     s = Int.(s_set[i,:]);
     emissions = m[s]
     
-    p = plot(y, c = :red,
+    p = plot(y, chn = :red,
         size = (500, 250),
         xlabel = "Time",
         ylabel = "State",
         legend = :topright, label = "True data",
-        xlim = (0,15),
+        xlim = (0,25),
         ylim = (-1,5));
-    plot!(emissions, color = :blue, label = "Sample $N")
+    plot!(emissions, color = :blue, label = "Sample $i")
 end every 10
 ```
 
@@ -142,22 +140,19 @@ Looks like our model did a pretty good job, but we should also check to make sur
 
 ```julia
 # Index the chain with the persistence probabilities.
-subchain = MCMCChains.group(c, :T)
+subchain = chn[["T[1][1]", "T[2][2]", "T[3][3]"]]
 
-# TODO: This doesn't work anymore. Note sure what it was originally doing
-# Plot the chain.
-plot(
-    subchain, 
-    colordim = :parameter, 
-    seriestype=:traceplot,
-    title = "Persistence Probability",
-    legend=:right
-)
+plot(subchain,
+     seriestype = :traceplot,
+     title = "Persistence Probability",
+     legend=false)
+
 ```
 
 A cursory examination of the traceplot above indicates that at least `T[3,3]` and possibly `T[2,2]` have converged to something resembling stationary. `T[1,1]`, on the other hand, has a slight "wobble", and seems less consistent than the others. We can use the diagnostic functions provided by [MCMCChain](https://github.com/TuringLang/MCMCChain.jl) to engage in some formal tests, like the Heidelberg and Welch diagnostic:
 
 ```julia
+
 heideldiag(MCMCChains.group(c, :T))
 ```
 

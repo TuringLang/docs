@@ -11,20 +11,16 @@ Let's load the libraries we'll need. We also set a random seed (for reproducibil
 
 ```julia
 # Load libraries.
-using Turing, Plots, Random
+using Turing, Plots, Random, StatsPlots
 
 # Turn off progress monitor.
 Turing.setprogress!(false);
 
 # Set a random seed and use the forward_diff AD mode.
-Random.seed!(1234);
+Random.seed!(12345678);
 ```
 
 
-
-
-    ┌ Info: [Turing]: progress logging is disabled globally
-    └ @ Turing /home/cameron/.julia/packages/Turing/cReBm/src/Turing.jl:22
 
 
 ## Simple State Detection
@@ -34,11 +30,11 @@ In this example, we'll use something where the states and emission parameters ar
 
 ```julia
 # Define the emission parameter.
-y = [ 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0, 2.0, 2.0, 2.0, 1.0, 1.0 ];
+y = [ 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 2.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
 N = length(y);  K = 3;
 
 # Plot the data we just made.
-plot(y, xlim = (0,15), ylim = (-1,5), size = (500, 250))
+plot(y, xlim = (0,30), ylim = (-1,5), size = (500, 250))
 ```
 
 ![](figures/04_hidden-markov-model_2_1.png)
@@ -111,14 +107,9 @@ Time to run our sampler.
 
 
 ```julia
-g = Gibbs(HMC(0.001, 7, :m, :T), PG(20, :s))
-c = sample(BayesHmm(y, 3), g, 100);
+g = Gibbs(HMC(0.01, 50, :m, :T), PG(120, :s))
+chn = sample(BayesHmm(y, 3), g, 1000);
 ```
-
-```
-Error: type Task has no field state
-```
-
 
 
 
@@ -129,38 +120,32 @@ The code below generates an animation showing the graph of the data above, and t
 
 
 ```julia
-# Import StatsPlots for animating purposes.
-using StatsPlots
 
 # Extract our m and s parameters from the chain.
-m_set = MCMCChains.group(c, :m).value
-s_set = MCMCChains.group(c, :s).value
+m_set = MCMCChains.group(chn, :m).value
+s_set = MCMCChains.group(chn, :s).value
 
 # Iterate through the MCMC samples.
-Ns = 1:length(c)
+Ns = 1:length(chn)
 
 # Make an animation.
 animation = @gif for i in Ns
-    m = m_set[i, :]; 
+    m = m_set[i, :];
     s = Int.(s_set[i,:]);
     emissions = m[s]
-    
-    p = plot(y, c = :red,
+
+    p = plot(y, chn = :red,
         size = (500, 250),
         xlabel = "Time",
         ylabel = "State",
         legend = :topright, label = "True data",
-        xlim = (0,15),
+        xlim = (0,30),
         ylim = (-1,5));
-    plot!(emissions, color = :blue, label = "Sample $N")
-end every 10
+    plot!(emissions, color = :blue, label = "Sample $i")
+end every 3
 ```
 
-```
-Error: UndefVarError: c not defined
-```
-
-
+![](figures/04_hidden-markov-model_5_1.gif)
 
 
 
@@ -169,42 +154,60 @@ Looks like our model did a pretty good job, but we should also check to make sur
 
 ```julia
 # Index the chain with the persistence probabilities.
-subchain = MCMCChains.group(c, :T)
+subchain = chn[["T[1][1]", "T[2][2]", "T[3][3]"]]
 
-# TODO: This doesn't work anymore. Note sure what it was originally doing
-# Plot the chain.
-plot(
-    subchain, 
-    colordim = :parameter, 
-    seriestype=:traceplot,
-    title = "Persistence Probability",
-    legend=:right
-)
+plot(subchain,
+     seriestype = :traceplot,
+     title = "Persistence Probability",
+     legend=false)
 ```
 
-```
-Error: UndefVarError: c not defined
-```
+![](figures/04_hidden-markov-model_6_1.png)
 
 
 
-
-
-A cursory examination of the traceplot above indicates that at least `T[3,3]` and possibly `T[2,2]` have converged to something resembling stationary. `T[1,1]`, on the other hand, has a slight "wobble", and seems less consistent than the others. We can use the diagnostic functions provided by [MCMCChain](https://github.com/TuringLang/MCMCChain.jl) to engage in some formal tests, like the Heidelberg and Welch diagnostic:
+A cursory examination of the traceplot above indicates that all three chains converged to something resembling
+stationary. We can use the diagnostic functions provided by [MCMCChain](https://github.com/TuringLang/MCMCChain.jl) to engage in some more formal tests, like the Heidelberg and Welch diagnostic:
 
 ```julia
-heideldiag(MCMCChains.group(c, :T))
+
+heideldiag(MCMCChains.group(chn, :T))[1]
 ```
 
 ```
-Error: UndefVarError: c not defined
+Heidelberger and Welch Diagnostic - Chain 1
+  parameters     burnin   stationarity    pvalue      mean   halfwidth     
+ te ⋯
+      Symbol    Float64        Float64   Float64   Float64     Float64   Fl
+oat ⋯
+
+     T[1][1]     0.0000         1.0000    0.7998    0.8593      0.0167    1
+.00 ⋯
+     T[1][2]   100.0000         1.0000    0.7311    0.0125      0.0069    0
+.00 ⋯
+     T[1][3]     0.0000         1.0000    0.2335    0.1194      0.0184    0
+.00 ⋯
+     T[2][1]     0.0000         1.0000    0.3088    0.0603      0.0380    0
+.00 ⋯
+     T[2][2]     0.0000         1.0000    0.5256    0.8079      0.0392    1
+.00 ⋯
+     T[2][3]     0.0000         1.0000    0.6664    0.1318      0.0658    0
+.00 ⋯
+     T[3][1]   200.0000         1.0000    0.3471    0.1037      0.0247    0
+.00 ⋯
+     T[3][2]     0.0000         1.0000    0.0671    0.1439      0.0274    0
+.00 ⋯
+     T[3][3]   100.0000         1.0000    0.3721    0.7553      0.0259    1
+.00 ⋯
+                                                                1 column om
+itted
 ```
 
 
 
 
 
-The p-values on the test suggest that we cannot reject the hypothesis that the observed sequence comes from a stationary distribution, so we can be somewhat more confident that our transition matrix has converged to something reasonable.
+The p-values on the test suggest that we cannot reject the hypothesis that the observed sequence comes from a stationary distribution, so we can be reasonably confident that our transition matrix has converged to something reasonable.
 
 
 ## Appendix
@@ -218,27 +221,24 @@ TuringTutorials.weave_file("04-hidden-markov-model", "04_hidden-markov-model.jmd
 
 Computer Information:
 ```
-Julia Version 1.6.0
-Commit f9720dc2eb (2021-03-24 12:55 UTC)
+Julia Version 1.5.4
+Commit 69fcb5745b (2021-03-11 19:13 UTC)
 Platform Info:
   OS: Linux (x86_64-pc-linux-gnu)
-  CPU: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
+  CPU: Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz
   WORD_SIZE: 64
   LIBM: libopenlibm
-  LLVM: libLLVM-11.0.1 (ORCJIT, skylake)
-Environment:
-  JULIA_CMDSTAN_HOME = /home/cameron/stan/
-  JULIA_NUM_THREADS = 16
+  LLVM: libLLVM-9.0.1 (ORCJIT, skylake)
 
 ```
 
 Package Information:
 
 ```
-      Status `~/.julia/dev/TuringTutorials/tutorials/04-hidden-markov-model/Project.toml`
-  [91a5bcdd] Plots v1.11.1
+Status `~/.julia/packages/TuringTutorials/lF0z7/tutorials/04-hidden-markov-model/Project.toml`
+  [91a5bcdd] Plots v1.11.2
   [f3b207a7] StatsPlots v0.14.19
-  [fce5fe82] Turing v0.15.1
+  [fce5fe82] Turing v0.15.13
   [9a3f8284] Random
 
 ```

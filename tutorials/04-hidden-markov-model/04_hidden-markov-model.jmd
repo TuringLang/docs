@@ -16,12 +16,8 @@ using Turing, Plots, Random, StatsPlots
 Turing.setprogress!(false);
 
 # Set a random seed and use the forward_diff AD mode.
-Random.seed!(1234);
+Random.seed!(12345678);
 ```
-
-    ┌ Info: [Turing]: progress logging is disabled globally
-    └ @ Turing /home/cameron/.julia/packages/Turing/cReBm/src/Turing.jl:22
-
 
 ## Simple State Detection
 
@@ -30,11 +26,11 @@ In this example, we'll use something where the states and emission parameters ar
 
 ```julia
 # Define the emission parameter.
-y = [ 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0, 3.0, 2.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+y = [ 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 2.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
 N = length(y);  K = 3;
 
 # Plot the data we just made.
-plot(y, xlim = (0,25), ylim = (-1,5), size = (500, 250))
+plot(y, xlim = (0,30), ylim = (-1,5), size = (500, 250))
 ```
 
 We can see that we have three states, one for each height of the plot (1, 2, 3). This height is also our emission parameter, so state one produces a value of one, state two produces a value of two, and so on.
@@ -100,8 +96,8 @@ Time to run our sampler.
 
 
 ```julia
-g = Gibbs(HMC(0.001, 20, :m, :T), PG(80, :s))
-chn = sample(BayesHmm(y, 3), g, 500);
+g = Gibbs(HMC(0.01, 50, :m, :T), PG(120, :s))
+chn = sample(BayesHmm(y, 3), g, 1000);
 ```
 
 Let's see how well our chain performed. Ordinarily, using the `describe` function from [MCMCChain](https://github.com/TuringLang/MCMCChain.jl) would be a good first step, but we have generated a lot of parameters here (`s[1]`, `s[2]`, `m[1]`, and so on). It's a bit easier to show how our model performed graphically.
@@ -120,19 +116,19 @@ Ns = 1:length(chn)
 
 # Make an animation.
 animation = @gif for i in Ns
-    m = m_set[i, :]; 
+    m = m_set[i, :];
     s = Int.(s_set[i,:]);
     emissions = m[s]
-    
+
     p = plot(y, chn = :red,
         size = (500, 250),
         xlabel = "Time",
         ylabel = "State",
         legend = :topright, label = "True data",
-        xlim = (0,25),
+        xlim = (0,30),
         ylim = (-1,5));
     plot!(emissions, color = :blue, label = "Sample $i")
-end every 10
+end every 3
 ```
 
 Looks like our model did a pretty good job, but we should also check to make sure our chain converges. A quick check is to examine whether the diagonal (representing the probability of remaining in the current state) of the transition matrix appears to be stationary. The code below extracts the diagonal and shows a traceplot of each persistence probability.
@@ -149,14 +145,15 @@ plot(subchain,
 
 ```
 
-A cursory examination of the traceplot above indicates that at least `T[3,3]` and possibly `T[2,2]` have converged to something resembling stationary. `T[1,1]`, on the other hand, has a slight "wobble", and seems less consistent than the others. We can use the diagnostic functions provided by [MCMCChain](https://github.com/TuringLang/MCMCChain.jl) to engage in some formal tests, like the Heidelberg and Welch diagnostic:
+A cursory examination of the traceplot above indicates that all three chains converged to something resembling
+stationary. We can use the diagnostic functions provided by [MCMCChain](https://github.com/TuringLang/MCMCChain.jl) to engage in some more formal tests, like the Heidelberg and Welch diagnostic:
 
 ```julia
 
-heideldiag(MCMCChains.group(c, :T))
+heideldiag(MCMCChains.group(chn, :T))[1]
 ```
 
-The p-values on the test suggest that we cannot reject the hypothesis that the observed sequence comes from a stationary distribution, so we can be somewhat more confident that our transition matrix has converged to something reasonable.
+The p-values on the test suggest that we cannot reject the hypothesis that the observed sequence comes from a stationary distribution, so we can be reasonably confident that our transition matrix has converged to something reasonable.
 
 ```julia, echo=false, skip="notebook"
 if isdefined(Main, :TuringTutorials)

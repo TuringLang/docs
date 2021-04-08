@@ -11,7 +11,7 @@ Let's load the libraries we'll need. We also set a random seed (for reproducibil
 
 ```julia
 # Load libraries.
-using Turing, Plots, Random, StatsPlots
+using Turing, StatsPlots, Random
 
 # Turn off progress monitor.
 Turing.setprogress!(false);
@@ -167,7 +167,7 @@ plot(subchain,
 
 
 A cursory examination of the traceplot above indicates that all three chains converged to something resembling
-stationary. We can use the diagnostic functions provided by [MCMCChain](https://github.com/TuringLang/MCMCChain.jl) to engage in some more formal tests, like the Heidelberg and Welch diagnostic:
+stationary. We can use the diagnostic functions provided by [MCMCChains](https://github.com/TuringLang/MCMCChains.jl) to engage in some more formal tests, like the Heidelberg and Welch diagnostic:
 
 ```julia
 

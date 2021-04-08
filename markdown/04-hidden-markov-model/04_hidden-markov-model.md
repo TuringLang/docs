@@ -221,21 +221,21 @@ TuringTutorials.weave_file("04-hidden-markov-model", "04_hidden-markov-model.jmd
 
 Computer Information:
 ```
-Julia Version 1.5.4
-Commit 69fcb5745b (2021-03-11 19:13 UTC)
+Julia Version 1.6.0
+Commit f9720dc2eb (2021-03-24 12:55 UTC)
 Platform Info:
   OS: Linux (x86_64-pc-linux-gnu)
   CPU: Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz
   WORD_SIZE: 64
   LIBM: libopenlibm
-  LLVM: libLLVM-9.0.1 (ORCJIT, skylake)
+  LLVM: libLLVM-11.0.1 (ORCJIT, skylake)
 
 ```
 
 Package Information:
 
 ```
-Status `~/.julia/packages/TuringTutorials/lF0z7/tutorials/04-hidden-markov-model/Project.toml`
+      Status `~/.julia/packages/TuringTutorials/poEs0/tutorials/04-hidden-markov-model/Project.toml`
   [91a5bcdd] Plots v1.11.2
   [f3b207a7] StatsPlots v0.14.19
   [fce5fe82] Turing v0.15.13

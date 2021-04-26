@@ -62,7 +62,7 @@ data[1:5]
 ```
 
 ```
-5-element Vector{Bool}:
+5-element Array{Bool,1}:
  1
  0
  1
@@ -245,14 +245,14 @@ TuringTutorials.weave_file("00-introduction", "00_introduction.jmd")
 
 Computer Information:
 ```
-Julia Version 1.6.0
-Commit f9720dc2eb (2021-03-24 12:55 UTC)
+Julia Version 1.5.3
+Commit 788b2c77c1 (2020-11-09 13:37 UTC)
 Platform Info:
   OS: Linux (x86_64-pc-linux-gnu)
   CPU: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
   WORD_SIZE: 64
   LIBM: libopenlibm
-  LLVM: libLLVM-11.0.1 (ORCJIT, skylake)
+  LLVM: libLLVM-9.0.1 (ORCJIT, skylake)
 Environment:
   JULIA_CMDSTAN_HOME = /home/cameron/stan/
   JULIA_NUM_THREADS = 16
@@ -262,12 +262,12 @@ Environment:
 Package Information:
 
 ```
-      Status `~/.julia/dev/TuringTutorials/tutorials/00-introduction/Project.toml`
-  [31c24e10] Distributions v0.24.15
-  [c7f686f2] MCMCChains v4.7.3
-  [91a5bcdd] Plots v1.11.1
+Status `~/.julia/dev/TuringTutorials/tutorials/00-introduction/Project.toml`
+  [31c24e10] Distributions v0.24.18
+  [c7f686f2] MCMCChains v4.9.0
+  [91a5bcdd] Plots v1.12.0
   [f3b207a7] StatsPlots v0.14.19
-  [fce5fe82] Turing v0.15.1
+  [fce5fe82] Turing v0.15.18
   [9a3f8284] Random
 
 ```

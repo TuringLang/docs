@@ -146,20 +146,6 @@ N = 5000
 ch = sample(bayes_nn(hcat(xs...), ts), HMC(0.05, 4), N);
 ```
 
-```
-Error: MethodError: ReverseDiff.TrackedReal{Float64, Float64, ReverseDiff.T
-rackedArray{Float64, Float64, 2, Matrix{Float64}, Matrix{Float64}}}(::Forwa
-rdDiff.Dual{ForwardDiff.Tag{ReverseDiff.var"#105#107"{DataType, Tuple{}, Va
-l{(1,)}}, Float64}, Float64, 1}) is ambiguous. Candidates:
-  (T::Type{var"#s31"} where var"#s31"<:Real)(x::ForwardDiff.Dual) in Tracke
-r at /home/cameron/.julia/packages/Tracker/YNNTM/src/lib/real.jl:111
-  ReverseDiff.TrackedReal{V, D, O}(value) where {V, D, O} in ReverseDiff at
- /home/cameron/.julia/packages/ReverseDiff/iHmB4/src/tracked.jl:56
-Possible fix, define
-  ReverseDiff.TrackedReal{V, D, O}(::ForwardDiff.Dual) where {V, D, O}
-```
-
-
 
 
 
@@ -169,11 +155,6 @@ Now we extract the weights and biases from the sampled chain. We'll use these pr
 # Extract all weight and bias parameters.
 theta = MCMCChains.group(ch, :nn_params).value;
 ```
-
-```
-Error: UndefVarError: ch not defined
-```
-
 
 
 
@@ -200,11 +181,7 @@ Z = [nn_forward([x, y], theta[i, :])[1] for x=x_range, y=y_range]
 contour!(x_range, y_range, Z)
 ```
 
-```
-Error: UndefVarError: ch not defined
-```
-
-
+![](figures/03_bayesian-neural-network_7_1.png)
 
 
 
@@ -242,11 +219,7 @@ Z = [nn_predict([x, y], theta, n_end)[1] for x=x_range, y=y_range]
 contour!(x_range, y_range, Z)
 ```
 
-```
-Error: UndefVarError: theta not defined
-```
-
-
+![](figures/03_bayesian-neural-network_9_1.png)
 
 
 
@@ -263,11 +236,7 @@ anim = @gif for i=1:n_end
 end every 5
 ```
 
-```
-Error: UndefVarError: theta not defined
-```
-
-
+![](figures/03_bayesian-neural-network_10_1.gif)
 
 
 
@@ -294,20 +263,6 @@ advi = ADVI(10, 5_000)
 q_hat = vi(m, advi, q);
 ```
 
-```
-Error: MethodError: ReverseDiff.TrackedReal{Float64, Float64, ReverseDiff.T
-rackedArray{Float64, Float64, 2, Matrix{Float64}, Matrix{Float64}}}(::Forwa
-rdDiff.Dual{ForwardDiff.Tag{ReverseDiff.var"#105#107"{DataType, Tuple{}, Va
-l{(1,)}}, Float64}, Float64, 1}) is ambiguous. Candidates:
-  (T::Type{var"#s31"} where var"#s31"<:Real)(x::ForwardDiff.Dual) in Tracke
-r at /home/cameron/.julia/packages/Tracker/YNNTM/src/lib/real.jl:111
-  ReverseDiff.TrackedReal{V, D, O}(value) where {V, D, O} in ReverseDiff at
- /home/cameron/.julia/packages/ReverseDiff/iHmB4/src/tracked.jl:56
-Possible fix, define
-  ReverseDiff.TrackedReal{V, D, O}(::ForwardDiff.Dual) where {V, D, O}
-```
-
-
 
 ```julia
 samples = transpose(rand(q_hat, 5000))
@@ -316,11 +271,6 @@ ch_vi = Chains(reshape(samples, size(samples)..., 1), string.(MCMCChains.namesin
 # Extract all weight and bias parameters.
 theta = MCMCChains.group(ch_vi, :nn_params).value;
 ```
-
-```
-Error: UndefVarError: q_hat not defined
-```
-
 
 
 ```julia
@@ -334,11 +284,7 @@ Z = [nn_predict([x, y], theta, n_end)[1] for x=x_range, y=y_range]
 contour!(x_range, y_range, Z)
 ```
 
-```
-Error: UndefVarError: theta not defined
-```
-
-
+![](figures/03_bayesian-neural-network_13_1.png)
 
 
 
@@ -408,20 +354,6 @@ num_samples = 500
 ch2 = sample(bayes_nn_general(hcat(xs...), ts, network_shape, num_params), NUTS(0.65), num_samples);
 ```
 
-```
-Error: MethodError: ReverseDiff.TrackedReal{Float64, Float64, ReverseDiff.T
-rackedArray{Float64, Float64, 2, Matrix{Float64}, Matrix{Float64}}}(::Forwa
-rdDiff.Dual{ForwardDiff.Tag{ReverseDiff.var"#105#107"{DataType, Tuple{}, Va
-l{(1,)}}, Float64}, Float64, 1}) is ambiguous. Candidates:
-  (T::Type{var"#s31"} where var"#s31"<:Real)(x::ForwardDiff.Dual) in Tracke
-r at /home/cameron/.julia/packages/Tracker/YNNTM/src/lib/real.jl:111
-  ReverseDiff.TrackedReal{V, D, O}(value) where {V, D, O} in ReverseDiff at
- /home/cameron/.julia/packages/ReverseDiff/iHmB4/src/tracked.jl:56
-Possible fix, define
-  ReverseDiff.TrackedReal{V, D, O}(::ForwardDiff.Dual) where {V, D, O}
-```
-
-
 
 ```julia
 # This function makes predictions based on network shape.
@@ -440,11 +372,7 @@ Z = [nn_predict([x, y], params2, length(ch2), network_shape)[1] for x=x_range, y
 contour!(x_range, y_range, Z)
 ```
 
-```
-Error: UndefVarError: ch2 not defined
-```
-
-
+![](figures/03_bayesian-neural-network_15_1.png)
 
 
 
@@ -462,14 +390,14 @@ TuringTutorials.weave_file("03-bayesian-neural-network", "03_bayesian-neural-net
 
 Computer Information:
 ```
-Julia Version 1.6.0
-Commit f9720dc2eb (2021-03-24 12:55 UTC)
+Julia Version 1.5.3
+Commit 788b2c77c1 (2020-11-09 13:37 UTC)
 Platform Info:
   OS: Linux (x86_64-pc-linux-gnu)
   CPU: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
   WORD_SIZE: 64
   LIBM: libopenlibm
-  LLVM: libLLVM-11.0.1 (ORCJIT, skylake)
+  LLVM: libLLVM-9.0.1 (ORCJIT, skylake)
 Environment:
   JULIA_CMDSTAN_HOME = /home/cameron/stan/
   JULIA_NUM_THREADS = 16
@@ -479,13 +407,13 @@ Environment:
 Package Information:
 
 ```
-      Status `~/.julia/dev/TuringTutorials/tutorials/03-bayesian-neural-network/Project.toml`
-  [b5ca4192] AdvancedVI v0.1.1
-  [76274a88] Bijectors v0.8.13
-  [587475ba] Flux v0.12.0
-  [91a5bcdd] Plots v1.11.1
-  [37e2e3b7] ReverseDiff v1.7.0
-  [fce5fe82] Turing v0.15.1
+Status `~/.julia/dev/TuringTutorials/tutorials/03-bayesian-neural-network/Project.toml`
+  [b5ca4192] AdvancedVI v0.1.2
+  [76274a88] Bijectors v0.9.1
+  [587475ba] Flux v0.12.1
+  [91a5bcdd] Plots v1.12.0
+  [37e2e3b7] ReverseDiff v1.8.0
+  [fce5fe82] Turing v0.15.18
   [9a3f8284] Random
 
 ```

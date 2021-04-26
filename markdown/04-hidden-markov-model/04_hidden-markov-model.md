@@ -115,11 +115,6 @@ g = Gibbs(HMC(0.001, 7, :m, :T), PG(20, :s))
 c = sample(BayesHmm(y, 3), g, 100);
 ```
 
-```
-Error: type Task has no field state
-```
-
-
 
 
 
@@ -156,11 +151,7 @@ animation = @gif for i in Ns
 end every 10
 ```
 
-```
-Error: UndefVarError: c not defined
-```
-
-
+![](figures/04_hidden-markov-model_5_1.gif)
 
 
 
@@ -182,11 +173,7 @@ plot(
 )
 ```
 
-```
-Error: UndefVarError: c not defined
-```
-
-
+![](figures/04_hidden-markov-model_6_1.png)
 
 
 
@@ -197,7 +184,11 @@ heideldiag(MCMCChains.group(c, :T))
 ```
 
 ```
-Error: UndefVarError: c not defined
+1-element Array{MCMCChains.ChainDataFrame{NamedTuple{(:parameters, :burnin,
+ :stationarity, :pvalue, :mean, :halfwidth, :test),Tuple{Array{Symbol,1},Ar
+ray{Float64,1},Array{Float64,1},Array{Float64,1},Array{Float64,1},Array{Flo
+at64,1},Array{Float64,1}}}},1}:
+ Heidelberger and Welch Diagnostic - Chain 1 (9 x 7)
 ```
 
 
@@ -218,14 +209,14 @@ TuringTutorials.weave_file("04-hidden-markov-model", "04_hidden-markov-model.jmd
 
 Computer Information:
 ```
-Julia Version 1.6.0
-Commit f9720dc2eb (2021-03-24 12:55 UTC)
+Julia Version 1.5.3
+Commit 788b2c77c1 (2020-11-09 13:37 UTC)
 Platform Info:
   OS: Linux (x86_64-pc-linux-gnu)
   CPU: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
   WORD_SIZE: 64
   LIBM: libopenlibm
-  LLVM: libLLVM-11.0.1 (ORCJIT, skylake)
+  LLVM: libLLVM-9.0.1 (ORCJIT, skylake)
 Environment:
   JULIA_CMDSTAN_HOME = /home/cameron/stan/
   JULIA_NUM_THREADS = 16
@@ -235,10 +226,10 @@ Environment:
 Package Information:
 
 ```
-      Status `~/.julia/dev/TuringTutorials/tutorials/04-hidden-markov-model/Project.toml`
-  [91a5bcdd] Plots v1.11.1
+Status `~/.julia/dev/TuringTutorials/tutorials/04-hidden-markov-model/Project.toml`
+  [91a5bcdd] Plots v1.12.0
   [f3b207a7] StatsPlots v0.14.19
-  [fce5fe82] Turing v0.15.1
+  [fce5fe82] Turing v0.15.18
   [9a3f8284] Random
 
 ```

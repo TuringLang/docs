@@ -88,13 +88,13 @@ The end of this tutorial provides some code that can be used to generate more ge
 # Turn a vector into a set of weights and biases.
 function unpack(nn_params::AbstractVector)
     W₁ = reshape(nn_params[1:6], 3, 2);   
-    b₁ = reshape(nn_params[7:9], 3)
+    b₁ = nn_params[7:9]
     
     W₂ = reshape(nn_params[10:15], 2, 3); 
-    b₂ = reshape(nn_params[16:17], 2)
+    b₂ = nn_params[16:17]
     
     Wₒ = reshape(nn_params[18:19], 1, 2); 
-    bₒ = reshape(nn_params[20:20], 1)   
+    bₒ = nn_params[20:20]
     return W₁, b₁, W₂, b₂, Wₒ, bₒ
 end
 
@@ -385,7 +385,7 @@ This has been an introduction to the applications of Turing and Flux in defining
 To locally run this tutorial, do the following commands:
 ```julia, eval = false
 using TuringTutorials
-TuringTutorials.weave_file("03-bayesian-neural-network", "03_bayesian-neural-network.jmd")
+TuringTutorials.weave_file("03-bayesian-neural-network/", "03_bayesian-neural-network.jmd")
 ```
 
 Computer Information:

@@ -189,7 +189,7 @@ describe(chain)
 ```
 
 ```
-2-element Vector{MCMCChains.ChainDataFrame}:
+2-element Array{MCMCChains.ChainDataFrame,1}:
  Summary Statistics (12 x 7)
  Quantiles (12 x 6)
 ```
@@ -269,16 +269,16 @@ DataFrame(
  Row │ MPG      Bayes     OLS
      │ Float64  Float64   Float64
 ─────┼─────────────────────────────
-   1 │    19.2  18.2431   18.1265
-   2 │    15.0   7.00352   6.37891
-   3 │    16.4  14.0293   13.883
-   4 │    14.3  11.9439   11.7337
-   5 │    21.4  25.361    25.1916
-   6 │    18.1  20.8679   20.672
-   7 │    19.7  16.0271   15.8408
-   8 │    15.2  18.28     18.3391
-   9 │    26.0  28.0505   28.4865
-  10 │    17.3  14.6901   14.534
+   1 │    19.2  18.2182   18.1265
+   2 │    15.0   6.16059   6.37891
+   3 │    16.4  13.9918   13.883
+   4 │    14.3  11.6075   11.7337
+   5 │    21.4  25.2373   25.1916
+   6 │    18.1  20.688    20.672
+   7 │    19.7  15.6838   15.8408
+   8 │    15.2  18.3806   18.3391
+   9 │    26.0  28.4643   28.4865
+  10 │    17.3  14.5706   14.534
 ```
 
 
@@ -311,10 +311,10 @@ println(
 
 ```
 Training set:
-	Bayes loss: 4.656464377167136
+	Bayes loss: 4.650826645369283
 	OLS loss: 4.6481420856905205
 Test set:
-	Bayes loss: 13.33742500563363
+	Bayes loss: 15.333978161680795
 	OLS loss: 14.796847779051523
 ```
 
@@ -336,14 +336,14 @@ TuringTutorials.weave_file("05-linear-regression", "05_linear-regression.jmd")
 
 Computer Information:
 ```
-Julia Version 1.6.0
-Commit f9720dc2eb (2021-03-24 12:55 UTC)
+Julia Version 1.5.3
+Commit 788b2c77c1 (2020-11-09 13:37 UTC)
 Platform Info:
   OS: Linux (x86_64-pc-linux-gnu)
   CPU: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
   WORD_SIZE: 64
   LIBM: libopenlibm
-  LLVM: libLLVM-11.0.1 (ORCJIT, skylake)
+  LLVM: libLLVM-9.0.1 (ORCJIT, skylake)
 Environment:
   JULIA_CMDSTAN_HOME = /home/cameron/stan/
   JULIA_NUM_THREADS = 16
@@ -353,20 +353,20 @@ Environment:
 Package Information:
 
 ```
-      Status `~/.julia/dev/TuringTutorials/tutorials/05-linear-regression/Project.toml`
-  [a93c6f00] DataFrames v0.22.6
+Status `~/.julia/dev/TuringTutorials/tutorials/05-linear-regression/Project.toml`
+  [a93c6f00] DataFrames v1.0.1
   [b4f34e82] Distances v0.10.2
-  [31c24e10] Distributions v0.24.15
-  [5789e2e9] FileIO v1.6.5
+  [31c24e10] Distributions v0.24.18
+  [5789e2e9] FileIO v1.8.0
   [38e38edf] GLM v1.4.1
-  [c7f686f2] MCMCChains v4.7.3
-  [cc2ba9b6] MLDataUtils v0.5.3
-  [872c559c] NNlib v0.7.17
-  [91a5bcdd] Plots v1.11.1
-  [ce6b1742] RDatasets v0.7.4
-  [4c63d2b9] StatsFuns v0.9.7
+  [c7f686f2] MCMCChains v4.9.0
+  [cc2ba9b6] MLDataUtils v0.5.4
+  [872c559c] NNlib v0.7.19
+  [91a5bcdd] Plots v1.12.0
+  [ce6b1742] RDatasets v0.7.5
+  [4c63d2b9] StatsFuns v0.9.8
   [f3b207a7] StatsPlots v0.14.19
-  [fce5fe82] Turing v0.15.1
+  [fce5fe82] Turing v0.15.18
   [9a3f8284] Random
 
 ```

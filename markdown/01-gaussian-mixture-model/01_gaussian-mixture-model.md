@@ -231,11 +231,11 @@ Package Information:
 
 ```
 Status `~/.julia/dev/TuringTutorials/tutorials/01-gaussian-mixture-model/Project.toml`
-  [31c24e10] Distributions v0.24.15
-  [c7f686f2] MCMCChains v4.7.3
-  [91a5bcdd] Plots v1.11.1
+  [31c24e10] Distributions v0.24.18
+  [c7f686f2] MCMCChains v4.9.0
+  [91a5bcdd] Plots v1.12.0
   [f3b207a7] StatsPlots v0.14.19
-  [fce5fe82] Turing v0.15.12
+  [fce5fe82] Turing v0.15.18
   [9a3f8284] Random
 
 ```

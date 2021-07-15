@@ -2,6 +2,10 @@ module TuringTutorials
 
 using Weave, Pkg, InteractiveUtils, IJulia
 
+export build_all
+
+default_build_list = (:script ,:html, :github, :notebook)
+
 # HACK: So Weave.jl has a submodule `WeavePlots` which is loaded using Requires.jl if Plots.jl is available.
 # This means that if we want to overload methods in that submodule we need to wait until `Plots.jl` has been loaded.
 using Requires, Plots
@@ -41,7 +45,7 @@ function polish_latex(path::String)
 end
 
 function weave_file(
-    folder, file, build_list=(:script ,:html, :github, :notebook);
+    folder, file, build_list=default_build_list;
     kwargs...
 )
     tmp = joinpath(repo_directory,"tutorials",folder,file)
@@ -96,7 +100,7 @@ function weave_file(
     end
 end
 
-function weave_all(build_list=(:script,:html,:pdf,:github,:notebook); kwargs...)
+function weave_all(build_list=default_build_list; kwargs...)
     for folder in readdir(joinpath(repo_directory,"tutorials"))
         folder == "test.jmd" && continue
         weave_folder(folder, build_list; kwargs...)
@@ -111,7 +115,7 @@ function weave_md(; kwargs...)
 end
 
 function weave_folder(
-    folder, build_list=(:script,:html,:pdf,:github,:notebook);
+    folder, build_list=default_build_list;
     ext = r"^\.[Jj]md", kwargs...
 )
     for file in readdir(joinpath(repo_directory,"tutorials",folder))
@@ -166,6 +170,22 @@ function tutorial_footer(folder=nothing, file=nothing; remove_homedir=true)
 
     md = "```\n$(pkg_status)\n```"
     display("text/markdown", md)
+end
+
+"""
+    build_all(; debug=false)
+
+Build all outputs. This method is used in the CI job.
+Set `debug == true` to debug the CI deployment.
+"""
+function build_all(; debug=false)
+    cache = :all
+    if debug
+        folder = "00-introduction"
+        weave_folder(folder, default_build_list; cache)
+    else
+        weave_all(; cache)
+    end
 end
 
 end

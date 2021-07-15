@@ -189,8 +189,8 @@ describe(chain)
 ```
 
 ```
-2-element Array{MCMCChains.ChainDataFrame,1}:
- Summary Statistics (4 x 7)
+2-element Vector{MCMCChains.ChainDataFrame}:
+ Summary Statistics (4 x 8)
  Quantiles (4 x 6)
 ```
 
@@ -334,37 +334,36 @@ TuringTutorials.weave_file("02-logistic-regression", "02_logistic-regression.jmd
 
 Computer Information:
 ```
-Julia Version 1.5.3
-Commit 788b2c77c1 (2020-11-09 13:37 UTC)
+Julia Version 1.6.1
+Commit 6aaedecc44 (2021-04-23 05:59 UTC)
 Platform Info:
   OS: Linux (x86_64-pc-linux-gnu)
-  CPU: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
+  CPU: Intel(R) Core(TM) i5-8259U CPU @ 2.30GHz
   WORD_SIZE: 64
   LIBM: libopenlibm
-  LLVM: libLLVM-9.0.1 (ORCJIT, skylake)
+  LLVM: libLLVM-11.0.1 (ORCJIT, skylake)
 Environment:
-  JULIA_CMDSTAN_HOME = /home/cameron/stan/
-  JULIA_NUM_THREADS = 16
+  JULIA_NUM_THREADS = 8
 
 ```
 
 Package Information:
 
 ```
-Status `~/.julia/dev/TuringTutorials/tutorials/02-logistic-regression/Project.toml`
-  [a93c6f00] DataFrames v1.0.1
-  [b4f34e82] Distances v0.10.2
-  [31c24e10] Distributions v0.24.18
-  [5789e2e9] FileIO v1.8.0
-  [38e38edf] GLM v1.4.1
-  [c7f686f2] MCMCChains v4.9.0
+      Status `~/git/TuringTutorials/tutorials/02-logistic-regression/Project.toml`
+  [a93c6f00] DataFrames v1.2.0
+  [b4f34e82] Distances v0.10.3
+  [31c24e10] Distributions v0.25.11
+  [5789e2e9] FileIO v1.10.1
+  [38e38edf] GLM v1.5.1
+  [c7f686f2] MCMCChains v4.13.1
   [cc2ba9b6] MLDataUtils v0.5.4
-  [872c559c] NNlib v0.7.19
-  [91a5bcdd] Plots v1.12.0
+  [872c559c] NNlib v0.7.24
+  [91a5bcdd] Plots v1.19.1
   [ce6b1742] RDatasets v0.7.5
   [4c63d2b9] StatsFuns v0.9.8
-  [f3b207a7] StatsPlots v0.14.19
-  [fce5fe82] Turing v0.15.18
+  [f3b207a7] StatsPlots v0.14.25
+  [fce5fe82] Turing v0.16.5
   [9a3f8284] Random
 
 ```

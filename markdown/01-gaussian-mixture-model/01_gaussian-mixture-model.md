@@ -213,29 +213,28 @@ TuringTutorials.weave_file("01-gaussian-mixture-model", "01_gaussian-mixture-mod
 
 Computer Information:
 ```
-Julia Version 1.5.3
-Commit 788b2c77c1 (2020-11-09 13:37 UTC)
+Julia Version 1.6.1
+Commit 6aaedecc44 (2021-04-23 05:59 UTC)
 Platform Info:
   OS: Linux (x86_64-pc-linux-gnu)
-  CPU: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
+  CPU: Intel(R) Core(TM) i5-8259U CPU @ 2.30GHz
   WORD_SIZE: 64
   LIBM: libopenlibm
-  LLVM: libLLVM-9.0.1 (ORCJIT, skylake)
+  LLVM: libLLVM-11.0.1 (ORCJIT, skylake)
 Environment:
-  JULIA_CMDSTAN_HOME = /home/cameron/stan/
-  JULIA_NUM_THREADS = 16
+  JULIA_NUM_THREADS = 8
 
 ```
 
 Package Information:
 
 ```
-Status `~/.julia/dev/TuringTutorials/tutorials/01-gaussian-mixture-model/Project.toml`
-  [31c24e10] Distributions v0.24.18
-  [c7f686f2] MCMCChains v4.9.0
-  [91a5bcdd] Plots v1.12.0
-  [f3b207a7] StatsPlots v0.14.19
-  [fce5fe82] Turing v0.15.18
+      Status `~/git/TuringTutorials/tutorials/01-gaussian-mixture-model/Project.toml`
+  [31c24e10] Distributions v0.25.11
+  [c7f686f2] MCMCChains v4.13.1
+  [91a5bcdd] Plots v1.19.1
+  [f3b207a7] StatsPlots v0.14.25
+  [fce5fe82] Turing v0.16.5
   [9a3f8284] Random
 
 ```

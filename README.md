@@ -40,34 +40,28 @@ I've compared the plots in the pdf output and this change doesn't affect the out
 ### 02-logistic-regression
 
 ```
-julia> @time TuringTutorials.weave_folder("02-logistic-regression")
+julia> @time TuringTutorials.weave_folder("02-logistic-regression", (:html,); cache=:off)
 ```
 
-With for loop:
+With for loop and `sample(model, HMC(0.05, 10), MCMCThreads(), 1_500, 3)` (second run):
 
 ```
-151.410786 seconds (430.09 M allocations: 24.865 GiB, 4.22% gc time, 8.08% compilation time)
+7.463169 seconds (17.60 M allocations: 1.060 GiB, 3.65% gc time, 47.69% compilation time)
 ```
 
-With broadcasting; not using `BernoulliLogit`:
+With broadcasting and `BernoulliLogit` (second run):
 
 ```
-64.986620 seconds (137.27 M allocations: 8.282 GiB, 3.67% gc time, 19.11% compilation time)
+9.370234 seconds (69.55 M allocations: 9.505 GiB, 7.04% gc time, 27.17% compilation time)
 ```
 
-With `LazyArray(@~)`:
+With `LazyArray(@~)` (second run):
 
 ```
-53.647558 seconds (109.49 M allocations: 6.481 GiB, 3.20% gc time, 23.04% compilation time)
+9.867191 seconds (69.23 M allocations: 6.540 GiB, 6.43% gc time, 26.37% compilation time)
 ```
 
-Broadcasting with `y .~ BernoulliLogit.(...)`:
-
-```
-68.785344 seconds (137.28 M allocations: 8.283 GiB, 3.62% gc time, 18.84% compilation time)
-```
-
-I've compared the plots in the pdf output and this change doesn't affect the outcome.
+These changes do not affect the outcome.
 
 ### 03-bayesian-neural-network
 
@@ -75,17 +69,29 @@ I've compared the plots in the pdf output and this change doesn't affect the out
 @time TuringTutorials.weave_folder("03-bayesian-neural-network", (:html,); cache=:off)
 ```
 
-The runtimes below are taken after doing a warmup run.
-Original:
+Original (second run):
 
 ```
-544.789575 seconds (1.10 G allocations: 67.766 GiB, 2.65% gc time, 1.27% compilation time)
+357.466628 seconds (554.96 M allocations: 33.740 GiB, 1.37% gc time, 0.01% compilation time)
 ```
 
-With broadcasting:
+With Zygote (second run):
 
 ```
-1162.941890 seconds (4.68 G allocations: 210.643 GiB, 3.17% gc time, 0.97% compilation time)
+225.582076 seconds (964.61 M allocations: 90.918 GiB, 8.01% gc time, 0.94% compilation time)
+```
+
+With 
+With broadcasting in `bayes_nn_general`:
+
+```
+??
+```
+
+With `nn_params ~ filldist(Normal(0, sig), 20)`:
+
+```
+??
 ```
 
 ### 04-hidden-markov-models

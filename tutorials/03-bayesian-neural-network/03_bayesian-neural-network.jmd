@@ -17,7 +17,7 @@ using Turing, Flux, Plots, Random, ReverseDiff
 Turing.setprogress!(false);
 
 # Use reverse_diff due to the number of parameters in neural networks.
-Turing.setadbackend(:reversediff)
+Turing.setadbackend(:reversediff);
 ```
 
 Our goal here is to use a Bayesian neural network to classify points in an artificial dataset. The code below generates data points arranged in a box-like pattern and displays a graph of the dataset we'll be working with.
@@ -104,7 +104,7 @@ alpha = 0.09
 sig = sqrt(1.0 / alpha)
 
 # Specify the probabilistic model.
-@model function bayes_nn(xs, ts)
+@model function bayes_nn(xs, ts, sig)
     # Create the weight and bias vector.
     nn_params ~ MvNormal(zeros(20), sig .* ones(20))
 
@@ -113,9 +113,7 @@ sig = sqrt(1.0 / alpha)
     preds = nn_forward(xs, nn_params)
 
     # Observe each prediction.
-    for i = 1:length(ts)
-        ts[i] ~ Bernoulli(preds[i])
-    end
+    ts .~ Bernoulli.(preds)
 end;
 ```
 
@@ -124,7 +122,7 @@ Inference can now be performed by calling `sample`. We use the `HMC` sampler her
 ```julia
 # Perform inference.
 N = 5000
-ch = sample(bayes_nn(hcat(xs...), ts), HMC(0.05, 4), N);
+ch = sample(bayes_nn(hcat(xs...), ts, sig), HMC(0.05, 4), N);
 ```
 
 Now we extract the weights and biases from the sampled chain. We'll use these primarily in determining how good a classifier our model is.
@@ -210,7 +208,7 @@ using Bijectors
 using Turing: Variational
 using AdvancedVI
 
-m = bayes_nn(hcat(xs...), ts);
+m = bayes_nn(hcat(xs...), ts, sig);
 
 q = Variational.meanfield(m)
 
@@ -295,12 +293,10 @@ function nn_forward(x, θ::AbstractVector, network_shape::AbstractVector)
 end
 
 # General Turing specification for a BNN model.
-@model bayes_nn_general(xs, ts, network_shape, num_params) = begin
+@model function bayes_nn_general(xs, ts, network_shape, num_params)
     θ ~ MvNormal(zeros(num_params), sig .* ones(num_params))
     preds = nn_forward(xs, θ, network_shape)
-    for i = 1:length(ts)
-        ts[i] ~ Bernoulli(preds[i])
-    end
+    ts .~ Bernoulli.(preds)
 end
 
 # Perform inference.

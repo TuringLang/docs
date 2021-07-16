@@ -202,7 +202,6 @@ If something crashes, then show the logs and exit the build immediately.
 If all goes well, then store the logs in a file, but don't show them.
 """
 function build_folder(folder; kwargs...)
-    Sys.cpu_summary()
     println("Building $folder")
     c = IOCapture.capture() do
         @timed weave_folder(folder; kwargs...)
@@ -229,15 +228,14 @@ Build all outputs. This method is used in the CI job.
 Set `debug` to `true` to debug the CI deployment.
 """
 function build_all(; debug=false)
+    Sys.cpu_summary()
     clean_cache()
     cache = :all
     if debug
-        folder = "00-introduction"
-        build_folder(folder; cache)
+        folders = ["00-introduction", "02-logistic-regression"]
+        build_folder.(folders; cache)
     else
-        for tutorial in tutorials()
-            build_folder(tutorial; cache)
-        end
+        build_folder.(tutorials(); cache)
     end
 end
 

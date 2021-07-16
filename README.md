@@ -72,26 +72,33 @@ These changes do not affect the outcome.
 Original (second run):
 
 ```
-357.466628 seconds (554.96 M allocations: 33.740 GiB, 1.37% gc time, 0.01% compilation time)
+368.964917 seconds (554.86 M allocations: 33.734 GiB, 1.45% gc time, 1.55% compilation time)
 ```
 
-With Zygote (second run):
+With Zygote and failures (look at the allocations; not good):
 
 ```
 225.582076 seconds (964.61 M allocations: 90.918 GiB, 8.01% gc time, 0.94% compilation time)
 ```
 
-With 
-With broadcasting in `bayes_nn_general`:
+this gives errors.
+
+By using forwarddiff instead of backwarddiff (first run):
 
 ```
-??
+# first run
+347.347928 seconds (594.56 M allocations: 35.799 GiB, 1.60% gc time, 0.57% compilation time)
+# second run
+338.123706 seconds (553.09 M allocations: 33.286 GiB, 1.64% gc time, 0.01% compilation time)
 ```
 
-With `nn_params ~ filldist(Normal(0, sig), 20)`:
+ReverseDiff with `Turing.setrdcache(true)` (second run):
 
 ```
-??
+# first run
+339.383844 seconds (553.05 M allocations: 33.284 GiB, 1.63% gc time, 0.00% compilation time)
+# second run
+334.417546 seconds (553.01 M allocations: 33.285 GiB, 1.71% gc time)
 ```
 
 ### 04-hidden-markov-models
@@ -144,3 +151,11 @@ With broadcasting:
 ```
 
 The output is, again, roughly the same as before.
+
+### Build first two
+
+```
+@time build_all(; debug=true)
+```
+
+In a new session, without trying to run the jobs in parallel.

@@ -12,7 +12,7 @@ using Weave
 
 export build_all
 
-# Disabled PDF for now since it is very fragile.
+# Not using PDF currently, because it is fragile.
 default_build_list = (:script, :html, :github, :notebook)
 
 repo_directory = pkgdir(TuringTutorials)
@@ -97,6 +97,8 @@ Names of the tutorials; for example, "02-logistic-regression".
 function tutorials()::Vector{String}
     dirs = readdir(joinpath(repo_directory, "tutorials"))
     dirs = filter(!=("test.jmd"), dirs)
+    # This DiffEq one has to be done manually, because it takes about 12 hours.
+    dirs = filter(!=("10-bayesian-differential-equations"), dirs)
 end
 
 function weave_all(build_list=default_build_list; kwargs...)
@@ -198,13 +200,13 @@ end
 
 It seems that Weave has no option to fail on error, so we have handle errors ourselves.
 Also, this method only shows the necessary information in the CI logs.
-If something crashes, then show the logs and exit the build immediately.
+If something crashes, then show the logs immediately.
 If all goes well, then store the logs in a file, but don't show them.
 """
-function build_folder(folder; kwargs...)
+function build_folder(folder, build_list; kwargs...)
     println("Building $folder")
     c = IOCapture.capture() do
-        @timed weave_folder(folder; kwargs...)
+        @timed weave_folder(folder, build_list; kwargs...)
     end
     stats = c.value
     gib = round(stats.bytes / 1024^3, digits=2)
@@ -213,12 +215,10 @@ function build_folder(folder; kwargs...)
     log = c.output
     if error_occurred(log)
         @error "Error occured when building $folder:\n$log"
-        exit(1)
     else
-        path = joinpath(repo_directory, "tutorials", folder, "weave_folder.log")
-        println("Writing log to $path")
-        write(path, log)
-    end
+    path = joinpath(repo_directory, "tutorials", folder, "weave_folder.log")
+    println("Writing log to $path")
+    write(path, log)
 end
 
 """
@@ -232,10 +232,15 @@ function build_all(; debug=false)
     clean_cache()
     cache = :all
     if debug
+        build_list = (:script, :html)
         folders = ["00-introduction", "02-logistic-regression"]
-        build_folder.(folders; cache)
+        for folder in folders
+            build_folder(folder, build_list; cache)
+        end
     else
-        build_folder.(tutorials(); cache)
+        for folder in tutorials()
+            build_folder(folder, default_build_list; cache)
+        end
     end
 end
 

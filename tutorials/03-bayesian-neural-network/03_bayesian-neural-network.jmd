@@ -18,6 +18,7 @@ Turing.setprogress!(false);
 
 # Use reverse_diff due to the number of parameters in neural networks.
 Turing.setadbackend(:reversediff);
+Turing.setrdcache(true)
 ```
 
 Our goal here is to use a Bayesian neural network to classify points in an artificial dataset. The code below generates data points arranged in a box-like pattern and displays a graph of the dataset we'll be working with.
@@ -74,13 +75,13 @@ The end of this tutorial provides some code that can be used to generate more ge
 ```julia
 # Turn a vector into a set of weights and biases.
 function unpack(nn_params::AbstractVector)
-    W₁ = reshape(nn_params[1:6], 3, 2);
+    W₁ = reshape(nn_params[1:6], 3, 2);   
     b₁ = nn_params[7:9]
-
-    W₂ = reshape(nn_params[10:15], 2, 3);
+    
+    W₂ = reshape(nn_params[10:15], 2, 3); 
     b₂ = nn_params[16:17]
-
-    Wₒ = reshape(nn_params[18:19], 1, 2);
+    
+    Wₒ = reshape(nn_params[18:19], 1, 2); 
     bₒ = nn_params[20:20]
     return W₁, b₁, W₂, b₂, Wₒ, bₒ
 end
@@ -104,16 +105,18 @@ alpha = 0.09
 sig = sqrt(1.0 / alpha)
 
 # Specify the probabilistic model.
-@model function bayes_nn(xs, ts, sig)
+@model function bayes_nn(xs, ts)
     # Create the weight and bias vector.
     nn_params ~ MvNormal(zeros(20), sig .* ones(20))
-
+    
     # Calculate predictions for the inputs given the weights
     # and biases in theta.
     preds = nn_forward(xs, nn_params)
-
+    
     # Observe each prediction.
-    ts .~ Bernoulli.(preds)
+    for i = 1:length(ts)
+        ts[i] ~ Bernoulli(preds[i])
+    end
 end;
 ```
 
@@ -122,7 +125,7 @@ Inference can now be performed by calling `sample`. We use the `HMC` sampler her
 ```julia
 # Perform inference.
 N = 5000
-ch = sample(bayes_nn(hcat(xs...), ts, sig), HMC(0.05, 4), N);
+ch = sample(bayes_nn(hcat(xs...), ts), HMC(0.05, 4), N);
 ```
 
 Now we extract the weights and biases from the sampled chain. We'll use these primarily in determining how good a classifier our model is.
@@ -208,7 +211,7 @@ using Bijectors
 using Turing: Variational
 using AdvancedVI
 
-m = bayes_nn(hcat(xs...), ts, sig);
+m = bayes_nn(hcat(xs...), ts);
 
 q = Variational.meanfield(m)
 
@@ -293,10 +296,12 @@ function nn_forward(x, θ::AbstractVector, network_shape::AbstractVector)
 end
 
 # General Turing specification for a BNN model.
-@model function bayes_nn_general(xs, ts, network_shape, num_params)
+@model bayes_nn_general(xs, ts, network_shape, num_params) = begin
     θ ~ MvNormal(zeros(num_params), sig .* ones(num_params))
     preds = nn_forward(xs, θ, network_shape)
-    ts .~ Bernoulli.(preds)
+    for i = 1:length(ts)
+        ts[i] ~ Bernoulli(preds[i])
+    end
 end
 
 # Perform inference.

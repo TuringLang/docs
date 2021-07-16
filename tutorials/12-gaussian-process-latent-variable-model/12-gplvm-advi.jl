@@ -1,7 +1,6 @@
 # Load Turing.
 using Turing
-#  using AbstractGPs, Plots
-using AbstractGPs, KernelFunctions, Random, Plots
+using AbstractGPs, Stheno, KernelFunctions, Random, Plots
 
 # Background reading:
 # https://jmlr.org/papers/v6/lawrence05a.html
@@ -19,40 +18,40 @@ oil_matrix = readdlm("Data.txt", Float64)
 labels = readdlm("DataLabels.txt", Float64)
 labels = mapslices(x -> findmax(x)[2], labels, dims=2)
 
+Random.seed!(2021)
+
 # choose AD backend
-#  using Zygote # Tracker supported? check it?
-#  Turing.setadbackend(:zygote)
-#  TODO why does this give an error?
+using Zygote # Tracker supported? check it?
+Turing.setadbackend(:zygote)
 
 #  SqExponentialKernel is alias of RBFKernel
-sekernel(α, σ) = SqExponentialKernel() ∘ ARDTransform(α)
+sekernel(α, σ²) = SqExponentialKernel() ∘ ARDTransform(α)
 
-@model function GPLVM(Y, ndim=4, ::Type{T} = Float64) where {T}
+@model function GPLVM(Y, ndim=4, ::Type{TV} = Array{Float64}) where {TV}
 
   # Dimensionality of the problem.
   N, D = size(Y)
   # dimensions of latent space
   K = ndim
-  noise = 1e-6
 
   # Priors
   α ~ MvLogNormal(MvNormal(K, 1.0))
-  σ ~ MvLogNormal(MvNormal(D, 1.0))
-  # use filldist for Zygote compatibility
-  Z ~ filldist(Normal(0., 1.), K, N)
+  σ ~ LogNormal(0.0, 1.0)
+  # K*N workaround - fix is in the works
+  #  Z ~ filldist(Normal(0., 1.), K, N)
+  Z_vec ~ filldist(Normal(0., 1.), K * N)
+  Z = reshape(Z_vec, K, N)
+  #  noise ~ Gamma(1.0, 1.0)
+  noise = 1e-5
 
-  kernel = sekernel(α, σ[1])
-  K = kernelmatrix(kernel, Z)  # cov matrix
-  K += LinearAlgebra.I * (σ[1] + noise)
-
-  Y ~ filldist(MvNormal(zeros(N), K), D)
+  kernel = sekernel(α, σ)
 
   ## DENSE GP
-  #  gp = GP(kernel, GPC())
-  #  prior = gp(ColVecs(Z), noise)
+  gp = GP(kernel, GPC())
+  prior = gp(ColVecs(Z), noise)
   #  prior = gp(ColVecs(Z))
 
-  #  Y ~ filldist(prior, D)
+  Y ~ filldist(prior, D)
 end
 
 Y = oil_matrix
@@ -73,48 +72,47 @@ ndim=4
 #  Y ~ filldist(prior, N, D)
 # END DEBUG CODE
 
-n_data=100
+n_data=40
 gplvm = GPLVM(oil_matrix[1:n_data,:], ndim)
 
 #  # takes a while
-chain = sample(gplvm, NUTS(), 500)
-z_mean = permutedims(reshape(mean(group(chain, :Z))[:,2], (ndim, n_data)))'
-#  z_mean = reshape(mean(group(chain, :Z))[:,2], (n_data, ndim))'
-alpha_mean = mean(group(chain, :α))[:,2]
+#  chain = sample(gplvm, HMC(0.05, 10), 300)
+#  z_mean = permutedims(reshape(mean(group(chain, :Z))[:,2], (ndim, n_data)))'
+#  alpha_mean = mean(group(chain, :α))[:,2]
+#  #
+#  df_gplvm = DataFrame(z_mean', :auto)
+#  rename!(df_gplvm, Symbol.( ["z"*string(i) for i in collect(1:ndim)]))
+#  df_gplvm[!,:sample] = 1:n_data
+#  df_gplvm[!,:labels] = labels[1:n_data]
+#  df_gplvm|>  @vlplot(:point, x=:z1, y=:z2, color="labels:n")
+#  #
+#  alpha_indices = sortperm(alpha_mean, rev=true)[1:2]
+#  df_gplvm[!,:ard1] = z_mean[alpha_indices[1], :]
+#  df_gplvm[!,:ard2] = z_mean[alpha_indices[2], :]
+#  df_gplvm |>  @vlplot(:point, x=:ard1, y=:ard2, color="labels:n")
 
-df_gplvm = DataFrame(z_mean', :auto)
-rename!(df_gplvm, Symbol.( ["z"*string(i) for i in collect(1:ndim)]))
-df_gplvm[!,:sample] = 1:n_data
-df_gplvm[!,:labels] = labels[1:n_data]
-df_gplvm|>  @vlplot(:point, x=:z1, y=:z2, color="labels:n")
-
-alpha_indices = sortperm(alpha_mean)[1:2]
-df_gplvm[!,:ard1] = z_mean[alpha_indices[1], :]
-df_gplvm[!,:ard2] = z_mean[alpha_indices[2], :]
-df_gplvm |>  @vlplot(:point, x=:ard1, y=:ard2, color="labels:n")
-
-#  advi = ADVI(10, 1000)
-#  q = vi(gplvm, advi);
+advi = ADVI(10, 1000)
+q = vi(gplvm, advi);
 
 #  z_post = rand(q, 10000);
-
+#
 #  #  awkward way to extract variables
 #  _, sym2range = bijector(gplvm, Val(true));
 #  sym2range
-#
+#  #
 #  α_mean = mean(z_post[union(sym2range[:α]...),:], dims=2)
-#
+#  #
 #  Z_mean = reshape(mean(z_post[union(sym2range[:Z]...),:], dims=2), n_data, :)
-#
+#  #
 #  df_in = DataFrame(oil_matrix[1:n_data,:], :auto)
 #  df_in[!,:sample] = 1:n_data
 #  df_in[!,:labels] = labels[1:n_data]
 #  df_latent = DataFrames.DataFrame(Z_mean, ["z" * string(i) for i in 1:size(Z_mean)[2]])
 #  df_oil = hcat(df_in, df_latent)
-#
+#  #
 #  alpha_indices = sortperm(α_mean[:,1])[1:2]
 #  p1 = df_oil |>  @vlplot(:point, x="z"*string(alpha_indices[1]), y="z"*string(alpha_indices[2]), color="labels:n")
-#
+#  #
 #  p2 = df_oil |>  @vlplot(:point, x="z1", y="z2", color="labels:n")#, shape=:batch)
 #  p1
 #  p2

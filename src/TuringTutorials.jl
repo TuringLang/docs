@@ -1,7 +1,6 @@
 module TuringTutorials
 
 import IOCapture
-import Tectonic
 
 using IJulia
 using InteractiveUtils
@@ -10,9 +9,9 @@ using Plots
 using Requires
 using Weave
 
-export build_all
+export build_folder, build_all
 
-# Not using PDF currently, because it is fragile.
+# Not using PDF, because it is fragile.
 default_build_list = (:script, :html, :github, :notebook)
 
 repo_directory = pkgdir(TuringTutorials)
@@ -61,13 +60,10 @@ function weave_file(
         isdir(dir) || mkpath(dir)
         args[:doctype] = "pdf"
         try
-            Tectonic.tectonic() do tectonic_bin
-                latex_cmd = [tectonic_bin]
-                weave(
-                    tmp, doctype="md2pdf", out_path=dir, args=args;
-                    template=latexfile, latex_cmd, kwargs...
-                )
-            end
+            weave(
+                tmp, doctype="md2pdf", out_path=dir, args=args;
+                template=latexfile, latex_cmd, kwargs...
+            )
         catch ex
             @warn "PDF generation failed" exception=(ex, catch_backtrace())
         end
@@ -196,29 +192,46 @@ function error_occurred(log)
 end
 
 """
-    build_folder(folder; kwargs...)
+    build_folder(folder, build_list=default_build_list)
 
-It seems that Weave has no option to fail on error, so we have handle errors ourselves.
+It seems that Weave has no option to fail on error, so we handle errors ourselves.
 Also, this method only shows the necessary information in the CI logs.
 If something crashes, then show the logs immediately.
 If all goes well, then store the logs in a file, but don't show them.
 """
-function build_folder(folder, build_list; kwargs...)
-    println("Building $folder")
+function build_folder(folder, build_list=default_build_list)
+    println("Starting to build $folder")
+    cache = :all
     c = IOCapture.capture() do
-        @timed weave_folder(folder, build_list; kwargs...)
+        @timed weave_folder(folder; cache)
     end
     stats = c.value
     gib = round(stats.bytes / 1024^3, digits=2)
     min = round(stats.time / 60, digits=2)
-    println("Building took $min minutes and allocated $gib GiB:")
+    println("Building of $folder took $min minutes and allocated $gib GiB:")
     log = c.output
     if error_occurred(log)
         @error "Error occured when building $folder:\n$log"
-    else
+    end
     path = joinpath(repo_directory, "tutorials", folder, "weave_folder.log")
     println("Writing log to $path")
     write(path, log)
+end
+
+"""
+    parallel_build(folders)
+
+Build `folders` in parallel inside new Julia instances.
+This has two benefits, namely that it ensures that globals are reset and reduces the
+running time.
+"""
+function parallel_build(folders)
+    # The static schedule creates one task per thread.
+    Threads.@threads :static for folder in folders
+        ex = """using TuringTutorials; build_folder("$folder")"""
+        cmd = `$(Base.julia_cmd()) --project -e $ex`
+        run(cmd)
+    end
 end
 
 """
@@ -228,19 +241,12 @@ Build all outputs. This method is used in the CI job.
 Set `debug` to `true` to debug the CI deployment.
 """
 function build_all(; debug=false)
-    Sys.cpu_summary()
     clean_cache()
-    cache = :all
     if debug
-        build_list = (:script, :html)
         folders = ["00-introduction", "02-logistic-regression"]
-        for folder in folders
-            build_folder(folder, build_list; cache)
-        end
+        parallel_build(folders)
     else
-        for folder in tutorials()
-            build_folder(folder, default_build_list; cache)
-        end
+        parallel_build(tutorials())
     end
 end
 

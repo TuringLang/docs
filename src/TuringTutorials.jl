@@ -200,7 +200,7 @@ If something crashes, then show the logs immediately.
 If all goes well, then store the logs in a file, but don't show them.
 """
 function build_folder(folder, build_list=default_build_list)
-    println("Starting to build $folder")
+    println("$folder: Starting build")
     cache = :all
     c = IOCapture.capture() do
         @timed weave_folder(folder; cache)
@@ -208,13 +208,13 @@ function build_folder(folder, build_list=default_build_list)
     stats = c.value
     gib = round(stats.bytes / 1024^3, digits=2)
     min = round(stats.time / 60, digits=2)
-    println("Building of $folder took $min minutes and allocated $gib GiB:")
+    println("$folder: Build took $min minutes and allocated $gib GiB:")
     log = c.output
     if error_occurred(log)
-        @error "Error occured when building $folder:\n$log"
+        @error "$folder: Error occured:\n$log"
     end
-    path = joinpath(repo_directory, "tutorials", folder, "weave_folder.log")
-    println("Writing log to $path")
+    path = joinpath(repo_directory, "tutorials", folder, "weave.log")
+    println("$folder: Writing log to $path")
     write(path, log)
 end
 

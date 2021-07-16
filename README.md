@@ -13,6 +13,16 @@ Be sure to pass only one output format, such as `(:html,)` when running the scri
 Otherwise, the model runs multiple times.
 Also, do not set `cache = :all`, because that would skip steps.
 
+### 00-introduction
+
+```
+julia> @time TuringTutorials.weave_folder("00-introduction", (:html,); cache=:off)
+```
+
+```
+98.789259 seconds (321.66 M allocations: 17.292 GiB, 4.68% gc time, 6.76% compilation time)
+```
+
 ### 01-gaussian-mixture-model
 
 ```

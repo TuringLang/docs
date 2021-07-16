@@ -1,6 +1,7 @@
 module TuringTutorials
 
 import IOCapture
+import Tectonic
 
 using IJulia
 using InteractiveUtils
@@ -59,10 +60,13 @@ function weave_file(
         isdir(dir) || mkpath(dir)
         args[:doctype] = "pdf"
         try
-            weave(
-                tmp, doctype="md2pdf", out_path=dir, args=args;
-                template=latexfile, kwargs...
-            )
+            Tectonic.tectonic() do tectonic_bin
+                latex_cmd = [tectonic_bin]
+                weave(
+                    tmp, doctype="md2pdf", out_path=dir, args=args;
+                    template=latexfile, latex_cmd, kwargs...
+                )
+            end
         catch ex
             @warn "PDF generation failed" exception=(ex, catch_backtrace())
         end
@@ -174,39 +178,45 @@ function clean_cache()
     for (root, dirs, files) in walkdir(pkgdir(TuringTutorials); onerror=x->())
         if "cache" in dirs
             cache_dir = joinpath(root, "cache")
-            try
-                rm(cache_dir; force=true, recursive=true)
-            catch
-                # I have no idea why this happens.
-            end
+            rm(cache_dir; force=true, recursive=true)
         end
     end
 end
 
-error_occurred(log) = contains(log, "ERROR") || contains(log, "┌ Warning")
+"""
+    error_occurred(log)
+
+Return `true` if an error occurred which is important enough to fail CI.
+"""
+function error_occurred(log)
+    weave_error = contains(log, "ERROR")
+end
 
 """
     build_folder(folder; kwargs...)
 
 It seems that Weave has no option to fail on error, so we have handle errors ourselves.
 Also, this method only shows the necessary information in the CI logs.
-If all goes well, then store the logs with the output and don't show them.
-If something crashes, then show the logs and terminate the build.
+If something crashes, then show the logs and exit the build immediately.
+If all goes well, then store the logs in a file, but don't show them.
 """
 function build_folder(folder; kwargs...)
-    println(Sys.cpu_summary())
+    Sys.cpu_summary()
     println("Building $folder")
     c = IOCapture.capture() do
         @timed weave_folder(folder; kwargs...)
     end
     stats = c.value
-    println("Building of $folder took $(stats.time) seconds and allocated $(stats.bytes) bytes")
+    gb = round(stats.bytes / 1e9, digits=2)
+    min = round(stats.time / 60, digits=2)
+    println("Building took $min minutes and allocated $gb GB:")
     log = c.output
     if error_occurred(log)
         @error "Error occured when building $folder:\n$log"
         exit(1)
     else
         path = joinpath(repo_directory, "tutorials", folder, "weave_folder.log")
+        println("Writing log to $path")
         write(path, log)
     end
 end
@@ -215,7 +225,7 @@ end
     build_all(; debug=false)
 
 Build all outputs. This method is used in the CI job.
-Set `debug == true` to debug the CI deployment.
+Set `debug` to `true` to debug the CI deployment.
 """
 function build_all(; debug=false)
     clean_cache()

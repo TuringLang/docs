@@ -171,7 +171,7 @@ Manually clean cache just to be sure.
 Otherwise, cache files committed to the repo could break the build.
 """
 function clean_cache()
-    for (root, dirs, files) in walkdir(pkgdir(TuringTutorials))
+    for (root, dirs, files) in walkdir(pkgdir(TuringTutorials); onerror=x->())
         if "cache" in dirs
             cache_dir = joinpath(root, "cache")
             try

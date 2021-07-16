@@ -12,9 +12,10 @@ using Weave
 
 export build_all
 
-default_build_list = (:script, :html, :pdf, :github, :notebook)
+# Disabled PDF for now since it is very fragile.
+default_build_list = (:script, :html, :github, :notebook)
 
-repo_directory = joinpath(@__DIR__, "..")
+repo_directory = pkgdir(TuringTutorials)
 cssfile = joinpath(@__DIR__, "..", "templates", "skeleton_css.css")
 latexfile = joinpath(@__DIR__, "..", "templates", "julia_tex.tpl")
 
@@ -207,9 +208,9 @@ function build_folder(folder; kwargs...)
         @timed weave_folder(folder; kwargs...)
     end
     stats = c.value
-    gb = round(stats.bytes / 1e9, digits=2)
+    gib = round(stats.bytes / 1024^3, digits=2)
     min = round(stats.time / 60, digits=2)
-    println("Building took $min minutes and allocated $gb GB:")
+    println("Building took $min minutes and allocated $gib GiB:")
     log = c.output
     if error_occurred(log)
         @error "Error occured when building $folder:\n$log"

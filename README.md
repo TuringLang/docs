@@ -72,13 +72,14 @@ I've compared the plots in the pdf output and this change doesn't affect the out
 ### 03-bayesian-neural-network
 
 ```
-@time TuringTutorials.weave_folder("03-bayesian-neural-network")
+@time TuringTutorials.weave_folder("03-bayesian-neural-network", (:html,); cache=:off)
 ```
 
-With for loop:
+The runtimes below are taken after doing a warmup run.
+Original:
 
 ```
-893.968247 seconds (1.64 G allocations: 100.389 GiB, 2.09% gc time, 0.97% compilation time)
+544.789575 seconds (1.10 G allocations: 67.766 GiB, 2.65% gc time, 1.27% compilation time)
 ```
 
 With broadcasting:

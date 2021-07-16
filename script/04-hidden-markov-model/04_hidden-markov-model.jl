@@ -1,20 +1,20 @@
 
 # Load libraries.
-using Turing, Plots, Random
+using Turing, StatsPlots, Random
 
 # Turn off progress monitor.
 Turing.setprogress!(false);
 
 # Set a random seed and use the forward_diff AD mode.
-Random.seed!(1234);
+Random.seed!(12345678);
 
 
 # Define the emission parameter.
-y = [ 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0, 2.0, 2.0, 2.0, 1.0, 1.0 ];
+y = [ 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 2.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
 N = length(y);  K = 3;
 
 # Plot the data we just made.
-plot(y, xlim = (0,15), ylim = (-1,5), size = (500, 250))
+plot(y, xlim = (0,30), ylim = (-1,5), size = (500, 250))
 
 
 # Turing model definition.
@@ -50,52 +50,46 @@ plot(y, xlim = (0,15), ylim = (-1,5), size = (500, 250))
 end;
 
 
-g = Gibbs(HMC(0.001, 7, :m, :T), PG(20, :s))
-c = sample(BayesHmm(y, 3), g, 100);
+g = Gibbs(HMC(0.01, 50, :m, :T), PG(120, :s))
+chn = sample(BayesHmm(y, 3), g, 1000);
 
 
-# Import StatsPlots for animating purposes.
-using StatsPlots
 
 # Extract our m and s parameters from the chain.
-m_set = MCMCChains.group(c, :m).value
-s_set = MCMCChains.group(c, :s).value
+m_set = MCMCChains.group(chn, :m).value
+s_set = MCMCChains.group(chn, :s).value
 
 # Iterate through the MCMC samples.
-Ns = 1:length(c)
+Ns = 1:length(chn)
 
 # Make an animation.
 animation = @gif for i in Ns
-    m = m_set[i, :]; 
+    m = m_set[i, :];
     s = Int.(s_set[i,:]);
     emissions = m[s]
-    
-    p = plot(y, c = :red,
+
+    p = plot(y, chn = :red,
         size = (500, 250),
         xlabel = "Time",
         ylabel = "State",
         legend = :topright, label = "True data",
-        xlim = (0,15),
+        xlim = (0,30),
         ylim = (-1,5));
-    plot!(emissions, color = :blue, label = "Sample $N")
-end every 10
+    plot!(emissions, color = :blue, label = "Sample $i")
+end every 3
 
 
 # Index the chain with the persistence probabilities.
-subchain = MCMCChains.group(c, :T)
+subchain = chn[["T[1][1]", "T[2][2]", "T[3][3]"]]
 
-# TODO: This doesn't work anymore. Note sure what it was originally doing
-# Plot the chain.
-plot(
-    subchain, 
-    colordim = :parameter, 
-    seriestype=:traceplot,
-    title = "Persistence Probability",
-    legend=:right
-)
+plot(subchain,
+     seriestype = :traceplot,
+     title = "Persistence Probability",
+     legend=false)
 
 
-heideldiag(MCMCChains.group(c, :T))
+
+heideldiag(MCMCChains.group(chn, :T))[1]
 
 
 if isdefined(Main, :TuringTutorials)

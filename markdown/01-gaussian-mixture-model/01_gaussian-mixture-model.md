@@ -48,7 +48,7 @@ $$
 $$
 After having constructed all the necessary model parameters, we can generate an observation by first selecting one of the clusters and then drawing the datum accordingly, i.e.
 $$
-    z_i \sim \mathrm{Categorical}(w) \, , \;  \forall i \\\\
+    z_i \sim \mathrm{Categorical}(w) \, , \;  \forall i \\
     x_i \sim \mathrm{Normal}(\mu_{z_i}, 1.) \, , \;  \forall i
 $$
 
@@ -65,32 +65,30 @@ Turing.setprogress!(false);
 
 ```julia
 @model GaussianMixtureModel(x) = begin
-    
+
     D, N = size(x)
 
     # Draw the parameters for cluster 1.
     μ1 ~ Normal()
-    
+
     # Draw the parameters for cluster 2.
     μ2 ~ Normal()
-    
+
     μ = [μ1, μ2]
-    
-    # Uncomment the following lines to draw the weights for the K clusters 
+
+    # Uncomment the following lines to draw the weights for the K clusters
     # from a Dirichlet distribution.
-    
+
     # α = 1.0
-    # w ~ Dirichlet(2, α)
-    
+    # w ~ Dirichlet(2, α)
+
     # Comment out this line if you instead want to draw the weights.
     w = [0.5, 0.5]
-    
+
     # Draw assignments for each datum and generate it from a multivariate normal.
-    k = Vector{Int}(undef, N)
-    for i in 1:N
-        k[i] ~ Categorical(w)
-        x[:,i] ~ MvNormal([μ[k[i]], μ[k[i]]], 1.)
-    end
+    k ~ Categorical.(w)
+    v = [x[:, i] for i in 1:N]
+    v ~ MvNormal.([μ[k], μ[k]], 1.0)
     return k
 end
 ```
@@ -123,6 +121,12 @@ gmm_sampler = Gibbs(PG(100, :k), HMC(0.05, 10, :μ1, :μ2))
 tchain = mapreduce(c -> sample(gmm_model, gmm_sampler, 100), chainscat, 1:3);
 ```
 
+```
+Error: ArgumentError: Categorical: the condition isprobvec(p) is not satisf
+ied.
+```
+
+
 
 
 
@@ -138,7 +142,11 @@ ids = findall(map(name -> occursin("μ", string(name)), names(tchain)));
 p=plot(tchain[:, ids, :], legend=true, labels = ["Mu 1" "Mu 2"], colordim=:parameter)
 ```
 
-![](figures/01_gaussian-mixture-model_6_1.png)
+```
+Error: UndefVarError: tchain not defined
+```
+
+
 
 
 
@@ -150,6 +158,11 @@ For the moment, we will just use the first chain to ensure the validity of our i
 ```julia
 tchain = tchain[:, :, 1];
 ```
+
+```
+Error: UndefVarError: tchain not defined
+```
+
 
 
 
@@ -181,7 +194,11 @@ contour(range(-5, stop = 3), range(-6, stop = 2),
 scatter!(x[1,:], x[2,:], legend = false, title = "Synthetic Dataset")
 ```
 
-![](figures/01_gaussian-mixture-model_9_1.png)
+```
+Error: UndefVarError: tchain not defined
+```
+
+
 
 
 
@@ -199,7 +216,11 @@ scatter(x[1,:], x[2,:],
     zcolor = assignments)
 ```
 
-![](figures/01_gaussian-mixture-model_10_1.png)
+```
+Error: UndefVarError: tchain not defined
+```
+
+
 
 
 ## Appendix

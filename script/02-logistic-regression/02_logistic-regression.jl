@@ -71,10 +71,8 @@ test_label = testset[:, target];
     balance ~ Normal(0, σ)
     income  ~ Normal(0, σ)
 
-    for i = 1:n
-        v = logistic(intercept + student*x[i, 1] + balance*x[i,2] + income*x[i,3])
-        y[i] ~ Bernoulli(v)
-    end
+    rhs = intercept + student*x[:,1] + balance*x[:,2] + income*x[:,3]
+    y .~ BernoulliLogit.(rhs)
 end;
 
 

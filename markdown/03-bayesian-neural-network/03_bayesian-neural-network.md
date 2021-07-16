@@ -5,7 +5,7 @@ permalink: "/:collection/:name/"
 ---
 
 
-In this tutorial, we demonstrate how one can implement a Bayesian Neural Network using a combination of Turing and [Flux](https://github.com/FluxML/Flux.jl), a suite of tools machine learning. We will use Flux to specify the neural network's layers and Turing to implement the probabalistic inference, with the goal of implementing a classification algorithm.
+In this tutorial, we demonstrate how one can implement a Bayesian Neural Network using a combination of Turing and [Flux](https://github.com/FluxML/Flux.jl), a suite of tools machine learning. We will use Flux to specify the neural network's layers and Turing to implement the probabilistic inference, with the goal of implementing a classification algorithm.
 
 We will begin with importing the relevant libraries.
 
@@ -87,13 +87,13 @@ The end of this tutorial provides some code that can be used to generate more ge
 ```julia
 # Turn a vector into a set of weights and biases.
 function unpack(nn_params::AbstractVector)
-    W₁ = reshape(nn_params[1:6], 3, 2);   
+    W₁ = reshape(nn_params[1:6], 3, 2);
     b₁ = nn_params[7:9]
-    
-    W₂ = reshape(nn_params[10:15], 2, 3); 
+
+    W₂ = reshape(nn_params[10:15], 2, 3);
     b₂ = nn_params[16:17]
-    
-    Wₒ = reshape(nn_params[18:19], 1, 2); 
+
+    Wₒ = reshape(nn_params[18:19], 1, 2);
     bₒ = nn_params[20:20]
     return W₁, b₁, W₂, b₂, Wₒ, bₒ
 end
@@ -111,7 +111,7 @@ end;
 
 
 
-The probabalistic model specification below creates a `params` variable, which has 20 normally distributed variables. Each entry in the `params` vector represents weights and biases of our neural net.
+The probabilistic model specification below creates a `params` variable, which has 20 normally distributed variables. Each entry in the `params` vector represents weights and biases of our neural net.
 
 
 ```julia
@@ -119,19 +119,17 @@ The probabalistic model specification below creates a `params` variable, which h
 alpha = 0.09
 sig = sqrt(1.0 / alpha)
 
-# Specify the probabalistic model.
+# Specify the probabilistic model.
 @model function bayes_nn(xs, ts)
     # Create the weight and bias vector.
     nn_params ~ MvNormal(zeros(20), sig .* ones(20))
-    
+
     # Calculate predictions for the inputs given the weights
     # and biases in theta.
     preds = nn_forward(xs, nn_params)
-    
+
     # Observe each prediction.
-    for i = 1:length(ts)
-        ts[i] ~ Bernoulli(preds[i])
-    end
+    ts .~ Bernoulli.(preds)
 end;
 ```
 
@@ -236,7 +234,14 @@ anim = @gif for i=1:n_end
 end every 5
 ```
 
-![](figures/03_bayesian-neural-network_10_1.gif)
+```
+Error: IOError: could not spawn `/home/rik/.julia/artifacts/7f40eeb66d90d30
+26ae5fb68761c263b57adb840/bin/ffmpeg -v 16 -i /tmp/jl_d93YtI/%06d.png -vf p
+alettegen=stats_mode=diff -y /tmp/jl_d93YtI/palette.bmp`: no such file or d
+irectory (ENOENT)
+```
+
+
 
 
 
@@ -263,6 +268,28 @@ advi = ADVI(10, 5_000)
 q_hat = vi(m, advi, q);
 ```
 
+```
+Error: MethodError: no method matching dot_tilde_observe(::DynamicPPL.MiniB
+atchContext{DynamicPPL.DefaultContext, Float64}, ::DynamicPPL.SampleFromPri
+or, ::Matrix{Distributions.Bernoulli{Float64}}, ::Vector{Float64}, ::Dynami
+cPPL.ThreadSafeVarInfo{DynamicPPL.UntypedVarInfo{DynamicPPL.Metadata{Dict{A
+bstractPPL.VarName, Int64}, Vector{Distributions.Distribution}, Vector{Abst
+ractPPL.VarName}, Vector{Real}, Vector{Set{DynamicPPL.Selector}}}, Float64}
+, Vector{Base.RefValue{Float64}}})
+Closest candidates are:
+  dot_tilde_observe(!Matched::DynamicPPL.PriorContext, ::Any, ::Any, ::Any,
+ ::Any) at /home/rik/.julia/packages/DynamicPPL/h8FWT/src/context_implement
+ations.jl:596
+  dot_tilde_observe(!Matched::DynamicPPL.LikelihoodContext, ::Any, ::Any, :
+:Any, ::Any) at /home/rik/.julia/packages/DynamicPPL/h8FWT/src/context_impl
+ementations.jl:600
+  dot_tilde_observe(::DynamicPPL.MiniBatchContext, ::Any, ::Any, ::Any) at 
+/home/rik/.julia/packages/DynamicPPL/h8FWT/src/context_implementations.jl:6
+05
+  ...
+```
+
+
 
 ```julia
 samples = transpose(rand(q_hat, 5000))
@@ -271,6 +298,11 @@ ch_vi = Chains(reshape(samples, size(samples)..., 1), string.(MCMCChains.namesin
 # Extract all weight and bias parameters.
 theta = MCMCChains.group(ch_vi, :nn_params).value;
 ```
+
+```
+Error: UndefVarError: q_hat not defined
+```
+
 
 
 ```julia
@@ -385,35 +417,34 @@ This has been an introduction to the applications of Turing and Flux in defining
 To locally run this tutorial, do the following commands:
 ```julia, eval = false
 using TuringTutorials
-TuringTutorials.weave_file("03-bayesian-neural-network/", "03_bayesian-neural-network.jmd")
+TuringTutorials.weave_file("03-bayesian-neural-network", "03_bayesian-neural-network.jmd")
 ```
 
 Computer Information:
 ```
-Julia Version 1.5.3
-Commit 788b2c77c1 (2020-11-09 13:37 UTC)
+Julia Version 1.6.1
+Commit 6aaedecc44 (2021-04-23 05:59 UTC)
 Platform Info:
   OS: Linux (x86_64-pc-linux-gnu)
-  CPU: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
+  CPU: Intel(R) Core(TM) i5-8259U CPU @ 2.30GHz
   WORD_SIZE: 64
   LIBM: libopenlibm
-  LLVM: libLLVM-9.0.1 (ORCJIT, skylake)
+  LLVM: libLLVM-11.0.1 (ORCJIT, skylake)
 Environment:
-  JULIA_CMDSTAN_HOME = /home/cameron/stan/
-  JULIA_NUM_THREADS = 16
+  JULIA_NUM_THREADS = 8
 
 ```
 
 Package Information:
 
 ```
-Status `~/.julia/dev/TuringTutorials/tutorials/03-bayesian-neural-network/Project.toml`
-  [b5ca4192] AdvancedVI v0.1.2
-  [76274a88] Bijectors v0.9.1
-  [587475ba] Flux v0.12.1
-  [91a5bcdd] Plots v1.12.0
-  [37e2e3b7] ReverseDiff v1.8.0
-  [fce5fe82] Turing v0.15.18
+      Status `~/git/TuringTutorials/tutorials/03-bayesian-neural-network/Project.toml`
+  [b5ca4192] AdvancedVI v0.1.3
+  [76274a88] Bijectors v0.9.7
+  [587475ba] Flux v0.12.4
+  [91a5bcdd] Plots v1.19.1
+  [37e2e3b7] ReverseDiff v1.9.0
+  [fce5fe82] Turing v0.16.5
   [9a3f8284] Random
 
 ```

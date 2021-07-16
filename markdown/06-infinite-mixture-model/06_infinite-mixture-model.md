@@ -28,11 +28,11 @@ The generative process of such a model can be written as:
 
 \begin{equation*}
 \begin{aligned}
-\pi_1 &\sim \mathrm{Beta}(a, b) \\\\
-\pi_2 &= 1-\pi_1 \\\\
-\mu_1 &\sim \mathrm{Normal}(\mu_0, \Sigma_0) \\\\
-\mu_2 &\sim \mathrm{Normal}(\mu_0, \Sigma_0) \\\\
-z_i &\sim \mathrm{Categorical}(\pi_1, \pi_2) \\\\
+\pi_1 &\sim \mathrm{Beta}(a, b) \\
+\pi_2 &= 1-\pi_1 \\
+\mu_1 &\sim \mathrm{Normal}(\mu_0, \Sigma_0) \\
+\mu_2 &\sim \mathrm{Normal}(\mu_0, \Sigma_0) \\
+z_i &\sim \mathrm{Categorical}(\pi_1, \pi_2) \\
 x_i &\sim \mathrm{Normal}(\mu_{z_i}, \Sigma)
 \end{aligned}
 \end{equation*}
@@ -81,9 +81,9 @@ If we have more than two components, this model can elegantly be extend using a 
 
 $$
 \begin{align}
-(\pi_1, \dots, \pi_K) &\sim Dirichlet(K, \alpha) \\\\
-\mu_k &\sim \mathrm{Normal}(\mu_0, \Sigma_0), \;\; \forall k \\\\
-z &\sim Categorical(\pi_1, \dots, \pi_K) \\\\
+(\pi_1, \dots, \pi_K) &\sim Dirichlet(K, \alpha) \\
+\mu_k &\sim \mathrm{Normal}(\mu_0, \Sigma_0), \;\; \forall k \\
+z &\sim Categorical(\pi_1, \dots, \pi_K) \\
 x &\sim \mathrm{Normal}(\mu_z, \Sigma) 
 \end{align}
 $$
@@ -169,7 +169,14 @@ using Plots
 end
 ```
 
-![](figures/06_infinite-mixture-model_5_1.gif)
+```
+Error: IOError: could not spawn `/home/rik/.julia/artifacts/7f40eeb66d90d30
+26ae5fb68761c263b57adb840/bin/ffmpeg -v 16 -i /tmp/jl_8t6GeC/%06d.png -vf p
+alettegen=stats_mode=diff -y /tmp/jl_8t6GeC/palette.bmp`: no such file or d
+irectory (ENOENT)
+```
+
+
 
 
 
@@ -190,28 +197,28 @@ In Turing we can implement an infinite Gaussian mixture model using the Chinese 
     α = 1.0
     μ0 = 0.0
     σ0 = 1.0
-    
+
     # Define random measure, e.g. Dirichlet process.
     rpm = DirichletProcess(α)
-    
+
     # Define the base distribution, i.e. expected value of the Dirichlet process.
     H = Normal(μ0, σ0)
-    
+
     # Latent assignment.
     z = tzeros(Int, length(x))
-        
+
     # Locations of the infinitely many clusters.
     μ = tzeros(Float64, 0)
-    
+
     for i in 1:length(x)
-        
+
         # Number of clusters.
         K = maximum(z)
         nk = Vector{Int}(map(k -> sum(z .== k), 1:K))
 
         # Draw the latent assignment.
         z[i] ~ ChineseRestaurantProcess(rpm, nk)
-        
+
         # Create a new cluster?
         if z[i] > K
             push!(μ, 0.0)
@@ -219,7 +226,7 @@ In Turing we can implement an infinite Gaussian mixture model using the Chinese 
             # Draw location of new cluster.
             μ[z[i]] ~ H
         end
-                
+
         # Draw observation.
         x[i] ~ Normal(μ[z[i]], 1.0)
     end
@@ -308,7 +315,7 @@ $$
 Chinese Restaurant Process
 $$
 p(z_n = k | z_{1:n-1}) \propto \begin{cases} 
-        \frac{m_k}{n-1+\alpha}, \text{ if } m_k > 0\\\\\
+        \frac{m_k}{n-1+\alpha}, \text{ if } m_k > 0\\\
         \frac{\alpha}{n-1+\alpha}
     \end{cases}
 $$
@@ -327,26 +334,25 @@ TuringTutorials.weave_file("06-infinite-mixture-model", "06_infinite-mixture-mod
 
 Computer Information:
 ```
-Julia Version 1.5.3
-Commit 788b2c77c1 (2020-11-09 13:37 UTC)
+Julia Version 1.6.1
+Commit 6aaedecc44 (2021-04-23 05:59 UTC)
 Platform Info:
   OS: Linux (x86_64-pc-linux-gnu)
-  CPU: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
+  CPU: Intel(R) Core(TM) i5-8259U CPU @ 2.30GHz
   WORD_SIZE: 64
   LIBM: libopenlibm
-  LLVM: libLLVM-9.0.1 (ORCJIT, skylake)
+  LLVM: libLLVM-11.0.1 (ORCJIT, skylake)
 Environment:
-  JULIA_CMDSTAN_HOME = /home/cameron/stan/
-  JULIA_NUM_THREADS = 16
+  JULIA_NUM_THREADS = 8
 
 ```
 
 Package Information:
 
 ```
-Status `~/.julia/dev/TuringTutorials/tutorials/06-infinite-mixture-model/Project.toml`
-  [91a5bcdd] Plots v1.12.0
-  [fce5fe82] Turing v0.15.18
+      Status `~/git/TuringTutorials/tutorials/06-infinite-mixture-model/Project.toml`
+  [91a5bcdd] Plots v1.19.1
+  [fce5fe82] Turing v0.16.5
   [9a3f8284] Random
 
 ```

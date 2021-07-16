@@ -45,13 +45,13 @@ plot_data()
 
 # Turn a vector into a set of weights and biases.
 function unpack(nn_params::AbstractVector)
-    W₁ = reshape(nn_params[1:6], 3, 2);   
+    W₁ = reshape(nn_params[1:6], 3, 2);
     b₁ = nn_params[7:9]
-    
-    W₂ = reshape(nn_params[10:15], 2, 3); 
+
+    W₂ = reshape(nn_params[10:15], 2, 3);
     b₂ = nn_params[16:17]
-    
-    Wₒ = reshape(nn_params[18:19], 1, 2); 
+
+    Wₒ = reshape(nn_params[18:19], 1, 2);
     bₒ = nn_params[20:20]
     return W₁, b₁, W₂, b₂, Wₒ, bₒ
 end
@@ -74,15 +74,13 @@ sig = sqrt(1.0 / alpha)
 @model function bayes_nn(xs, ts)
     # Create the weight and bias vector.
     nn_params ~ MvNormal(zeros(20), sig .* ones(20))
-    
+
     # Calculate predictions for the inputs given the weights
     # and biases in theta.
     preds = nn_forward(xs, nn_params)
-    
+
     # Observe each prediction.
-    for i = 1:length(ts)
-        ts[i] ~ Bernoulli(preds[i])
-    end
+    ts .~ Bernoulli.(preds)
 end;
 
 

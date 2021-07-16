@@ -1,35 +1,19 @@
 module TuringTutorials
 
-using Weave, Pkg, InteractiveUtils, IJulia
+import IOCapture
+
+using IJulia
+using InteractiveUtils
+using Pkg
+using Plots
+using Requires
+using Weave
 
 export build_all
 
-default_build_list = (:script ,:html, :github, :notebook)
+default_build_list = (:script, :html, :pdf, :github, :notebook)
 
-# HACK: So Weave.jl has a submodule `WeavePlots` which is loaded using Requires.jl if Plots.jl is available.
-# This means that if we want to overload methods in that submodule we need to wait until `Plots.jl` has been loaded.
-using Requires, Plots
-function __init__()
-    @require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" begin
-        # HACK
-        function Weave.WeavePlots.add_plots_figure(report::Weave.Report, plot::Plots.AnimatedGif, ext)
-            chunk = report.cur_chunk
-            full_name, rel_name = Weave.get_figname(report, chunk, ext = ext)
-
-            # A `AnimatedGif` has been saved somewhere temporarily, so make a copy to `full_name`.
-            cp(plot.filename, full_name; force = true)
-            push!(report.figures, rel_name)
-            report.fignum += 1
-            return full_name
-        end
-
-        function Base.display(report::Weave.Report, m::MIME"text/plain", plot::Plots.AnimatedGif)
-            Weave.WeavePlots.add_plots_figure(report, plot, ".gif")
-        end
-    end
-end
-
-repo_directory = joinpath(@__DIR__,"..")
+repo_directory = joinpath(@__DIR__, "..")
 cssfile = joinpath(@__DIR__, "..", "templates", "skeleton_css.css")
 latexfile = joinpath(@__DIR__, "..", "templates", "julia_tex.tpl")
 
@@ -39,7 +23,7 @@ function polish_latex(path::String)
     # will affect all of the markdown parsers, which is not necessarily desirable.
     txt = open(f -> read(f, String), path)
     open(path, "w+") do f
-        txt = replace(txt, "\\\\\n" => "\\\\\\\\\n")
+        txt = replace(txt, raw"\\\\\n" => "\\\\\\\\\n")
         write(f, txt)
     end
 end
@@ -100,16 +84,24 @@ function weave_file(
     end
 end
 
+"""
+    tutorials::Vector{String}
+
+Names of the tutorials; for example, "02-logistic-regression".
+"""
+function tutorials()::Vector{String}
+    dirs = readdir(joinpath(repo_directory, "tutorials"))
+    dirs = filter(!=("test.jmd"), dirs)
+end
+
 function weave_all(build_list=default_build_list; kwargs...)
-    for folder in readdir(joinpath(repo_directory,"tutorials"))
-        folder == "test.jmd" && continue
+    for tutorial in tutorials()
         weave_folder(folder, build_list; kwargs...)
     end
 end
 
 function weave_md(; kwargs...)
-    for folder in readdir(joinpath(repo_directory,"tutorials"))
-        folder == "test.jmd" && continue
+    for tutorial in tutorials()
         weave_folder(folder, (:github,); kwargs...)
     end
 end
@@ -118,14 +110,14 @@ function weave_folder(
     folder, build_list=default_build_list;
     ext = r"^\.[Jj]md", kwargs...
 )
-    for file in readdir(joinpath(repo_directory,"tutorials",folder))
+    for file in readdir(joinpath(repo_directory, "tutorials", folder))
         try
             # HACK: only weave (j)md files
             if occursin(ext, splitext(file)[2])
-                println("Building $(joinpath(folder,file))")
+                println("Building $(joinpath(folder, file))")
                 weave_file(folder, file, build_list; kwargs...)
             else
-                println("Skipping $(joinpath(folder,file))")
+                println("Skipping $(joinpath(folder, file))")
             end
         catch ex
             rethrow(ex)
@@ -173,19 +165,73 @@ function tutorial_footer(folder=nothing, file=nothing; remove_homedir=true)
 end
 
 """
+    clean_cache()
+
+Manually clean cache just to be sure.
+Otherwise, cache files committed to the repo could break the build.
+"""
+function clean_cache()
+    for (root, dirs, files) in walkdir(pkgdir(TuringTutorials))
+        if "cache" in dirs
+            cache_dir = joinpath(root, "cache")
+            try
+                rm(cache_dir; force=true, recursive=true)
+            catch
+                # I have no idea why this happens.
+            end
+        end
+    end
+end
+
+error_occurred(log) = contains(log, "ERROR") || contains(log, "┌ Warning")
+
+"""
+    build_folder(folder; kwargs...)
+
+It seems that Weave has no option to fail on error, so we have handle errors ourselves.
+Also, this method only shows the necessary information in the CI logs.
+If all goes well, then store the logs with the output and don't show them.
+If something crashes, then show the logs and terminate the build.
+"""
+function build_folder(folder; kwargs...)
+    println(Sys.cpu_summary())
+    println("Building $folder")
+    c = IOCapture.capture() do
+        @timed weave_folder(folder; kwargs...)
+    end
+    stats = c.value
+    println("Building of $folder took $(stats.time) seconds and allocated $(stats.bytes) bytes")
+    log = c.output
+    if error_occurred(log)
+        @error "Error occured when building $folder:\n$log"
+        exit(1)
+    else
+        path = joinpath(repo_directory, "tutorials", folder, "weave_folder.log")
+        write(path, log)
+    end
+end
+
+"""
     build_all(; debug=false)
 
 Build all outputs. This method is used in the CI job.
 Set `debug == true` to debug the CI deployment.
 """
 function build_all(; debug=false)
+    clean_cache()
     cache = :all
     if debug
         folder = "00-introduction"
-        weave_folder(folder, default_build_list; cache)
+        build_folder(folder; cache)
     else
-        weave_all(; cache)
+        for tutorial in tutorials()
+            build_folder(tutorial; cache)
+        end
     end
 end
 
+function __init__()
+    @require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("weaveplots.jl")
 end
+
+end # module

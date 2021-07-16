@@ -160,10 +160,8 @@ The `for` block creates a variable `v` which is the logistic function. We then o
     balance ~ Normal(0, σ)
     income  ~ Normal(0, σ)
 
-    for i = 1:n
-        v = logistic(intercept + student*x[i, 1] + balance*x[i,2] + income*x[i,3])
-        y[i] ~ Bernoulli(v)
-    end
+    rhs = intercept + student*x[:,1] + balance*x[:,2] + income*x[:,3]
+    y .~ BernoulliLogit.(rhs)
 end;
 ```
 
@@ -189,9 +187,16 @@ describe(chain)
 ```
 
 ```
-2-element Vector{MCMCChains.ChainDataFrame}:
- Summary Statistics (4 x 8)
- Quantiles (4 x 6)
+Error: MethodError: no method matching +(::Float64, ::Vector{Float64})
+For element-wise addition, use broadcasting with dot syntax: scalar .+ arra
+y
+Closest candidates are:
+  +(::Any, ::Any, !Matched::Any, !Matched::Any...) at operators.jl:560
+  +(::Union{Float16, Float32, Float64}, !Matched::BigFloat) at mpfr.jl:392
+  +(!Matched::Union{InitialValues.NonspecificInitialValue, InitialValues.Sp
+ecificInitialValue{typeof(+)}}, ::Any) at /home/rik/.julia/packages/Initial
+Values/EPz1F/src/InitialValues.jl:153
+  ...
 ```
 
 
@@ -205,7 +210,11 @@ Since we ran multiple chains, we may as well do a spot check to make sure each c
 plot(chain)
 ```
 
-![](figures/02_logistic-regression_7_1.png)
+```
+Error: UndefVarError: chain not defined
+```
+
+
 
 
 
@@ -222,7 +231,11 @@ l = [:student, :balance, :income]
 corner(chain, l)
 ```
 
-![](figures/02_logistic-regression_8_1.png)
+```
+Error: UndefVarError: chain not defined
+```
+
+
 
 
 
@@ -279,7 +292,7 @@ loss = sum((predictions - test_label).^2) / length(test_label)
 ```
 
 ```
-0.11642105263157895
+Error: UndefVarError: chain not defined
 ```
 
 
@@ -306,12 +319,7 @@ println("Not defaults: $not_defaults
 ```
 
 ```
-Defaults: 316.0
-    Predictions: 265
-    Percentage defaults correct 0.8386075949367089
-Not defaults: 9184.0
-    Predictions: 8129
-    Percentage non-defaults correct 0.8851263066202091
+Error: UndefVarError: predictions not defined
 ```
 
 

@@ -11,20 +11,16 @@ Let's load the libraries we'll need. We also set a random seed (for reproducibil
 
 ```julia
 # Load libraries.
-using Turing, Plots, Random
+using Turing, StatsPlots, Random
 
 # Turn off progress monitor.
 Turing.setprogress!(false);
 
 # Set a random seed and use the forward_diff AD mode.
-Random.seed!(1234);
+Random.seed!(12345678);
 ```
 
 
-
-
-    ┌ Info: [Turing]: progress logging is disabled globally
-    └ @ Turing /home/cameron/.julia/packages/Turing/cReBm/src/Turing.jl:22
 
 
 ## Simple State Detection
@@ -34,11 +30,11 @@ In this example, we'll use something where the states and emission parameters ar
 
 ```julia
 # Define the emission parameter.
-y = [ 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0, 2.0, 2.0, 2.0, 1.0, 1.0 ];
+y = [ 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 2.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
 N = length(y);  K = 3;
 
 # Plot the data we just made.
-plot(y, xlim = (0,15), ylim = (-1,5), size = (500, 250))
+plot(y, xlim = (0,30), ylim = (-1,5), size = (500, 250))
 ```
 
 ![](figures/04_hidden-markov-model_2_1.png)
@@ -105,14 +101,14 @@ We will use a combination of two samplers ([HMC](http://turing.ml/docs/library/#
 
 In this case, we use HMC for `m` and `T`, representing the emission and transition matrices respectively. We use the Particle Gibbs sampler for `s`, the state sequence. You may wonder why it is that we are not assigning `s` to the HMC sampler, and why it is that we need compositional Gibbs sampling at all.
 
-The parameter `s` is not a continuous variable. It is a vector of **integers**, and thus Hamiltonian methods like HMC and [NUTS](http://turing.ml/docs/library/#-turingnuts--type) won't work correctly. Gibbs allows us to apply the right tools to the best effect. If you are a particularly advanced user interested in higher performance, you may benefit from setting up your Gibbs sampler to use [different automatic differentiation](http://turing.ml/docs/autodiff/#compositional-sampling-with-differing-ad-modes) backends for each parameter space.
+The parameter `s` is not a continuous variable. It is a vector of **integers**, and thus Hamiltonian methods like HMC and [NUTS](http://turing.ml/docs/library/#-turingnuts--type) won't work correctly. Gibbs allows us to apply the right tools to the best effect. If you are a particularly advanced user interested in higher performance, you may benefit from setting up your Gibbs sampler to use [different automatic differentiation](http://turing.ml/stable/docs/autodiff/#compositional-sampling-with-differing-ad-modes) backends for each parameter space.
 
 Time to run our sampler.
 
 
 ```julia
-g = Gibbs(HMC(0.001, 7, :m, :T), PG(20, :s))
-c = sample(BayesHmm(y, 3), g, 100);
+g = Gibbs(HMC(0.01, 50, :m, :T), PG(120, :s))
+chn = sample(BayesHmm(y, 3), g, 1000);
 ```
 
 
@@ -124,34 +120,39 @@ The code below generates an animation showing the graph of the data above, and t
 
 
 ```julia
-# Import StatsPlots for animating purposes.
-using StatsPlots
 
 # Extract our m and s parameters from the chain.
-m_set = MCMCChains.group(c, :m).value
-s_set = MCMCChains.group(c, :s).value
+m_set = MCMCChains.group(chn, :m).value
+s_set = MCMCChains.group(chn, :s).value
 
 # Iterate through the MCMC samples.
-Ns = 1:length(c)
+Ns = 1:length(chn)
 
 # Make an animation.
 animation = @gif for i in Ns
-    m = m_set[i, :]; 
+    m = m_set[i, :];
     s = Int.(s_set[i,:]);
     emissions = m[s]
-    
-    p = plot(y, c = :red,
+
+    p = plot(y, chn = :red,
         size = (500, 250),
         xlabel = "Time",
         ylabel = "State",
         legend = :topright, label = "True data",
-        xlim = (0,15),
+        xlim = (0,30),
         ylim = (-1,5));
-    plot!(emissions, color = :blue, label = "Sample $N")
-end every 10
+    plot!(emissions, color = :blue, label = "Sample $i")
+end every 3
 ```
 
-![](figures/04_hidden-markov-model_5_1.gif)
+```
+Error: IOError: could not spawn `/home/rik/.julia/artifacts/7f40eeb66d90d30
+26ae5fb68761c263b57adb840/bin/ffmpeg -v 16 -i /tmp/jl_NDaGyL/%06d.png -vf p
+alettegen=stats_mode=diff -y /tmp/jl_NDaGyL/palette.bmp`: no such file or d
+irectory (ENOENT)
+```
+
+
 
 
 
@@ -160,42 +161,60 @@ Looks like our model did a pretty good job, but we should also check to make sur
 
 ```julia
 # Index the chain with the persistence probabilities.
-subchain = MCMCChains.group(c, :T)
+subchain = chn[["T[1][1]", "T[2][2]", "T[3][3]"]]
 
-# TODO: This doesn't work anymore. Note sure what it was originally doing
-# Plot the chain.
-plot(
-    subchain, 
-    colordim = :parameter, 
-    seriestype=:traceplot,
-    title = "Persistence Probability",
-    legend=:right
-)
+plot(subchain,
+     seriestype = :traceplot,
+     title = "Persistence Probability",
+     legend=false)
 ```
 
 ![](figures/04_hidden-markov-model_6_1.png)
 
 
 
-A cursory examination of the traceplot above indicates that at least `T[3,3]` and possibly `T[2,2]` have converged to something resembling stationary. `T[1,1]`, on the other hand, has a slight "wobble", and seems less consistent than the others. We can use the diagnostic functions provided by [MCMCChain](https://github.com/TuringLang/MCMCChain.jl) to engage in some formal tests, like the Heidelberg and Welch diagnostic:
+A cursory examination of the traceplot above indicates that all three chains converged to something resembling
+stationary. We can use the diagnostic functions provided by [MCMCChains](https://github.com/TuringLang/MCMCChains.jl) to engage in some more formal tests, like the Heidelberg and Welch diagnostic:
 
 ```julia
-heideldiag(MCMCChains.group(c, :T))
+
+heideldiag(MCMCChains.group(chn, :T))[1]
 ```
 
 ```
-1-element Array{MCMCChains.ChainDataFrame{NamedTuple{(:parameters, :burnin,
- :stationarity, :pvalue, :mean, :halfwidth, :test),Tuple{Array{Symbol,1},Ar
-ray{Float64,1},Array{Float64,1},Array{Float64,1},Array{Float64,1},Array{Flo
-at64,1},Array{Float64,1}}}},1}:
- Heidelberger and Welch Diagnostic - Chain 1 (9 x 7)
+Heidelberger and Welch Diagnostic - Chain 1
+  parameters     burnin   stationarity    pvalue      mean   halfwidth     
+ te ⋯
+      Symbol    Float64        Float64   Float64   Float64     Float64   Fl
+oat ⋯
+
+     T[1][1]     0.0000         1.0000    0.7671    0.8733      0.0167    1
+.00 ⋯
+     T[1][2]     0.0000         1.0000    0.3672    0.0390      0.0177    0
+.00 ⋯
+     T[1][3]     0.0000         1.0000    0.2198    0.0877      0.0186    0
+.00 ⋯
+     T[2][1]     0.0000         1.0000    0.4008    0.0665      0.0243    0
+.00 ⋯
+     T[2][2]     0.0000         1.0000    0.3236    0.7719      0.0347    1
+.00 ⋯
+     T[2][3]     0.0000         1.0000    0.7229    0.1616      0.0273    0
+.00 ⋯
+     T[3][1]     0.0000         1.0000    0.0912    0.1184      0.0293    0
+.00 ⋯
+     T[3][2]   100.0000         1.0000    0.5894    0.1034      0.0152    0
+.00 ⋯
+     T[3][3]     0.0000         1.0000    0.7599    0.7673      0.0305    1
+.00 ⋯
+                                                                1 column om
+itted
 ```
 
 
 
 
 
-The p-values on the test suggest that we cannot reject the hypothesis that the observed sequence comes from a stationary distribution, so we can be somewhat more confident that our transition matrix has converged to something reasonable.
+The p-values on the test suggest that we cannot reject the hypothesis that the observed sequence comes from a stationary distribution, so we can be reasonably confident that our transition matrix has converged to something reasonable.
 
 
 ## Appendix
@@ -209,27 +228,26 @@ TuringTutorials.weave_file("04-hidden-markov-model", "04_hidden-markov-model.jmd
 
 Computer Information:
 ```
-Julia Version 1.5.3
-Commit 788b2c77c1 (2020-11-09 13:37 UTC)
+Julia Version 1.6.1
+Commit 6aaedecc44 (2021-04-23 05:59 UTC)
 Platform Info:
   OS: Linux (x86_64-pc-linux-gnu)
-  CPU: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz
+  CPU: Intel(R) Core(TM) i5-8259U CPU @ 2.30GHz
   WORD_SIZE: 64
   LIBM: libopenlibm
-  LLVM: libLLVM-9.0.1 (ORCJIT, skylake)
+  LLVM: libLLVM-11.0.1 (ORCJIT, skylake)
 Environment:
-  JULIA_CMDSTAN_HOME = /home/cameron/stan/
-  JULIA_NUM_THREADS = 16
+  JULIA_NUM_THREADS = 8
 
 ```
 
 Package Information:
 
 ```
-Status `~/.julia/dev/TuringTutorials/tutorials/04-hidden-markov-model/Project.toml`
-  [91a5bcdd] Plots v1.12.0
-  [f3b207a7] StatsPlots v0.14.19
-  [fce5fe82] Turing v0.15.18
+      Status `~/git/TuringTutorials/tutorials/04-hidden-markov-model/Project.toml`
+  [91a5bcdd] Plots v1.19.1
+  [f3b207a7] StatsPlots v0.14.25
+  [fce5fe82] Turing v0.16.5
   [9a3f8284] Random
 
 ```

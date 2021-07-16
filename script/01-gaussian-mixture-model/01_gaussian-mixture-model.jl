@@ -24,32 +24,30 @@ Turing.setprogress!(false);
 
 
 @model GaussianMixtureModel(x) = begin
-    
+
     D, N = size(x)
 
     # Draw the parameters for cluster 1.
     μ1 ~ Normal()
-    
+
     # Draw the parameters for cluster 2.
     μ2 ~ Normal()
-    
+
     μ = [μ1, μ2]
-    
-    # Uncomment the following lines to draw the weights for the K clusters 
+
+    # Uncomment the following lines to draw the weights for the K clusters
     # from a Dirichlet distribution.
-    
+
     # α = 1.0
-    # w ~ Dirichlet(2, α)
-    
+    # w ~ Dirichlet(2, α)
+
     # Comment out this line if you instead want to draw the weights.
     w = [0.5, 0.5]
-    
+
     # Draw assignments for each datum and generate it from a multivariate normal.
-    k = Vector{Int}(undef, N)
-    for i in 1:N
-        k[i] ~ Categorical(w)
-        x[:,i] ~ MvNormal([μ[k[i]], μ[k[i]]], 1.)
-    end
+    k ~ Categorical.(w)
+    v = [x[:, i] for i in 1:N]
+    v ~ MvNormal.([μ[k], μ[k]], 1.0)
     return k
 end
 

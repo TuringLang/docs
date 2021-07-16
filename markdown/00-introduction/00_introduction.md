@@ -131,8 +131,8 @@ end
 
 ```
 Error: IOError: could not spawn `/home/rik/.julia/artifacts/7f40eeb66d90d30
-26ae5fb68761c263b57adb840/bin/ffmpeg -v 16 -i /tmp/jl_fBwSPJ/%06d.png -vf p
-alettegen=stats_mode=diff -y /tmp/jl_fBwSPJ/palette.bmp`: no such file or d
+26ae5fb68761c263b57adb840/bin/ffmpeg -v 16 -i /tmp/jl_E2xNnx/%06d.png -vf p
+alettegen=stats_mode=diff -y /tmp/jl_E2xNnx/palette.bmp`: no such file or d
 irectory (ENOENT)
 ```
 

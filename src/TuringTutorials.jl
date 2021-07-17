@@ -174,8 +174,9 @@ end
 """
     clean_cache()
 
-Manually clean cache just to be sure.
-Otherwise, cache files committed to the repo could break the build.
+On the one hand, we need `cache = :all` to have quick builds.
+On the other hand, we don't need cache files committed to the repo which break the build.
+Therefore, this method manually cleanes the cache just to be sure.
 """
 function clean_cache()
     for (root, dirs, files) in walkdir(pkgdir(TuringTutorials); onerror=x->())
@@ -199,6 +200,19 @@ end
 log_path(folder) = joinpath(repo_directory, "tutorials", folder, "weave.log")
 
 """
+    markdown_output(folder)
+
+Returns the Markdown output for a folder.
+The output seems to be the only place where Weave prints the full stacktrace.
+"""
+function markdown_output(folder)
+    file = replace(folder, '-' => '_'; count=1)
+    file = "$file.md"
+    path = joinpath(repo_directory, "markdown", folder, file)
+    read(path, String)
+end
+
+"""
     build_folder(folder, build_list=default_build_list)
 
 It seems that Weave has no option to fail on error, so we handle errors ourselves.
@@ -207,7 +221,7 @@ If something crashes, then show the logs immediately.
 If all goes well, then store the logs in a file, but don't show them.
 """
 function build_folder(folder, build_list=default_build_list)
-    println("$folder: Starting build")
+    println("$folder - Starting build")
     cache = :all
     c = IOCapture.capture() do
         @timed weave_folder(folder; cache)
@@ -215,13 +229,20 @@ function build_folder(folder, build_list=default_build_list)
     stats = c.value
     gib = round(stats.bytes / 1024^3, digits=2)
     min = round(stats.time / 60, digits=2)
-    println("$folder: Build took $min minutes and allocated $gib GiB:")
+    println("$folder - Build took $min minutes and allocated $gib GiB:")
     log = c.output
+    md_out = markdown_output(folder)
     if error_occurred(log)
-        @error "$folder: Error occured:\n$log"
+        @error """
+        $folder - Error occured:
+        $log
+
+        Markdown output (contains stacktrace):
+        $md_out
+        """
     end
     path = log_path(folder)
-    println("$folder: Writing log to $path")
+    println("$folder - Writing log to $path")
     write(path, log)
 end
 
@@ -241,6 +262,35 @@ function parallel_build(folders)
     end
 end
 
+function log_has_error(folder)::Bool
+    path = log_path(folder)
+    if isfile(path)
+        println("$folder - Verifying the log")
+        log = read(path, String)
+        has_error = error_occurred(log)
+        println("""$folder: Log contains $(has_error ? "an" : "no") error""")
+        return has_error
+    else
+        println("$folder - No file found to verify")
+        return false
+    end
+end
+
+"""
+    verify_logs()
+
+Exits with 1 if one of the log files contain errors.
+This method is used at the end of the CI in order to allow the CI to run all the tutorials.
+"""
+function verify_logs()
+    folders = tutorials()
+    outcomes = log_has_error.(folders)
+    if any(outcomes)
+        println("One of the logs contains an error. Exiting.")
+        exit(1)
+    end
+end
+
 """
     build_all(; debug=false)
 
@@ -255,37 +305,7 @@ function build_all(; debug=false)
     else
         parallel_build(tutorials())
     end
-end
-
-function log_has_error(folder)::Bool
-    path = log_path(folder)
-    if isfile(path)
-        println("$folder: Verifying the log")
-        log = read(path, String)
-        has_error = error_occurred(log)
-        optional_no = has_error ? "an" : "no"
-        println("$folder: Log contains $optional_no error")
-        return has_error
-    else
-        println("$folder: No file found to verify")
-        return false
-    end
-end
-
-"""
     verify_logs()
-
-Exits with 1 if one of the log files contain errors.
-This method is used at the end of the CI in order to allow the CI to first write artifacts.
-Then, these artifacts can be used to fix the problem.
-"""
-function verify_logs()
-    folders = tutorials()
-    outcomes = log_has_error.(folders)
-    if any(outcomes)
-        println("One of the logs contains an error. Exiting.")
-        exit(1)
-    end
 end
 
 end # module

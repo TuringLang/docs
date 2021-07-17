@@ -206,10 +206,18 @@ Returns the Markdown output for a folder.
 The output seems to be the only place where Weave prints the full stacktrace.
 """
 function markdown_output(folder)
-    file = replace(folder, '-' => '_'; count=1)
-    file = "$file.md"
-    path = joinpath(repo_directory, "markdown", folder, file)
-    read(path, String)
+    try
+        file = replace(folder, '-' => '_'; count=1)
+        file = "$file.md"
+        path = joinpath(repo_directory, "markdown", folder, file)
+        text = read(path, String)
+        """
+        Markdown output (contains stacktrace):
+        $text
+        """
+    catch
+        "$folder - Tried to read Markdown to get the stacktrace but failed"
+    end
 end
 
 """
@@ -237,7 +245,6 @@ function build_folder(folder, build_list=default_build_list)
         $folder - Error occured:
         $log
 
-        Markdown output (contains stacktrace):
         $md_out
         """
     end

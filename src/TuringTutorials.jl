@@ -11,12 +11,16 @@ using Weave
 
 export build_folder, build_all, verify_logs
 
-# Not using PDF, because it is fragile.
+# Not building PDF, because it is fragile. Maybe later.
 default_build_list = (:script, :html, :github, :notebook)
 
 repo_directory = pkgdir(TuringTutorials)
 cssfile = joinpath(@__DIR__, "..", "templates", "skeleton_css.css")
 latexfile = joinpath(@__DIR__, "..", "templates", "julia_tex.tpl")
+
+function __init__()
+    @require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("weaveplots.jl")
+end
 
 function polish_latex(path::String)
     # TODO: Is it maybe better to overload https://github.com/JunoLab/Weave.jl/blob/b5ba227e757520f389a6d6e0f2cacb731eab8b12/src/WeaveMarkdown/markdown.jl#L10-L17
@@ -253,8 +257,19 @@ function build_all(; debug=false)
     end
 end
 
-function __init__()
-    @require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("weaveplots.jl")
+function log_has_error(folder)::Bool
+    path = log_path(folder)
+    if isfile(path)
+        println("$folder: Verifying the log")
+        log = read(path, String)
+        has_error = error_occurred(log)
+        optional_no = has_error ? "an" : "no"
+        println("$folder: Log contains $optional_no error")
+        return has_error
+    else
+        println("$folder: No file found to verify")
+        return false
+    end
 end
 
 """
@@ -265,17 +280,11 @@ This method is used at the end of the CI in order to allow the CI to first write
 Then, these artifacts can be used to fix the problem.
 """
 function verify_logs()
-    for folder in tutorials()
-        path = log_path(folder)
-        if isfile(path)
-            println("$folder: Verifying the logs at $path")
-            log = read(path, String)
-            if error_occurred(log)
-                exit(1)
-            end
-        else
-            println("$folder: No file found to verify")
-        end
+    folders = tutorials()
+    outcomes = log_has_error.(folders)
+    if any(outcomes)
+        println("One of the logs contains an error. Exiting.")
+        exit(1)
     end
 end
 

@@ -9,6 +9,7 @@ In our example, we'll be working to predict whether someone is likely to default
 
 To start, let's import all the libraries we'll need.
 
+
 ```julia
 # Import Turing and Distributions.
 using Turing, Distributions
@@ -28,9 +29,6 @@ using MLDataUtils: shuffleobs, stratifiedobs, rescale!
 # Set a seed for reproducibility.
 using Random
 Random.seed!(0);
-
-# For extra speed.
-using LazyArrays
 
 # Turn off progress monitor.
 Turing.setprogress!(false)
@@ -92,8 +90,7 @@ train_label = trainset[:, target]
 test_label = testset[:, target];
 ```
 
-## Model Declaration
-
+## Model Declaration 
 Finally, we can define our model.
 
 `logistic_regression` takes four arguments:
@@ -105,12 +102,12 @@ Finally, we can define our model.
 
 Within the model, we create four coefficients (`intercept`, `student`, `balance`, and `income`) and assign a prior of normally distributed with means of zero and standard deviations of `σ`. We want to find values of these four coefficients to predict any given `y`.
 
-`logitp` defines our linear model.
-We then observe the likelihood of calculating `logitp` given the actual label `y`.
+The `for` block creates a variable `v` which is the logistic function. We then observe the liklihood of calculating `v` given the actual label, `y[i]`.
+
 
 ```julia
 # Bayesian logistic regression (LR)
-@model function logistic_regression(x, y, n, σ)
+@model logistic_regression(x, y, n, σ) = begin
     intercept ~ Normal(0, σ)
 
     student ~ Normal(0, σ)
@@ -128,22 +125,25 @@ end;
 
 Now we can run our sampler. This time we'll use [`HMC`](http://turing.ml/docs/library/#Turing.HMC) to sample from our posterior.
 
+
 ```julia
 # Retrieve the number of observations.
 n, _ = size(train)
 
-# Sample using HMC and 3 chains.
-model = logistic_regression(train, train_label, n, 1)
-chns = sample(model, HMC(0.05, 10), MCMCThreads(), 1_500, 3)
+# Sample using HMC.
+chain = mapreduce(c -> sample(logistic_regression(train, train_label, n, 1), HMC(0.05, 10), 1500),
+    chainscat,
+    1:3
+)
 
-describe(chns)
+describe(chain)
 ```
 
 Since we ran multiple chains, we may as well do a spot check to make sure each chain converges around similar points.
 
 
 ```julia
-plot(chns)
+plot(chain)
 ```
 
 Looks good!
@@ -156,7 +156,7 @@ We can also use the `corner` function from MCMCChains to show the distributions 
 l = [:student, :balance, :income]
 
 # Use the corner function. Requires StatsPlots and MCMCChains.
-corner(chns, l)
+corner(chain, l)
 ```
 
 Fortunately the corner plot appears to demonstrate unimodal distributions for each of our parameters, so it should be straightforward to take the means of each parameter's sampled values to estimate our model to make predictions.
@@ -169,11 +169,11 @@ The `prediction` function below takes a `Matrix` and a `Chain` object. It takes 
 
 ```julia
 function prediction(x::Matrix, chain, threshold)
-    # Pull the means from each parameter's sampled values in the chains.
-    intercept = mean(chns[:intercept])
-    student = mean(chns[:student])
-    balance = mean(chns[:balance])
-    income = mean(chns[:income])
+    # Pull the means from each parameter's sampled values in the chain.
+    intercept = mean(chain[:intercept])
+    student = mean(chain[:student])
+    balance = mean(chain[:balance])
+    income = mean(chain[:income])
 
     # Retrieve the number of rows.
     n, _ = size(x)
@@ -202,7 +202,7 @@ Let's see how we did! We run the test matrix through the prediction function, an
 threshold = 0.07
 
 # Make the predictions.
-predictions = prediction(test, chns, threshold)
+predictions = prediction(test, chain, threshold)
 
 # Calculate MSE for our test set.
 loss = sum((predictions - test_label).^2) / length(test_label)

@@ -28,7 +28,7 @@ function polish_latex(path::String)
     # will affect all of the markdown parsers, which is not necessarily desirable.
     txt = open(f -> read(f, String), path)
     open(path, "w+") do f
-        txt = replace(txt, raw"\\\\\n" => "\\\\\\\\\n")
+        txt = replace(txt, "\\\\\n" => "\\\\\\\\\n")
         write(f, txt)
     end
 end
@@ -66,7 +66,7 @@ function weave_file(
         try
             weave(
                 tmp, doctype="md2pdf", out_path=dir, args=args;
-                template=latexfile, latex_cmd, kwargs...
+                template=latexfile, kwargs...
             )
         catch ex
             @warn "PDF generation failed" exception=(ex, catch_backtrace())
@@ -92,7 +92,7 @@ end
 """
     tutorials::Vector{String}
 
-Names of the tutorials; for example, "02-logistic-regression".
+Return names of the tutorials.
 """
 function tutorials()::Vector{String}
     dirs = readdir(joinpath(repo_directory, "tutorials"))

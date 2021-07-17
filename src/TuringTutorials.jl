@@ -9,7 +9,7 @@ using Plots
 using Requires
 using Weave
 
-export build_folder, build_all
+export build_folder, build_all, verify_logs
 
 # Not using PDF, because it is fragile.
 default_build_list = (:script, :html, :github, :notebook)
@@ -185,11 +185,14 @@ end
 """
     error_occurred(log)
 
-Return `true` if an error occurred which is important enough to fail CI.
+Return `true` if an error occurred.
+It would be more stable if Weave would have a fail on error option or something similar.
 """
 function error_occurred(log)
     weave_error = contains(log, "ERROR")
 end
+
+log_path(folder) = joinpath(repo_directory, "tutorials", folder, "weave.log")
 
 """
     build_folder(folder, build_list=default_build_list)
@@ -213,7 +216,7 @@ function build_folder(folder, build_list=default_build_list)
     if error_occurred(log)
         @error "$folder: Error occured:\n$log"
     end
-    path = joinpath(repo_directory, "tutorials", folder, "weave.log")
+    log_path(folder)
     println("$folder: Writing log to $path")
     write(path, log)
 end
@@ -252,6 +255,28 @@ end
 
 function __init__()
     @require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("weaveplots.jl")
+end
+
+"""
+    verify_logs()
+
+Exits with 1 if one of the log files contain errors.
+This method is used at the end of the CI in order to allow the CI to first write artifacts.
+Then, these artifacts can be used to fix the problem.
+"""
+function verify_logs()
+    for folder in tutorials()
+        path = log_path(folder)
+        if isfile(path)
+            println("$folder: Verifying the logs at $path")
+            log = read(path, String)
+            if error_occurred(log)
+                exit(1)
+            end
+        else
+            println("$folder: No file found to verify")
+        end
+    end
 end
 
 end # module

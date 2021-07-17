@@ -1,33 +1,26 @@
 module TuringTutorials
 
-using Weave, Pkg, InteractiveUtils, IJulia
+import IOCapture
 
-# HACK: So Weave.jl has a submodule `WeavePlots` which is loaded using Requires.jl if Plots.jl is available.
-# This means that if we want to overload methods in that submodule we need to wait until `Plots.jl` has been loaded.
-using Requires, Plots
-function __init__()
-    @require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" begin
-        # HACK
-        function Weave.WeavePlots.add_plots_figure(report::Weave.Report, plot::Plots.AnimatedGif, ext)
-            chunk = report.cur_chunk
-            full_name, rel_name = Weave.get_figname(report, chunk, ext = ext)
+using IJulia
+using InteractiveUtils
+using Pkg
+using Plots
+using Requires
+using Weave
 
-            # A `AnimatedGif` has been saved somewhere temporarily, so make a copy to `full_name`.
-            cp(plot.filename, full_name; force = true)
-            push!(report.figures, rel_name)
-            report.fignum += 1
-            return full_name
-        end
+export build_folder, build_all, verify_logs
 
-        function Base.display(report::Weave.Report, m::MIME"text/plain", plot::Plots.AnimatedGif)
-            Weave.WeavePlots.add_plots_figure(report, plot, ".gif")
-        end
-    end
-end
+# Not building PDF, because it is fragile. Maybe later.
+default_build_list = (:script, :html, :github, :notebook)
 
-repo_directory = joinpath(@__DIR__,"..")
+repo_directory = pkgdir(TuringTutorials)
 cssfile = joinpath(@__DIR__, "..", "templates", "skeleton_css.css")
 latexfile = joinpath(@__DIR__, "..", "templates", "julia_tex.tpl")
+
+function __init__()
+    @require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("weaveplots.jl")
+end
 
 function polish_latex(path::String)
     # TODO: Is it maybe better to overload https://github.com/JunoLab/Weave.jl/blob/b5ba227e757520f389a6d6e0f2cacb731eab8b12/src/WeaveMarkdown/markdown.jl#L10-L17
@@ -41,7 +34,7 @@ function polish_latex(path::String)
 end
 
 function weave_file(
-    folder, file, build_list=(:script ,:html, :github, :notebook);
+    folder, file, build_list=default_build_list;
     kwargs...
 )
     tmp = joinpath(repo_directory,"tutorials",folder,file)
@@ -96,32 +89,42 @@ function weave_file(
     end
 end
 
-function weave_all(build_list=(:script,:html,:pdf,:github,:notebook); kwargs...)
-    for folder in readdir(joinpath(repo_directory,"tutorials"))
-        folder == "test.jmd" && continue
+"""
+    tutorials::Vector{String}
+
+Return names of the tutorials.
+"""
+function tutorials()::Vector{String}
+    dirs = readdir(joinpath(repo_directory, "tutorials"))
+    dirs = filter(!=("test.jmd"), dirs)
+    # This DiffEq one has to be done manually, because it takes about 12 hours.
+    dirs = filter(!=("10-bayesian-differential-equations"), dirs)
+end
+
+function weave_all(build_list=default_build_list; kwargs...)
+    for tutorial in tutorials()
         weave_folder(folder, build_list; kwargs...)
     end
 end
 
 function weave_md(; kwargs...)
-    for folder in readdir(joinpath(repo_directory,"tutorials"))
-        folder == "test.jmd" && continue
+    for tutorial in tutorials()
         weave_folder(folder, (:github,); kwargs...)
     end
 end
 
 function weave_folder(
-    folder, build_list=(:script,:html,:pdf,:github,:notebook);
+    folder, build_list=default_build_list;
     ext = r"^\.[Jj]md", kwargs...
 )
-    for file in readdir(joinpath(repo_directory,"tutorials",folder))
+    for file in readdir(joinpath(repo_directory, "tutorials", folder))
         try
             # HACK: only weave (j)md files
             if occursin(ext, splitext(file)[2])
-                println("Building $(joinpath(folder,file))")
+                println("Building $(joinpath(folder, file))")
                 weave_file(folder, file, build_list; kwargs...)
             else
-                println("Skipping $(joinpath(folder,file))")
+                println("Skipping $(joinpath(folder, file))")
             end
         catch ex
             rethrow(ex)
@@ -168,4 +171,141 @@ function tutorial_footer(folder=nothing, file=nothing; remove_homedir=true)
     display("text/markdown", md)
 end
 
+"""
+    clean_cache()
+
+On the one hand, we need `cache = :all` to have quick builds.
+On the other hand, we don't need cache files committed to the repo which break the build.
+Therefore, this method manually cleanes the cache just to be sure.
+"""
+function clean_cache()
+    for (root, dirs, files) in walkdir(pkgdir(TuringTutorials); onerror=x->())
+        if "cache" in dirs
+            cache_dir = joinpath(root, "cache")
+            rm(cache_dir; force=true, recursive=true)
+        end
+    end
 end
+
+"""
+    error_occurred(log)
+
+Return `true` if an error occurred.
+It would be more stable if Weave would have a fail on error option or something similar.
+"""
+function error_occurred(log)
+    weave_error = contains(log, "ERROR")
+end
+
+log_path(folder) = joinpath(repo_directory, "tutorials", folder, "weave.log")
+
+"""
+    markdown_output(folder)
+
+Returns the Markdown output for a folder.
+The output seems to be the only place where Weave prints the full stacktrace.
+"""
+function markdown_output(folder)
+    file = replace(folder, '-' => '_'; count=1)
+    file = "$file.md"
+    path = joinpath(repo_directory, "markdown", folder, file)
+    read(path, String)
+end
+
+"""
+    build_folder(folder, build_list=default_build_list)
+
+It seems that Weave has no option to fail on error, so we handle errors ourselves.
+Also, this method only shows the necessary information in the CI logs.
+If something crashes, then show the logs immediately.
+If all goes well, then store the logs in a file, but don't show them.
+"""
+function build_folder(folder, build_list=default_build_list)
+    println("$folder - Starting build")
+    cache = :all
+    c = IOCapture.capture() do
+        @timed weave_folder(folder; cache)
+    end
+    stats = c.value
+    gib = round(stats.bytes / 1024^3, digits=2)
+    min = round(stats.time / 60, digits=2)
+    println("$folder - Build took $min minutes and allocated $gib GiB:")
+    log = c.output
+    md_out = markdown_output(folder)
+    if error_occurred(log)
+        @error """
+        $folder - Error occured:
+        $log
+
+        Markdown output (contains stacktrace):
+        $md_out
+        """
+    end
+    path = log_path(folder)
+    println("$folder - Writing log to $path")
+    write(path, log)
+end
+
+"""
+    parallel_build(folders)
+
+Build `folders` in parallel inside new Julia instances.
+This has two benefits, namely that it ensures that globals are reset and reduces the
+running time.
+"""
+function parallel_build(folders)
+    # The static schedule creates one task per thread.
+    Threads.@threads :static for folder in folders
+        ex = """using TuringTutorials; build_folder("$folder")"""
+        cmd = `$(Base.julia_cmd()) --project -e $ex`
+        run(cmd)
+    end
+end
+
+function log_has_error(folder)::Bool
+    path = log_path(folder)
+    if isfile(path)
+        println("$folder - Verifying the log")
+        log = read(path, String)
+        has_error = error_occurred(log)
+        println("""$folder: Log contains $(has_error ? "an" : "no") error""")
+        return has_error
+    else
+        println("$folder - No file found to verify")
+        return false
+    end
+end
+
+"""
+    verify_logs()
+
+Exits with 1 if one of the log files contain errors.
+This method is used at the end of the CI in order to allow the CI to run all the tutorials.
+"""
+function verify_logs()
+    folders = tutorials()
+    outcomes = log_has_error.(folders)
+    if any(outcomes)
+        println("One of the logs contains an error. Exiting.")
+        exit(1)
+    end
+end
+
+"""
+    build_all(; debug=false)
+
+Build all outputs. This method is used in the CI job.
+Set `debug` to `true` to debug the CI deployment.
+"""
+function build_all(; debug=false)
+    clean_cache()
+    if debug
+        folders = ["00-introduction", "02-logistic-regression"]
+        parallel_build(folders)
+    else
+        parallel_build(tutorials())
+    end
+    verify_logs()
+end
+
+end # module

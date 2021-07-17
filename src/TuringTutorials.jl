@@ -216,7 +216,7 @@ function build_folder(folder, build_list=default_build_list)
     if error_occurred(log)
         @error "$folder: Error occured:\n$log"
     end
-    log_path(folder)
+    path = log_path(folder)
     println("$folder: Writing log to $path")
     write(path, log)
 end

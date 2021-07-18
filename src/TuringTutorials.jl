@@ -9,7 +9,7 @@ using Plots
 using Requires
 using Weave
 
-export build_folder, build_all, verify_logs
+export build_folder, build_all, verify_logs, tutorials
 
 # Not building PDF, because it is fragile. Maybe later.
 default_build_list = (:script, :html, :github, :notebook)
@@ -206,29 +206,25 @@ Returns the Markdown output for a folder.
 The output seems to be the only place where Weave prints the full stacktrace.
 """
 function markdown_output(folder)
-    try
-        file = replace(folder, '-' => '_'; count=1)
-        file = "$file.md"
-        path = joinpath(repo_directory, "markdown", folder, file)
-        text = read(path, String)
-        """
-        Markdown output (contains stacktrace):
-        $text
-        """
-    catch
-        "$folder - Tried to read Markdown to get the stacktrace but failed"
-    end
+    file = replace(folder, '-' => '_'; count=1)
+    file = "$file.md"
+    path = joinpath(repo_directory, "markdown", folder, file)
+    text = read(path, String)
+    """
+    Markdown output (contains stacktrace):
+    $text
+    """
 end
 
 """
-    build_folder(folder, build_list=default_build_list)
+    build_folder(folder)
 
 It seems that Weave has no option to fail on error, so we handle errors ourselves.
 Also, this method only shows the necessary information in the CI logs.
 If something crashes, then show the logs immediately.
 If all goes well, then store the logs in a file, but don't show them.
 """
-function build_folder(folder, build_list=default_build_list)
+function build_folder(folder)
     println("$folder - Starting build")
     cache = :all
     c = IOCapture.capture() do

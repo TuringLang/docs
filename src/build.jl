@@ -11,7 +11,7 @@ end
 
 const WEAVE_LOG_FILE = "weave.log"
 
-log_path(folder) = joinpath(repo_dir, "tutorials", folder, WEAVE_LOG_FILE)
+log_path(folder) = joinpath(REPO_DIR, "tutorials", folder, WEAVE_LOG_FILE)
 
 """
     markdown_output(folder)
@@ -22,7 +22,7 @@ The output seems to be the only place where Weave prints the full stacktrace.
 function markdown_output(folder)
     file = replace(folder, '-' => '_'; count=1)
     file = "$file.md"
-    path = joinpath(repo_dir, "markdown", folder, file)
+    path = joinpath(REPO_DIR, "markdown", folder, file)
     text = read(path, String)
     """
     Markdown output (contains stacktrace):

@@ -1,5 +1,5 @@
 const REPO_URL = "https://github.com/TuringLang/TuringTutorials"
-const CLONED_DIR = joinpath(repo_dir, "ClonedTuringTutorials")
+const CLONED_DIR = joinpath(REPO_DIR, "ClonedTuringTutorials")
 
 """
     clean_weave_cache()
@@ -55,7 +55,7 @@ compared to the files in `$CLONED_DIR`.
 """
 function any_changes(tutorial::String)
     old_dir = joinpath(CLONED_DIR, "tutorials", tutorial)
-    new_dir = joinpath(repo_dir, "tutorials", tutorial)
+    new_dir = joinpath(REPO_DIR, "tutorials", tutorial)
     files = readdir(old_dir)
     files = filter(!=(WEAVE_LOG_FILE), files)
     any(file_changed.(old_dir, new_dir, files))

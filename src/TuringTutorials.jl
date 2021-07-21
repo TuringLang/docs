@@ -9,7 +9,7 @@ using Plots
 using Requires
 using Weave
 
-const repo_dir = string(pkgdir(TuringTutorials))::String
+const REPO_DIR = string(pkgdir(TuringTutorials))::String
 
 include("cache.jl")
 include("build.jl")
@@ -41,20 +41,20 @@ function weave_file(
     folder, file, build_list=default_build_list;
     kwargs...
 )
-    tmp = joinpath(repo_dir, "tutorials", folder, file)
+    tmp = joinpath(REPO_DIR, "tutorials", folder, file)
     Pkg.activate(dirname(tmp))
     Pkg.instantiate()
     args = Dict{Symbol,String}(:folder => folder, :file => file)
     if :script ∈ build_list
         println("Building Script")
-        dir = joinpath(repo_dir, "script", folder)
+        dir = joinpath(REPO_DIR, "script", folder)
         isdir(dir) || mkpath(dir)
         args[:doctype] = "script"
         tangle(tmp;out_path=dir)
     end
     if :html ∈ build_list
         println("Building HTML")
-        dir = joinpath(repo_dir, "html", folder)
+        dir = joinpath(REPO_DIR, "html", folder)
         isdir(dir) || mkpath(dir)
         args[:doctype] = "html"
         weave(
@@ -64,7 +64,7 @@ function weave_file(
     end
     if :pdf ∈ build_list
         println("Building PDF")
-        dir = joinpath(repo_dir, "pdf", folder)
+        dir = joinpath(REPO_DIR, "pdf", folder)
         isdir(dir) || mkpath(dir)
         args[:doctype] = "pdf"
         try
@@ -78,7 +78,7 @@ function weave_file(
     end
     if :github ∈ build_list
         println("Building Github Markdown")
-        dir = joinpath(repo_dir, "markdown", folder)
+        dir = joinpath(REPO_DIR, "markdown", folder)
         isdir(dir) || mkpath(dir)
         args[:doctype] = "github"
         out_path = weave(tmp,doctype = "github",out_path=dir,args=args; kwargs...)
@@ -86,7 +86,7 @@ function weave_file(
     end
     if :notebook ∈ build_list
         println("Building Notebook")
-        dir = joinpath(repo_dir, "notebook", folder)
+        dir = joinpath(REPO_DIR, "notebook", folder)
         isdir(dir) || mkpath(dir)
         args[:doctype] = "notebook"
         Weave.convert_doc(tmp, joinpath(dir, file[1:end-4]*".ipynb"))
@@ -99,7 +99,7 @@ end
 Return names of the tutorials.
 """
 function tutorials()::Vector{String}
-    dirs = readdir(joinpath(repo_dir, "tutorials"))
+    dirs = readdir(joinpath(REPO_DIR, "tutorials"))
     dirs = filter(!=("test.jmd"), dirs)
     # This DiffEq one has to be done manually, because it takes about 12 hours.
     dirs = filter(!=("10-bayesian-differential-equations"), dirs)
@@ -121,7 +121,7 @@ function weave_folder(
     folder, build_list=default_build_list;
     ext = r"^\.[Jj]md", kwargs...
 )
-    for file in readdir(joinpath(repo_dir, "tutorials", folder))
+    for file in readdir(joinpath(REPO_DIR, "tutorials", folder))
         try
             # HACK: only weave (j)md files
             if occursin(ext, splitext(file)[2])

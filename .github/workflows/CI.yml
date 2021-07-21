@@ -10,6 +10,10 @@ on:
 
 jobs:
   build-and-deploy:
+    env:
+      # GitHub runners have 2 (modern) cores, so 2-6 threads should be ok.
+      # Note that new Julia processes are spawned which also spawn multiple threads.
+      JULIA_NUM_THREADS: 2
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -33,12 +37,13 @@ jobs:
 
       - uses: julia-actions/julia-buildpkg@latest
 
-      - name: Build all
-        run: julia --project -e 'using TuringTutorials; build()'
-        env:
-          # GitHub runners have 2 (modern) cores, so 2-6 threads should be ok.
-          # Note that new Julia processes are spawned which also spawn multiple threads.
-          JULIA_NUM_THREADS: 2
+      - name: Build only changed tutorials
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        run: julia --project -e 'using TuringTutorials; build(changed_tutorials())'
+
+      - name: Build all tutorials
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: julia --project -e 'using TuringTutorials; build(tutorials())'
 
       - name: Remove .gitignore
         # Without this, the github-pages-deploy-action could ignore build artifacts.

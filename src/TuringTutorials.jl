@@ -9,12 +9,16 @@ using Plots
 using Requires
 using Weave
 
-export build_folder, build_all, verify_logs, tutorials
+const REPO_DIR = string(pkgdir(TuringTutorials))::String
+
+include("cache.jl")
+include("build.jl")
+
+export build_folder, build, verify_logs, tutorials, changed_tutorials
 
 # Not building PDF, because it is fragile. Maybe later.
 default_build_list = (:script, :html, :github, :notebook)
 
-repo_directory = pkgdir(TuringTutorials)
 cssfile = joinpath(@__DIR__, "..", "templates", "skeleton_css.css")
 latexfile = joinpath(@__DIR__, "..", "templates", "julia_tex.tpl")
 
@@ -37,20 +41,20 @@ function weave_file(
     folder, file, build_list=default_build_list;
     kwargs...
 )
-    tmp = joinpath(repo_directory,"tutorials",folder,file)
+    tmp = joinpath(REPO_DIR, "tutorials", folder, file)
     Pkg.activate(dirname(tmp))
     Pkg.instantiate()
     args = Dict{Symbol,String}(:folder => folder, :file => file)
     if :script ∈ build_list
         println("Building Script")
-        dir = joinpath(repo_directory,"script",folder)
+        dir = joinpath(REPO_DIR, "script", folder)
         isdir(dir) || mkpath(dir)
         args[:doctype] = "script"
         tangle(tmp;out_path=dir)
     end
     if :html ∈ build_list
         println("Building HTML")
-        dir = joinpath(repo_directory,"html",folder)
+        dir = joinpath(REPO_DIR, "html", folder)
         isdir(dir) || mkpath(dir)
         args[:doctype] = "html"
         weave(
@@ -60,7 +64,7 @@ function weave_file(
     end
     if :pdf ∈ build_list
         println("Building PDF")
-        dir = joinpath(repo_directory,"pdf",folder)
+        dir = joinpath(REPO_DIR, "pdf", folder)
         isdir(dir) || mkpath(dir)
         args[:doctype] = "pdf"
         try
@@ -74,7 +78,7 @@ function weave_file(
     end
     if :github ∈ build_list
         println("Building Github Markdown")
-        dir = joinpath(repo_directory,"markdown",folder)
+        dir = joinpath(REPO_DIR, "markdown", folder)
         isdir(dir) || mkpath(dir)
         args[:doctype] = "github"
         out_path = weave(tmp,doctype = "github",out_path=dir,args=args; kwargs...)
@@ -82,10 +86,10 @@ function weave_file(
     end
     if :notebook ∈ build_list
         println("Building Notebook")
-        dir = joinpath(repo_directory,"notebook",folder)
+        dir = joinpath(REPO_DIR, "notebook", folder)
         isdir(dir) || mkpath(dir)
         args[:doctype] = "notebook"
-        Weave.convert_doc(tmp,joinpath(dir,file[1:end-4]*".ipynb"))
+        Weave.convert_doc(tmp, joinpath(dir, file[1:end-4]*".ipynb"))
     end
 end
 
@@ -95,7 +99,7 @@ end
 Return names of the tutorials.
 """
 function tutorials()::Vector{String}
-    dirs = readdir(joinpath(repo_directory, "tutorials"))
+    dirs = readdir(joinpath(REPO_DIR, "tutorials"))
     dirs = filter(!=("test.jmd"), dirs)
     # This DiffEq one has to be done manually, because it takes about 12 hours.
     dirs = filter(!=("10-bayesian-differential-equations"), dirs)
@@ -117,7 +121,7 @@ function weave_folder(
     folder, build_list=default_build_list;
     ext = r"^\.[Jj]md", kwargs...
 )
-    for file in readdir(joinpath(repo_directory, "tutorials", folder))
+    for file in readdir(joinpath(REPO_DIR, "tutorials", folder))
         try
             # HACK: only weave (j)md files
             if occursin(ext, splitext(file)[2])
@@ -170,145 +174,4 @@ function tutorial_footer(folder=nothing, file=nothing; remove_homedir=true)
     md = "```\n$(pkg_status)\n```"
     display("text/markdown", md)
 end
-
-"""
-    clean_cache()
-
-On the one hand, we need `cache = :all` to have quick builds.
-On the other hand, we don't need cache files committed to the repo which break the build.
-Therefore, this method manually cleanes the cache just to be sure.
-"""
-function clean_cache()
-    for (root, dirs, files) in walkdir(pkgdir(TuringTutorials); onerror=x->())
-        if "cache" in dirs
-            cache_dir = joinpath(root, "cache")
-            rm(cache_dir; force=true, recursive=true)
-        end
-    end
-end
-
-"""
-    error_occurred(log)
-
-Return `true` if an error occurred.
-It would be more stable if Weave would have a fail on error option or something similar.
-"""
-function error_occurred(log)
-    weave_error = contains(log, "ERROR")
-end
-
-log_path(folder) = joinpath(repo_directory, "tutorials", folder, "weave.log")
-
-"""
-    markdown_output(folder)
-
-Returns the Markdown output for a folder.
-The output seems to be the only place where Weave prints the full stacktrace.
-"""
-function markdown_output(folder)
-    file = replace(folder, '-' => '_'; count=1)
-    file = "$file.md"
-    path = joinpath(repo_directory, "markdown", folder, file)
-    text = read(path, String)
-    """
-    Markdown output (contains stacktrace):
-    $text
-    """
-end
-
-"""
-    build_folder(folder)
-
-It seems that Weave has no option to fail on error, so we handle errors ourselves.
-Also, this method only shows the necessary information in the CI logs.
-If something crashes, then show the logs immediately.
-If all goes well, then store the logs in a file, but don't show them.
-"""
-function build_folder(folder)
-    println("$folder - Starting build")
-    cache = :all
-    c = IOCapture.capture() do
-        @timed weave_folder(folder; cache)
-    end
-    stats = c.value
-    gib = round(stats.bytes / 1024^3, digits=2)
-    min = round(stats.time / 60, digits=2)
-    println("$folder - Build took $min minutes and allocated $gib GiB:")
-    log = c.output
-    md_out = markdown_output(folder)
-    if error_occurred(log)
-        @error """
-        $folder - Error occured:
-        $log
-
-        $md_out
-        """
-    end
-    path = log_path(folder)
-    println("$folder - Writing log to $path")
-    write(path, log)
-end
-
-"""
-    parallel_build(folders)
-
-Build `folders` in parallel inside new Julia instances.
-This has two benefits, namely that it ensures that globals are reset and reduces the
-running time.
-"""
-function parallel_build(folders)
-    # The static schedule creates one task per thread.
-    Threads.@threads :static for folder in folders
-        ex = """using TuringTutorials; build_folder("$folder")"""
-        cmd = `$(Base.julia_cmd()) --project -e $ex`
-        run(cmd)
-    end
-end
-
-function log_has_error(folder)::Bool
-    path = log_path(folder)
-    if isfile(path)
-        println("$folder - Verifying the log")
-        log = read(path, String)
-        has_error = error_occurred(log)
-        println("""$folder: Log contains $(has_error ? "an" : "no") error""")
-        return has_error
-    else
-        println("$folder - No file found to verify")
-        return false
-    end
-end
-
-"""
-    verify_logs()
-
-Exits with 1 if one of the log files contain errors.
-This method is used at the end of the CI in order to allow the CI to run all the tutorials.
-"""
-function verify_logs()
-    folders = tutorials()
-    outcomes = log_has_error.(folders)
-    if any(outcomes)
-        println("One of the logs contains an error. Exiting.")
-        exit(1)
-    end
-end
-
-"""
-    build_all(; debug=false)
-
-Build all outputs. This method is used in the CI job.
-Set `debug` to `true` to debug the CI deployment.
-"""
-function build_all(; debug=false)
-    clean_cache()
-    if debug
-        folders = ["00-introduction", "02-logistic-regression"]
-        parallel_build(folders)
-    else
-        parallel_build(tutorials())
-    end
-    verify_logs()
-end
-
 end # module

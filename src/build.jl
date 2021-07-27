@@ -1,17 +1,19 @@
 
 """
-    error_occurred(log)
+    error_occurred(log::String)
 
 Return `true` if an error occurred.
 It would be more stable if Weave would have a fail on error option or something similar.
 """
-function error_occurred(log)
+function error_occurred(log::String)
     weave_error = contains(log, "ERROR")
 end
 
 const WEAVE_LOG_FILE = "weave.log"
 
 log_path(folder) = joinpath(REPO_DIR, "tutorials", folder, WEAVE_LOG_FILE)
+
+folder2filename(folder) = replace(folder, '-' => '_'; count=1)
 
 """
     markdown_output(folder)
@@ -20,7 +22,7 @@ Returns the Markdown output for a folder.
 The output seems to be the only place where Weave prints the full stacktrace.
 """
 function markdown_output(folder)
-    file = replace(folder, '-' => '_'; count=1)
+    file = folder2filename(folder)
     file = "$file.md"
     path = joinpath(REPO_DIR, "markdown", folder, file)
     text = read(path, String)

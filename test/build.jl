@@ -9,30 +9,24 @@ end
 
 function write_test_tutorial(folder::String, should_fail::Bool)
     cleanup_folder(folder)
+    # The assertion tests whether we can use assertions to verify the tutorial output.
     jmd = """
         ---
-        title: This is a $(should_fail ? "failing" : "") test file
+        title: This tutorial should $(should_fail ? "fail" : "pass")
         ---
 
         ```julia
-        using Distributions
-        using Test # hide
+        x = 1 + 1
+        ```
 
-        $(should_fail ? "error()" : "Normal()")
+        ```julia; echo=false
+        $(should_fail ? "@assert x == 3" : "@assert x == 2")
         ```
         """
 
     filename = folder2filename(folder)
     path = joinpath(tutorial_path(folder), "$filename.jmd")
     write(path, jmd)
-
-    project = """
-        [deps]
-        Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-        """
-
-    path = joinpath(tutorial_path(folder), "Project.toml")
-    write(path, project)
 end
 
 @testset "build.jl" begin
@@ -42,7 +36,7 @@ end
     write_test_tutorial(folder, should_fail)
     @test build(folder)
     markdown = TuringTutorials.markdown_output(folder)
-    @test contains(markdown, "Distributions.Normal{Float64}(μ=0.0, σ=1.0)")
+    @test contains(markdown, "2")
 
     should_fail = true
     write_test_tutorial(folder, should_fail)

@@ -14,7 +14,8 @@ const REPO_DIR = string(pkgdir(TuringTutorials))::String
 include("cache.jl")
 include("build.jl")
 
-export build_folder, build, verify_logs, tutorials, tutorial_path, changed_tutorials
+export build_folder, tutorial_path, folder2filename
+export build, build_and_exit, verify_logs, tutorials, changed_tutorials
 
 # Not building PDF, because it is fragile. Maybe later.
 default_build_list = (:script, :html, :github, :notebook)

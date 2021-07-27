@@ -111,6 +111,7 @@ function tutorials()::Vector{String}
     dirs = filter(!=("test.jmd"), dirs)
     # This DiffEq one has to be done manually, because it takes about 12 hours.
     dirs = filter(!=("10-bayesian-differential-equations"), dirs)
+    dirs = filter(!=("99-test"), dirs)
 end
 
 function weave_all(build_list=default_build_list; kwargs...)

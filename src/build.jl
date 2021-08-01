@@ -112,9 +112,13 @@ For example, pass `tutorials()` to build all tutorials or `["00-introduction"]` 
 only the first.
 """
 function build(T::Vector=changed_tutorials())::Bool
+    "CI" in keys(ENV) && download_artifacts()
     clean_weave_cache()
     parallel_build(T)
-    verify_logs(T)
+    out = verify_logs(T)
+    # Avoid committing the cache to the artifacts branch.
+    clean_weave_cache()
+    return out
 end
 build(tutorial::AbstractString)::Bool = build([tutorial])
 

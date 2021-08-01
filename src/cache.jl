@@ -39,6 +39,25 @@ function clone_tutorials_output()
     end
 end
 
+"""
+    download_artifacts()
+
+Explicitly copy all the updated tutorials from the artifacts branch.
+This allows orphaning the artifacts branch on each deploy to easier debugging and less size.
+"""
+function download_artifacts()
+    T = tutorials()
+    for tutorial in T
+        for dir in ["html", "markdown", "notebook", "script"]
+            from_dir = joinpath(CLONED_DIR, dir, tutorial)
+            to_dir = joinpath(REPO_DIR, dir, tutorial)
+            mkpath(to_dir)
+            cp(from_dir, to_dir; force=true)
+        end
+    end
+end
+
+
 function file_changed(old_dir, new_dir, file)
     old_path = joinpath(old_dir, file)
     new_path = joinpath(new_dir, file)
@@ -70,6 +89,11 @@ function changed_tutorials()
     clone_tutorials_output()
     T = tutorials()
     changed = filter(any_changes, T)
-    println("Found changes for the tutorials $changed ($(length(changed))/$(length(T)))")
+    n = length(changed)
+    println("Found changes for the tutorials $changed ($(n)/$(length(T)))")
+    if length(T) == 0
+        changed = first(T)
+        println("Running the first tutorial to be able to verify that the CI job works.")
+    end
     changed
 end

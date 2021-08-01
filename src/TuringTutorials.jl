@@ -14,7 +14,8 @@ const REPO_DIR = string(pkgdir(TuringTutorials))::String
 include("cache.jl")
 include("build.jl")
 
-export build_folder, build, verify_logs, tutorials, changed_tutorials
+export build_folder, tutorial_path, folder2filename
+export build, build_and_exit, verify_logs, tutorials, changed_tutorials
 
 # Not building PDF, because it is fragile. Maybe later.
 default_build_list = (:script, :html, :github, :notebook)
@@ -25,6 +26,13 @@ latexfile = joinpath(@__DIR__, "..", "templates", "julia_tex.tpl")
 function __init__()
     @require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("weaveplots.jl")
 end
+
+"""
+    tutorial_path(folder)
+
+Return the absolute path to a tutorial `folder`.
+"""
+tutorial_path(folder) = joinpath(REPO_DIR, "tutorials", folder)
 
 function polish_latex(path::String)
     # TODO: Is it maybe better to overload https://github.com/JunoLab/Weave.jl/blob/b5ba227e757520f389a6d6e0f2cacb731eab8b12/src/WeaveMarkdown/markdown.jl#L10-L17
@@ -41,7 +49,7 @@ function weave_file(
     folder, file, build_list=default_build_list;
     kwargs...
 )
-    tmp = joinpath(REPO_DIR, "tutorials", folder, file)
+    tmp = joinpath(tutorial_path(folder), file)
     Pkg.activate(dirname(tmp))
     Pkg.instantiate()
     args = Dict{Symbol,String}(:folder => folder, :file => file)
@@ -103,6 +111,7 @@ function tutorials()::Vector{String}
     dirs = filter(!=("test.jmd"), dirs)
     # This DiffEq one has to be done manually, because it takes about 12 hours.
     dirs = filter(!=("10-bayesian-differential-equations"), dirs)
+    dirs = filter(!=("99-test"), dirs)
 end
 
 function weave_all(build_list=default_build_list; kwargs...)
@@ -121,7 +130,7 @@ function weave_folder(
     folder, build_list=default_build_list;
     ext = r"^\.[Jj]md", kwargs...
 )
-    for file in readdir(joinpath(REPO_DIR, "tutorials", folder))
+    for file in readdir(tutorial_path(folder))
         try
             # HACK: only weave (j)md files
             if occursin(ext, splitext(file)[2])

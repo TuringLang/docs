@@ -1,17 +1,19 @@
 
 """
-    error_occurred(log)
+    error_occurred(log::String)
 
 Return `true` if an error occurred.
 It would be more stable if Weave would have a fail on error option or something similar.
 """
-function error_occurred(log)
+function error_occurred(log::String)
     weave_error = contains(log, "ERROR")
 end
 
 const WEAVE_LOG_FILE = "weave.log"
 
 log_path(folder) = joinpath(REPO_DIR, "tutorials", folder, WEAVE_LOG_FILE)
+
+folder2filename(folder) = replace(folder, '-' => '_'; count=1)
 
 """
     markdown_output(folder)
@@ -20,7 +22,7 @@ Returns the Markdown output for a folder.
 The output seems to be the only place where Weave prints the full stacktrace.
 """
 function markdown_output(folder)
-    file = replace(folder, '-' => '_'; count=1)
+    file = folder2filename(folder)
     file = "$file.md"
     path = joinpath(REPO_DIR, "markdown", folder, file)
     text = read(path, String)
@@ -94,26 +96,22 @@ function log_has_error(folder)::Bool
 end
 
 """
-    verify_logs(T::Vector)
+    verify_logs(T::Vector)::Bool
 
-Exits with 1 if one of the log files for the tutorials `T` contain errors.
-This method is used at the end of the CI in order to allow the CI to run all the tutorials.
+Return `true` if logs for the tutorials `T` contain an error.
+This method is used at the end of the CI in order to allow the CI to fail only after
+running all the tutorials (similar to `Pkg.test()`).
 """
-function verify_logs(T::Vector)
-    outcomes = log_has_error.(T)
-    if any(outcomes)
-        println("One of the logs contains an error. Exiting.")
-        exit(1)
-    end
-end
+verify_logs(T::Vector)::Bool = !any(log_has_error.(T))
 
 """
-    build(T::Vector=changed_tutorials())
+    build(T::Vector=changed_tutorials())::Bool
 
-Build all changed outputs. This method is used in the CI job.
-Pass `tutorials()` to build all tutorials or `["00-introduction"]` to build only the first.
+Build all changed outputs.
+For example, pass `tutorials()` to build all tutorials or `["00-introduction"]` to build
+only the first.
 """
-function build(T::Vector=changed_tutorials())
+function build(T::Vector=changed_tutorials())::Bool
     "CI" in keys(ENV) && download_artifacts()
     clean_weave_cache()
     parallel_build(T)
@@ -121,4 +119,19 @@ function build(T::Vector=changed_tutorials())
     # Avoid committing the cache to the artifacts branch.
     clean_weave_cache()
 end
-build(tutorial::AbstractString) = build([string(tutorial)::String])
+build(tutorial::AbstractString)::Bool = build([tutorial])
+
+"""
+    build_and_exit(T::Union{Vector,AbstractString})
+
+Build tutorial(s) `T` and exit with 1 if an error occurred during build.
+This method is used in the CI job.
+"""
+function build_and_exit(T)
+    success = build(T)
+    if !success
+        println("One of the logs contains an error. Exiting with `exit(1)`")
+    end
+    code = success ? 0 : 1
+    exit(code)
+end

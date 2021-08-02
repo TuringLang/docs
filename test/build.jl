@@ -29,6 +29,13 @@ function write_test_tutorial(folder::String, should_fail::Bool)
     write(path, jmd)
 end
 
+function remove_test_files(test_folder)
+    for dir in ["html", "markdown", "notebook", "script", "tutorials"]
+        test_path = joinpath(TuringTutorials.REPO_DIR, dir, test_folder)
+        rm(test_path; force=true, recursive=true)
+    end
+end
+
 @testset "build.jl" begin
     test_folder = "99-test"
 
@@ -42,9 +49,7 @@ end
     write_test_tutorial(test_folder, should_fail)
     @test !build(test_folder)
 
-    for dir in ["html", "markdown", "notebook", "script", "tutorials"]
-        path = joinpath(TuringTutorials.REPO_DIR, dir, test_folder)
-        rm(dir; force=true, recursive=true)
-    end
-    @test !isdir(joinpath(TuringTutorials, "html", test_folder))
+    remove_test_files(test_folder)
+    dir = joinpath(TuringTutorials.REPO_DIR, "html", test_folder)
+    @test !isdir(dir)
 end

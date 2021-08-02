@@ -116,7 +116,7 @@ function build(T::Vector=changed_tutorials())::Bool
     clean_weave_cache()
     parallel_build(T)
     out = verify_logs(T)
-    # Avoid committing the cache to the artifacts branch.
+    # Avoid committing cache files to the artifacts branch.
     clean_weave_cache()
     return out
 end

@@ -47,6 +47,9 @@ This allows orphaning the artifacts branch on each deploy to ease debugging, cle
 unused files, and have a smaller branch.
 """
 function download_artifacts()
+    if !isdir(CLONED_DIR)
+        clone_tutorials_output()
+    end
     T = tutorials()
     for tutorial in T
         for dir in ["html", "markdown", "notebook", "script"]

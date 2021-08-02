@@ -43,7 +43,8 @@ end
     download_artifacts()
 
 Explicitly copy all the updated tutorials from the artifacts branch.
-This allows orphaning the artifacts branch on each deploy to easier debugging and less size.
+This allows orphaning the artifacts branch on each deploy to ease debugging, cleanup old and
+unused files, and have a smaller branch.
 """
 function download_artifacts()
     T = tutorials()

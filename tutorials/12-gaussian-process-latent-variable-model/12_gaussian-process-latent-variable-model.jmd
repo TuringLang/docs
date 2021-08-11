@@ -1,0 +1,180 @@
+---
+title: Gaussian Process Latent Variable Model
+permalink: /:collection/:name/
+redirect_from: tutorials/12-gaussian-process-latent-variable-model/
+---
+
+# Gaussian Process Latent Variable Model
+
+In a previous tutorial, we have discussed latent variable models, in particular probabilistic principal
+component analysis (pPCA). Here, we show how we can extend the mapping provided by pPCA to non-linear mappings between input and output. For more details about the Gaussian Process Latent Variable Model (GPLVM), we refer the reader to the [original
+publication](https://jmlr.org/papers/v6/lawrence05a.html) and a [further extension](http://proceedings.mlr.press/v9/titsias10a/titsias10a.pdf).
+
+In short, the GPVLM is a dimensionality reduction technique that allows us to embed a high-dimensional dataset in a lower-dimensional embedding.
+
+# basic idea
+# structure
+
+```julia
+# Load Turing.
+using Turing
+using AbstractGPs, KernelFunctions, Random, Plots
+
+# Load other dependencies
+using Distributions, LinearAlgebra
+using VegaLite, DataFrames, StatsPlots
+using DelimitedFiles
+
+Random.seed!(1789);
+```
+
+We use a classical data set of synthetic data that is also described in the original publication.
+```julia
+oil_matrix = readdlm("Data.txt", Float64);
+labels = readdlm("DataLabels.txt", Float64);
+labels = mapslices(x -> findmax(x)[2], labels, dims=2);
+```
+
+We will start out, by demonstrating the basic similarity between pPCA (see the tutorial on this topic)
+and the GPLVM model. Indeed, pPCA is basically equivalent to running the GPLVM model with an
+automatic relevance determination (ARD) linear kernel.
+
+First, we re-introduce the pPCA model (see the tutorial on pPCA for details)
+```julia
+@model function pPCA(x)
+  # Dimensionality of the problem.
+  N, D = size(x)
+
+  # latent variable z
+  z ~ filldist(Normal(), D, N)
+
+  # weights/loadings W
+  w ~ filldist(Normal(0.0, 1.0), D, D)
+
+  # mean offset
+  mu = (w * z)'
+
+  for d in 1:D
+    x[:,d] ~ MvNormal(mu[:,d], 1.)
+  end
+end;
+```
+
+And here is the GPLVM model.
+```julia
+@model function GPLVM(Y, kernel_function, ndim=4,::Type{T} = Float64) where {T}
+
+  # Dimensionality of the problem.
+  N, D = size(Y)
+  # dimensions of latent space
+  K = ndim
+  noise = 1e-3
+
+  # Priors
+  α ~ MvLogNormal(MvNormal(K, 1.0))
+  σ ~ LogNormal(0.0, 1.0)
+  Z ~ filldist(Normal(0., 1.), K, N)
+
+  kernel = kernel_function(α, σ)
+
+  ## DENSE GP
+  gp = GP(kernel)
+  prior = gp(ColVecs(Z), noise)
+
+  Y ~ filldist(prior, D)
+end
+```
+
+We define two different kernels, a simple linear kernel with an Automatic Relevance Determination transform and a
+squared exponential kernel. The latter represents a fully non-linear transform.
+
+```julia
+sekernel(α, σ²) = σ² * SqExponentialKernel() ∘ ARDTransform(α)
+linear_kernel(α, σ²) = LinearKernel() ∘ ARDTransform(α)
+
+Y = oil_matrix
+# note we keep the problem very small for reasons of runtime
+ndim=12
+n_data=40
+n_features=size(oil_matrix)[2];
+```
+
+```julia
+ppca = pPCA(oil_matrix[1:n_data,:])
+chain_ppca = sample(ppca, NUTS(), 500)
+StatsPlots.plot(group(chain_ppca, :alpha))
+```
+```julia
+w = permutedims(reshape(mean(group(chain_ppca, :w))[:,2], (n_features,n_features)))
+z = permutedims(reshape(mean(group(chain_ppca, :z))[:,2], (n_features, n_data)))'
+X = w * z
+
+#df_rec = DataFrame(X', :auto)
+#df_rec[!,:datapoints] = 1:n_data
+
+df_pre = DataFrame(z', :auto)
+rename!(df_pre, Symbol.( ["z"*string(i) for i in collect(1:n_features)]))
+df_pre[!,:type] = labels[1:n_data]
+df_pre |>  @vlplot(:point, x=:z1, y=:z2, color="type:n")
+```
+
+
+```julia
+gplvm_linear = GPLVM(oil_matrix[1:n_data,:], linear_kernel, ndim)
+
+# takes about 4hrs
+chain_linear = sample(gplvm_linear, NUTS(), 800)
+z_mean = permutedims(reshape(mean(group(chain_linear, :Z))[:,2], (ndim, n_data)))'
+alpha_mean = mean(group(chain_linear, :α))[:,2]
+
+df_gplvm_linear = DataFrame(z_mean', :auto)
+rename!(df_gplvm_linear, Symbol.( ["z"*string(i) for i in collect(1:ndim)]))
+df_gplvm_linear[!,:sample] = 1:n_data
+df_gplvm_linear[!,:labels] = labels[1:n_data]
+alpha_indices = sortperm(alpha_mean, rev=true)[1:2]
+df_gplvm_linear[!,:ard1] = z_mean[alpha_indices[1], :]
+df_gplvm_linear[!,:ard2] = z_mean[alpha_indices[2], :]
+
+p1 = df_gplvm_linear|>  @vlplot(:point, x=:z1, y=:z2, color="labels:n")
+```
+
+```julia
+p2 = df_gplvm_linear |>  @vlplot(:point, x=:ard1, y=:ard2, color="labels:n")
+
+save("figure1-gplvm-linear.png", p1)
+save("figure2-gplvm-linear.png", p2)
+```
+
+```julia
+gplvm = GPLVM(oil_matrix[1:n_data,:], sekernel, ndim)
+
+# takes about 4hrs
+chain = sample(gplvm, NUTS(), 1400)
+z_mean = permutedims(reshape(mean(group(chain, :Z))[:,2], (ndim, n_data)))'
+alpha_mean = mean(group(chain, :α))[:,2]
+
+df_gplvm = DataFrame(z_mean', :auto)
+rename!(df_gplvm, Symbol.( ["z"*string(i) for i in collect(1:ndim)]))
+df_gplvm[!,:sample] = 1:n_data
+df_gplvm[!,:labels] = labels[1:n_data]
+alpha_indices = sortperm(alpha_mean, rev=true)[1:2]
+df_gplvm[!,:ard1] = z_mean[alpha_indices[1], :]
+df_gplvm[!,:ard2] = z_mean[alpha_indices[2], :]
+
+p1 = df_gplvm|>  @vlplot(:point, x=:z1, y=:z2, color="labels:n")
+
+```
+
+```julia
+p2 = df_gplvm |>  @vlplot(:point, x=:ard1, y=:ard2, color="labels:n")
+
+save("figure1-gplvm-exp.png", p1)
+save("figure2-gplvm-exp.png", p2)
+```
+```
+
+```julia, echo=false, skip="notebook"
+if isdefined(Main, :TuringTutorials)
+    Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
+end
+```

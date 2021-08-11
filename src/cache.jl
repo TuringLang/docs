@@ -79,9 +79,14 @@ compared to the files in `$CLONED_DIR`.
 function any_changes(tutorial::String)
     old_dir = joinpath(CLONED_DIR, "tutorials", tutorial)
     new_dir = joinpath(REPO_DIR, "tutorials", tutorial)
-    files = readdir(old_dir)
-    files = filter(!=(WEAVE_LOG_FILE), files)
-    any(file_changed.(old_dir, new_dir, files))
+    if isdir(old_dir)
+        files = readdir(old_dir)
+        files = filter(!=(WEAVE_LOG_FILE), files)
+        return any(file_changed.(old_dir, new_dir, files))
+    else
+        # A newly added tutorial.
+        return true
+    end
 end
 
 """

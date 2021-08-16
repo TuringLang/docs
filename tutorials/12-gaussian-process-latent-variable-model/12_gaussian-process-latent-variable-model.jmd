@@ -10,11 +10,9 @@ In a previous tutorial, we have discussed latent variable models, in particular 
 component analysis (pPCA). Here, we show how we can extend the mapping provided by pPCA to non-linear mappings between input and output. For more details about the Gaussian Process Latent Variable Model (GPLVM), we refer the reader to the [original
 publication](https://jmlr.org/papers/v6/lawrence05a.html) and a [further extension](http://proceedings.mlr.press/v9/titsias10a/titsias10a.pdf).
 
-In short, the GPVLM is a dimensionality reduction technique that allows us to embed a high-dimensional dataset in a lower-dimensional embedding.
+In short, the GPVLM is a dimensionality reduction technique that allows us to embed a high-dimensional dataset in a lower-dimensional embedding. Importantly, it provides the advantage that the linear mappings from the embedded space can be non-linearised through the use of Gaussian Processes.
 
-# basic idea
-# structure
-
+Let's start by loading some dependencies.
 ```julia
 # Load Turing.
 using Turing
@@ -22,17 +20,20 @@ using AbstractGPs, KernelFunctions, Random, Plots
 
 # Load other dependencies
 using Distributions, LinearAlgebra
-using VegaLite, DataFrames, StatsPlots
+using VegaLite, DataFrames, StatsPlots, StatsBase
 using DelimitedFiles
 
 Random.seed!(1789);
 ```
 
-We use a classical data set of synthetic data that is also described in the original publication.
+We use a classical data set of synthetic data that is also used in the original publication.
 ```julia
 oil_matrix = readdlm("Data.txt", Float64);
 labels = readdlm("DataLabels.txt", Float64);
 labels = mapslices(x -> findmax(x)[2], labels, dims=2);
+# normalize data
+dt = fit(ZScoreTransform, oil_matrix, dims=2);
+StatsBase.transform!(dt, oil_matrix);
 ```
 
 We will start out, by demonstrating the basic similarity between pPCA (see the tutorial on this topic)
@@ -60,7 +61,7 @@ First, we re-introduce the pPCA model (see the tutorial on pPCA for details)
 end;
 ```
 
-And here is the GPLVM model.
+And here is the GPLVM model. The choice of kernel is determined by the kernel_function parameter.
 ```julia
 @model function GPLVM(Y, kernel_function, ndim=4,::Type{T} = Float64) where {T}
 
@@ -81,28 +82,29 @@ And here is the GPLVM model.
   gp = GP(kernel)
   prior = gp(ColVecs(Z), noise)
 
-  Y ~ filldist(prior, D)
+  for d in 1:D
+    Y[:, d] ~ prior
+  end
 end
 ```
 
 We define two different kernels, a simple linear kernel with an Automatic Relevance Determination transform and a
 squared exponential kernel. The latter represents a fully non-linear transform.
-
 ```julia
 sekernel(α, σ²) = σ² * SqExponentialKernel() ∘ ARDTransform(α)
 linear_kernel(α, σ²) = LinearKernel() ∘ ARDTransform(α)
 
-Y = oil_matrix
 # note we keep the problem very small for reasons of runtime
-ndim=12
+# n_features=size(oil_matrix)[2];
+n_features=4
+# latent dimension for GP case
+ndim=2
 n_data=40
-n_features=size(oil_matrix)[2];
 ```
 
 ```julia
-ppca = pPCA(oil_matrix[1:n_data,:])
-chain_ppca = sample(ppca, NUTS(), 500)
-StatsPlots.plot(group(chain_ppca, :alpha))
+ppca = pPCA(oil_matrix[1:n_data,1:n_features])
+chain_ppca = sample(ppca, NUTS(), 1000)
 ```
 ```julia
 w = permutedims(reshape(mean(group(chain_ppca, :w))[:,2], (n_features,n_features)))
@@ -118,20 +120,28 @@ df_pre[!,:type] = labels[1:n_data]
 df_pre |>  @vlplot(:point, x=:z1, y=:z2, color="type:n")
 ```
 
+```julia
+df_pre |>  @vlplot(:point, x=:z2, y=:z3, color="type:n")
+df_pre |>  @vlplot(:point, x=:z2, y=:z4, color="type:n")
+df_pre |>  @vlplot(:point, x=:z3, y=:z4, color="type:n")
+```
+
 
 ```julia
-gplvm_linear = GPLVM(oil_matrix[1:n_data,:], linear_kernel, ndim)
+gplvm_linear = GPLVM(oil_matrix[1:n_data,1:n_features], linear_kernel, n_features)
 
-# takes about 4hrs
 chain_linear = sample(gplvm_linear, NUTS(), 800)
-z_mean = permutedims(reshape(mean(group(chain_linear, :Z))[:,2], (ndim, n_data)))'
+z_mean = permutedims(reshape(mean(group(chain_linear, :Z))[:,2], (n_features, n_data)))'
 alpha_mean = mean(group(chain_linear, :α))[:,2]
+```
 
+```julia
 df_gplvm_linear = DataFrame(z_mean', :auto)
-rename!(df_gplvm_linear, Symbol.( ["z"*string(i) for i in collect(1:ndim)]))
+rename!(df_gplvm_linear, Symbol.( ["z"*string(i) for i in collect(1:n_features)]))
 df_gplvm_linear[!,:sample] = 1:n_data
 df_gplvm_linear[!,:labels] = labels[1:n_data]
 alpha_indices = sortperm(alpha_mean, rev=true)[1:2]
+println(alpha_indices)
 df_gplvm_linear[!,:ard1] = z_mean[alpha_indices[1], :]
 df_gplvm_linear[!,:ard2] = z_mean[alpha_indices[2], :]
 
@@ -140,37 +150,118 @@ p1 = df_gplvm_linear|>  @vlplot(:point, x=:z1, y=:z2, color="labels:n")
 
 ```julia
 p2 = df_gplvm_linear |>  @vlplot(:point, x=:ard1, y=:ard2, color="labels:n")
-
-save("figure1-gplvm-linear.png", p1)
-save("figure2-gplvm-linear.png", p2)
 ```
+
+```julia
+df_gplvm_linear|>  @vlplot(:point, x=:z2, y=:z3, color="labels:n")
+df_gplvm_linear|>  @vlplot(:point, x=:z2, y=:z4, color="labels:n")
+df_gplvm_linear|>  @vlplot(:point, x=:z3, y=:z4, color="labels:n")
+```
+
+Finally, we demonstrate that by changing the kernel to a non-linear function, we are better able to separate the data.
 
 ```julia
 gplvm = GPLVM(oil_matrix[1:n_data,:], sekernel, ndim)
 
-# takes about 4hrs
-chain = sample(gplvm, NUTS(), 1400)
+chain = sample(gplvm, NUTS(), 800)
 z_mean = permutedims(reshape(mean(group(chain, :Z))[:,2], (ndim, n_data)))'
 alpha_mean = mean(group(chain, :α))[:,2]
+```
 
+```julia
 df_gplvm = DataFrame(z_mean', :auto)
 rename!(df_gplvm, Symbol.( ["z"*string(i) for i in collect(1:ndim)]))
 df_gplvm[!,:sample] = 1:n_data
 df_gplvm[!,:labels] = labels[1:n_data]
 alpha_indices = sortperm(alpha_mean, rev=true)[1:2]
+println(alpha_indices)
 df_gplvm[!,:ard1] = z_mean[alpha_indices[1], :]
 df_gplvm[!,:ard2] = z_mean[alpha_indices[2], :]
 
 p1 = df_gplvm|>  @vlplot(:point, x=:z1, y=:z2, color="labels:n")
-
 ```
 
 ```julia
 p2 = df_gplvm |>  @vlplot(:point, x=:ard1, y=:ard2, color="labels:n")
-
-save("figure1-gplvm-exp.png", p1)
-save("figure2-gplvm-exp.png", p2)
 ```
+
+### Speeding up inference
+
+Gaussian processes tend to be slow, as they naively require. 
+
+```julia
+@model function GPLVM_sparse(Y, kernel_function, ndim=4,::Type{T} = Float64) where {T}
+
+  # Dimensionality of the problem.
+  N, D = size(Y)
+  # dimensions of latent space
+  K = ndim
+  # number of inducing points
+  n_inducing = 20
+  noise = 1e-3
+
+  # Priors
+  α ~ MvLogNormal(MvNormal(K, 1.0))
+  σ ~ LogNormal(0.0, 1.0)
+  Z ~ filldist(Normal(0., 1.), K, N)
+  #  σ_n ~ MvLogNormal(MvNormal(K, 1.0))
+  #  α = rand( MvLogNormal(MvNormal(K, 1.0)))
+  #  σ = rand( LogNormal(0.0, 1.0))
+  #  Z = rand( filldist(Normal(0., 1.), K, N))
+  #  σ_n = rand( MvLogNormal(MvNormal(K, 1.0)))
+  σ = σ + 1e-12
+
+  kernel = kernel_function(α, σ)
+
+  ## Standard
+  #  gp = GP(kernel)
+  #  prior = gp(ColVecs(Z), noise)
+
+  ## SPARSE GP
+  #  xu = reshape(repeat(locations, K), :, K) # inducing points
+  #  xu = reshape(repeat(collect(range(-2.0, 2.0; length=20)), K), :, K) # inducing points
+  lbound = minimum(Y) + 1e-6
+  ubound = maximum(Y) - 1e-6
+  locations ~ filldist(Uniform(lbound, ubound), n_inducing)
+  xu = reshape(repeat(locations, K), :, K) # inducing points
+  gp = Stheno.wrap(GP(kernel), GPC())
+  fobs = gp(ColVecs(Z), noise)
+  finducing = gp(ColVecs(xu'), noise)
+  prior = SparseFiniteGP(fobs, finducing)
+
+  for d in 1:D
+    Y[:, d] ~ prior
+  end
+end
+```
+
+```julia
+ndim=2
+n_data=40
+#  n_features=size(oil_matrix)[2];
+n_features=4
+
+gplvm = GPLVM(oil_matrix[1:n_data,1:n_features], sekernel, ndim)
+
+chain_gplvm_sparse = sample(gplvm, NUTS(), 500)
+z_mean = permutedims(reshape(mean(group(chain_gplvm_sparse, :Z))[:,2], (ndim, n_data)))'
+alpha_mean = mean(group(chain_gplvm_sparse, :α))[:,2]
+```
+
+```julia
+df_gplvm_sparse = DataFrame(z_mean', :auto)
+rename!(df_gplvm_sparse, Symbol.( ["z"*string(i) for i in collect(1:ndim)]))
+df_gplvm_sparse[!,:sample] = 1:n_data
+df_gplvm_sparse[!,:labels] = labels[1:n_data]
+alpha_indices = sortperm(alpha_mean, rev=true)[1:2]
+println(alpha_indices)
+df_gplvm_sparse[!,:ard1] = z_mean[alpha_indices[1], :]
+df_gplvm_sparse[!,:ard2] = z_mean[alpha_indices[2], :]
+p1 = df_gplvm_sparse|>  @vlplot(:point, x=:z1, y=:z2, color="labels:n")
+```
+
+```julia
+p2 = df_gplvm_sparse |>  @vlplot(:point, x=:ard1, y=:ard2, color="labels:n")
 ```
 
 ```julia, echo=false, skip="notebook"

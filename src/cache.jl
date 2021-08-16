@@ -30,9 +30,17 @@ function clone_tutorials_output()
         "--branch=$branch"
     ]
     if isdir(CLONED_DIR)
-        cd(CLONED_DIR) do
-            run(`git checkout $branch`)
-            run(`git pull`)
+        try
+            cd(CLONED_DIR) do
+                run(`git checkout $branch`)
+                run(`git pull --ff --allow-unrelated-histories`)
+            end
+        catch
+            rm(CLONED_DIR; recursive=true, force=true)
+            run(`git $args $REPO_URL $CLONED_DIR`)
+            cd(CLONED_DIR) do
+                run(`git checkout $branch`)
+            end
         end
     else
         run(`git $args $REPO_URL $CLONED_DIR`)

@@ -47,7 +47,7 @@ x = randn(2000);
 ```
 
 ```julia
-@model model(x) = begin
+@model function model(x)
     s ~ InverseGamma(2, 3)
     m ~ Normal(0.0, sqrt(s))
     for i = 1:length(x)
@@ -139,6 +139,14 @@ var(x), mean(x)
 
 ```julia
 (mean(rand(q, 1000); dims = 2)..., )
+```
+
+```julia; echo=false
+let
+    v, m = (mean(rand(q, 1000); dims = 2)..., )
+    @assert isapprox(v, 1.022; atol=0.01)
+    @assert isapprox(m, -0.027; atol=0.01)
+end
 ```
 
 That's pretty close! But we're Bayesian so we're not interested in *just* matching the mean.
@@ -332,16 +340,16 @@ test = Matrix(test_cut[:,remove_names]);
 
 ```julia
 # Bayesian linear regression.
-@model linear_regression(x, y, n_obs, n_vars, ::Type{T}=Vector{Float64}) where {T} = begin
+@model function linear_regression(x, y, n_obs, n_vars, ::Type{T}=Vector{Float64}) where {T}
     # Set variance prior.
     σ₂ ~ truncated(Normal(0,100), 0, Inf)
-    
+
     # Set intercept prior.
     intercept ~ Normal(0, 3)
-    
+
     # Set the priors on our coefficients.
     coefficients ~ MvNormal(zeros(n_vars), 10 * ones(n_vars))
-    
+
     # Calculate all the mu terms.
     mu = intercept .+ x * coefficients
     y ~ MvNormal(mu, σ₂)
@@ -672,7 +680,7 @@ But using this interface it becomes trivial to go beyond the mean-field assumpti
 
 ### Relaxing the mean-field assumption
 
-Here we'll instead consider the variational family to be a full non-diagonal multivariate Gaussian. As in the previous section we'll implement this by transforming a standard multivariate Gaussian using `Scale` and `Shift`, but now `Scale` will instead be using a lower-triangular matrix (representing the Cholesky of the covariance matrix of a multivariate normal) in constrast to the diagonal matrix we used in for the mean-field approximate posterior.
+Here we'll instead consider the variational family to be a full non-diagonal multivariate Gaussian. As in the previous section we'll implement this by transforming a standard multivariate Gaussian using `Scale` and `Shift`, but now `Scale` will instead be using a lower-triangular matrix (representing the Cholesky of the covariance matrix of a multivariate normal) in contrast to the diagonal matrix we used in for the mean-field approximate posterior.
 
 
 ```julia
@@ -776,6 +784,12 @@ Test set:
     VI loss: $vi_loss2
     Bayes loss: $bayes_loss2
     OLS loss: $ols_loss2")
+```
+
+```julia; echo=false
+# Verify the loss on the test set.
+@assert vi_loss2 < 0.01
+@assert bayes_loss2 < 0.000001
 ```
 
 ```julia

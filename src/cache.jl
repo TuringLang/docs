@@ -64,7 +64,11 @@ function download_artifacts()
             from_dir = joinpath(CLONED_DIR, dir, tutorial)
             to_dir = joinpath(REPO_DIR, dir, tutorial)
             mkpath(to_dir)
-            cp(from_dir, to_dir; force=true)
+            try
+                cp(from_dir, to_dir; force=true)
+            catch
+                @info "Tutorial has been renamed; manually trigger a full rebuild after merge."
+            end
         end
     end
 end

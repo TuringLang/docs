@@ -126,7 +126,7 @@ end;
 
 ### pPCA inference
 
-Here, we run the inference with the NUTS sampler. Feel free to try different samplers.
+Here, we run the inference with the NUTS sampler. Feel free to try [different samplers](https://turing.ml/stable/docs/library/#samplers).
 
 ```julia
 ppca = pPCA(expression_matrix)
@@ -667,10 +667,12 @@ Package Information:
       Status `~/TuringDev/TuringTutorials/tutorials/11-probabilistic-pca/Project.toml`
   [76274a88] Bijectors v0.9.7
   [a93c6f00] DataFrames v1.2.2
-  [31c24e10] Distributions v0.25.11
+  [31c24e10] Distributions v0.25.13
+  [28b8d3ca] GR v0.58.1
+  [5ab0869b] KernelDensity v0.6.3
   [ce6b1742] RDatasets v0.7.5
   [f3b207a7] StatsPlots v0.14.26
-  [fce5fe82] Turing v0.17.0
+  [fce5fe82] Turing v0.17.4
   [112f6efa] VegaLite v2.6.0
   [37e2e46d] LinearAlgebra
 

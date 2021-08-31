@@ -6,19 +6,19 @@ redirect_from: tutorials/12-gaussian-process-latent-variable-model/
 
 # Gaussian Process Latent Variable Model
 
-In a previous tutorial, we have discussed latent variable models, in particular probabilistic principal
-component analysis (pPCA). Here, we show how we can extend the mapping provided by pPCA to non-linear mappings between input and output. For more details about the Gaussian Process Latent Variable Model (GPLVM), we refer the reader to the [original
-publication](https://jmlr.org/papers/v6/lawrence05a.html) and a [further extension](http://proceedings.mlr.press/v9/titsias10a/titsias10a.pdf).
+In a previous tutorial, we have discussed latent variable models, in particular probabilistic principal component analysis (pPCA).
+Here, we show how we can extend the mapping provided by pPCA to non-linear mappings between input and output.
+For more details about the Gaussian Process Latent Variable Model (GPLVM),
+we refer the reader to the [original publication](https://jmlr.org/papers/v6/lawrence05a.html) and a [further extension](http://proceedings.mlr.press/v9/titsias10a/titsias10a.pdf).
 
-In short, the GPVLM is a dimensionality reduction technique that allows us to embed a high-dimensional dataset in a lower-dimensional embedding. Importantly, it provides the advantage that the linear mappings from the embedded space can be non-linearised through the use of Gaussian Processes.
+In short, the GPVLM is a dimensionality reduction technique that allows us to embed a high-dimensional dataset in a lower-dimensional embedding.
+Importantly, it provides the advantage that the linear mappings from the embedded space can be non-linearised through the use of Gaussian Processes.
 
 Let's start by loading some dependencies.
 ```julia
-# Load Turing.
 using Turing
 using AbstractGPs, KernelFunctions, Random, Plots
 
-# Load other dependencies
 using Distributions, LinearAlgebra
 using VegaLite, DataFrames, StatsPlots, StatsBase
 using RDatasets
@@ -26,65 +26,76 @@ using RDatasets
 Random.seed!(1789);
 ```
 
-We use a classical data set of synthetic data that is also used in the original publication.
+We demonstrate the GPLVM with a very small dataset: [Fisher's Iris data set](https://en.wikipedia.org/wiki/Iris_flower_data_set).
+This is mostly for reasons of run time, so the tutorial can be run quickly.
+As you will see, one of the major drawbacks of using GPs is their speed,
+although this is an active area of research.
+We will briefly touch on some ways to speed things up at the end of this tutorial.
+We transform the original data with non-linear operations in order to demonstrate
+
 ```julia
 data = dataset("datasets", "iris")
 species = data[!, "Species"]
 index = shuffle(1:150)
-# we extract the four measured quantities
-d = 4
-dat = data[index, 1:d]
-oil_matrix = Matrix(dat)
+# we extract the four measured quantities,
+# so the dimension of the data is only d=4 for this toy example
+dat = Matrix(data[index, 1:4])
 labels = data[index, "Species"]
-#oil_matrix = readdlm("Data.txt", Float64);
-#labels = readdlm("DataLabels.txt", Float64);
-#labels = mapslices(x -> findmax(x)[2], labels, dims=2);
+
+# non-linearize data to demonstrate ability of GPs to deal with non-linearity
+dat[:, 1] = 0.5 * dat[:, 1].^2 + 0.5 * dat[:, 1].^3
+dat[:, 2] = dat[:, 2].^3 - 0.1 * dat[:, 2].^4
+dat[:, 3] = 0.1 * exp.(dat[:, 3])
+dat[:, 4] = 0.5 * log.(dat[:, 4])
+
 # normalize data
-dt = fit(ZScoreTransform, oil_matrix, dims=2);
-StatsBase.transform!(dt, oil_matrix);
+dt = fit(ZScoreTransform, dat, dims=1);
+StatsBase.transform!(dt, dat);
 ```
 
-We will start out, by demonstrating the basic similarity between pPCA (see the tutorial on this topic)
-and the GPLVM model. Indeed, pPCA is basically equivalent to running the GPLVM model with an
-automatic relevance determination (ARD) linear kernel.
+We will start out by demonstrating the basic similarity between pPCA (see the tutorial on this topic) and the GPLVM model.
+Indeed, pPCA is basically equivalent to running the GPLVM model with an automatic relevance determination (ARD) linear kernel.
 
 First, we re-introduce the pPCA model (see the tutorial on pPCA for details)
 ```julia
-@model function pPCA(x)
+@model function pPCA(x, ::Type{TV} = Array{Float64}) where {TV}
   # Dimensionality of the problem.
   N, D = size(x)
-
   # latent variable z
   z ~ filldist(Normal(), D, N)
-
   # weights/loadings W
-  w ~ filldist(Normal(0.0, 1.0), D, D)
-
-  # mean offset
+  w ~ filldist(Normal(), D, D)
   mu = (w * z)'
-
   for d in 1:D
-    x[:,d] ~ MvNormal(mu[:,d], 1.)
+    x[:, d] ~ MvNormal(mu[:, d], 1.)
   end
 end;
 ```
 
+
+We define two different kernels, a simple linear kernel with an Automatic Relevance Determination transform and a
+squared exponential kernel.
+The latter represents a fully non-linear transform.
+```julia
+linear_kernel(α) = LinearKernel() ∘ ARDTransform(α)
+sekernel(α, σ) = σ * SqExponentialKernel() ∘ ARDTransform(α)
+```
+
 And here is the GPLVM model. The choice of kernel is determined by the kernel_function parameter.
 ```julia
-@model function GPLVM(Y, kernel_function, ndim=4,::Type{T} = Float64) where {T}
+@model function GPLVM_linear(Y, K=4,::Type{T} = Float64) where {T}
 
   # Dimensionality of the problem.
   N, D = size(Y)
-  # dimensions of latent space
-  K = ndim
+  # K is the dimension of the latent space
+  @assert K <= D
   noise = 1e-3
 
   # Priors
   α ~ MvLogNormal(MvNormal(K, 1.0))
-  σ ~ LogNormal(0.0, 1.0)
-  Z ~ filldist(Normal(0., 1.), K, N)
+  Z ~ filldist(Normal(0.0, 1.0), K, N)
 
-  kernel = kernel_function(α, σ)
+  kernel = linear_kernel(α)
 
   ## DENSE GP
   gp = GP(kernel)
@@ -93,59 +104,76 @@ And here is the GPLVM model. The choice of kernel is determined by the kernel_fu
   for d in 1:D
     Y[:, d] ~ prior
   end
-end
+end;
+
+@model function GPLVM(Y, K=4,::Type{T} = Float64) where {T}
+
+  # Dimensionality of the problem.
+  N, D = size(Y)
+  # K is the dimension of the latent space
+  @assert K <= D
+  noise = 1e-3
+
+  # Priors
+  α ~ MvLogNormal(MvNormal(K, 1.0))
+  σ ~ LogNormal(0.0, 1.0)
+  Z ~ filldist(Normal(0.0, 1.0), K, N)
+
+  kernel = sekernel(α, σ)
+
+  ## DENSE GP
+  gp = GP(kernel)
+  prior = gp(ColVecs(Z), noise)
+
+  for d in 1:D
+    Y[:, d] ~ prior
+  end
+end;
 ```
 
-We define two different kernels, a simple linear kernel with an Automatic Relevance Determination transform and a
-squared exponential kernel. The latter represents a fully non-linear transform.
-```julia
-sekernel(α, σ²) = σ² * SqExponentialKernel() ∘ ARDTransform(α)
-linear_kernel(α, σ²) = LinearKernel() ∘ ARDTransform(α)
 
+```julia
 # note we keep the problem very small for reasons of runtime
-# n_features=size(oil_matrix)[2];
-n_features=4
+n_features = 4
 # latent dimension for GP case
-ndim=2
-n_data=30
+ndim = 4
+# Standard GPs don't scale very well in n, so we use a small subsample for the purpose of this tutorial
+n_data = 30
 ```
 
 ```julia
-ppca = pPCA(oil_matrix[1:n_data,1:n_features])
-chain_ppca = sample(ppca, NUTS(), 1000)
+ppca = pPCA(dat[1:n_data, 1:n_features])
+chain_ppca = sample(ppca, NUTS(), 1000);
 ```
 ```julia
-w = permutedims(reshape(mean(group(chain_ppca, :w))[:,2], (n_features,n_features)))
-z = permutedims(reshape(mean(group(chain_ppca, :z))[:,2], (n_features, n_data)))'
+# we extract the posterior mean estimates of the parameters from the chain
+w = reshape(mean(group(chain_ppca, :w))[:, 2], (n_features,n_features))
+z = reshape(mean(group(chain_ppca, :z))[:, 2], (n_features, n_data))
 X = w * z
-
-#df_rec = DataFrame(X', :auto)
-#df_rec[!,:datapoints] = 1:n_data
 
 df_pre = DataFrame(z', :auto)
 rename!(df_pre, Symbol.( ["z"*string(i) for i in collect(1:n_features)]))
 df_pre[!,:type] = labels[1:n_data]
-df_pre |>  @vlplot(:point, x=:z1, y=:z2, color="type:n")
+p_ppca = df_pre |>  @vlplot(:point, x=:z1, y=:z2, color="type:n")
 ```
+TODO
+We can see that the pPCA fails to distinguish the groups.
+In particular, the `setosa` species is not clearly separated from `versicolor` and `virginica`.
+This is due to the non-linearities that we introduced, as without them the two groups can be clearly distinguished
+using pPCA (see the pPCA tutorial).
 
 ```julia
-df_pre |>  @vlplot(:point, x=:z2, y=:z3, color="type:n")
-df_pre |>  @vlplot(:point, x=:z2, y=:z4, color="type:n")
-df_pre |>  @vlplot(:point, x=:z3, y=:z4, color="type:n")
-```
+gplvm_linear = GPLVM_linear(dat[1:n_data, :], ndim)
 
-
-```julia
-gplvm_linear = GPLVM(oil_matrix[1:n_data,1:n_features], linear_kernel, n_features)
-
-chain_linear = sample(gplvm_linear, NUTS(), 800)
-z_mean = permutedims(reshape(mean(group(chain_linear, :Z))[:,2], (n_features, n_data)))'
-alpha_mean = mean(group(chain_linear, :α))[:,2]
+chain_linear = sample(gplvm_linear, NUTS(), 400)
+# we extract the posterior mean estimates of the parameters from the chain
+z_mean = reshape(mean(group(chain_linear, :Z))[:, 2], (n_features, n_data))
+alpha_mean = mean(group(chain_linear, :α))[:, 2]
 ```
 
 ```julia
 df_gplvm_linear = DataFrame(z_mean', :auto)
-rename!(df_gplvm_linear, Symbol.( ["z"*string(i) for i in collect(1:n_features)]))
+rename!(df_gplvm_linear, Symbol.( ["z"*string(i) for i in collect(1:ndim)]))
 df_gplvm_linear[!,:sample] = 1:n_data
 df_gplvm_linear[!,:labels] = labels[1:n_data]
 alpha_indices = sortperm(alpha_mean, rev=true)[1:2]
@@ -153,27 +181,19 @@ println(alpha_indices)
 df_gplvm_linear[!,:ard1] = z_mean[alpha_indices[1], :]
 df_gplvm_linear[!,:ard2] = z_mean[alpha_indices[2], :]
 
-p1 = df_gplvm_linear|>  @vlplot(:point, x=:z1, y=:z2, color="labels:n")
+p_linear = df_gplvm_linear |>  @vlplot(:point, x=:ard1, y=:ard2, color="labels:n")
 ```
+We can see that similar to the pPCA case, the linear kernel GPLVM fails to distinguish between the two groups
+(`setosa` on the one hand, and `virginica` and `verticolor` on the other).
 
+Finally, we demonstrate that by changing the kernel to a non-linear function, we are able to separate the data.
 ```julia
-p2 = df_gplvm_linear |>  @vlplot(:point, x=:ard1, y=:ard2, color="labels:n")
-```
+gplvm = GPLVM(dat[1:n_data, :], ndim)
 
-```julia
-df_gplvm_linear|>  @vlplot(:point, x=:z2, y=:z3, color="labels:n")
-df_gplvm_linear|>  @vlplot(:point, x=:z2, y=:z4, color="labels:n")
-df_gplvm_linear|>  @vlplot(:point, x=:z3, y=:z4, color="labels:n")
-```
-
-Finally, we demonstrate that by changing the kernel to a non-linear function, we are better able to separate the data.
-
-```julia
-gplvm = GPLVM(oil_matrix[1:n_data,:], sekernel, ndim)
-
-chain = sample(gplvm, NUTS(), 800)
-z_mean = permutedims(reshape(mean(group(chain, :Z))[:,2], (ndim, n_data)))'
-alpha_mean = mean(group(chain, :α))[:,2]
+chain_gplvm = sample(gplvm, NUTS(), 600)
+# we extract the posterior mean estimates of the parameters from the chain
+z_mean = reshape(mean(group(chain_gplvm, :Z))[:, 2], (ndim, n_data))
+alpha_mean = mean(group(chain_gplvm, :α))[:, 2]
 ```
 
 ```julia
@@ -186,11 +206,7 @@ println(alpha_indices)
 df_gplvm[!,:ard1] = z_mean[alpha_indices[1], :]
 df_gplvm[!,:ard2] = z_mean[alpha_indices[2], :]
 
-p1 = df_gplvm|>  @vlplot(:point, x=:z1, y=:z2, color="labels:n")
-```
-
-```julia
-p2 = df_gplvm |>  @vlplot(:point, x=:ard1, y=:ard2, color="labels:n")
+p_gplvm = df_gplvm |>  @vlplot(:point, x=:ard1, y=:ard2, color="labels:n")
 ```
 
 ### Speeding up inference
@@ -198,14 +214,15 @@ p2 = df_gplvm |>  @vlplot(:point, x=:ard1, y=:ard2, color="labels:n")
 Gaussian processes tend to be slow, as they naively require. 
 
 ```julia
-@model function GPLVM_sparse(Y, kernel_function, ndim=4,::Type{T} = Float64) where {T}
+using Stheno
+@model function GPLVM_sparse(Y, kernel_function, K,::Type{T} = Float64) where {T}
 
   # Dimensionality of the problem.
   N, D = size(Y)
-  # dimensions of latent space
-  K = ndim
+  # dimension of latent space
+  @assert K <= D
   # number of inducing points
-  n_inducing = 20
+  n_inducing = 10
   noise = 1e-3
 
   # Priors
@@ -230,7 +247,8 @@ Gaussian processes tend to be slow, as they naively require.
   #  xu = reshape(repeat(collect(range(-2.0, 2.0; length=20)), K), :, K) # inducing points
   lbound = minimum(Y) + 1e-6
   ubound = maximum(Y) - 1e-6
-  locations ~ filldist(Uniform(lbound, ubound), n_inducing)
+  locations = collect(LinRange(lbound, ubound, n_inducing))
+  #locations ~ filldist(Uniform(lbound, ubound), n_inducing)
   xu = reshape(repeat(locations, K), :, K) # inducing points
   gp = Stheno.wrap(GP(kernel), GPC())
   fobs = gp(ColVecs(Z), noise)
@@ -244,16 +262,13 @@ end
 ```
 
 ```julia
-ndim=2
-n_data=40
-#  n_features=size(oil_matrix)[2];
-n_features=4
+n_data = 50
+gplvm = GPLVM_sparse(dat[1:n_data, :], sekernel, ndim)
 
-gplvm = GPLVM(oil_matrix[1:n_data,1:n_features], sekernel, ndim)
-
-chain_gplvm_sparse = sample(gplvm, NUTS(), 500)
-z_mean = permutedims(reshape(mean(group(chain_gplvm_sparse, :Z))[:,2], (ndim, n_data)))'
-alpha_mean = mean(group(chain_gplvm_sparse, :α))[:,2]
+chain_gplvm_sparse = sample(gplvm, NUTS(), 400)
+# we extract the posterior mean estimates of the parameters from the chain
+z_mean = reshape(mean(group(chain_gplvm_sparse, :Z))[:, 2], (ndim, n_data))
+alpha_mean = mean(group(chain_gplvm_sparse, :α))[:, 2]
 ```
 
 ```julia
@@ -262,14 +277,9 @@ rename!(df_gplvm_sparse, Symbol.( ["z"*string(i) for i in collect(1:ndim)]))
 df_gplvm_sparse[!,:sample] = 1:n_data
 df_gplvm_sparse[!,:labels] = labels[1:n_data]
 alpha_indices = sortperm(alpha_mean, rev=true)[1:2]
-println(alpha_indices)
 df_gplvm_sparse[!,:ard1] = z_mean[alpha_indices[1], :]
 df_gplvm_sparse[!,:ard2] = z_mean[alpha_indices[2], :]
-p1 = df_gplvm_sparse|>  @vlplot(:point, x=:z1, y=:z2, color="labels:n")
-```
-
-```julia
-p2 = df_gplvm_sparse |>  @vlplot(:point, x=:ard1, y=:ard2, color="labels:n")
+p_sparse = df_gplvm_sparse |>  @vlplot(:point, x=:ard1, y=:ard2, color="labels:n")
 ```
 
 ```julia, echo=false, skip="notebook"

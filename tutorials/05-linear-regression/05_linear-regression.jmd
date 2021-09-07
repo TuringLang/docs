@@ -95,27 +95,26 @@ where $\alpha$ is an intercept term common to all observations, $\boldsymbol{\be
 
 For $\sigma^2$, we assign a prior of `truncated(Normal(0, 100), 0, Inf)`. This is consistent with [Andrew Gelman's recommendations](http://www.stat.columbia.edu/~gelman/research/published/taumain.pdf) on noninformative priors for variance. The intercept term ($\alpha$) is assumed to be normally distributed with a mean of zero and a variance of three. This represents our assumptions that miles per gallon can be explained mostly by our assorted variables, but a high variance term indicates our uncertainty about that. Each coefficient is assumed to be normally distributed with a mean of zero and a variance of 10. We do not know that our coefficients are different from zero, and we don't know which ones are likely to be the most important, so the variance term is quite high. Lastly, each observation $y_i$ is distributed according to the calculated `mu` term given by $\alpha + \boldsymbol{\beta}^\mathsf{T}\boldsymbol{X_i}$.
 
-
 ```julia
 # Bayesian linear regression.
 @model function linear_regression(x, y)
     # Set variance prior.
     σ₂ ~ truncated(Normal(0, 100), 0, Inf)
-    
+
     # Set intercept prior.
     intercept ~ Normal(0, sqrt(3))
-    
+
     # Set the priors on our coefficients.
     nfeatures = size(x, 2)
     coefficients ~ MvNormal(nfeatures, sqrt(10))
-    
+
     # Calculate all the mu terms.
     mu = intercept .+ x * coefficients
     y ~ MvNormal(mu, sqrt(σ₂))
 end
 ```
 
-With our model specified, we can call the sampler. We will use the No U-Turn Sampler ([NUTS](http://turing.ml/docs/library/#-turingnuts--type)) here. 
+With our model specified, we can call the sampler. We will use the No U-Turn Sampler ([NUTS](http://turing.ml/docs/library/#-turingnuts--type)) here.
 
 ```julia
 model = linear_regression(train, train_target)
@@ -139,7 +138,6 @@ describe(chain)
 
 A satisfactory test of our model is to evaluate how well it predicts. Importantly, we want to compare our model to existing tools like OLS. The code below uses the [GLM.jl]() package to generate a traditional OLS multiple regression model on the same data as our probabilistic model.
 
-
 ```julia
 # Import the GLM package.
 using GLM
@@ -161,7 +159,6 @@ test_prediction_ols = μtarget .+ σtarget .* p;
 ```
 
 The function below accepts a chain and an input matrix and calculates predictions. We use the samples of the model parameters in the chain starting with sample 200, which is where the warm-up period for the NUTS sampler ended.
-
 
 ```julia
 # Make a prediction given an input vector.
@@ -190,7 +187,7 @@ DataFrame(
 )
 ```
 
-Now let's evaluate the loss for each method, and each prediction set. We will use the mean squared error to evaluate loss, given by 
+Now let's evaluate the loss for each method, and each prediction set. We will use the mean squared error to evaluate loss, given by
 $$
 \mathrm{MSE} = \frac{1}{n} \sum_{i=1}^n {(y_i - \hat{y_i})^2}
 $$
@@ -212,6 +209,17 @@ println(
     "\n\tOLS loss: ",
     msd(test_prediction_ols, testset[!, target])
 )
+```
+
+```julia; echo=false
+let
+  bayes_train_loss = msd(train_prediction_bayes, trainset[!, target])
+  bayes_test_loss = msd(test_prediction_bayes, testset[!, target])
+  ols_train_loss = msd(train_prediction_ols, trainset[!, target])
+  @assert bayes_train_loss < 5.5
+  @assert bayes_test_loss 15.5
+  @assert isapprox(bayes_train_loss, ols_train_loss; atol=1)
+end
 ```
 
 As we can see above, OLS and our Bayesian model fit our training and test data set about the same.

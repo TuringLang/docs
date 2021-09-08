@@ -49,7 +49,6 @@ $$
 
 For more details on Gaussian mixture models, we refer to Christopher M. Bishop, *Pattern Recognition and Machine Learning*, Section 9.
 
-
 ```julia
 using Turing, MCMCChains
 
@@ -58,39 +57,38 @@ Turing.setprogress!(false);
 ```
 
 ```julia
-@model GaussianMixtureModel(x) = begin
-    
+@model function GaussianMixtureModel(x)
+
     D, N = size(x)
 
     # Draw the parameters for cluster 1.
     μ1 ~ Normal()
-    
+
     # Draw the parameters for cluster 2.
     μ2 ~ Normal()
-    
+
     μ = [μ1, μ2]
-    
-    # Uncomment the following lines to draw the weights for the K clusters 
+
+    # Uncomment the following lines to draw the weights for the K clusters
     # from a Dirichlet distribution.
-    
+
     # α = 1.0
-    # w ~ Dirichlet(2, α)
-    
+    # w ~ Dirichlet(2, α)
+
     # Comment out this line if you instead want to draw the weights.
     w = [0.5, 0.5]
-    
+
     # Draw assignments for each datum and generate it from a multivariate normal.
     k = Vector{Int}(undef, N)
     for i in 1:N
         k[i] ~ Categorical(w)
-        x[:,i] ~ MvNormal([μ[k[i]], μ[k[i]]], 1.)
+        x[:,i] ~ MvNormal([μ[k[i]], μ[k[i]]], 1.)
     end
     return k
-end
+end;
 ```
 
 After having specified the model in Turing, we can construct the model function and run a MCMC simulation to obtain assignments of the data points.
-
 
 ```julia
 gmm_model = GaussianMixtureModel(x);
@@ -106,22 +104,31 @@ gmm_sampler = Gibbs(PG(100, :k), HMC(0.05, 10, :μ1, :μ2))
 tchain = sample(gmm_model, gmm_sampler, MCMCThreads(), 100, 3);
 ```
 
+```julia; echo=false
+let
+  matrix = get(tchain, :μ1).μ1
+  first_chain = matrix[:, 1]
+  actual = mean(first_chain)
+  # Verify that the output of the chain is as expected.
+  # μ1 and μ2 appear to switch places, so that's why isapprox(...) || isapprox(...).
+  @assert isapprox(actual, -3.5; atol=1) || isapprox(actual, 0.2; atol=1)
+end
+```
+
 ## Visualize the Density Region of the Mixture Model
 
-After sucessfully doing posterior inference, we can first visualize the trace and density of the parameters of interest.
+After successfully doing posterior inference, we can first visualize the trace and density of the parameters of interest.
 
 In particular, in this example we consider the sample values of the location parameter for the two clusters.
 
-
 ```julia
 ids = findall(map(name -> occursin("μ", string(name)), names(tchain)));
-p=plot(tchain[:, ids, :], legend=true, labels = ["Mu 1" "Mu 2"], colordim=:parameter)
+p = plot(tchain[:, ids, :]; legend=true, labels=["Mu 1" "Mu 2"], colordim=:parameter)
 ```
 
 You'll note here that it appears the location means are switching between chains. We will address this in future tutorials. For those who are keenly interested, see [this](https://mc-stan.org/users/documentation/case-studies/identifying_mixture_models.html) article on potential solutions.
 
 For the moment, we will just use the first chain to ensure the validity of our inference.
-
 
 ```julia
 tchain = tchain[:, :, 1];
@@ -129,37 +136,33 @@ tchain = tchain[:, :, 1];
 
 As the samples for the location parameter for both clusters are unimodal, we can safely visualize the density region of our model using the average location.
 
-
 ```julia
 # Helper function used for visualizing the density region.
 function predict(x, y, w, μ)
     # Use log-sum-exp trick for numeric stability.
     return Turing.logaddexp(
-        log(w[1]) + logpdf(MvNormal([μ[1], μ[1]], 1.), [x, y]), 
+        log(w[1]) + logpdf(MvNormal([μ[1], μ[1]], 1.), [x, y]),
         log(w[2]) + logpdf(MvNormal([μ[2], μ[2]], 1.), [x, y])
     )
-end
+end;
 ```
 
 ```julia
-contour(range(-5, stop = 3), range(-6, stop = 2), 
+contour(range(-5, stop = 3), range(-6, stop = 2),
     (x, y) -> predict(x, y, [0.5, 0.5], [mean(tchain[:μ1]), mean(tchain[:μ2])])
 )
-scatter!(x[1,:], x[2,:], legend = false, title = "Synthetic Dataset")
+scatter!(x[1,:], x[2,:]; legend=false, title="Synthetic Dataset")
 ```
 
-## Infered Assignments
+## Inferred Assignments
 
-Finally, we can inspect the assignments of the data points infered using Turing. As we can see, the dataset is partitioned into two distinct groups.
+Finally, we can inspect the assignments of the data points inferred using Turing. As we can see, the dataset is partitioned into two distinct groups.
 
 
 ```julia
-# TODO: is there a better way than this icky `.nt.mean` stuff?
 assignments = mean(MCMCChains.group(tchain, :k)).nt.mean
-scatter(x[1,:], x[2,:], 
-    legend = false, 
-    title = "Assignments on Synthetic Dataset", 
-    zcolor = assignments)
+scatter(x[1,:], x[2,:]; legend=false,
+    title="Assignments on Synthetic Dataset", zcolor=assignments)
 ```
 
 ```julia, echo=false, skip="notebook"

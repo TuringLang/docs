@@ -393,14 +393,13 @@ Package Information:
 ```
       Status `~/TuringDev/TuringTutorials/tutorials/12-gaussian-process-latent-variable-model/Project.toml`
   [99985d1d] AbstractGPs v0.3.9
-  [6e4b80f9] BenchmarkTools v1.1.4
   [a93c6f00] DataFrames v1.2.2
   [31c24e10] Distributions v0.25.14
   [ec8451be] KernelFunctions v0.10.13
   [91a5bcdd] Plots v1.21.3
   [ce6b1742] RDatasets v0.7.5
   [2913bbd2] StatsBase v0.33.10
-  [f3b207a7] StatsPlots v0.14.26
+  [f3b207a7] StatsPlots v0.14.27
   [8188c328] Stheno v0.7.12
   [fce5fe82] Turing v0.18.0
   [112f6efa] VegaLite v2.6.0

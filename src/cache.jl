@@ -64,7 +64,10 @@ function download_artifacts()
             from_dir = joinpath(CLONED_DIR, dir, tutorial)
             to_dir = joinpath(REPO_DIR, dir, tutorial)
             mkpath(to_dir)
-            cp(from_dir, to_dir; force=true)
+            # from_dir is missing for new/renamed tutorials.
+            if isdir(from_dir)
+                cp(from_dir, to_dir; force=true)
+            end
         end
     end
 end

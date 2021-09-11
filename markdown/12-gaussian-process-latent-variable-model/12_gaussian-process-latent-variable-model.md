@@ -1,8 +1,9 @@
 ---
-title: Gaussian Process Latent Variable Model
-permalink: /:collection/:name/
-redirect_from: tutorials/12-gaussian-process-latent-variable-model/
+redirect_from: "tutorials/12-gaussian-process-latent-variable-model/"
+title: "Gaussian Process Latent Variable Model"
+permalink: "/:collection/:name/"
 ---
+
 
 # Gaussian Process Latent Variable Model
 
@@ -25,6 +26,9 @@ using RDatasets
 
 Random.seed!(1789);
 ```
+
+
+
 
 We demonstrate the GPLVM with a very small dataset: [Fisher's Iris data set](https://en.wikipedia.org/wiki/Iris_flower_data_set).
 This is mostly for reasons of run time, so the tutorial can be run quickly.
@@ -53,6 +57,9 @@ dt = fit(ZScoreTransform, dat, dims=1);
 StatsBase.transform!(dt, dat);
 ```
 
+
+
+
 We will start out by demonstrating the basic similarity between pPCA (see the tutorial on this topic) and the GPLVM model.
 Indeed, pPCA is basically equivalent to running the GPLVM model with an automatic relevance determination (ARD) linear kernel.
 
@@ -73,12 +80,18 @@ end;
 ```
 
 
+
+
+
 We define two different kernels, a simple linear kernel with an Automatic Relevance Determination transform and a
 squared exponential kernel.
 ```julia
 linear_kernel(α) = LinearKernel() ∘ ARDTransform(α)
 sekernel(α, σ) = σ * SqExponentialKernel() ∘ ARDTransform(α);
 ```
+
+
+
 And here is the GPLVM model.
 We create separate models for the two types of kernel.
 ```julia
@@ -124,6 +137,7 @@ end;
 end;
 ```
 
+
 ```julia
 # Standard GPs don't scale very well in n, so we use a small subsample for the purpose of this tutorial
 n_data = 40
@@ -133,10 +147,12 @@ n_features = 4
 ndim = 4;
 ```
 
+
 ```julia
 ppca = pPCA(dat[1:n_data, 1:n_features])
 chain_ppca = sample(ppca, NUTS(), 1000);
 ```
+
 
 ```julia
 # we extract the posterior mean estimates of the parameters from the chain
@@ -149,6 +165,10 @@ rename!(df_pre, Symbol.( ["z"*string(i) for i in collect(1:n_features)]))
 df_pre[!,:type] = labels[1:n_data]
 p_ppca = df_pre |>  @vlplot(:point, x=:z1, y=:z2, color="type:n")
 ```
+
+![](figures/12_gaussian-process-latent-variable-model_8_1.png)
+
+
 
 We can see that the pPCA fails to distinguish the groups.
 In particular, the `setosa` species is not clearly separated from `versicolor` and `virginica`.
@@ -165,6 +185,16 @@ z_mean = reshape(mean(group(chain_linear, :Z))[:, 2], (n_features, n_data))
 alpha_mean = mean(group(chain_linear, :α))[:, 2]
 ```
 
+```
+4-element Vector{Float64}:
+ 0.4573916332788623
+ 0.5244420375120039
+ 0.5032902616561209
+ 0.4548029438488051
+```
+
+
+
 ```julia
 df_gplvm_linear = DataFrame(z_mean', :auto)
 rename!(df_gplvm_linear, Symbol.( ["z"*string(i) for i in collect(1:ndim)]))
@@ -178,6 +208,15 @@ df_gplvm_linear[!,:ard2] = z_mean[alpha_indices[2], :]
 p_linear = df_gplvm_linear |>  @vlplot(:point, x=:ard1, y=:ard2, color="labels:n")
 p_linear
 ```
+
+```
+[2, 3]
+```
+
+
+![](figures/12_gaussian-process-latent-variable-model_10_1.png)
+
+
 We can see that similar to the pPCA case, the linear kernel GPLVM fails to distinguish between the two groups
 (`setosa` on the one hand, and `virginica` and `verticolor` on the other).
 
@@ -190,6 +229,16 @@ chain_gplvm = sample(gplvm, NUTS(), 500)
 z_mean = reshape(mean(group(chain_gplvm, :Z))[:, 2], (ndim, n_data))
 alpha_mean = mean(group(chain_gplvm, :α))[:, 2]
 ```
+
+```
+4-element Vector{Float64}:
+ 0.15699922659921323
+ 0.7887930375112809
+ 0.17187239953779038
+ 0.15627072713559162
+```
+
+
 
 ```julia
 df_gplvm = DataFrame(z_mean', :auto)
@@ -205,12 +254,15 @@ p_gplvm = df_gplvm |>  @vlplot(:point, x=:ard1, y=:ard2, color="labels:n")
 p_gplvm
 ```
 
-
-```julia; echo=false
-let
-  @assert abs(mean(z_mean[alpha_indices[1], labels[1:n_data] .== "setosa"]) - mean(z_mean[alpha_indices[1], labels[1:n_data] .!= "setosa"])) > 1.4
-end
 ```
+[2, 3]
+```
+
+
+![](figures/12_gaussian-process-latent-variable-model_12_1.png)
+
+
+
 
 Now, the split between the two groups is visible again.
 
@@ -266,6 +318,12 @@ using Stheno
 end
 ```
 
+```
+GPLVM_sparse (generic function with 3 methods)
+```
+
+
+
 ```julia
 n_data = 50
 gplvm_sparse = GPLVM_sparse(dat[1:n_data, :], ndim)
@@ -275,6 +333,16 @@ chain_gplvm_sparse = sample(gplvm_sparse, NUTS(), 500)
 z_mean = reshape(mean(group(chain_gplvm_sparse, :Z))[:, 2], (ndim, n_data))
 alpha_mean = mean(group(chain_gplvm_sparse, :α))[:, 2]
 ```
+
+```
+4-element Vector{Float64}:
+ 0.1347245321913309
+ 0.1886553362408269
+ 0.6090443132588738
+ 0.28379259049979433
+```
+
+
 
 ```julia
 df_gplvm_sparse = DataFrame(z_mean', :auto)
@@ -288,18 +356,55 @@ p_sparse = df_gplvm_sparse |>  @vlplot(:point, x=:ard1, y=:ard2, color="labels:n
 p_sparse
 ```
 
+![](figures/12_gaussian-process-latent-variable-model_16_1.png)
+
+
+
 Comparing the runtime, between the two versions, we can observe a clear speed-up with the sparse version.
 
-```julia; echo=false
-let
-  @assert abs(mean(z_mean[alpha_indices[1], labels[1:n_data] .== "setosa"]) - mean(z_mean[alpha_indices[1], labels[1:n_data] .!= "setosa"])) > 1.0
 
-  @assert abs(mean(z_mean[alpha_indices[2], labels[1:n_data] .== "setosa"]) - mean(z_mean[alpha_indices[2], labels[1:n_data] .!= "setosa"])) > 0.1
-end
+
+## Appendix
+ This tutorial is part of the TuringTutorials repository, found at: <https://github.com/TuringLang/TuringTutorials>.
+
+To locally run this tutorial, do the following commands:
+```julia, eval = false
+using TuringTutorials
+TuringTutorials.weave_file("12-gaussian-process-latent-variable-model", "12_gaussian-process-latent-variable-model.jmd")
 ```
 
-```julia, echo=false, skip="notebook"
-if isdefined(Main, :TuringTutorials)
-    Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
-end
+Computer Information:
+```
+Julia Version 1.6.1
+Commit 6aaedecc44 (2021-04-23 05:59 UTC)
+Platform Info:
+  OS: Linux (x86_64-pc-linux-gnu)
+  CPU: Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz
+  WORD_SIZE: 64
+  LIBM: libopenlibm
+  LLVM: libLLVM-11.0.1 (ORCJIT, skylake)
+Environment:
+  JULIA_NUM_THREADS = 8
+
+```
+
+Package Information:
+
+```
+      Status `~/TuringDev/TuringTutorials/tutorials/12-gaussian-process-latent-variable-model/Project.toml`
+  [99985d1d] AbstractGPs v0.3.9
+  [6e4b80f9] BenchmarkTools v1.1.4
+  [a93c6f00] DataFrames v1.2.2
+  [31c24e10] Distributions v0.25.14
+  [ec8451be] KernelFunctions v0.10.13
+  [91a5bcdd] Plots v1.21.3
+  [ce6b1742] RDatasets v0.7.5
+  [2913bbd2] StatsBase v0.33.10
+  [f3b207a7] StatsPlots v0.14.26
+  [8188c328] Stheno v0.7.12
+  [fce5fe82] Turing v0.18.0
+  [112f6efa] VegaLite v2.6.0
+  [37e2e46d] LinearAlgebra
+  [9a3f8284] Random
+
 ```

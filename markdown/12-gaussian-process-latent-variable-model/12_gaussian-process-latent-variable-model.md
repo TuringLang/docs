@@ -393,6 +393,7 @@ Package Information:
 ```
       Status `~/TuringDev/TuringTutorials/tutorials/12-gaussian-process-latent-variable-model/Project.toml`
   [99985d1d] AbstractGPs v0.3.9
+  [336ed68f] CSV v0.8.5
   [a93c6f00] DataFrames v1.2.2
   [31c24e10] Distributions v0.25.14
   [ec8451be] KernelFunctions v0.10.13
@@ -403,6 +404,7 @@ Package Information:
   [8188c328] Stheno v0.7.12
   [fce5fe82] Turing v0.18.0
   [112f6efa] VegaLite v2.6.0
+  [44d3d7a6] Weave v0.10.10
   [37e2e46d] LinearAlgebra
   [9a3f8284] Random
 

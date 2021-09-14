@@ -37,16 +37,16 @@ animation = @gif for (i, N) in enumerate(Ns)
     # Count the number of heads and tails.
     heads = sum(data[1:i-1])
     tails = N - heads
-    
+
     # Update our prior belief in closed form (this is possible because we use a conjugate prior).
     updated_belief = Beta(prior_belief.α + heads, prior_belief.β + tails)
 
     # Plotting
-    plot(updated_belief, 
-        size = (500, 250), 
+    plot(updated_belief,
+        size = (500, 250),
         title = "Updated belief after $N observations",
-        xlabel = "probability of heads", 
-        ylabel = "", 
+        xlabel = "probability of heads",
+        ylabel = "",
         legend = nothing,
         xlim = (0,1),
         fill=0, α=0.3, w=3)
@@ -64,11 +64,11 @@ using Distributions
 using StatsPlots
 
 
-@model coinflip(y) = begin
-    
+@model function coinflip(y)
+
     # Our prior belief about the probability of heads in a coin.
     p ~ Beta(1, 1)
-    
+
     # The number of observations.
     N = length(y)
     for n in 1:N
@@ -92,6 +92,9 @@ p_summary = chain[:p]
 plot(p_summary, seriestype = :histogram)
 
 
+@assert isapprox(mean(p_summary), 0.5; atol=1)
+
+
 # Compute the posterior distribution in closed-form.
 N = length(data)
 heads = sum(data)
@@ -101,7 +104,7 @@ updated_belief = Beta(prior_belief.α + heads, prior_belief.β + N - heads)
 p = plot(p_summary, seriestype = :density, xlim = (0,1), legend = :best, w = 2, c = :blue)
 
 # Visualize a green density plot of posterior distribution in closed-form.
-plot!(p, range(0, stop = 1, length = 100), pdf.(Ref(updated_belief), range(0, stop = 1, length = 100)), 
+plot!(p, range(0, stop = 1, length = 100), pdf.(Ref(updated_belief), range(0, stop = 1, length = 100)),
         xlabel = "probability of heads", ylabel = "", title = "", xlim = (0,1), label = "Closed-form",
         fill=0, α=0.3, w=3, c = :lightgreen)
 

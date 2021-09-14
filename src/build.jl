@@ -75,13 +75,17 @@ function safe_instantiate(folders)
     script = "import Pkg; Pkg.activate(); Pkg.instantiate()"
     for folder in folders
         dir = tutorial_path(folder)
+        # If dir doesn't exist it is probably the test tutorial.
+        isdir(dir) || return nothing
         cd(dir) do
+            @info "Instantiating project environment in $folder"
             cmd = `$(Base.julia_cmd()) -e $script`
             if !success(cmd)
                 error("Couldn't instantiate project environment of $folder")
             end
         end
     end
+    return nothing
 end
 
 """

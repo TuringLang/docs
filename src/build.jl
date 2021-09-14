@@ -72,16 +72,15 @@ Install all packages sequentially since Pkg.jl is thread-unsafe.
 See https://github.com/JuliaLang/Pkg.jl/issues/2219 for details.
 """
 function safe_instantiate(folders)
-    script = "import Pkg; Pkg.activate(); Pkg.instantiate()"
+    script = "import Pkg; Pkg.activate(ARGS[1]); Pkg.instantiate()"
     for folder in folders
-        dir = tutorial_path(folder)
         folder == "99-test" && return nothing
-        cd(dir) do
-            @info "Instantiating project environment in $folder"
-            cmd = `$(Base.julia_cmd()) -e $script`
-            if !success(cmd)
-                error("Couldn't instantiate project environment of $folder")
-            end
+        dir = tutorial_path(folder)
+        @info "Instantiating project environment in $folder"
+        cmd = `$(Base.julia_cmd()) -e $script $dir`
+        p = run(cmd)
+        if !success(p)
+            error("Couldn't instantiate project environment of $folder")
         end
     end
     return nothing

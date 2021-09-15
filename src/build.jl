@@ -66,6 +66,27 @@ function build_folder(folder)
 end
 
 """
+    safe_instantiate(folders)
+
+Install all packages sequentially since Pkg.jl is thread-unsafe.
+See https://github.com/JuliaLang/Pkg.jl/issues/2219 for details.
+"""
+function safe_instantiate(folders)
+    script = "import Pkg; Pkg.activate(ARGS[1]); Pkg.instantiate()"
+    for folder in folders
+        folder == "99-test" && return nothing
+        dir = tutorial_path(folder)
+        @info "Instantiating project environment in $folder"
+        cmd = `$(Base.julia_cmd()) -e $script $dir`
+        p = run(cmd)
+        if !success(p)
+            error("Couldn't instantiate project environment of $folder")
+        end
+    end
+    return nothing
+end
+
+"""
     parallel_build(folders)
 
 Build `folders` in parallel inside new Julia instances.
@@ -73,6 +94,7 @@ This has two benefits, namely that it ensures that globals are reset and reduces
 running time.
 """
 function parallel_build(folders)
+    safe_instantiate(folders)
     # The static schedule creates one task per thread.
     Threads.@threads :static for folder in folders
         ex = """using TuringTutorials; build_folder("$folder")"""

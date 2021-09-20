@@ -35,7 +35,7 @@ If you are not that interested in the biology, the more abstract problem formula
 First we define our dependencies.
 ```julia
 using Turing
-using Distributions, LinearAlgebra
+using LinearAlgebra
 
 # Packages for visualization
 using VegaLite, DataFrames, StatsPlots
@@ -91,24 +91,24 @@ Here, you see the simulated data. You can see two groups of cells that differ in
   N, D = size(x)
 
   # latent variable z
-  z ~ filldist(Normal(0.0, 1.0), D, N)
+  z ~ filldist(Normal(), D, N)
 
   # side note for the curious
   # we use the more concise filldist syntax partly for compactness, but also for compatibility with other AD
   # backends, see the [Turing Performance Tipps](https://turing.ml/dev/docs/using-turing/performancetips)
   # w = TV{2}(undef, D, D)
   # for d in 1:D
-  #  w[d, :] ~ MvNormal(D, 1.)
+  #  w[d, :] ~ MvNormal(ones(D))
   # end
 
   # weights/loadings W
-  w ~ filldist(Normal(0.0, 1.0), D, D)
+  w ~ filldist(Normal(), D, D)
 
   # mean offset
-  m ~ MvNormal(D, 1.0)
+  m ~ MvNormal(ones(D))
   mu = (w * z .+ m)'
   for d in 1:D
-    x[:,d] ~ MvNormal(mu[:,d], 1.)
+    x[:,d] ~ MvNormal(mu[:,d], ones(N))
   end
 end;
 ```
@@ -347,15 +347,15 @@ In our example, this means knowing which ruler was used for which measurement, h
 
   # covariate vector
   w_batch = TV{1}(undef, D)
-  w_batch ~ MvNormal(D, 1.)
+  w_batch ~ MvNormal(ones(D))
 
   # mean offset
   m = TV{1}(undef, D)
-  m ~ MvNormal(D, 1.0)
+  m ~ MvNormal(ones(D))
   mu = m .+ w * z + w_batch .* batch'
 
   for d in 1:D
-    x[:,d] ~ MvNormal(mu'[:,d], 1.)
+    x[:,d] ~ MvNormal(mu'[:,d], ones(N))
   end
 
 end;
@@ -436,7 +436,7 @@ end
   # parameters
   sigma_noise ~ LogNormal(0.0, 0.5)
   v ~ filldist(Normal(0.0, 1.0), Int(D*K - K*(K-1)/2))
-  sigma ~ Bijectors.ordered(MvLogNormal(MvNormal(K, 1.0)))
+  sigma ~ Bijectors.ordered(MvLogNormal(MvNormal(ones(K))))
 
   v_mat = zeros(T, D, K)
   v_mat[tril!(trues(size(v_mat)))] .= v

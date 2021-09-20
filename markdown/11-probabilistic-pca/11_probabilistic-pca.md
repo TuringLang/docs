@@ -36,7 +36,7 @@ If you are not that interested in the biology, the more abstract problem formula
 First we define our dependencies.
 ```julia
 using Turing
-using Distributions, LinearAlgebra
+using LinearAlgebra
 
 # Packages for visualization
 using VegaLite, DataFrames, StatsPlots
@@ -99,24 +99,24 @@ Here, you see the simulated data. You can see two groups of cells that differ in
   N, D = size(x)
 
   # latent variable z
-  z ~ filldist(Normal(0.0, 1.0), D, N)
+  z ~ filldist(Normal(), D, N)
 
   # side note for the curious
   # we use the more concise filldist syntax partly for compactness, but also for compatibility with other AD
   # backends, see the [Turing Performance Tipps](https://turing.ml/dev/docs/using-turing/performancetips)
   # w = TV{2}(undef, D, D)
   # for d in 1:D
-  #  w[d, :] ~ MvNormal(D, 1.)
+  #  w[d, :] ~ MvNormal(ones(D))
   # end
 
   # weights/loadings W
-  w ~ filldist(Normal(0.0, 1.0), D, D)
+  w ~ filldist(Normal(), D, D)
 
   # mean offset
-  m ~ MvNormal(D, 1.0)
+  m ~ MvNormal(ones(D))
   mu = (w * z .+ m)'
   for d in 1:D
-    x[:,d] ~ MvNormal(mu[:,d], 1.)
+    x[:,d] ~ MvNormal(mu[:,d], ones(N))
   end
 end;
 ```
@@ -245,15 +245,15 @@ z = permutedims(reshape(mean(group(chain_pccaARD, :z))[:,2], (n_genes, n_cells))
 
 ```
 9-element Vector{Float64}:
- 3.4722740641900174
- 3.480932202193209
- 3.3844856655271536
- 3.4428444168148546
- 3.4778412295472156
- 3.470036323999149
- 0.07819889402916562
- 0.0759878738665858
- 3.4500329225456174
+ 3.4445097603589425
+ 3.5417271255419296
+ 0.0727049789476302
+ 3.539511536849989
+ 3.340488206041943
+ 3.4817981931911213
+ 3.5512178994931554
+ 0.07395835240763331
+ 3.4656082380219075
 ```
 
 
@@ -399,15 +399,15 @@ In our example, this means knowing which ruler was used for which measurement, h
 
   # covariate vector
   w_batch = TV{1}(undef, D)
-  w_batch ~ MvNormal(D, 1.)
+  w_batch ~ MvNormal(ones(D))
 
   # mean offset
   m = TV{1}(undef, D)
-  m ~ MvNormal(D, 1.0)
+  m ~ MvNormal(ones(D))
   mu = m .+ w * z + w_batch .* batch'
 
   for d in 1:D
-    x[:,d] ~ MvNormal(mu'[:,d], 1.)
+    x[:,d] ~ MvNormal(mu'[:,d], ones(N))
   end
 
 end;
@@ -495,7 +495,7 @@ end
   # parameters
   sigma_noise ~ LogNormal(0.0, 0.5)
   v ~ filldist(Normal(0.0, 1.0), Int(D*K - K*(K-1)/2))
-  sigma ~ Bijectors.ordered(MvLogNormal(MvNormal(K, 1.0)))
+  sigma ~ Bijectors.ordered(MvLogNormal(MvNormal(ones(K))))
 
   v_mat = zeros(T, D, K)
   v_mat[tril!(trues(size(v_mat)))] .= v
@@ -648,8 +648,8 @@ TuringTutorials.weave_file("11-probabilistic-pca", "11_probabilistic-pca.jmd")
 
 Computer Information:
 ```
-Julia Version 1.6.1
-Commit 6aaedecc44 (2021-04-23 05:59 UTC)
+Julia Version 1.6.2
+Commit 1b93d53fc4 (2021-07-14 15:36 UTC)
 Platform Info:
   OS: Linux (x86_64-pc-linux-gnu)
   CPU: Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz
@@ -665,14 +665,14 @@ Package Information:
 
 ```
       Status `~/TuringDev/TuringTutorials/tutorials/11-probabilistic-pca/Project.toml`
-  [76274a88] Bijectors v0.9.7
+  [76274a88] Bijectors v0.9.8
   [a93c6f00] DataFrames v1.2.2
-  [31c24e10] Distributions v0.25.13
-  [28b8d3ca] GR v0.58.1
+  [31c24e10] Distributions v0.25.16
+  [28b8d3ca] GR v0.59.0
   [5ab0869b] KernelDensity v0.6.3
   [ce6b1742] RDatasets v0.7.5
-  [f3b207a7] StatsPlots v0.14.26
-  [fce5fe82] Turing v0.17.4
+  [f3b207a7] StatsPlots v0.14.27
+  [fce5fe82] Turing v0.18.0
   [112f6efa] VegaLite v2.6.0
   [37e2e46d] LinearAlgebra
 

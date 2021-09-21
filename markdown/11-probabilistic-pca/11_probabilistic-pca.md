@@ -656,8 +656,6 @@ Platform Info:
   WORD_SIZE: 64
   LIBM: libopenlibm
   LLVM: libLLVM-11.0.1 (ORCJIT, skylake)
-Environment:
-  JULIA_NUM_THREADS = 8
 
 ```
 

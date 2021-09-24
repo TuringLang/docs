@@ -3,9 +3,9 @@
 # Ensure that our git wants to talk to github without prompting
 ssh-keyscan github.com >> ~/.ssh/known_hosts
 
-# Clone SciMLTutorialsOutput to temporary directory
+# Clone TuringTutorials to temporary directory
 temp_dir=$(mktemp -d)
-git -C "${temp_dir}" clone git@github.com:SciML/SciMLTutorialsOutput .
+git -C "${temp_dir}" clone --branch artifacts git@github.com:TuringLang/TuringTutorials .
 
 # Copy our output artifacts into it:
 for d in html markdown notebook pdf script; do

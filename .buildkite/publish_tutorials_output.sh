@@ -1,16 +1,20 @@
 #!/bin/bash
 
 # Ensure that our git wants to talk to github without prompting
+mkdir -p ~/.ssh
 ssh-keyscan github.com >> ~/.ssh/known_hosts
+git config --global user.email "buildkite@julialang.org"
+git config --global user.name "Turing Tutorials CI"
 
-# Clone TuringTutorials to temporary directory
+# Clone TuringTutorialsOutput to temporary directory
 temp_dir=$(mktemp -d)
-git -C "${temp_dir}" clone --branch artifacts git@github.com:TuringLang/TuringTutorials .
+git -C "${temp_dir}" clone git@github.com:TuringLang/TuringTutorialsOutput .
 
 # Copy our output artifacts into it:
 for d in html markdown notebook pdf script; do
     cp -vRa "${d}/" "${temp_dir}"
 done
+cp -va *.md *.bib "${temp_dir}"
 
 # Commit the result up to output
 set -e

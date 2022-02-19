@@ -32,4 +32,4 @@ write(
 )
 
 # Generate default output
-TuringTutorials.weave_file(joinpath(tutorials_dir, "Testing"), "test.jmd")
+TuringTutorials.weave_file(tutorials_dir, "test.jmd")

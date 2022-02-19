@@ -6,14 +6,8 @@ tutorials_dir = joinpath(pkgdir, "tutorials", "Testing")
 rm(tutorials_dir; force=true, recursive=true)
 mkpath(tutorials_dir)
 
-# Add to the folder of tutorials a Project.toml and a jmd file
-write(
-    joinpath(tutorials_dir, "Project.toml"),
-    """
-    [deps]
-    TuringTutorials = "09eb8af7-3c66-4d0b-a457-e0c10c662b2b"
-    """
-)
+# Add to the folder of tutorials an empty Project.toml and a jmd file
+touch(joinpath(tutorials_dir, "Project.toml"))
 write(
     joinpath(tutorials_dir, "test.jmd"),
     """

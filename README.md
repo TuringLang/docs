@@ -1,5 +1,7 @@
 # Turing Tutorials
 
+[![Build status](https://badge.buildkite.com/ffe577bc0ee60b5514a50dbe464a7abb9f2a02c0f35be8ca43.svg?branch=master)](https://buildkite.com/julialang/turingtutorials/builds?branch=master)
+
 This repository contains tutorials on the the universal probabilistic programming language **Turing**.
 
 The tutorials are defined in the `tutorials` folder.

@@ -69,12 +69,12 @@ function weave_file(folder, file, build_list=DEFAULT_BUILD_LIST)
 end
 
 function weave_all(build_list=DEFAULT_BUILD_LIST)
-  for folder in readdir(joinpath(repo_directory, "tutorials"))
+  for folder in readdir(joinpath(REPO_DIR, "tutorials"))
     weave_folder(folder,build_list)
   end
 end
 
-function weave_folder(folder,build_list=DEFAULT_BUILDS)
+function weave_folder(folder,build_list=DEFAULT_BUILD_LIST)
   for file in readdir(joinpath(REPO_DIR, "tutorials", folder))
     # Skip non-`.jmd` files
     endswith(file, ".jmd") || continue

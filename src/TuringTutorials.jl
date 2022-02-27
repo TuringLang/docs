@@ -27,7 +27,7 @@ function weave(folder::AbstractString, file::AbstractString; out_path_root::Abst
   
   # Activate project
   # TODO: use separate Julia process?
-  if isfile(joinpath(REPO_DIR, "tutorias", folder, "Project.toml")) && (:github in build || :html in build || :pdf in build)
+  if isfile(joinpath(REPO_DIR, "tutorials", folder, "Project.toml")) && (:github in build || :html in build || :pdf in build)
     @info("Instantiating", folder)
     Pkg.activate(joinpath(REPO_DIR, "tutorials", folder))
     Pkg.instantiate()

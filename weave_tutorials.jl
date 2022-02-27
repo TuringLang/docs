@@ -6,12 +6,12 @@ if isdir(target)
     end
     folder = target[11:end] # remove the tutorials/
     println("Weaving the $(folder) folder")
-    TuringTutorials.weave_folder(folder)
+    TuringTutorials.weave(folder)
 elseif isfile(target)
     folder = dirname(target)[11:end] # remove the tutorials/
     file = basename(target)
     println("Weaving $(folder)/$(file)")
-    TuringTutorials.weave_file(folder, file)
+    TuringTutorials.weave(folder, file)
 else
     error("Unable to find weaving target $(target)!")
 end

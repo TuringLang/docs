@@ -1,4 +1,5 @@
 using TuringTutorials
+using Test
 
 # (Re-)create an empty folder of tutorials for testing
 pkgdir = dirname(dirname(pathof(TuringTutorials)))
@@ -25,5 +26,8 @@ write(
     """
 )
 
+# Incorrect build types
+@test_throws ArgumentError TuringTutorials.weave(tutorials_dir, "test.jmd"; build=(:doc,))
+
 # Generate default output
-TuringTutorials.weave_file(tutorials_dir, "test.jmd")
+TuringTutorials.weave(tutorials_dir, "test.jmd"; out_path_root=pkgdir, build=(:script, :html, :github, :notebook))

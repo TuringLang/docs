@@ -1,186 +1,134 @@
 module TuringTutorials
 
-import IOCapture
+import Requires
+import Weave
 
-using IJulia
-using InteractiveUtils
-using Pkg
-using Plots
-using Requires
-using Weave
+import InteractiveUtils
+import Markdown
+import Pkg
 
-const REPO_DIR = string(pkgdir(TuringTutorials))::String
+const REPO_DIR = dirname(@__DIR__)
+const CSS_FILE = joinpath(REPO_DIR, "templates", "skeleton_css.css")
+const LATEX_FILE = joinpath(REPO_DIR, "templates", "julia_tex.tpl")
 
-include("cache.jl")
-include("build.jl")
-
-export build_folder, tutorial_path, folder2filename
-export build, build_and_exit, verify_logs, tutorials, changed_tutorials
-
-# Not building PDF, because it is fragile. Maybe later.
-default_build_list = (:script, :html, :github, :notebook)
-
-cssfile = joinpath(@__DIR__, "..", "templates", "skeleton_css.css")
-latexfile = joinpath(@__DIR__, "..", "templates", "julia_tex.tpl")
+const DEFAULT_BUILD = (:script, :html, :github)
 
 function __init__()
-    @require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("weaveplots.jl")
+    Requires.@require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("weaveplots.jl")
 end
 
-"""
-    tutorial_path(folder)
+function weave(folder::AbstractString, file::AbstractString; out_path_root::AbstractString=pwd(), build::Tuple{Vararg{Symbol}}=DEFAULT_BUILD)
+  if !issubset(build, (:script, :html, :pdf, :github, :notebook)) 
+    throw(ArgumentError("only build types :script, :html, :pdf, :github, and :notebook are supported"))
+  end
 
-Return the absolute path to a tutorial `folder`.
-"""
-tutorial_path(folder) = joinpath(REPO_DIR, "tutorials", folder)
-
-function polish_latex(path::String)
-    # TODO: Is it maybe better to overload https://github.com/JunoLab/Weave.jl/blob/b5ba227e757520f389a6d6e0f2cacb731eab8b12/src/WeaveMarkdown/markdown.jl#L10-L17
-    # and replace the `tex.formula` there? Only negative part is that this of course
-    # will affect all of the markdown parsers, which is not necessarily desirable.
-    txt = open(f -> read(f, String), path)
-    open(path, "w+") do f
-        txt = replace(txt, "\\\\\n" => "\\\\\\\\\n")
-        write(f, txt)
-    end
-end
-
-function weave_file(
-    folder, file, build_list=default_build_list;
-    kwargs...
-)
-    tmp = joinpath(tutorial_path(folder), file)
-    Pkg.activate(dirname(tmp))
+  target = joinpath(REPO_DIR, "tutorials", folder, file)
+  @info("Weaving $(target)")
+  
+  # Activate project
+  # TODO: use separate Julia process?
+  if isfile(joinpath(REPO_DIR, "tutorials", folder, "Project.toml")) && (:github in build || :html in build || :pdf in build)
+    @info("Instantiating", folder)
+    Pkg.activate(joinpath(REPO_DIR, "tutorials", folder))
     Pkg.instantiate()
-    args = Dict{Symbol,String}(:folder => folder, :file => file)
-    if :script ∈ build_list
-        println("Building Script")
-        dir = joinpath(REPO_DIR, "script", folder)
-        isdir(dir) || mkpath(dir)
-        args[:doctype] = "script"
-        tangle(tmp;out_path=dir)
+    Pkg.build()
+
+    @info("Printing out `Pkg.status()`")
+    Pkg.status()
+  end
+
+  args = Dict{Symbol,String}(:folder => folder, :file => file)
+  if :script in build
+    println("Building Script")
+    dir = joinpath(out_path_root, "script", basename(folder))
+    mkpath(dir)
+    Weave.tangle(target; out_path=dir)
+  end
+  if :html in build
+    println("Building HTML")
+    dir = joinpath(out_path_root, "html", basename(folder))
+    mkpath(dir)
+    Weave.weave(target; doctype = "md2html", out_path=dir, args=args, css=CSS_FILE, fig_ext=".svg")
+  end
+  if :pdf in build
+    println("Building PDF")
+    dir = joinpath(out_path_root, "pdf", basename(folder))
+    mkpath(dir)
+    try
+        Weave.weave(target; doctype="md2pdf", out_path=dir, template=LATEX_FILE, args=args)
+    catch ex
+      @warn "PDF generation failed" exception=(ex, catch_backtrace())
     end
-    if :html ∈ build_list
-        println("Building HTML")
-        dir = joinpath(REPO_DIR, "html", folder)
-        isdir(dir) || mkpath(dir)
-        args[:doctype] = "html"
-        weave(
-            tmp, doctype = "md2html", out_path=dir, args=args;
-            fig_ext=".svg", css=cssfile, kwargs...
-        )
-    end
-    if :pdf ∈ build_list
-        println("Building PDF")
-        dir = joinpath(REPO_DIR, "pdf", folder)
-        isdir(dir) || mkpath(dir)
-        args[:doctype] = "pdf"
-        try
-            weave(
-                tmp, doctype="md2pdf", out_path=dir, args=args;
-                template=latexfile, kwargs...
-            )
-        catch ex
-            @warn "PDF generation failed" exception=(ex, catch_backtrace())
-        end
-    end
-    if :github ∈ build_list
-        println("Building Github Markdown")
-        dir = joinpath(REPO_DIR, "markdown", folder)
-        isdir(dir) || mkpath(dir)
-        args[:doctype] = "github"
-        out_path = weave(tmp,doctype = "github",out_path=dir,args=args; kwargs...)
-        polish_latex(out_path)
-    end
-    if :notebook ∈ build_list
-        println("Building Notebook")
-        dir = joinpath(REPO_DIR, "notebook", folder)
-        isdir(dir) || mkpath(dir)
-        args[:doctype] = "notebook"
-        Weave.convert_doc(tmp, joinpath(dir, file[1:end-4]*".ipynb"))
-    end
+  end
+  if :github in build
+    println("Building Github Markdown")
+    dir = joinpath(out_path_root, "markdown", basename(folder))
+    mkpath(dir)
+    Weave.weave(target; doctype="github", out_path=dir, args=args)
+  end
+  if :notebook in build
+    println("Building Notebook")
+    dir = joinpath(out_path_root, "notebook", basename(folder))
+    mkpath(dir)
+    Weave.convert_doc(target, joinpath(dir, first(splitext(file)) * ".ipynb"))
+  end
 end
 
-"""
-    tutorials::Vector{String}
-
-Return names of the tutorials.
-"""
-function tutorials()::Vector{String}
-    dirs = readdir(joinpath(REPO_DIR, "tutorials"))
-    dirs = filter(!=("test.jmd"), dirs)
-    # This DiffEq one has to be done manually, because it takes about 12 hours.
-    dirs = filter(!=("10-bayesian-differential-equations"), dirs)
-    dirs = filter(!=("99-test"), dirs)
+# Weave all tutorials
+function weave(; kwargs...)
+  for folder in readdir(joinpath(REPO_DIR, "tutorials"))
+    weave(folder; kwargs...)
+  end
 end
 
-function weave_all(build_list=default_build_list; kwargs...)
-    for tutorial in tutorials()
-        weave_folder(folder, build_list; kwargs...)
-    end
+# Weave a folder of tutorials
+function weave(folder::AbstractString; kwargs...)
+  for file in readdir(joinpath(REPO_DIR, "tutorials", folder))
+    # Skip non-`.jmd` files
+    endswith(file, ".jmd") || continue
+
+    weave(folder, file; kwargs...)
+  end
 end
 
-function weave_md(; kwargs...)
-    for tutorial in tutorials()
-        weave_folder(folder, (:github,); kwargs...)
-    end
-end
-
-function weave_folder(
-    folder, build_list=default_build_list;
-    ext = r"^\.[Jj]md", kwargs...
-)
-    for file in readdir(tutorial_path(folder))
-        try
-            # HACK: only weave (j)md files
-            if occursin(ext, splitext(file)[2])
-                println("Building $(joinpath(folder, file))")
-                weave_file(folder, file, build_list; kwargs...)
-            else
-                println("Skipping $(joinpath(folder, file))")
-            end
-        catch ex
-            rethrow(ex)
-        end
-    end
-end
-
-function tutorial_footer(folder=nothing, file=nothing; remove_homedir=true)
-    display("text/markdown", """
-        ## Appendix
-         This tutorial is part of the TuringTutorials repository, found at: <https://github.com/TuringLang/TuringTutorials>.
-        """)
+function tutorial_footer(folder=nothing, file=nothing)
+    display(Markdown.md"""
+    ## Appendix
+    These tutorials are a part of the TuringTutorials repository, found at: <https://github.com/TuringLang/TuringTutorials>.
+    """)
     if folder !== nothing && file !== nothing
-        display("text/markdown", """
-            To locally run this tutorial, do the following commands:
-            ```julia, eval = false
-            using TuringTutorials
-            TuringTutorials.weave_file("$folder", "$file")
-            ```
-            """)
+        display(Markdown.parse("""
+        To locally run this tutorial, do the following commands:
+        ```
+        using TuringTutorials
+        TuringTutorials.weave("$folder", "$file")
+        ```
+        """))
     end
-    display("text/markdown", "Computer Information:")
+    display(Markdown.md"Computer Information:")
     vinfo = sprint(InteractiveUtils.versioninfo)
-    display("text/markdown",  """
-        ```
-        $(vinfo)
-        ```
-        """)
+    display(Markdown.parse("""
+    ```
+    $(vinfo)
+    ```
+    """))
 
-    ctx = Pkg.API.Context()
+    display(Markdown.md"""
+    Package Information:
+    """)
 
-    pkg_status = let io = IOBuffer()
-        Pkg.status(Pkg.API.Context(); io = io)
-        String(take!(io))
-    end
-    projfile = ctx.env.project_file
-    remove_homedir && (projfile = replace(projfile, homedir() => "~"))
+    proj = sprint(io -> Pkg.status(io=io))
+    mani = sprint(io -> Pkg.status(io=io, mode = Pkg.PKGMODE_MANIFEST))
 
-    display("text/markdown","""
-        Package Information:
-        """)
-
-    md = "```\n$(pkg_status)\n```"
-    display("text/markdown", md)
+    md = """
+    ```
+    $(chomp(proj))
+    ```
+    And the full manifest:
+    ```
+    $(chomp(mani))
+    ```
+    """
+    display(Markdown.parse(md))
 end
 end # module

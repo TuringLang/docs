@@ -1,5 +1,8 @@
 # HACK: So Weave.jl has a submodule `WeavePlots` which is loaded using Requires.jl if Plots.jl is available.
 # This means that if we want to overload methods in that submodule we need to wait until `Plots.jl` has been loaded.
+import .Plots
+import .Weave
+
 
 # HACK
 function Weave.WeavePlots.add_plots_figure(report::Weave.Report, plot::Plots.AnimatedGif, ext)
@@ -10,7 +13,7 @@ function Weave.WeavePlots.add_plots_figure(report::Weave.Report, plot::Plots.Ani
     cp(plot.filename, full_name; force = true)
     push!(report.figures, rel_name)
     report.fignum += 1
-        return full_name
+    return full_name
 end
 
 function Base.display(report::Weave.Report, m::MIME"text/plain", plot::Plots.AnimatedGif)

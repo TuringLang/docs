@@ -69,7 +69,9 @@ The next step is to define a [feedforward neural network](https://en.wikipedia.o
 The `unpack` and `nn_forward` functions are explicity designed to create a neural network with two hidden layers and one output layer, as shown below.
 
 <img width="320" alt="nn-diagram" src="https://user-images.githubusercontent.com/422990/47970321-bd172080-e038-11e8-9c6d-6c2bd790bd8a.png">
+
 The end of this tutorial provides some code that can be used to generate more general network shapes.
+
 ```julia
 # Turn a vector into a set of weights and biases.
 function unpack(nn_params::AbstractVector)
@@ -81,11 +83,12 @@ function unpack(nn_params::AbstractVector)
     bₒ = nn_params[20:20]
     return W₁, b₁, W₂, b₂, Wₒ, bₒ
 end
+
 # Construct a neural network using Flux and return a predicted value.
 function nn_forward(xs, nn_params::AbstractVector)
-W₁, b₁, W₂, b₂, Wₒ, bₒ = unpack(nn_params)
-nn = Chain(Dense(W₁, b₁, tanh), Dense(W₂, b₂, tanh), Dense(Wₒ, bₒ, σ))
-return nn(xs)
+    W₁, b₁, W₂, b₂, Wₒ, bₒ = unpack(nn_params)
+    nn = Chain(Dense(W₁, b₁, tanh), Dense(W₂, b₂, tanh), Dense(Wₒ, bₒ, σ))
+    return nn(xs)
 end;
 ```
 The probabilistic model specification below creates a `params` variable, which has 20 normally distributed variables. Each entry in the `params` vector represents weights and biases of our neural net.
@@ -93,10 +96,11 @@ The probabilistic model specification below creates a `params` variable, which h
 # Create a regularization term and a Gaussain prior variance term.
 alpha = 0.09
 sig = sqrt(1.0 / alpha)
+
 # Specify the probabilistic model.
 @model function bayes_nn(xs, ts)
-# Create the weight and bias vector.
-nn_params ~ MvNormal(zeros(20), sig .* ones(20))
+    # Create the weight and bias vector.
+    nn_params ~ MvNormal(zeros(20), sig .* ones(20))
     # Calculate predictions for the inputs given the weights
     # and biases in theta.
     preds = nn_forward(xs, nn_params)
@@ -106,18 +110,24 @@ nn_params ~ MvNormal(zeros(20), sig .* ones(20))
     end
 end;
 ```
+
 Inference can now be performed by calling `sample`. We use the `HMC` sampler here.
+
 ```julia
 # Perform inference.
 N = 5000
 ch = sample(bayes_nn(hcat(xs...), ts), HMC(0.05, 4), N);
 ```
+
 Now we extract the weights and biases from the sampled chain. We'll use these primarily in determining how good a classifier our model is.
+
 ```julia
 # Extract all weight and bias parameters.
 theta = MCMCChains.group(ch, :nn_params).value;
 ```
+
 ## Prediction Visualization
+
 We can use [MAP estimation](https://en.wikipedia.org/wiki/Maximum_a_posteriori_estimation) to classify our population by using the set of weights that provided the highest log posterior.
 ```julia
 # Plot the data we have.

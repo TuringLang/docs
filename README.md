@@ -1,6 +1,7 @@
 # Turing Tutorials
 
 [![Build status](https://badge.buildkite.com/ffe577bc0ee60b5514a50dbe464a7abb9f2a02c0f35be8ca43.svg?branch=master)](https://buildkite.com/julialang/turingtutorials/builds?branch=master)
+[![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/invenia/BlueStyle)
 
 This repository contains tutorials on the universal probabilistic programming language **Turing**.
 
@@ -29,10 +30,13 @@ IJulia.notebook(; dir="notebook")
 ```
 
 You can weave the notebooks to a different folder with
+
 ```julia
 TuringTutorials.weave(; build=(:notebook,), out_path_root="my/custom/directory")
 ```
+
 Then the notebooks will be generated in the folder `my/custom/directory/notebook` and you can start Jupyter with
+
 ```julia
 IJulia.notebook(; dir="my/custom/directory/notebook")
 ```
@@ -55,7 +59,6 @@ To generate all files do:
 ```julia
 TuringTutorials.weave()
 ```
-
 
 If you add new tutorials which require new packages, simply updating your local environment will change the project and manifest files.
 When this occurs, the updated environment files should be included in the PR.

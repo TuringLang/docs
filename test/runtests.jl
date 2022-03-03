@@ -23,11 +23,16 @@ write(
     using TuringTutorials
     TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
     ```
-    """
+    """,
 )
 
 # Incorrect build types
 @test_throws ArgumentError TuringTutorials.weave(tutorials_dir, "test.jmd"; build=(:doc,))
 
 # Generate default output
-TuringTutorials.weave(tutorials_dir, "test.jmd"; out_path_root=pkgdir, build=(:script, :html, :github, :notebook))
+TuringTutorials.weave(
+    tutorials_dir,
+    "test.jmd";
+    out_path_root=pkgdir,
+    build=(:script, :html, :github, :notebook),
+)

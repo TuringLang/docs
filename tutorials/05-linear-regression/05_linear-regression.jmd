@@ -38,7 +38,6 @@ We will use the `mtcars` dataset from the [RDatasets](https://github.com/johnmyl
 
 We want to know if we can construct a Bayesian linear regression model to predict the miles per gallon of a car, given the other statistics it has. Lets take a look at the data we have.
 
-
 ```julia
 # Import the "Default" dataset.
 data = RDatasets.dataset("datasets", "mtcars");
@@ -52,7 +51,6 @@ size(data)
 ```
 
 The next step is to get our data ready for testing. We'll split the `mtcars` dataset into two subsets, one for training our model and one for evaluating our model. Then, we separate the targets we want to learn (`MPG`, in this case) and standardize the datasets by subtracting each column's means and dividing by the standard deviation of that column. The resulting data is not very familiar looking, but this standardization process helps the sampler converge far easier.
-
 
 ```julia
 # Remove the model column.
@@ -69,12 +67,12 @@ train_target = trainset[:, target]
 test_target = testset[:, target]
 
 # Standardize the features.
-μ, σ = rescale!(train; obsdim = 1)
-rescale!(test, μ, σ; obsdim = 1)
+μ, σ = rescale!(train; obsdim=1)
+rescale!(test, μ, σ; obsdim=1)
 
 # Standardize the targets.
-μtarget, σtarget = rescale!(train_target; obsdim = 1)
-rescale!(test_target, μtarget, σtarget; obsdim = 1);
+μtarget, σtarget = rescale!(train_target; obsdim=1)
+rescale!(test_target, μtarget, σtarget; obsdim=1);
 ```
 
 ## Model Specification
@@ -93,7 +91,7 @@ $$
 
 where $\alpha$ is an intercept term common to all observations, $\boldsymbol{\beta}$ is a coefficient vector, $\boldsymbol{X_i}$ is the observed data for car $i$, and $\sigma^2$ is a common variance term.
 
-For $\sigma^2$, we assign a prior of `truncated(Normal(0, 100), 0, Inf)`. This is consistent with [Andrew Gelman's recommendations](http://www.stat.columbia.edu/~gelman/research/published/taumain.pdf) on noninformative priors for variance. The intercept term ($\alpha$) is assumed to be normally distributed with a mean of zero and a variance of three. This represents our assumptions that miles per gallon can be explained mostly by our assorted variables, but a high variance term indicates our uncertainty about that. Each coefficient is assumed to be normally distributed with a mean of zero and a variance of 10. We do not know that our coefficients are different from zero, and we don't know which ones are likely to be the most important, so the variance term is quite high. Lastly, each observation $y_i$ is distributed according to the calculated `mu` term given by $\alpha + \boldsymbol{\beta}^\mathsf{T}\boldsymbol{X_i}$.
+For $\sigma^2$, we assign a prior of `truncated(Normal(0, 100), 0, Inf)`. This is consistent with [Andrew Gelman's recommendations](http://www.stat.columbia.edu/%7Egelman/research/published/taumain.pdf) on noninformative priors for variance. The intercept term ($\alpha$) is assumed to be normally distributed with a mean of zero and a variance of three. This represents our assumptions that miles per gallon can be explained mostly by our assorted variables, but a high variance term indicates our uncertainty about that. Each coefficient is assumed to be normally distributed with a mean of zero and a variance of 10. We do not know that our coefficients are different from zero, and we don't know which ones are likely to be the most important, so the variance term is quite high. Lastly, each observation $y_i$ is distributed according to the calculated `mu` term given by $\alpha + \boldsymbol{\beta}^\mathsf{T}\boldsymbol{X_i}$.
 
 ```julia
 # Bayesian linear regression.
@@ -110,7 +108,7 @@ For $\sigma^2$, we assign a prior of `truncated(Normal(0, 100), 0, Inf)`. This i
 
     # Calculate all the mu terms.
     mu = intercept .+ x * coefficients
-    y ~ MvNormal(mu, sqrt(σ₂))
+    return y ~ MvNormal(mu, sqrt(σ₂))
 end
 ```
 
@@ -122,7 +120,6 @@ chain = sample(model, NUTS(0.65), 3_000);
 ```
 
 As a visual check to confirm that our coefficients have converged, we show the densities and trace plots for our parameters using the `plot` functionality.
-
 
 ```julia
 plot(chain)
@@ -165,7 +162,7 @@ The function below accepts a chain and an input matrix and calculates prediction
 function prediction(chain, x)
     p = get_params(chain[200:end, :, :])
     targets = p.intercept' .+ x * reduce(hcat, p.coefficients)'
-    return vec(mean(targets; dims = 2))
+    return vec(mean(targets; dims=2))
 end
 ```
 
@@ -180,11 +177,7 @@ p = prediction(chain, test)
 test_prediction_bayes = μtarget .+ σtarget .* p
 
 # Show the predictions on the test data set.
-DataFrame(
-    MPG = testset[!, target],
-    Bayes = test_prediction_bayes,
-    OLS = test_prediction_ols
-)
+DataFrame(; MPG=testset[!, target], Bayes=test_prediction_bayes, OLS=test_prediction_ols)
 ```
 
 Now let's evaluate the loss for each method, and each prediction set. We will use the mean squared error to evaluate loss, given by
@@ -199,7 +192,7 @@ println(
     "\n\tBayes loss: ",
     msd(train_prediction_bayes, trainset[!, target]),
     "\n\tOLS loss: ",
-    msd(train_prediction_ols, trainset[!, target])
+    msd(train_prediction_ols, trainset[!, target]),
 )
 
 println(
@@ -207,18 +200,18 @@ println(
     "\n\tBayes loss: ",
     msd(test_prediction_bayes, testset[!, target]),
     "\n\tOLS loss: ",
-    msd(test_prediction_ols, testset[!, target])
+    msd(test_prediction_ols, testset[!, target]),
 )
 ```
 
 ```julia; echo=false; error=false
 let
-  bayes_train_loss = msd(train_prediction_bayes, trainset[!, target])
-  bayes_test_loss = msd(test_prediction_bayes, testset[!, target])
-  ols_train_loss = msd(train_prediction_ols, trainset[!, target])
-  @assert bayes_train_loss < 5.5
-  @assert bayes_test_loss < 15.5
-  @assert isapprox(bayes_train_loss, ols_train_loss; atol=1)
+    bayes_train_loss = msd(train_prediction_bayes, trainset[!, target])
+    bayes_test_loss = msd(test_prediction_bayes, testset[!, target])
+    ols_train_loss = msd(train_prediction_ols, trainset[!, target])
+    @assert bayes_train_loss < 5.5
+    @assert bayes_test_loss < 15.5
+    @assert isapprox(bayes_train_loss, ols_train_loss; atol=1)
 end
 ```
 

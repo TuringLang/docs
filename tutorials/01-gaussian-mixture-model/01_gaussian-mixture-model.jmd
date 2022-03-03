@@ -6,8 +6,7 @@ redirect_from: tutorials/1-gaussianmixturemodel/
 
 The following tutorial illustrates the use *Turing* for clustering data using a Bayesian mixture model. The aim of this task is to infer a latent grouping (hidden structure) from unlabelled data.
 
-More specifically, we are interested in discovering the grouping illustrated in figure below. This example consists of 2-D data points, i.e. $\boldsymbol{x} = \\{x_i\\}_{i=1}^N, x_i \in \mathbb{R}^2$, which are distributed according to Gaussian distributions. For simplicity, we use isotropic Gaussian distributions but this assumption can easily be relaxed by introducing additional parameters. 
-
+More specifically, we are interested in discovering the grouping illustrated in figure below. This example consists of 2-D data points, i.e. $\boldsymbol{x} = \\{x_i\\}_{i=1}^N, x_i \in \mathbb{R}^2$, which are distributed according to Gaussian distributions. For simplicity, we use isotropic Gaussian distributions but this assumption can easily be relaxed by introducing additional parameters.
 
 ```julia
 using Distributions, StatsPlots, Random
@@ -22,10 +21,10 @@ N = 30
 μs = [-3.5, 0.0]
 
 # Construct the data points.
-x = mapreduce(c -> rand(MvNormal([μs[c], μs[c]], 1.), N), hcat, 1:2)
+x = mapreduce(c -> rand(MvNormal([μs[c], μs[c]], 1.0), N), hcat, 1:2)
 
 # Visualization.
-scatter(x[1,:], x[2,:], legend = false, title = "Synthetic Dataset")
+scatter(x[1, :], x[2, :]; legend=false, title="Synthetic Dataset")
 ```
 
 ## Gaussian Mixture Model in Turing
@@ -39,12 +38,12 @@ $$
 $$
 and then draw mixing weight for the $K$ clusters from a Dirichlet distribution, i.e.
 $$
-    w \sim \mathrm{Dirichlet}(K, \alpha) \, .
+w \sim \mathrm{Dirichlet}(K, \alpha) \, .
 $$
 After having constructed all the necessary model parameters, we can generate an observation by first selecting one of the clusters and then drawing the datum accordingly, i.e.
 $$
-    z_i \sim \mathrm{Categorical}(w) \, , \;  \forall i \\
-    x_i \sim \mathrm{Normal}(\mu_{z_i}, 1.) \, , \;  \forall i
+z_i \sim \mathrm{Categorical}(w) \, , \;  \forall i \\
+x_i \sim \mathrm{Normal}(\mu_{z_i}, 1.) \, , \;  \forall i
 $$
 
 For more details on Gaussian mixture models, we refer to Christopher M. Bishop, *Pattern Recognition and Machine Learning*, Section 9.
@@ -58,7 +57,6 @@ Turing.setprogress!(false);
 
 ```julia
 @model function GaussianMixtureModel(x)
-
     D, N = size(x)
 
     # Draw the parameters for cluster 1.
@@ -82,7 +80,7 @@ Turing.setprogress!(false);
     k = Vector{Int}(undef, N)
     for i in 1:N
         k[i] ~ Categorical(w)
-        x[:,i] ~ MvNormal([μ[k[i]], μ[k[i]]], 1.)
+        x[:, i] ~ MvNormal([μ[k[i]], μ[k[i]]], 1.0)
     end
     return k
 end;
@@ -94,7 +92,7 @@ After having specified the model in Turing, we can construct the model function 
 gmm_model = GaussianMixtureModel(x);
 ```
 
-To draw observations from the posterior distribution, we use a [particle Gibbs](https://www.stats.ox.ac.uk/~doucet/andrieu_doucet_holenstein_PMCMC.pdf) sampler to draw the discrete assignment parameters as well as a Hamiltonion Monte Carlo sampler for continous parameters.
+To draw observations from the posterior distribution, we use a [particle Gibbs](https://www.stats.ox.ac.uk/%7Edoucet/andrieu_doucet_holenstein_PMCMC.pdf) sampler to draw the discrete assignment parameters as well as a Hamiltonion Monte Carlo sampler for continous parameters.
 
 Note that we use a `Gibbs` sampler to combine both samplers for Bayesian inference in our model.
 We are also calling `MCMCThreads` to generate multiple chains, particularly so we test for convergence.
@@ -106,12 +104,12 @@ tchain = sample(gmm_model, gmm_sampler, MCMCThreads(), 100, 3);
 
 ```julia; echo=false; error=false
 let
-  matrix = get(tchain, :μ1).μ1
-  first_chain = matrix[:, 1]
-  actual = mean(first_chain)
-  # Verify that the output of the chain is as expected.
-  # μ1 and μ2 appear to switch places, so that's why isapprox(...) || isapprox(...).
-  @assert isapprox(actual, -3.5; atol=1) || isapprox(actual, 0.2; atol=1)
+    matrix = get(tchain, :μ1).μ1
+    first_chain = matrix[:, 1]
+    actual = mean(first_chain)
+    # Verify that the output of the chain is as expected.
+    # μ1 and μ2 appear to switch places, so that's why isapprox(...) || isapprox(...).
+    @assert isapprox(actual, -3.5; atol=1) || isapprox(actual, 0.2; atol=1)
 end
 ```
 
@@ -141,28 +139,34 @@ As the samples for the location parameter for both clusters are unimodal, we can
 function predict(x, y, w, μ)
     # Use log-sum-exp trick for numeric stability.
     return Turing.logaddexp(
-        log(w[1]) + logpdf(MvNormal([μ[1], μ[1]], 1.), [x, y]),
-        log(w[2]) + logpdf(MvNormal([μ[2], μ[2]], 1.), [x, y])
+        log(w[1]) + logpdf(MvNormal([μ[1], μ[1]], 1.0), [x, y]),
+        log(w[2]) + logpdf(MvNormal([μ[2], μ[2]], 1.0), [x, y]),
     )
 end;
 ```
 
 ```julia
-contour(range(-5, stop = 3), range(-6, stop = 2),
-    (x, y) -> predict(x, y, [0.5, 0.5], [mean(tchain[:μ1]), mean(tchain[:μ2])])
+contour(
+    range(-5; stop=3),
+    range(-6; stop=2),
+    (x, y) -> predict(x, y, [0.5, 0.5], [mean(tchain[:μ1]), mean(tchain[:μ2])]),
 )
-scatter!(x[1,:], x[2,:]; legend=false, title="Synthetic Dataset")
+scatter!(x[1, :], x[2, :]; legend=false, title="Synthetic Dataset")
 ```
 
 ## Inferred Assignments
 
 Finally, we can inspect the assignments of the data points inferred using Turing. As we can see, the dataset is partitioned into two distinct groups.
 
-
 ```julia
 assignments = mean(MCMCChains.group(tchain, :k)).nt.mean
-scatter(x[1,:], x[2,:]; legend=false,
-    title="Assignments on Synthetic Dataset", zcolor=assignments)
+scatter(
+    x[1, :],
+    x[2, :];
+    legend=false,
+    title="Assignments on Synthetic Dataset",
+    zcolor=assignments,
+)
 ```
 
 ```julia, echo=false, skip="notebook"

@@ -33,6 +33,7 @@ The problem is that the space we are investigating is very large (Up to 20000 ge
 If you are not that interested in the biology, the more abstract problem formulation is to project a high-dimensional space onto a different space - in the case of PCA - a space where most of the variation is concentrated in the first few dimensions. So you will use PCA to explore underlying structure in your data that is not necessarily obvious from looking at the raw data itself.
 
 First we define our dependencies.
+
 ```julia
 using Turing
 using LinearAlgebra
@@ -49,67 +50,70 @@ Random.seed!(1789);
 ```
 
 Here, we simulate the biological problem described earlier. Admittedly, this is a very simplistic example with far fewer cells and genes and a very straighforward relationship. We try to capture the essence of the problem, but then, unfortunately, real life problems tend to be much more messy.
+
 ```julia
 n_cells = 60
 n_genes = 9
-mu_1 = 10. * ones(n_genes÷3)
-mu_0 = zeros(n_genes÷3)
-S = I(n_genes÷3)
+mu_1 = 10.0 * ones(n_genes ÷ 3)
+mu_0 = zeros(n_genes ÷ 3)
+S = I(n_genes ÷ 3)
 mvn_0 = MvNormal(mu_0, S)
 mvn_1 = MvNormal(mu_1, S)
 
 # create a diagonal block like expression matrix, with some non-informative genes;
 # not all features/genes are informative, some might just not differ very much between cells)
-expression_matrix = transpose(vcat(
-  hcat(rand(mvn_1, n_cells÷2),
-    rand(mvn_0, n_cells÷2)),
-  hcat(rand(mvn_0, n_cells÷2),
-    rand(mvn_0, n_cells÷2)),
-  hcat(rand(mvn_0, n_cells÷2),
-    rand(mvn_1, n_cells÷2))))
-
+expression_matrix = transpose(
+    vcat(
+        hcat(rand(mvn_1, n_cells ÷ 2), rand(mvn_0, n_cells ÷ 2)),
+        hcat(rand(mvn_0, n_cells ÷ 2), rand(mvn_0, n_cells ÷ 2)),
+        hcat(rand(mvn_0, n_cells ÷ 2), rand(mvn_1, n_cells ÷ 2)),
+    ),
+)
 
 df_exp = DataFrame(expression_matrix, :auto)
-df_exp[!,:cell] = 1:n_cells
+df_exp[!, :cell] = 1:n_cells
 
-DataFrames.stack(df_exp, 1:n_genes) |>
-  @vlplot(:rect, x="cell:o", color=:value,
-  encoding={y={field="variable",
-               type="nominal",
-               sort="-x",
-               axis={title="gene"}
-               }
-            })
+@vlplot(
+    :rect,
+    x = "cell:o",
+    color = :value,
+    encoding = {
+        y = {field = "variable", type = "nominal", sort = "-x", axis = {title = "gene"}}
+    }
+)(
+    DataFrames.stack(df_exp, 1:n_genes)
+)
 ```
 
 Here, you see the simulated data. You can see two groups of cells that differ in the expression of genes. While the difference between the two groups of cells here is fairly obvious from looking at the raw data, in practice and with large enough data sets, it is often impossible to spot the differences from the raw data alone. If you have some patience and compute resources you can increase the size of the dataset, or play around with the noise levels to make the problem increasingly harder.
 
 ### pPCA model
+
 ```julia
-@model function pPCA(x, ::Type{TV} = Array{Float64}) where {TV}
-  # Dimensionality of the problem.
-  N, D = size(x)
+@model function pPCA(x, ::Type{TV}=Array{Float64}) where {TV}
+    # Dimensionality of the problem.
+    N, D = size(x)
 
-  # latent variable z
-  z ~ filldist(Normal(), D, N)
+    # latent variable z
+    z ~ filldist(Normal(), D, N)
 
-  # side note for the curious
-  # we use the more concise filldist syntax partly for compactness, but also for compatibility with other AD
-  # backends, see the [Turing Performance Tipps](https://turing.ml/dev/docs/using-turing/performancetips)
-  # w = TV{2}(undef, D, D)
-  # for d in 1:D
-  #  w[d, :] ~ MvNormal(ones(D))
-  # end
+    # side note for the curious
+    # we use the more concise filldist syntax partly for compactness, but also for compatibility with other AD
+    # backends, see the [Turing Performance Tipps](https://turing.ml/dev/docs/using-turing/performancetips)
+    # w = TV{2}(undef, D, D)
+    # for d in 1:D
+    #  w[d, :] ~ MvNormal(ones(D))
+    # end
 
-  # weights/loadings W
-  w ~ filldist(Normal(), D, D)
+    # weights/loadings W
+    w ~ filldist(Normal(), D, D)
 
-  # mean offset
-  m ~ MvNormal(ones(D))
-  mu = (w * z .+ m)'
-  for d in 1:D
-    x[:,d] ~ MvNormal(mu[:,d], ones(N))
-  end
+    # mean offset
+    m ~ MvNormal(ones(D))
+    mu = (w * z .+ m)'
+    for d in 1:D
+        x[:, d] ~ MvNormal(mu[:, d], ones(N))
+    end
 end;
 ```
 
@@ -122,31 +126,33 @@ ppca = pPCA(expression_matrix)
 chain_ppca = sample(ppca, NUTS(), 500);
 ```
 
-
 ### pPCA control
 
 A quick sanity check. We reconstruct the input data from our parameter estimates, using the posterior mean as parameter estimates.
 
 ```julia
 # Extract parameter estimates for plotting - mean of posterior
-w = reshape(mean(group(chain_ppca, :w))[:,2], (n_genes, n_genes))
-z = permutedims(reshape(mean(group(chain_ppca, :z))[:,2], (n_genes, n_cells)))'
-mu = mean(group(chain_ppca, :m))[:,2]
+w = reshape(mean(group(chain_ppca, :w))[:, 2], (n_genes, n_genes))
+z = permutedims(reshape(mean(group(chain_ppca, :z))[:, 2], (n_genes, n_cells)))'
+mu = mean(group(chain_ppca, :m))[:, 2]
 
 X = w * z
 
 df_rec = DataFrame(X', :auto)
-df_rec[!,:cell] = 1:n_cells
+df_rec[!, :cell] = 1:n_cells
 
-DataFrames.stack(df_rec, 1:n_genes) |>
-  @vlplot(:rect, x="cell:o", color=:value,
-  encoding={y={field="variable",
-                 type="nominal",
-                 sort="-x",
-                 axis={title="gene"}
-                }
-             })
+@vlplot(
+    :rect,
+    x = "cell:o",
+    color = :value,
+    encoding = {
+        y = {field = "variable", type = "nominal", sort = "-x", axis = {title = "gene"}}
+    }
+)(
+    DataFrames.stack(df_rec, 1:n_genes)
+)
 ```
+
 We can see the same pattern that we saw in the input data.
 This is what we expect, as PCA is essentially a lossless transformation, i.e. the new space contains the same information as the input space as long as we keep all the dimensions.
 
@@ -154,25 +160,25 @@ And finally, we plot the data in a lower dimensional space. The interesting insi
 
 ```julia; echo=false
 let
-  diff = X' - expression_matrix
-  @assert mean(diff[:, 4]) < 0.5
-  @assert mean(diff[:, 5]) < 0.5
-  @assert mean(diff[:, 6]) < 0.5
+    diff = X' - expression_matrix
+    @assert mean(diff[:, 4]) < 0.5
+    @assert mean(diff[:, 5]) < 0.5
+    @assert mean(diff[:, 6]) < 0.5
 end
 ```
+
 ```julia
 df_pca = DataFrame(z', :auto)
-rename!(df_pca, Symbol.(["z"*string(i) for i in collect(1:n_genes)]))
-df_pca[!,:cell] = 1:n_cells
+rename!(df_pca, Symbol.(["z" * string(i) for i in collect(1:n_genes)]))
+df_pca[!, :cell] = 1:n_cells
 
-DataFrames.stack(df_pca, 1:n_genes) |>
-  @vlplot(:rect, "cell:o", "variable:o", color=:value)
+@vlplot(:rect, "cell:o", "variable:o", color = :value)(DataFrames.stack(df_pca, 1:n_genes))
 
-df_pca[!,:type] = repeat([1, 2], inner = n_cells÷2)
-df_pca |>  @vlplot(:point, x=:z1, y=:z2, color="type:n")
+df_pca[!, :type] = repeat([1, 2]; inner=n_cells ÷ 2)
+@vlplot(:point, x = :z1, y = :z2, color = "type:n")(df_pca)
 ```
-We can see the two groups are well separated in this 2-D space. Another way to put it, 2 dimensions is enough to display the main structure of the data.
 
+We can see the two groups are well separated in this 2-D space. Another way to put it, 2 dimensions is enough to display the main structure of the data.
 
 ## Number of components
 
@@ -184,27 +190,27 @@ Essentially, we are using a specific prior over the factor loadings W that allow
 latent space. The prior is determined by a precision hyperparameter $\alpha$. Here, smaller values of $\alpha$ correspond to more important components.
 You can find more details about this in the Bishop book mentioned in the introduction.
 
-
 ```julia
-@model function pPCA_ARD(x, ::Type{TV} = Array{Float64}) where {TV}
-  # Dimensionality of the problem.
-  N, D = size(x)
+@model function pPCA_ARD(x, ::Type{TV}=Array{Float64}) where {TV}
+    # Dimensionality of the problem.
+    N, D = size(x)
 
-  # latent variable z
-  z ~ filldist(Normal(), D, N)
+    # latent variable z
+    z ~ filldist(Normal(), D, N)
 
-  # weights/loadings w with Automatic Relevance Determination part
-  alpha ~ filldist(Gamma(1.0, 1.0), D)
-  w ~ filldist(MvNormal(zeros(D), 1. ./ sqrt.(alpha)), D)
+    # weights/loadings w with Automatic Relevance Determination part
+    alpha ~ filldist(Gamma(1.0, 1.0), D)
+    w ~ filldist(MvNormal(zeros(D), 1.0 ./ sqrt.(alpha)), D)
 
-  mu = (w' * z)'
+    mu = (w' * z)'
 
-  tau ~ Gamma(1.0, 1.0);
-  for d in 1:D
-    x[:,d] ~ MvNormal(mu[:, d], 1. / sqrt(tau))
-  end
+    tau ~ Gamma(1.0, 1.0)
+    for d in 1:D
+        x[:, d] ~ MvNormal(mu[:, d], 1.0 / sqrt(tau))
+    end
 end;
 ```
+
 ```julia
 ppca_ARD = pPCA_ARD(expression_matrix)
 chain_pccaARD = sample(ppca_ARD, NUTS(), 500)
@@ -216,31 +222,32 @@ Here we look at the convergence of the chains for the $\alpha$ parameter. This p
 
 ```julia
 # Extract parameter estimates for plotting - mean of posterior
-w = permutedims(reshape(mean(group(chain_pccaARD, :w))[:,2], (n_genes,n_genes)))
-z = permutedims(reshape(mean(group(chain_pccaARD, :z))[:,2], (n_genes, n_cells)))'
-α = mean(group(chain_pccaARD, :alpha))[:,2]
+w = permutedims(reshape(mean(group(chain_pccaARD, :w))[:, 2], (n_genes, n_genes)))
+z = permutedims(reshape(mean(group(chain_pccaARD, :z))[:, 2], (n_genes, n_cells)))'
+α = mean(group(chain_pccaARD, :alpha))[:, 2]
 α
 ```
+
 We can inspect alpha to see which elements are small, i.e. have a high relevance.
 
 ```julia
 alpha_indices = sortperm(α)[1:2]
-X = w[alpha_indices, alpha_indices] * z[alpha_indices,:]
+X = w[alpha_indices, alpha_indices] * z[alpha_indices, :]
 
 df_rec = DataFrame(X', :auto)
-df_rec[!,:cell] = 1:n_cells
-DataFrames.stack(df_rec, 1:2) |> @vlplot(:rect, "cell:o", "variable:o", color=:value)
+df_rec[!, :cell] = 1:n_cells
+@vlplot(:rect, "cell:o", "variable:o", color = :value)(DataFrames.stack(df_rec, 1:2))
 
 df_pre = DataFrame(z', :auto)
-rename!(df_pre, Symbol.(["z"*string(i) for i in collect(1:n_genes)]))
-df_pre[!,:cell] = 1:n_cells
+rename!(df_pre, Symbol.(["z" * string(i) for i in collect(1:n_genes)]))
+df_pre[!, :cell] = 1:n_cells
 
-DataFrames.stack(df_pre, 1:n_genes) |> @vlplot(:rect, "cell:o", "variable:o", color=:value)
+@vlplot(:rect, "cell:o", "variable:o", color = :value)(DataFrames.stack(df_pre, 1:n_genes))
 
-df_pre[!,:type] = repeat([1, 2], inner=n_cells÷2)
-df_pre[!,:ard1] = df_pre[:, alpha_indices[1]]
-df_pre[!,:ard2] = df_pre[:, alpha_indices[2]]
-df_pre |>  @vlplot(:point, x=:ard1, y=:ard2, color="type:n")
+df_pre[!, :type] = repeat([1, 2]; inner=n_cells ÷ 2)
+df_pre[!, :ard1] = df_pre[:, alpha_indices[1]]
+df_pre[!, :ard2] = df_pre[:, alpha_indices[2]]
+@vlplot(:point, x = :ard1, y = :ard2, color = "type:n")(df_pre)
 ```
 
 This plot is very similar to the low-dimensional plot above, but choosing the *relevant* dimensions based on the values of $\alpha$. When you are in doubt about the number of dimensions to project onto, ARD might provide an answer to that question.
@@ -282,24 +289,25 @@ ppca = pPCA(dat)
 chain_ppca2 = sample(ppca, HMC(ϵ, τ), 1000)
 
 # Extract parameter estimates for plotting - mean of posterior
-w = permutedims(reshape(mean(group(chain_ppca2, :w))[:,2], (d,d)))
-z = permutedims(reshape(mean(group(chain_ppca2, :z))[:,2], (d, n)))'
-mu = mean(group(chain_ppca2, :m))[:,2]
+w = permutedims(reshape(mean(group(chain_ppca2, :w))[:, 2], (d, d)))
+z = permutedims(reshape(mean(group(chain_ppca2, :z))[:, 2], (d, n)))'
+mu = mean(group(chain_ppca2, :m))[:, 2]
 
 X = w * z
 # X = w * z .+ mu
 
 df_rec = DataFrame(X', :auto)
-df_rec[!,:species] = species
-DataFrames.stack(df_rec, 1:d) |> @vlplot(:rect, "species:o", "variable:o", color=:value)
+df_rec[!, :species] = species
+@vlplot(:rect, "species:o", "variable:o", color = :value)(DataFrames.stack(df_rec, 1:d))
 
 df_iris = DataFrame(z', :auto)
-rename!(df_iris, Symbol.( ["z"*string(i) for i in collect(1:d)]))
-df_iris[!,:sample] = 1:n
-df_iris[!,:species] = species
+rename!(df_iris, Symbol.(["z" * string(i) for i in collect(1:d)]))
+df_iris[!, :sample] = 1:n
+df_iris[!, :species] = species
 
-df_iris |>  @vlplot(:point, x=:z1, y=:z2, color="species:n")
+@vlplot(:point, x = :z1, y = :z2, color = "species:n")(df_iris)
 ```
+
 We can see that the setosa species is more clearly separated from the other two species, which overlap
 considerably.
 
@@ -317,15 +325,16 @@ ppca_batch = pPCA(batch_dat)
 chain_ppcaBatch = sample(ppca_batch, HMC(ϵ, τ), 1000)
 describe(chain_ppcaBatch)[1]
 
-z = permutedims(reshape(mean(group(chain_ppcaBatch, :z))[:,2], (d, n)))'
+z = permutedims(reshape(mean(group(chain_ppcaBatch, :z))[:, 2], (d, n)))'
 df_pre = DataFrame(z', :auto)
-rename!(df_pre, Symbol.(["z"*string(i) for i in collect(1:d)]))
-df_pre[!,:sample] = 1:n
-df_pre[!,:species] = species
-df_pre[!,:batch] = batch
+rename!(df_pre, Symbol.(["z" * string(i) for i in collect(1:d)]))
+df_pre[!, :sample] = 1:n
+df_pre[!, :species] = species
+df_pre[!, :batch] = batch
 
-df_pre |>  @vlplot(:point, x=:z1, y=:z2, color="species:n", shape=:batch)
+@vlplot(:point, x = :z1, y = :z2, color = "species:n", shape = :batch)(df_pre)
 ```
+
 The batch effect makes it much harder to distinguish the species. And importantly, if we are not aware of the
 batches, this might lead us to make wrong conclusions about the data.
 
@@ -333,30 +342,29 @@ In order to correct for the batch effect, we need to know about the assignment o
 In our example, this means knowing which ruler was used for which measurement, here encoded via the batch variable.
 
 ```julia
-@model function pPCA_residual(x, batch, ::Type{TV} = Array{Float64}) where {TV}
+@model function pPCA_residual(x, batch, ::Type{TV}=Array{Float64}) where {TV}
 
-  # Dimensionality of the problem.
-  N, D = size(x)
+    # Dimensionality of the problem.
+    N, D = size(x)
 
-  # latent variable z
-  z ~ filldist(Normal(), D, N)
+    # latent variable z
+    z ~ filldist(Normal(), D, N)
 
-  # weights/loadings w
-  w ~ filldist(Normal(), D, D)
+    # weights/loadings w
+    w ~ filldist(Normal(), D, D)
 
-  # covariate vector
-  w_batch = TV{1}(undef, D)
-  w_batch ~ MvNormal(ones(D))
+    # covariate vector
+    w_batch = TV{1}(undef, D)
+    w_batch ~ MvNormal(ones(D))
 
-  # mean offset
-  m = TV{1}(undef, D)
-  m ~ MvNormal(ones(D))
-  mu = m .+ w * z + w_batch .* batch'
+    # mean offset
+    m = TV{1}(undef, D)
+    m ~ MvNormal(ones(D))
+    mu = m .+ w * z + w_batch .* batch'
 
-  for d in 1:D
-    x[:,d] ~ MvNormal(mu'[:,d], ones(N))
-  end
-
+    for d in 1:D
+        x[:, d] ~ MvNormal(mu'[:, d], ones(N))
+    end
 end;
 
 ppca_residual = pPCA_residual(batch_dat, convert(Vector{Float64}, batch))
@@ -366,14 +374,14 @@ chain_ppcaResidual = sample(ppca_residual, HMC(ϵ, τ), 1000);
 This model is described in considerably more detail [here](https://arxiv.org/abs/1106.4333).
 
 ```julia
-z = permutedims(reshape(mean(group(chain_ppcaResidual, :z))[:,2], (d, n)))'
+z = permutedims(reshape(mean(group(chain_ppcaResidual, :z))[:, 2], (d, n)))'
 df_post = DataFrame(z', :auto)
-rename!(df_post, Symbol.( ["z"*string(i) for i in collect(1:d)]))
-df_post[!,:sample] = 1:n
-df_post[!,:species] = species
-df_post[!,:batch] = batch
+rename!(df_post, Symbol.(["z" * string(i) for i in collect(1:d)]))
+df_post[!, :sample] = 1:n
+df_post[!, :species] = species
+df_post[!, :batch] = batch
 
-df_post |>  @vlplot(:point, x=:z1, y=:z2, color="species:n", shape=:batch)
+@vlplot(:point, x = :z1, y = :z2, color = "species:n", shape = :batch)(df_post)
 ```
 
 We can now see, that the data are better separated in the latent space by accounting for the batch effect. It is not perfect, but definitely an improvement over the previous plot.
@@ -388,117 +396,117 @@ thus speeding up inference. For more details, please read the
 ```julia
 ## helper functions for Householder transform
 function V_low_tri_plus_diag(Q::Int, V)
-  for q in 1:Q
-    V[:,q] = V[:,q] ./ sqrt(sum(V[:,q].^2))
-  end
-  return(V)
+    for q in 1:Q
+        V[:, q] = V[:, q] ./ sqrt(sum(V[:, q] .^ 2))
+    end
+    return (V)
 end
 
 function Householder(k::Int, V)
-  v = V[:, k]
-  sgn = sign(v[k]);
+    v = V[:, k]
+    sgn = sign(v[k])
 
-  v[k] += sgn;
-  H = LinearAlgebra.I - (2.0 / dot(v,v) * (v * v'))
-  H[k:end, k:end] = -1. * sgn .* H[k:end, k:end]
+    v[k] += sgn
+    H = LinearAlgebra.I - (2.0 / dot(v, v) * (v * v'))
+    H[k:end, k:end] = -1.0 * sgn .* H[k:end, k:end]
 
-  return(H)
+    return (H)
 end
 
 function H_prod_right(V)
-  D, Q = size(V)
+    D, Q = size(V)
 
-  H_prod = zeros(Real,D,D,Q+1)
-  H_prod[:,:,1] = Diagonal(repeat([1.0], D))
+    H_prod = zeros(Real, D, D, Q + 1)
+    H_prod[:, :, 1] = Diagonal(repeat([1.0], D))
 
-  for q in 1:Q
-    H_prod[:,:,q+1] = Householder(Q - q + 1, V) * H_prod[:,:,q]
-  end
+    for q in 1:Q
+        H_prod[:, :, q + 1] = Householder(Q - q + 1, V) * H_prod[:, :, q]
+    end
 
-  return(H_prod)
+    return (H_prod)
 end
 
 function orthogonal_matrix(D::Int64, Q::Int64, V)
-  V = V_low_tri_plus_diag(Q, V)
-  H_prod = H_prod_right(V)
+    V = V_low_tri_plus_diag(Q, V)
+    H_prod = H_prod_right(V)
 
-  return(H_prod[:,1:Q,Q+1])
+    return (H_prod[:, 1:Q, Q + 1])
 end
 
-@model function pPCA_householder(x, K::Int, ::Type{T} = Float64) where {T}
+@model function pPCA_householder(x, K::Int, ::Type{T}=Float64) where {T}
 
-  # Dimensionality of the problem.
-  D, N = size(x)
-  @assert K <= D
+    # Dimensionality of the problem.
+    D, N = size(x)
+    @assert K <= D
 
-  # parameters
-  sigma_noise ~ LogNormal(0.0, 0.5)
-  v ~ filldist(Normal(0.0, 1.0), Int(D*K - K*(K-1)/2))
-  sigma ~ Bijectors.ordered(MvLogNormal(MvNormal(ones(K))))
+    # parameters
+    sigma_noise ~ LogNormal(0.0, 0.5)
+    v ~ filldist(Normal(0.0, 1.0), Int(D * K - K * (K - 1) / 2))
+    sigma ~ Bijectors.ordered(MvLogNormal(MvNormal(ones(K))))
 
-  v_mat = zeros(T, D, K)
-  v_mat[tril!(trues(size(v_mat)))] .= v
-  U = orthogonal_matrix(D, Q, v_mat)
+    v_mat = zeros(T, D, K)
+    v_mat[tril!(trues(size(v_mat)))] .= v
+    U = orthogonal_matrix(D, Q, v_mat)
 
-  W = zeros(T, D, K)
-  W += U * Diagonal(sigma)
+    W = zeros(T, D, K)
+    W += U * Diagonal(sigma)
 
-  Kmat = zeros(T, D, D)
-  Kmat += W * W'
-  for d in 1:D
-    Kmat[d,d] = Kmat[d, d] + sigma_noise^2 + 1e-12;
-  end
-  L = LinearAlgebra.cholesky(Kmat).L
-
-  for q in 1:Q
-    r = sqrt.(sum(dot(v_mat[:,q], v_mat[:,q])))
-    Turing.@addlogprob! (-log(r)*(D-q))
-  end
-
-  Turing.@addlogprob! -0.5*sum(sigma.^2) + (D-Q-1)*sum(log.(sigma))
-  for qi in 1:Q
-    for qj in (qi+1):Q
-      Turing.@addlogprob! log(sigma[Q-qi+1]^2) - sigma[Q-qj+1]^2
+    Kmat = zeros(T, D, D)
+    Kmat += W * W'
+    for d in 1:D
+        Kmat[d, d] = Kmat[d, d] + sigma_noise^2 + 1e-12
     end
-  end
-  Turing.@addlogprob! sum(log.(2.0*sigma))
+    L = LinearAlgebra.cholesky(Kmat).L
 
-  L_full = zeros(T, D, D)
-  L_full += L * transpose(L)
-  # fix numerical instability (non-posdef matrix)
-  for d in 1:D
-    for k in (d+1):D
-      L_full[d,k] = L_full[k,d]
+    for q in 1:Q
+        r = sqrt.(sum(dot(v_mat[:, q], v_mat[:, q])))
+        Turing.@addlogprob! (-log(r) * (D - q))
     end
-  end
 
-  x ~ filldist(MvNormal(L_full), N);
+    Turing.@addlogprob! -0.5 * sum(sigma .^ 2) + (D - Q - 1) * sum(log.(sigma))
+    for qi in 1:Q
+        for qj in (qi + 1):Q
+            Turing.@addlogprob! log(sigma[Q - qi + 1]^2) - sigma[Q - qj + 1]^2
+        end
+    end
+    Turing.@addlogprob! sum(log.(2.0 * sigma))
+
+    L_full = zeros(T, D, D)
+    L_full += L * transpose(L)
+    # fix numerical instability (non-posdef matrix)
+    for d in 1:D
+        for k in (d + 1):D
+            L_full[d, k] = L_full[k, d]
+        end
+    end
+
+    return x ~ filldist(MvNormal(L_full), N)
 end;
 
 # Dimensionality of latent space
 Random.seed!(1789);
-Q=2
-n_samples=700
+Q = 2
+n_samples = 700
 ppca_householder = pPCA_householder(Matrix(dat)', Q)
 chain_ppcaHouseholder = sample(ppca_householder, NUTS(), n_samples);
 
 # Extract mean of v from chain
-N,D = size(dat)
-vv = mean(group(chain_ppcaHouseholder, :v))[:,2]
+N, D = size(dat)
+vv = mean(group(chain_ppcaHouseholder, :v))[:, 2]
 v_mat = zeros(Real, D, Q)
 v_mat[tril!(trues(size(v_mat)))] .= vv
-sigma = mean(group(chain_ppcaHouseholder, :sigma))[:,2]
+sigma = mean(group(chain_ppcaHouseholder, :sigma))[:, 2]
 U_n = orthogonal_matrix(D, Q, v_mat)
 W_n = U_n * (LinearAlgebra.I(Q) .* sigma)
 
 # Create array with projected values
 z = W_n' * transpose(Matrix(dat))
 df_post = DataFrame(convert(Array{Float64}, z)', :auto)
-rename!(df_post, Symbol.( ["z"*string(i) for i in collect(1:Q)]))
-df_post[!,:sample] = 1:n
-df_post[!,:species] = species
+rename!(df_post, Symbol.(["z" * string(i) for i in collect(1:Q)]))
+df_post[!, :sample] = 1:n
+df_post[!, :species] = species
 
-df_post |> @vlplot(:point, x=:z1, y=:z2, color="species:n")
+@vlplot(:point, x = :z1, y = :z2, color = "species:n")(df_post)
 ```
 
 We observe a speedup in inference, and similar results to the previous implementations. Finally, we will look at the uncertainity that is associated with the samples. We will do this by sampling from the posterior projections. This is possible in the case of the rotation invariant version. If you are curious, you can try to plot the same thing in the case of classical pPCA.
@@ -509,46 +517,67 @@ vv = collect(get(chain_ppcaHouseholder, [:v]).v)
 v_mat = zeros(Real, D, Q)
 vv_mat = zeros(Float64, n_samples, D, Q)
 for i in 1:n_samples
-  index = BitArray(zeros(n_samples, D, Q))
-  index[i,:,:] = tril!(trues(size(v_mat)))
-  tmp = zeros(size(vv)[1])
-  for j in 1:(size(vv)[1])
-    tmp[j] = vv[j][i]
-  end
+    index = BitArray(zeros(n_samples, D, Q))
+    index[i, :, :] = tril!(trues(size(v_mat)))
+    tmp = zeros(size(vv)[1])
+    for j in 1:(size(vv)[1])
+        tmp[j] = vv[j][i]
+    end
     vv_mat[index] .= tmp
 end
 
 ss = collect(get(chain_ppcaHouseholder, [:sigma]).sigma)
 sigma = zeros(Q, n_samples)
 for d in 1:Q
-  sigma[d,:] = Array(ss[d])
+    sigma[d, :] = Array(ss[d])
 end
 
 samples_raw = Array{Float64}(undef, Q, N, n_samples)
 for i in 1:n_samples
-  U_ni = orthogonal_matrix(D, Q, vv_mat[i,:,:])
-  W_ni = U_ni * (LinearAlgebra.I(Q) .* sigma[:,i])
-  z_n = W_ni' * transpose(Matrix(dat))
-  samples_raw[:,:,i] = z_n
+    U_ni = orthogonal_matrix(D, Q, vv_mat[i, :, :])
+    W_ni = U_ni * (LinearAlgebra.I(Q) .* sigma[:, i])
+    z_n = W_ni' * transpose(Matrix(dat))
+    samples_raw[:, :, i] = z_n
 end
 
 # initialize a 3D plot with 1 empty series
 plt = plot(
-  [100, 200, 300],
-  xlim = (-4.00, 7.00),
-  ylim = (-100.00, 0.00),
-  group = ["Setosa", "Versicolor", "Virginica"],
-  markercolor = ["red", "blue", "black"],
-  title = "Visualization",
-  seriestype = :scatter,
+    [100, 200, 300];
+    xlim=(-4.00, 7.00),
+    ylim=(-100.00, 0.00),
+    group=["Setosa", "Versicolor", "Virginica"],
+    markercolor=["red", "blue", "black"],
+    title="Visualization",
+    seriestype=:scatter,
 )
 
-anim = @animate for i=1:n_samples
-  scatter!(plt, samples_raw[1, 1:50, i], samples_raw[2, 1:50, i], color="red", seriesalpha=0.1, label="")
-  scatter!(plt, samples_raw[1, 51:100, i], samples_raw[2, 51:100, i], color="blue", seriesalpha=0.1, label="")
-  scatter!(plt, samples_raw[1, 101:150, i], samples_raw[2, 101:150, i], color="black", seriesalpha=0.1, label="")
+anim = @animate for i in 1:n_samples
+    scatter!(
+        plt,
+        samples_raw[1, 1:50, i],
+        samples_raw[2, 1:50, i];
+        color="red",
+        seriesalpha=0.1,
+        label="",
+    )
+    scatter!(
+        plt,
+        samples_raw[1, 51:100, i],
+        samples_raw[2, 51:100, i];
+        color="blue",
+        seriesalpha=0.1,
+        label="",
+    )
+    scatter!(
+        plt,
+        samples_raw[1, 101:150, i],
+        samples_raw[2, 101:150, i];
+        color="black",
+        seriesalpha=0.1,
+        label="",
+    )
 end
-gif(anim, "anim_fps.gif", fps = 5)
+gif(anim, "anim_fps.gif"; fps=5)
 ```
 
 Here we see the density of the projections from the chain to illustrate the uncertainty in the
@@ -556,27 +585,26 @@ projections. We can see quite clearly that it is possible to separate Setosa fro
 Virginica species, but that the latter two cannot be clearly separated based on the pPCA projection. This can be
 shown even more clearly by using a kernel density estimate and plotting the contours of that estimate.
 
-
 ```julia; echo=false
 let
-  m1 = mean(samples_raw[1, 1:50, :])
-  m2 = mean(samples_raw[1, 51:100, :])
-  m3 = mean(samples_raw[1, 101:150, :])
-  @assert m1 - m2 > 3
-  @assert m1 - m3 > 3
-  @assert m2 - m3 < 2
+    m1 = mean(samples_raw[1, 1:50, :])
+    m2 = mean(samples_raw[1, 51:100, :])
+    m3 = mean(samples_raw[1, 101:150, :])
+    @assert m1 - m2 > 3
+    @assert m1 - m3 > 3
+    @assert m2 - m3 < 2
 end
 ```
 
 ```julia
 # kernel density estimate
 using StatsPlots, KernelDensity
-dens = kde((vec(samples_raw[1, :, :]),vec(samples_raw[2, :, :])))
+dens = kde((vec(samples_raw[1, :, :]), vec(samples_raw[2, :, :])))
 StatsPlots.plot(dens)
 ```
 
 ```julia, echo=false, skip="notebook"
 if isdefined(Main, :TuringTutorials)
-  Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
+    Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
 end
 ```

@@ -8,92 +8,99 @@ redirect_from: tutorials/0-introduction/
 
 This is the first of a series of tutorials on the universal probabilistic programming language **Turing**.
 
-Turing is a probabilistic programming system written entirely in Julia. It has an intuitive modelling syntax and supports a wide range of sampling-based inference algorithms. Most importantly, Turing inference is composable: it combines Markov chain sampling operations on subsets of model variables, e.g. using a combination of a Hamiltonian Monte Carlo (HMC) engine and a particle Gibbs (PG) engine. This composable inference engine allows the user to easily switch between black-box style inference methods such as HMC and customized inference methods.
+Turing is a probabilistic programming system written entirely in Julia.
+It has an intuitive modelling syntax and supports a wide range of sampling-based inference algorithms.
 
 Familiarity with Julia is assumed throughout this tutorial. If you are new to Julia, [Learning Julia](https://julialang.org/learning/) is a good starting point.
 
-For users new to Bayesian machine learning, please consider more thorough introductions to the field, such as [Pattern Recognition and Machine Learning](https://www.springer.com/us/book/9780387310732). This tutorial tries to provide an intuition for Bayesian inference and gives a simple example on how to use Turing. Note that this is not a comprehensive introduction to Bayesian machine learning.
+For users new to Bayesian machine learning, please consider more thorough introductions to the field, such as [Pattern Recognition and Machine Learning](https://www.springer.com/us/book/9780387310732).
+This tutorial tries to provide an intuition for Bayesian inference and gives a simple example on how to use Turing.
+Note that this is not a comprehensive introduction to Bayesian machine learning.
 
 ### Coin Flipping Without Turing
 
-The following example illustrates the effect of updating our beliefs with every piece of new evidence we observe. In particular, assume that we are unsure about the probability of heads in a coin flip. To get an intuitive understanding of what "updating our beliefs" is, we will visualize the probability of heads in a coin flip after each observed evidence.
+The following example illustrates the effect of updating our beliefs with every piece of new evidence we observe.
 
-First, let's load some of the packages we need to flip a coin (`Random`, `Distributions`) and show our results (`Plots`). You will note that Turing is not an import here — we do not need it for this example. If you are already familiar with posterior updates, you can proceed to the next step.
+Assume that we are unsure about the probability of heads in a coin flip.
+To get an intuitive understanding of what "updating our beliefs" is, we will visualize the probability of heads in a coin flip after each observed evidence.
+
+First, let us load some packages that we need to simulate a coin flip
 
 ```julia
-# Using Base modules.
-using Random
-
-# Load a plotting library.
-using Plots
-
-# Load the distributions library.
 using Distributions
+
+using Random
+Random.seed!(12); # Set seed for reproducibility
 ```
 
-Next, we configure our posterior update model. First, let's set the true probability that any coin flip will turn up heads and set the number of coin flips we will show our model:
+and to visualize our results.
 
 ```julia
-# Set the true probability of heads in a coin.
-p_true = 0.5
-
-# Iterate from having seen 0 observations to 100 observations.
-Ns = 0:100;
+using StatsPlots
 ```
 
-We will now use the Bernoulli distribution to flip 100 coins, and collect the results in a variable called `data`:
+Note that Turing is not loaded here — we do not use it in this example.
+If you are already familiar with posterior updates, you can proceed to the next step.
+
+Next, we configure the data generating model.
+Let us set the true probability that a coin flip turns up heads
 
 ```julia
-# Draw data from a Bernoulli distribution, i.e. draw heads or tails.
-Random.seed!(12)
-data = rand(Bernoulli(p_true), last(Ns))
+p_true = 0.5;
+```
 
-# Here's what the first five coin flips look like:
+and set the number of coin flips we will show our model.
+
+```julia
+N = 100;
+```
+
+We simulate `N` coin flips by drawing `N` random samples from the Bernoulli distribution with success probability `p_true`.
+The draws are collected in a variable called `data`:
+
+```julia
+data = rand(Bernoulli(p_true), N);
+```
+
+Here is what the first five coin flips look like:
+
+```julia
 data[1:5]
 ```
 
-After flipping all our coins, we want to set a prior belief about what we think the distribution of coin flips look like. In this case, we are going to choose a common prior distribution called the [Beta](https://en.wikipedia.org/wiki/Beta_distribution) distribution.
+Next, we specify a prior belief about the distribution of heads and tails in a coin toss.
+Here we choose a [Beta](https://en.wikipedia.org/wiki/Beta_distribution) distribution as prior distribution for the probability of heads.
+Before any coin flip is observed, we assume a uniform distribution $\operatorname{U}(0, 1) = \operatorname{Beta}(1, 1)$ of the probability of heads.
+I.e., every probability is equally likely initially.
 
 ```julia
-# Our prior belief about the probability of heads in a coin toss.
 prior_belief = Beta(1, 1);
 ```
 
 With our priors set and our data at hand, we can perform Bayesian inference.
 
-This is a fairly simple process. We expose one additional coin flip to our model every iteration, such that the first run only sees the first coin flip, while the last iteration sees all the coin flips. Then, we set the `updated_belief` variable to an updated version of the original Beta distribution that accounts for the new proportion of heads and tails.
-
-For the mathematically inclined, the `Beta` distribution is updated by adding each coin flip to the distribution's $\alpha$ and $\beta$ parameters, which are initially defined as $\alpha = 1, \beta = 1$. Over time, with more and more coin flips, $\alpha$ and $\beta$ will be approximately equal to each other as we are equally likely to flip a heads or a tails, and the plot of the beta distribution will become more tightly centered around 0.5.
-
-This works because mean of the `Beta` distribution is defined as the following:
-
-$$\text{E}[\text{Beta}] = \dfrac{\alpha}{\alpha+\beta}$$
-
-Which is 0.5 when $\alpha = \beta$, as we expect for a large enough number of coin flips. As we increase the number of samples, our variance will also decrease, such that the distribution will reflect less uncertainty about the probability of receiving a heads. The definition of the variance for the `Beta` distribution is the following:
-
-$$\text{var}[\text{Beta}] = \dfrac{\alpha\beta}{(\alpha + \beta)^2 (\alpha + \beta + 1)}$$
-
-The intuition about this definition is that the variance of the distribution will approach 0 with more and more samples, as the denominator will grow faster than will the numerator. More samples means less variance.
+This is a fairly simple process.
+We expose one additional coin flip to our model every iteration, such that the first run only sees the first coin flip, while the last iteration sees all the coin flips.
+In each iteration we update our belief to an updated version of the original Beta distribution that accounts for the new proportion of heads and tails.
+The update is particularly simple since our prior distribution is a [conjugate prior](https://en.wikipedia.org/wiki/Conjugate_prior).
+Note that a closed-form expression for the posterior (implemented in the `updated_belief` expression below) is not accessible in general and usually does not exist for more interesting models.
 
 ```julia
-# Import StatsPlots for animating purposes.
-using StatsPlots
-
-# Make an animation.
-animation = @gif for (i, N) in enumerate(Ns)
-
+function updated_belief(prior_belief::Beta, data::AbstractArray{Bool})
     # Count the number of heads and tails.
-    heads = sum(data[1:(i - 1)])
-    tails = N - heads
+    heads = sum(data)
+    tails = length(data) - heads
 
     # Update our prior belief in closed form (this is possible because we use a conjugate prior).
-    updated_belief = Beta(prior_belief.α + heads, prior_belief.β + tails)
+    return Beta(prior_belief.α + heads, prior_belief.β + tails)
+end
 
-    # Plotting
+# Show updated belief for increasing number of observations
+@gif for n in 0:N
     plot(
-        updated_belief;
+        updated_belief(prior_belief, data[1:n]);
         size=(500, 250),
-        title="Updated belief after $N observations",
+        title="Updated belief after $n observations",
         xlabel="probability of heads",
         ylabel="",
         legend=nothing,
@@ -106,31 +113,48 @@ animation = @gif for (i, N) in enumerate(Ns)
 end
 ```
 
-The animation above shows that with increasing evidence our belief about the probability of heads in a coin flip slowly adjusts towards the true value. The orange line in the animation represents the true probability of seeing heads on a single coin flip, while the mode of the distribution shows what the model believes the probability of a heads is given the evidence it has seen.
+The animation above shows that with increasing evidence our belief about the probability of heads in a coin flip slowly adjusts towards the true value.
+The orange line in the animation represents the true probability of seeing heads on a single coin flip, while the mode of the distribution shows what the model believes the probability of a heads is given the evidence it has seen.
+
+For the mathematically inclined, the $\operatorname{Beta}$ distribution is updated by adding each coin flip to the parameters $\alpha$ and $\beta$ of the distribution.
+Initially, the parameters are defined as $\alpha = 1$ and $\beta = 1$.
+Over time, with more and more coin flips, $\alpha$ and $\beta$ will be approximately equal to each other as we are equally likely to flip a heads or a tails.
+
+The mean of the $\operatorname{Beta}(\alpha, \beta)$ distribution is
+
+$$\operatorname{E}[X] = \dfrac{\alpha}{\alpha+\beta}.$$
+
+This implies that the plot of the distribution will become centered around 0.5 for a large enough number of coin flips, as we expect $\alpha \approx \beta$.
+
+The variance of the $\operatorname{Beta}(\alpha, \beta)$ distribution is
+
+$$\operatorname{var}[X] = \dfrac{\alpha\beta}{(\alpha + \beta)^2 (\alpha + \beta + 1)}.$$
+
+Thus the variance of the distribution will approach 0 with more and more samples, as the denominator will grow faster than will the numerator.
+More samples means less variance.
+This implies that the distribution will reflect less uncertainty about the probability of receiving a heads and the plot will become more tightly centered around 0.5 for a large enough number of coin flips.
 
 ### Coin Flipping With Turing
 
-In the previous example, we used the fact that our prior distribution is a [conjugate prior](https://en.wikipedia.org/wiki/Conjugate_prior). Note that a closed-form expression (the `updated_belief` expression) for the posterior is not accessible in general and usually does not exist for more interesting models.
-
-We are now going to move away from the closed-form expression above and specify the same model using **Turing**. To do so, we will first need to import `Turing`, `MCMCChains`, `Distributions`, and `StatPlots`. `MCMCChains` is a library built by the Turing team to help summarize Markov Chain Monte Carlo (MCMC) simulations, as well as a variety of utility functions for diagnostics and visualizations.
+We now move away from the closed-form expression above.
+We use **Turing** to specify the same model and to approximate the posterior distribution with samples.
+To do so, we first need to load `Turing`.
 
 ```julia
-# Load Turing and MCMCChains.
-using Turing, MCMCChains
+using Turing
+```
 
-# Load the distributions library.
-using Distributions
+Additionally, we load `MCMCChains`, a library for analyzing and visualizing the samples with which we approximate the posterior distribution.
 
-# Load StatsPlots for density plots.
-using StatsPlots
+```julia
+using MCMCChains
 ```
 
 First, we define the coin-flip model using Turing.
 
 ```julia
 @model function coinflip(y)
-
-    # Our prior belief about the probability of heads in a coin.
+    # Our prior belief about the probability of heads in a coin toss.
     p ~ Beta(1, 1)
 
     # The number of observations.
@@ -142,46 +166,51 @@ First, we define the coin-flip model using Turing.
 end;
 ```
 
-After defining the model, we can approximate the posterior distribution by drawing samples from the distribution. In this example, we use a [Hamiltonian Monte Carlo](https://en.wikipedia.org/wiki/Hamiltonian_Monte_Carlo) sampler to draw these samples. Later tutorials will give more information on the samplers available in Turing and discuss their use for different models.
+In the Turing model the prior distribution of the variable `p`, the probability of heads in a coin toss, and the distribution of the observations `y[n]` are specified on the right-hand side of the `~` expressions.
+The `@model` macro modifies the body of the Julia function `coinflip(y)` and, e.g., replaces the `~` statements with internal function calls that are used for sampling.
+
+We combine the model with the observations:
 
 ```julia
-# Settings of the Hamiltonian Monte Carlo (HMC) sampler.
-iterations = 1000
-ϵ = 0.05
-τ = 10
-
-# Start sampling.
-chain = sample(coinflip(data), HMC(ϵ, τ), iterations; progress=false);
+model = coinflip(data);
 ```
 
-After finishing the sampling process, we can visualize the posterior distribution approximated using Turing against the posterior distribution in closed-form. We can extract the chain data from the sampler using the `Chains(chain[:p])` function, exported from the `MCMCChain` module. `Chains(chain[:p])` creates an instance of the `Chain` type which summarizes the MCMC simulation — the `MCMCChain` module supports numerous tools for plotting, summarizing, and describing variables of type `Chain`.
+After defining the model, we can approximate the posterior distribution by drawing samples from the distribution.
+In this example, we use a [Hamiltonian Monte Carlo](https://en.wikipedia.org/wiki/Hamiltonian_Monte_Carlo) sampler to draw these samples.
+Other tutorials give more information on the samplers available in Turing and discuss their use for different models.
 
 ```julia
-# Construct summary of the sampling process for the parameter p, i.e. the probability of heads in a coin.
-p_summary = chain[:p]
-plot(p_summary; seriestype=:histogram)
+sampler = HMC(0.05, 10);
+```
+
+We approximate the posterior distribution with 1000 samples:
+
+```julia
+chain = sample(model, sampler, 1_000; progress=false);
+```
+
+The `sample` function and common keyword arguments are explained more extensively in the documentation of [AbstractMCMC.jl](https://turinglang.github.io/AbstractMCMC.jl/dev/api/).
+
+After finishing the sampling process, we can visually compare the closed-form posterior distribution with the approximation obtained with Turing.
+
+```julia
+histogram(chain)
 ```
 
 Now we can build our plot:
 
 ```julia; echo=false; error=false
-@assert isapprox(mean(p_summary), 0.5; atol=1)
+@assert isapprox(mean(chain, :p), 0.5; atol=0.1)
 ```
 
 ```julia
-# Compute the posterior distribution in closed-form.
-N = length(data)
-heads = sum(data)
-updated_belief = Beta(prior_belief.α + heads, prior_belief.β + N - heads)
-
 # Visualize a blue density plot of the approximate posterior distribution using HMC (see Chain 1 in the legend).
-p = plot(p_summary; seriestype=:density, xlim=(0, 1), legend=:best, w=2, c=:blue)
+density(chain; xlim=(0, 1), legend=:best, w=2, c=:blue)
 
-# Visualize a green density plot of posterior distribution in closed-form.
+# Visualize a green density plot of the posterior distribution in closed-form.
 plot!(
-    p,
-    range(0; stop=1, length=100),
-    pdf.(Ref(updated_belief), range(0; stop=1, length=100));
+    0:0.01:1,
+    pdf.(updated_belief(prior_belief, data), 0:0.01:1);
     xlabel="probability of heads",
     ylabel="",
     title="",
@@ -194,12 +223,14 @@ plot!(
 )
 
 # Visualize the true probability of heads in red.
-vline!(p, [p_true]; label="True probability", c=:red)
+vline!([p_true]; label="True probability", c=:red)
 ```
 
-As we can see, the Turing model closely approximates the true probability. Hopefully this tutorial has provided an easy-to-follow, yet informative introduction to Turing's simpler applications. More advanced usage will be demonstrated in later tutorials.
+As we can see, the samples obtained with Turing closely approximate the true posterior distribution.
+Hopefully this tutorial has provided an easy-to-follow, yet informative introduction to Turing's simpler applications.
+More advanced usage is demonstrated in other tutorials.
 
-```julia, echo=false, skip="notebook"
+```julia, echo=false, skip="notebook", tangle=false
 isdefined(Main, :TuringTutorials) &&
     Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
 ```

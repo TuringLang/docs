@@ -62,40 +62,27 @@ plot_data()
 
 ## Building a Neural Network
 
-The next step is to define a [feedforward neural network](https://en.wikipedia.org/wiki/Feedforward_neural_network) where we express our parameters as distribtuions, and not single points as with traditional neural networks. The two functions below, `unpack` and `nn_forward` are helper functions we need when we specify our model in Turing.
-
-`unpack` takes a vector of parameters and partitions them between weights and biases. `nn_forward` constructs a neural network with the variables generated in `unpack` and returns a prediction based on the weights provided.
-
-The `unpack` and `nn_forward` functions are explicity designed to create a neural network with two hidden layers and one output layer, as shown below.
+The next step is to define a [feedforward neural network](https://en.wikipedia.org/wiki/Feedforward_neural_network) where we express our parameters as distribtuions, and not single points as with traditional neural networks. 
+For this we will use `Dense` to define liner layers and compose them via `Chain`, both are neural network primitives from from Flux.
+The network `nn_initial` we created has two hidden layers with `tanh` activations and one output layer with sigmoid (`σ`) activation, as shown below.
 
 ![nn-diagram](https://user-images.githubusercontent.com/422990/47970321-bd172080-e038-11e8-9c6d-6c2bd790bd8a.png)
 
-The end of this tutorial provides some code that can be used to generate more general network shapes.
+The `nn_initial` is an instance that acts as a function and can take data as inputs and output predictions.
+As we are going to define distributions on the neural network parameters, we use `destructure` from Flux to extrat the parameters as `parameters_initial`.
+The function `destructure` also returns another function `reconstruct` that can takes (new) parameters in and return us a nueral network instance whose architecture is same as `nn_initial` but with updated parameters.
 
 ```julia
-# Turn a vector into a set of weights and biases.
-function unpack(nn_params::AbstractVector)
-    W₁ = reshape(nn_params[1:6], 3, 2)
-    b₁ = nn_params[7:9]
+# Construct a neural network using Flux
+nn_initial = Chain(Dense(2, 3, tanh), Dense(3, 2, tanh), Dense(2, 1, σ))
 
-    W₂ = reshape(nn_params[10:15], 2, 3)
-    b₂ = nn_params[16:17]
+# Extract weights and a helper function to reconstruct NN from weights
+parameters_initial, reconstruct = Flux.destructure(nn_initial)
 
-    Wₒ = reshape(nn_params[18:19], 1, 2)
-    bₒ = nn_params[20:20]
-
-    return W₁, b₁, W₂, b₂, Wₒ, bₒ
-end
-
-# Construct a neural network using Flux and return a predicted value.
-function nn_forward(xs, nn_params::AbstractVector)
-    W₁, b₁, W₂, b₂, Wₒ, bₒ = unpack(nn_params)
-    nn = Chain(Dense(W₁, b₁, tanh), Dense(W₂, b₂, tanh), Dense(Wₒ, bₒ, σ))
-    return nn(xs)
-end;
+length(parameters_initial) # number of paraemters in NN
 ```
 
-The probabilistic model specification below creates a `params` variable, which has 20 normally distributed variables. Each entry in the `params` vector represents weights and biases of our neural net.
+The probabilistic model specification below creates a `parameters` variable, which has IID normal variables. The `parameters` vector represents all paraemters of our neural net (weights and biases).
 
 ```julia
 # Create a regularization term and a Gaussain prior variance term.
@@ -103,13 +90,15 @@ alpha = 0.09
 sig = sqrt(1.0 / alpha)
 
 # Specify the probabilistic model.
-@model function bayes_nn(xs, ts)
+@model function bayes_nn(xs, ts, nparameters, reconstruct)
     # Create the weight and bias vector.
-    nn_params ~ MvNormal(zeros(20), sig .* ones(20))
+    parameters ~ MvNormal(zeros(nparameters), sig .* ones(nparameters))
 
-    # Calculate predictions for the inputs given the weights
-    # and biases in theta.
-    preds = nn_forward(xs, nn_params)
+    # Construct NN from parameters
+    nn = reconstruct(parameters)
+    
+    # Forward NN to make predictions
+    preds = nn(xs)
 
     # Observe each prediction.
     for i in 1:length(ts)
@@ -123,14 +112,15 @@ Inference can now be performed by calling `sample`. We use the `HMC` sampler her
 ```julia
 # Perform inference.
 N = 5000
-ch = sample(bayes_nn(hcat(xs...), ts), HMC(0.05, 4), N);
+ch = sample(bayes_nn(hcat(xs...), ts, length(parameters_initial), reconstruct), HMC(0.05, 4), N);
 ```
 
-Now we extract the weights and biases from the sampled chain. We'll use these primarily in determining how good a classifier our model is.
+Now we extract the parameter samples from the sampled chain as `theta` (this is of size `5000 x 20` where `5000` is the number of iterations and `20` is the number of parameters). 
+We'll use these primarily in determining how good a classifier our model is.
 
 ```julia
 # Extract all weight and bias parameters.
-theta = MCMCChains.group(ch, :nn_params).value;
+theta = MCMCChains.group(ch, :parameters).value;
 ```
 
 ## Prediction Visualization
@@ -138,6 +128,9 @@ theta = MCMCChains.group(ch, :nn_params).value;
 We can use [MAP estimation](https://en.wikipedia.org/wiki/Maximum_a_posteriori_estimation) to classify our population by using the set of weights that provided the highest log posterior.
 
 ```julia
+# A helper to create NN from weights `theta` and run it through data `x`
+nn_forward(x, theta) = reconstruct(theta)(x)
+
 # Plot the data we have.
 plot_data()
 
@@ -147,11 +140,11 @@ _, i = findmax(ch[:lp])
 # Extract the max row value from i.
 i = i.I[1]
 
-# Plot the posterior distribution with a contour plot.
-x_range = collect(range(-6; stop=6, length=25))
-y_range = collect(range(-6; stop=6, length=25))
-Z = [nn_forward([x, y], theta[i, :])[1] for x in x_range, y in y_range]
-contour!(x_range, y_range, Z)
+# Plot the posterior distribution with a contour plot
+x1_range = collect(range(-6; stop=6, length=25))
+x2_range = collect(range(-6; stop=6, length=25))
+Z = [nn_forward([x1, x2], theta[i, :])[1] for x1 in x1_range, x2 in x2_range]
+contour!(x1_range, x2_range, Z)
 ```
 
 The contour plot above shows that the MAP method is not too bad at classifying our data.
@@ -172,17 +165,17 @@ function nn_predict(x, theta, num)
 end;
 ```
 
-Next, we use the `nn_predict` function to predict the value at a sample of points where the `x` and `y` coordinates range between -6 and 6. As we can see below, we still have a satisfactory fit to our data.
+Next, we use the `nn_predict` function to predict the value at a sample of points where the `x1` and `x2` coordinates range between -6 and 6. As we can see below, we still have a satisfactory fit to our data, and more importantly, we can also see where the neural network is uncertain about its predictions much easier---those region between cluster boundaries.
 
 ```julia
 # Plot the average prediction.
 plot_data()
 
 n_end = 1500
-x_range = collect(range(-6; stop=6, length=25))
-y_range = collect(range(-6; stop=6, length=25))
-Z = [nn_predict([x, y], theta, n_end)[1] for x in x_range, y in y_range]
-contour!(x_range, y_range, Z)
+x1_range = collect(range(-6; stop=6, length=25))
+x2_range = collect(range(-6; stop=6, length=25))
+Z = [nn_predict([x1, x2], theta, n_end)[1] for x1 in x1_range, x2 in x2_range]
+contour!(x1_range, x2_range, Z)
 ```
 
 If you are interested in how the predictive power of our Bayesian neural network evolved between samples, the following graph displays an animation of the contour plot generated from the network weights in samples 1 to 1,000.
@@ -193,91 +186,9 @@ n_end = 500
 
 anim = @gif for i in 1:n_end
     plot_data()
-    Z = [nn_forward([x, y], theta[i, :])[1] for x in x_range, y in y_range]
-    contour!(x_range, y_range, Z; title="Iteration $i", clim=(0, 1))
+    Z = [nn_forward([x1, x2], theta[i, :])[1] for x1 in x1_range, x2 in x2_range]
+    contour!(x1_range, x2_range, Z; title="Iteration $i", clim=(0, 1))
 end every 5
-```
-
-## Generic Bayesian Neural Networks
-
-The below code is intended for use in more general applications, where you need to be able to change the basic network shape fluidly. The code above is highly rigid, and adapting it for other architectures would be time consuming. Currently the code below only supports networks of `Dense` layers.
-
-Here, we solve the same problem as above, but with three additional 2x2 `tanh` hidden layers. You can modify the `network_shape` variable to specify differing architectures. A tuple `(3,2, :tanh)` means you want to construct a `Dense` layer with 3 outputs, 2 inputs, and a `tanh` activation function. You can provide any activation function found in Flux by entering it as a `Symbol` (e.g., the `tanh` function is entered in the third part of the tuple as `:tanh`).
-
-```julia
-# Specify the network architecture.
-network_shape = [(3, 2, :tanh), (2, 3, :tanh), (1, 2, :σ)]
-
-# Regularization, parameter variance, and total number of
-# parameters.
-alpha = 0.09
-sig = sqrt(1.0 / alpha)
-num_params = sum([i * o + i for (i, o, _) in network_shape])
-
-# This modification of the unpack function generates a series of vectors
-# given a network shape.
-function unpack(θ::AbstractVector, network_shape::AbstractVector)
-    index = 1
-    weights = []
-    biases = []
-    for layer in network_shape
-        rows, cols, _ = layer
-        size = rows * cols
-        last_index_w = size + index - 1
-        last_index_b = last_index_w + rows
-        push!(weights, reshape(θ[index:last_index_w], rows, cols))
-        push!(biases, reshape(θ[(last_index_w + 1):last_index_b], rows))
-        index = last_index_b + 1
-    end
-    return weights, biases
-end
-
-# Generate an abstract neural network given a shape, 
-# and return a prediction.
-function nn_forward(x, θ::AbstractVector, network_shape::AbstractVector)
-    weights, biases = unpack(θ, network_shape)
-    layers = []
-    for i in eachindex(network_shape)
-        push!(layers, Dense(weights[i], biases[i], eval(network_shape[i][3])))
-    end
-    nn = Chain(layers...)
-    return nn(x)
-end
-
-# General Turing specification for a BNN model.
-@model function bayes_nn_general(xs, ts, network_shape, num_params)
-    θ ~ MvNormal(zeros(num_params), sig .* ones(num_params))
-    preds = nn_forward(xs, θ, network_shape)
-    for i in 1:length(ts)
-        ts[i] ~ Bernoulli(preds[i])
-    end
-end
-
-# Perform inference.
-num_samples = 500
-ch2 = sample(
-    bayes_nn_general(hcat(xs...), ts, network_shape, num_params), NUTS(0.65), num_samples
-);
-```
-
-```julia
-# This function makes predictions based on network shape.
-function nn_predict(x, theta, num, network_shape)
-    return mean([nn_forward(x, theta[i, :], network_shape)[1] for i in 1:10:num])
-end;
-
-# Extract the θ parameters from the sampled chain.
-params2 = MCMCChains.group(ch2, :θ).value
-
-plot_data()
-
-x_range = collect(range(-6; stop=6, length=25))
-y_range = collect(range(-6; stop=6, length=25))
-Z = [
-    nn_predict([x, y], params2, length(ch2), network_shape)[1] for x in x_range,
-    y in y_range
-]
-contour!(x_range, y_range, Z)
 ```
 
 This has been an introduction to the applications of Turing and Flux in defining Bayesian neural networks.

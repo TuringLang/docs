@@ -72,8 +72,8 @@ sol = solve(prob, Tsit5(); saveat=0.1)
 odedata = Array(sol) + 0.8 * randn(size(Array(sol)))
 
 # Plot simulation and noisy observations.
-plot(sol; alpha=0.3, legend=false);
-scatter!(sol.t, odedata');
+plot(sol; alpha=0.3)
+scatter!(sol.t, odedata'; color=[1 2], label="")
 ```
 
 ## Direct Handling of Bayesian Estimation with Turing
@@ -104,7 +104,7 @@ Therefore, we write the Lotka-Volterra parameter estimation problem using the Tu
     return nothing
 end
 
-model = fitlv(odedata, prob1)
+model = fitlv(odedata, prob)
 
 # Sample 3 independent chains with forward-mode automatic differentiation (the default).
 chain = sample(model, NUTS(0.65), MCMCSerial(), 1000, 3; progress=false)
@@ -126,13 +126,15 @@ The 300 retrodicted time courses from the posterior are plotted in gray, the noi
 
 ```julia
 plot(; legend=false)
-for p in eachrow(Array(sample(pool_chain(chain[[:α, :β, :γ, :δ]]), 300; replace=false)))
-    plot!(solve(prob; p=p, Tsit5(); saveat=0.1); alpha=0.1, color="#BBBBBB")
+posterior_samples = sample(pool_chain(chain[[:α, :β, :γ, :δ]]), 300; replace=false)
+for p in eachrow(Array(posterior_samples))
+    sol_p = solve(prob, Tsit5(); p=p, saveat=0.1)
+    plot!(sol_p; alpha=0.1, color="#BBBBBB")
 end
 
-# Plot noisy observations.
-scatter!(sol.t, odedata')
-plot!(sol; w=1)
+# Plot simulation and noisy observations.
+plot!(sol; color=[1 2], linewidth=1)
+scatter!(sol.t, odedata'; color=[1 2])
 ```
 
 We can see that, even though we added quite a bit of noise to the data the posterior distribution reproduces quite accurately the "true" ODE solution.
@@ -154,9 +156,9 @@ I.e., we fit the model only to the $y$ variable of the system without providing 
 
     # Simulate Lotka-Volterra model but save only the second state of the system (predators).
     p = [α, β, γ, δ]
-    predicted = solve(prob, Tsit5(); p=p, saveat=0.1, saveidxs=2)
+    predicted = solve(prob, Tsit5(); p=p, saveat=0.1, save_idxs=2)
 
-    # Observations of the prey.
+    # Observations of the predators.
     data ~ MvNormal(predicted.u, σ^2 * I)
 
     return nothing
@@ -172,13 +174,15 @@ Again we inspect the trajectories of 300 randomly selected posterior samples.
 
 ```julia
 plot(; legend=false)
-for p in eachrow(Array(sample(pool_chain(chain2[[:α, :β, :γ, :δ]]), 300; replace=false)))
-    plot!(solve(prob; p=p, Tsit5(); saveat=0.1); alpha=0.1, color="#BBBBBB")
+posterior_samples = sample(pool_chain(chain2[[:α, :β, :γ, :δ]]), 300; replace=false)
+for p in eachrow(Array(posterior_samples))
+    sol_p = solve(prob, Tsit5(); p=p, saveat=0.1)
+    plot!(sol_p; alpha=0.1, color="#BBBBBB")
 end
 
-# Plot noisy observations.
-scatter!(sol.t, odedata')
-plot!(sol; w=1)
+# Plot simulation and noisy observations.
+plot!(sol; color=[1 2], linewidth=1)
+scatter!(sol.t, odedata'; color=[1 2])
 ```
 
 Note that here the observations of the prey (blue dots) were not used in the parameter estimation!
@@ -235,8 +239,8 @@ sol_dde = solve(prob_dde; saveat=0.1)
 ddedata = Array(sol_dde) + 0.5 * randn(size(sol_dde))
 
 # Plot simulation and noisy observations.
-scatter(sol_dde.t, ddedata')
-plot!(sol_dde)
+plot(sol_dde)
+scatter!(sol_dde.t, ddedata'; color=[1 2], label="")
 ```
 
 Now we define the Turing model for the Lotka-Volterra model with delay and sample 3 independent chains.
@@ -256,7 +260,7 @@ Now we define the Turing model for the Lotka-Volterra model with delay and sampl
 
     # Observations.
     for i in 1:length(predicted)
-        data[:, i] ~ MvNormal(predicted[i], σ)
+        data[:, i] ~ MvNormal(predicted[i], σ^2 * I)
     end
 end
 
@@ -267,7 +271,7 @@ chain_dde = sample(model_dde, NUTS(0.65), MCMCSerial(), 300, 3; progress=false)
 ```
 
 ```julia
-plot(chain)
+plot(chain_dde)
 ```
 
 Finally, plot trajectories of 300 randomly selected samples from the posterior.
@@ -275,15 +279,15 @@ Again, the dots indicate our observations, the colored lines are the "true" simu
 
 ```julia
 plot(; legend=false)
-for p in eachrow(Array(sample(pool_chain(chain_dde[[:α, :β, :γ, :δ]]), 300; replace=false)))
-    plot!(
-        solve(prob_dde; p=p, MethodOfSteps(Tsit5()); saveat=0.1); alpha=0.1, color="#BBBBBB"
-    )
+posterior_samples = sample(pool_chain(chain_dde[[:α, :β, :γ, :δ]]), 300; replace=false)
+for p in eachrow(Array(posterior_samples))
+    sol_p = solve(prob_dde, MethodOfSteps(Tsit5()); p=p, saveat=0.1)
+    plot!(sol_p; alpha=0.1, color="#BBBBBB")
 end
 
-# Plot noisy observations.
-scatter!(sol_dde.t, ddedata')
-plot!(sol_dde; w=1)
+# Plot simulation and noisy observations.
+plot!(sol_dde; color=[1 2], linewidth=1)
+scatter!(sol_dde.t, ddedata'; color=[1 2])
 ```
 
 The fit is pretty good even though the data was quite noisy to start.
@@ -348,7 +352,7 @@ For instance, we can choose the [`InterpolatingAdjoint` method](https://docs.sci
     return nothing
 end;
 
-model_sensealg = fitlv_sensealg(odedata, prob1)
+model_sensealg = fitlv_sensealg(odedata, prob)
 
 # Sample a single chain with 1000 samples using Zygote.
 setadbackend(:zygote)
@@ -359,7 +363,7 @@ For more examples of adjoint usage on large parameter models, consult the [DiffE
 
 ## Inference of a Stochastic Differential Equation
 
-A Stochastic Differential Equation ([SDE](https://diffeq.sciml.ai/stable/tutorials/sde_example/)) is a differential equation that has a stochastic (noise) term in the expression of the derivatives.
+A [Stochastic Differential Equation (SDE)](https://diffeq.sciml.ai/stable/tutorials/sde_example/) is a differential equation that has a stochastic (noise) term in the expression of the derivatives.
 Here we fit a stochastic version of the Lokta-Volterra system.
 
 We use a quasi-likelihood approach in which all trajectories of a solution are compared instead of a reduction such as mean, this increases the robustness of fitting and makes the likelihood more identifiable.
@@ -427,7 +431,14 @@ SGHMC might be a more suitable algorithm to be used here.
 model_sde = fitlv_sde(odedata, prob_sde)
 
 setadbackend(:forwarddiff)
-plot(sample(model_sde, NUTS(0.25), 5000; init_params=[1.5, 1.3, 1.2, 2.7, 1.2, 0.12, 0.12]))
+chain_sde = sample(
+    model_sde,
+    NUTS(0.25),
+    5000;
+    init_params=[1.5, 1.3, 1.2, 2.7, 1.2, 0.12, 0.12],
+    progress=false,
+)
+plot(chain_sde)
 ```
 
 ```julia, echo=false, skip="notebook", tangle=false

@@ -64,9 +64,6 @@ write(
 # Generate default output
 for build in (:html, :github)
     @test_throws ErrorException("some error occurred") TuringTutorials.weave(
-        tutorials_dir,
-        "test_error.jmd";
-        out_path_root=pkgdir,
-	build=(build,),
+        tutorials_dir, "test_error.jmd"; out_path_root=pkgdir, build=(build,)
     )
 end

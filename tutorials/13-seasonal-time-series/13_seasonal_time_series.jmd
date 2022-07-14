@@ -46,7 +46,13 @@ f₃(t) = true_cos_amp * cospi(2 * t * true_cos_freq / tmax)
 f(t) = f₁(t) + f₂(t) + f₃(t)
 
 plot(f, tt; label="f(t)", title="Observed time series", legend=:topleft, linewidth=3)
-plot!([f₁, f₂, f₃], tt; label=["f₁(t)" "f₂(t)" "f₃(t)"], style=[:dot :dash :dashdot], linewidth=1)
+plot!(
+    [f₁, f₂, f₃],
+    tt;
+    label=["f₁(t)" "f₂(t)" "f₃(t)"],
+    style=[:dot :dash :dashdot],
+    linewidth=1,
+)
 ```
 
 Even though we use simple components, combining them can give rise to fairly complex time series.
@@ -130,7 +136,7 @@ Finally, we plot prior predictive samples to make sure our priors make sense.
     cyclic = c * βc
     trend = α .+ βt .* t
     μ = op(trend, cyclic)
-    y ~ MvNormal(μ, σ^2*I)
+    y ~ MvNormal(μ, σ^2 * I)
     return (; trend, cyclic)
 end
 
@@ -196,7 +202,7 @@ function plot_fit(x, y, decomp, ymax)
     return trend_plt, cyclic_plt
 end
 
-chain = sample(decomp_model(x, cyclic_features, +) | (;y=yf), NUTS(), 2000)
+chain = sample(decomp_model(x, cyclic_features, +) | (; y=yf), NUTS(), 2000)
 yf_samples = predict(decomp_model(x, cyclic_features, +), chain)
 m, conf = mean_ribbon(yf_samples)
 predictive_plt = plot(
@@ -217,7 +223,7 @@ combined_plt = plot(predictive_plt, decomposed_plt...; layout=(4, 1), size=(700,
 
 ```julia, echo=false
 @assert isapprox(mean(chain, :βt) / t_max, β_true; atol=0.5)
-@assert isapprox(mean(chain, :α) + yf_max, α_true; atol=1.)
+@assert isapprox(mean(chain, :α) + yf_max, α_true; atol=1.0)
 @assert isapprox(mean(chain, :σ), σ_true; atol=0.1)
 @assert isapprox(mean(chain, "βc[2]"), true_sin_amp; atol=0.5)
 @assert isapprox(mean(chain, "βc[17]"), true_cos_amp; atol=0.5)
@@ -282,7 +288,7 @@ scatter!(t, yf; color=2, label="Data")
 ```
 
 ```julia
-chain = sample(decomp_model(x, cyclic_features, .*) | (;y=yg), NUTS(), 2000)
+chain = sample(decomp_model(x, cyclic_features, .*) | (; y=yg), NUTS(), 2000)
 yg_samples = predict(decomp_model(x, cyclic_features, .*), chain)
 m, conf = mean_ribbon(yg_samples)
 predictive_plt = plot(
@@ -302,8 +308,8 @@ combined_plt = plot(predictive_plt, decomposed_plt...; layout=(4, 1), size=(700,
 ```
 
 ```julia, echo=false
-@assert isapprox(mean(chain, :βt) / t_max, β_true; atol=1.)
-@assert isapprox(mean(chain, :α), α_true; atol=1.)
+@assert isapprox(mean(chain, :βt) / t_max, β_true; atol=1.0)
+@assert isapprox(mean(chain, :α), α_true; atol=1.0)
 @assert isapprox(mean(chain, :σ), σ_true; atol=0.5)
 
 # these parameters were not recovered succesfully

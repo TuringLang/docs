@@ -30,14 +30,19 @@ and *cyclic effects* which contribute oscillating effects around the trend.
 Let us simulate some data with an additive linear trend and oscillating effects.
 
 ```julia
-using StatsPlots, Turing, Statistics, LinearAlgebra
+using StatsPlots, Turing, Statistics, LinearAlgebra, Random
+Random.seed!(12345)
 true_sin_freq = 2
+true_sin_amp = 5
 true_cos_freq = 7
+true_cos_amp = 2.5
 tmax = 10
+β_true = 2
+α_true = -1
 tt = 0:0.05:tmax
-f₁(t) = -1 + 2 * t
-f₂(t) = 5 * sinpi(2 * t * true_sin_freq / tmax)
-f₃(t) = 2.5 * cospi(2 * t * true_cos_freq / tmax)
+f₁(t) = α_true + β_true * t
+f₂(t) = true_sin_amp * sinpi(2 * t * true_sin_freq / tmax)
+f₃(t) = true_cos_amp * cospi(2 * t * true_cos_freq / tmax)
 f(t) = f₁(t) + f₂(t) + f₃(t)
 
 plot(f, tt; label="f(t)", title="Observed time series", legend=:topleft, linewidth=3)
@@ -210,6 +215,14 @@ decomposed_plt = plot_fit(t, yf, decomp, yf_max)
 combined_plt = plot(predictive_plt, decomposed_plt...; layout=(4, 1), size=(700, 1000))
 ```
 
+```julia, echo=false
+@assert isapprox(mean(chain, :βt) / t_max, β_true; atol=0.5)
+@assert isapprox(mean(chain, :α) + yf_max, α_true; atol=1.)
+@assert isapprox(mean(chain, :σ), σ_true; atol=0.1)
+@assert isapprox(mean(chain, "βc[2]"), true_sin_amp; atol=0.5)
+@assert isapprox(mean(chain, "βc[17]"), true_cos_amp; atol=0.5)
+```
+
 Inference is successful and the posterior beautifully captures the data.
 We see that the least squares linear fit deviates somewhat from the posterior trend.
 Since our model takes cyclic effects into account separately,
@@ -286,6 +299,18 @@ scatter!(predictive_plt, t, yg; color=2, label="Data", legend=:topleft)
 decomp = get_decomposition(decomp_model, x, cyclic_features, chain)
 decomposed_plt = plot_fit(t, yg, decomp, 0)
 combined_plt = plot(predictive_plt, decomposed_plt...; layout=(4, 1), size=(700, 1000))
+```
+
+```julia, echo=false
+@assert isapprox(mean(chain, :βt) / t_max, β_true; atol=1.)
+@assert isapprox(mean(chain, :α), α_true; atol=1.)
+@assert isapprox(mean(chain, :σ), σ_true; atol=0.5)
+
+# these parameters were not recovered succesfully
+@assert isapprox(mean(chain, "βc[5]"), -7; atol=1)
+@assert isapprox(mean(chain, "βc[9]"), 6; atol=1)
+@assert isapprox(mean(chain, "βc[15]"), 1; atol=0.5)
+@assert isapprox(mean(chain, "βc[19]"), -2; atol=0.5)
 ```
 
 The model fits! What about the infered cyclic components?

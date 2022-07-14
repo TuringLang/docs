@@ -31,7 +31,7 @@ and *cyclic effects* which contribute oscillating effects around the trend.
 Let us simulate some data with an additive linear trend and oscillating effects.
 
 ```julia
-using Plots, StatsPlots, Turing, Statistics
+using StatsPlots, Turing, Statistics, LinearAlgebra
 true_sin_freq = 2
 true_cos_freq = 7
 tmax = 10
@@ -73,11 +73,11 @@ Before building our model, we standardise the time axis to $[0, 1]$ and subtract
 This helps convergence while maintaining interpretability and the correct scales for the cyclic components.
 
 ```julia
-σ = 0.35
 t = collect(tt)[begin:3:end]
+σ_true = 0.35
 t_min, t_max = extrema(t)
 x = (t .- t_min) ./ (t_max - t_min)
-yf = f.(t) .+ σ * randn(size(t))
+yf = f.(t) .+ σ_true * randn(size(t))
 yf_max = maximum(yf)
 yf = yf .- yf_max
 
@@ -121,24 +121,24 @@ This lets us use the exact same code for both additive and multiplicative models
 Finally, we plot prior predictive samples to make sure our priors make sense.
 
 ```julia
-@model function decomp_model(t, c, y, op)
+@model function decomp_model(t, c, op)
     α ~ Normal(0, 10)
     βt ~ Normal(0, 2)
-    βc ~ MvNormal(zeros(size(c, 2)), 1)
-    σ ~ TruncatedNormal(0, 0.1, 0, Inf)
+    βc ~ MvNormal(zeros(size(c, 2)), I)
+    σ ~ truncated(Normal(0, 0.1); lower=0)
 
     cyclic = c * βc
     trend = α .+ βt .* t
     μ = op(trend, cyclic)
-    y ~ MvNormal(μ, σ)
+    y ~ MvNormal(μ, σ^2*I)
     return (; trend, cyclic)
 end
 
-prior_samples = sample(decomp_model(t, c, missing, +), Prior(), 100)
-y_prior_samples = group(prior_samples, :y).value.data[:, :, 1]
-prior_plt = plot(; title="Prior samples")
-plot!(prior_plt, t, y_prior_samples'; label=nothing, color=1, linewidth=1, alpha=0.5)
-scatter!(prior_plt, t, yf; label="Data", color=2)
+y_prior_samples = mapreduce(hcat, 1:100) do _
+    rand(decomp_model(t, c, +)).y
+end
+plot(t, y_prior_samples; linewidth=1, alpha=0.5, color=1, label="", title="Prior samples")
+scatter!(t, yf; color=2, label="Data")
 ```
 
 With the model specified and with a reasonable prior we can now let Turing decompose the time series for us!
@@ -154,7 +154,7 @@ end
 
 function get_decomposition(model, x, c, chain)
     chain_params = Turing.MCMCChains.get_sections(chain, :parameters)
-    return generated_quantities(model(x, c, missing, +), chain_params)
+    return generated_quantities(model(x, c, +), chain_params)
 end
 
 function plot_fit(x, y, decomp, ymax)
@@ -196,8 +196,8 @@ function plot_fit(x, y, decomp, ymax)
     return trend_plt, cyclic_plt
 end
 
-chain = sample(decomp_model(x, c, yf, +), NUTS(), 2000)
-yf_samples = predict(decomp_model(x, c, missing, +), chain)
+chain = sample(decomp_model(x, c, +) | (;y=yf), NUTS(), 2000)
+yf_samples = predict(decomp_model(x, c, +), chain)
 m, conf = mean_ribbon(yf_samples)
 predictive_plt = plot(
     t,
@@ -264,18 +264,18 @@ Plotting the posterior over the cyclic features reveals that the model managed t
 Since we wrote our model to accept a combining operator, we can easily run the same analysis for a multiplicative model.
 
 ```julia
-yg = g.(t) .+ σ * randn(size(t))
+yg = g.(t) .+ σ_true .* randn(size(t))
 
-prior_samples = sample(decomp_model(t, c, missing, .*), Prior(), 100)
-y_prior_samples = group(prior_samples, :y).value.data[:, :, 1]
-prior_plt = plot(; title="Prior samples")
-plot!(prior_plt, t, y_prior_samples'; label=nothing, color=1, linewidth=1, alpha=0.5)
-scatter!(prior_plt, t, yg; label="Data", color=2)
+y_prior_samples = mapreduce(hcat, 1:100) do _
+    rand(decomp_model(t, c, .*)).y
+end
+plot(t, y_prior_samples; linewidth=1, alpha=0.5, color=1, label="", title="Prior samples")
+scatter!(t, yf; color=2, label="Data")
 ```
 
 ```julia
-chain = sample(decomp_model(x, c, yg, .*), NUTS(), 2000)
-yg_samples = predict(decomp_model(x, c, missing, .*), chain)
+chain = sample(decomp_model(x, c, .*) | (;y=yg), NUTS(), 2000)
+yg_samples = predict(decomp_model(x, c, .*), chain)
 m, conf = mean_ribbon(yg_samples)
 predictive_plt = plot(
     t,

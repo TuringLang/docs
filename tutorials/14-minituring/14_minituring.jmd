@@ -1,0 +1,300 @@
+---
+title: MiniTuring
+permalink: /:collection/:name/
+redirect_from: tutorials/14-minituring/
+weave_options:
+  error : false
+---
+
+In this session, we will develop a very simple probabilistic programming language. The implementation is similar to that of [Turing.jl's](https://turing.ml/dev/). This is intentional, as we want to demonstrate some key ideas from Turing's internal implementation. 
+
+To make things easy to understand and to implement. We will restrict our language to a very simple subset of the language that Turing actually supports. Defining an accurate syntax description is not our goal here, instead, we will give a simple example, and all program that "looks like" this should work.  
+For a model defined by the following mathematical form. (Consider `x` is data, or observed variable in this example.)  
+$$
+    a \sim Normal(0.5, 1) \\
+    b \sim Normal(a, 2) \\
+    x \sim Normal(b, 0.5) \\
+$$   
+We will have the following model definition in our small language. 
+
+
+```julia; eval = false
+@mini_model function m(x)
+    a ~ Normal(0.5, 1)
+    b ~ Normal(a, 2)
+    x ~ Normal(b, 0.5)
+end
+```  
+Specifically,  
+* All observed variables should be arguments of the program.
+* No control flow is permitted in the model definition.
+* All variables should be scalars.
+* No function return.
+
+```julia
+# First, we import some needed packages
+using MacroTools, Distributions, Random, AbstractMCMC, MCMCChains
+
+# Set the global random number generator
+const _GLOBALRNG_ = MersenneTwister(42);
+```
+
+Before getting to the actually compiler, let's first build the data structure for program trace. A program trace for a probabilistic programming language need to at least record the values of stochastic variables and (log)probability of the corresponding stochastic variables scored by the prior distributions.
+
+> **Julia Sidebar**  
+Julia's high-performance is relied upon its multiple-dispatched based compilation scheme. In so many words, Julia compiler will produce a compiled version of the program customized for some specific types. Thus, in the idea case, it should have very similar performance as a pre-compiled C program.  
+The implication of this is that although typing is not necessary for correct program execution, performance will heavily rely on programmer providing correct and coherent type information. And `abstract type` and `struct` in the following code block are Julia language primitives aimed to help programmers do just that.
+
+```julia
+abstract type AbstractVarInfo end
+
+struct VarInfo <: AbstractVarInfo 
+    values
+    log_ps
+end
+
+VarInfo() = VarInfo(Dict{Symbol, AbstractFloat}(), Dict{Symbol, AbstractFloat}())
+
+function update_varinfo!(varinfo::VarInfo, var_id, value, log_p)
+    varinfo.values[var_id] = value
+    varinfo.log_ps[var_id] = log_p
+end
+```
+
+Now, let's define a `context` that does something very simple, i.e., if a stochastic variable is observed, we compute its log probability; or, if it is assumed(sampled), then we sample from prior and also computes its log probability.  
+`context` is an Turing internal implementation mechanism. Because different inference algorithms may have slightly different actions to do with stochastic variables, we want a good abstraction and interface to implement these. The name `context` comes from the "contextual dispatching" idea of [Cassette.jl](https://github.com/JuliaLabs/Cassette.jl). Every `context`s is defined to be a type in Julia, and the `observe` and `assume` functions will take a `AbstractContext` type as their first arguments. Then, at runtime, the Julia multiple-dispatch system will dispatch corresponding functions according to the type that is a specific `context`.  
+***Note:** The context system defined here may be different from the Turing implementation. Also, the context system design in Turing is not in its definitive form as of the current version at the time of this notebook is written.*
+
+```julia
+abstract type AbstractContext end
+```
+
+```julia
+struct SamplingContext <: AbstractContext 
+    rng::Random.AbstractRNG
+end
+
+SamplingContext() = SamplingContext(_GLOBALRNG_)
+
+function _observe(__context__::SamplingContext, __varinfo__, sampler, dist, var_id, var_value)
+    log_p = Distributions.loglikelihood(dist, var_value)
+    update_varinfo!(__varinfo__, var_id, var_value, log_p)
+end
+
+function _assume(__context__::SamplingContext, __varinfo__, sampler, dist, var_id)
+    sample = Random.rand(__context__.rng, dist)
+    log_p = Distributions.loglikelihood(dist, sample)
+    update_varinfo!(__varinfo__, var_id, sample, log_p)
+    return sample
+end
+```
+
+Then, we'll encounter our first nontrivial piece of Julia code, that is the compiler. In one sentence, the compiler will replace every tilde notation with a call to `observe` or `assume` function defined in the `context` code block.
+
+> **Julia Sidebar**  
+I am afraid there is not easy way to explain what happens here. So I am going leave some references, and once the reader go though the referenced material, the following block should not be too difficult to understand.  
+[Julia Metaprogramming](https://docs.julialang.org/en/v1/manual/metaprogramming/)  
+[MacroTools](https://fluxml.ai/MacroTools.jl/dev/pattern-matching/)  
+[Turing Compiler Design](https://turing.ml/dev/docs/for-developers/compiler) (The implementation here is heavily simplified compared to Turing's compiler.)
+
+```julia
+macro mini_model(expr)
+    return esc(_mini_model(expr, __source__, __module__))
+end
+
+function _mini_model(expr, __source__, __module__)
+    _def = MacroTools.splitdef(expr)
+    _def_args, _def_body = _def[:args], _def[:body]
+    
+    _def_body = MacroTools.postwalk(_def_body) do sub_expr
+        # MacroTools' macro `capture` provide handy utility for pattern matching
+        if MacroTools.@capture(sub_expr, var_ ~ dist_)
+            if var in _def_args
+                # MacroTools' macro `q` gives expr without linenum
+                return MacroTools.@q begin
+                    $(Main._observe)(__context__, __varinfo__, __model__.sampler, $dist, $(Meta.quot(var)), $var)
+                end
+            else
+                return MacroTools.@q begin
+                    $var = $(Main._assume)(__context__, __varinfo__, __model__.sampler, $dist, $(Meta.quot(var)))
+                end
+            end
+        else 
+            return sub_expr
+        end
+    end
+    
+    _def[:args] = vcat(
+        [
+            # Insert extra arguments
+            :(__model__::($Main.MiniModel)),
+            :(__varinfo__::($Main.AbstractVarInfo)),
+            :(__context__::($Main.AbstractContext)),
+        ],
+        _def_args,
+    )
+    
+    _def[:body] = MacroTools.@q begin
+        $__source__
+        $_def_body
+    end
+    
+    return MacroTools.@q begin
+        $(MacroTools.combinedef(_def))
+    end
+end
+```
+
+Next, let's define a `Model` struct. In the actual implementation of the compiler in Turing, the model construction is done as the final step of the compilation. But for the sake of simplicity, we will construct the model manually. This also requires us to keep a field for the actually data in the `Model` struct. 
+
+```julia
+struct MiniModel<:AbstractMCMC.AbstractModel
+    f
+    sampler
+    
+    # Data
+    args
+    data # a tuple of all the data
+end
+```
+
+To illustrate how inference work for our mini language. We will implement an extremely simplistic Random-Walk Metropolis-Hastings sampler.
+
+> **Julia Sidebar**  
+We used the Julia package [AbstractMCMC.jl](https://github.com/TuringLang/AbstractMCMC.jl) here. For the interface design, we refer the reader to the [documentation](https://beta.turing.ml/AbstractMCMC.jl/dev/).  
+In simple words, we need to implement a sub-type of `AbstractModel`, which we did in the code block above; a sub-type of `AbstractSampler`, which we'll do in the next code block; and `step` functions, following the sampler definition.
+
+```julia
+struct MHSampler <: AbstractMCMC.AbstractSampler
+    proposal # Just a Normal distribution in this simple case
+end
+
+abstract type AbstractTransition end
+struct Transition <: AbstractTransition
+    varinfo :: AbstractVarInfo
+end
+```
+
+We hard-coded the proposal step as part of a `context` implementation. In Turing, to accommodate more use-cases, the `proposal` function is abstracted out.
+
+```julia
+struct MHTransitionContext <: AbstractContext 
+    rng::Random.AbstractRNG
+end
+
+MHTransitionContext() = MHTransitionContext(_GLOBALRNG_)
+
+function _observe(__context__::MHTransitionContext, __varinfo__, sampler, dist, var_id, var_value) 
+    log_p = Distributions.loglikelihood(dist, var_value)
+    update_varinfo!(__varinfo__, var_id, var_value, log_p)
+end
+
+function _assume(__context__::MHTransitionContext, __varinfo__, sampler, dist, var_id)
+    old_value = __varinfo__.values[var_id]
+    # propose a random-walk step, i.e, add the current value to a random value sampled from
+    # a Normal distribution centered at 0
+    new_value = old_value + rand(__context__.rng, sampler.proposal)
+    log_p = Distributions.loglikelihood(dist, new_value)
+    update_varinfo!(__varinfo__, var_id, new_value, log_p)
+    return new_value
+end
+```
+
+We need to define two `step` functions, one for the first step and the other for the following steps. The two functions are identified with different arguments they take.  
+
+```julia
+# The fist step
+function AbstractMCMC.step(
+    rng::Random.AbstractRNG,
+    model::MiniModel,
+    sampler::MHSampler;
+    kwargs...
+)
+    vi = VarInfo()
+    ctx = SamplingContext()
+    model.f(model, vi, ctx, model.data...)
+    return Transition(vi), vi
+end
+
+# Defining functions to compute values to determine if accept the proposal
+function logα(old_vi, new_vi, args, proposal)
+    return compute_joint(new_vi) - compute_joint(old_vi) 
+    + compute_condition_log(old_vi, new_vi, args, proposal) - 
+    compute_condition_log(new_vi, old_vi, args, proposal)
+end
+    
+function compute_condition_logprob(vi, condition_vi, args, proposal)
+    return reduce(+, [Distributions.loglikelihood(proposal, value1 - value2) 
+            for ((key, value1), (_, value2)) in zip(vi.values, condition_vi.values) if key ∉ args])
+end
+
+function compute_joint(vi)
+    return reduce(+, Base.values(vi.log_ps))
+end
+
+# The following steps
+function AbstractMCMC.step(
+    rng::Random.AbstractRNG,
+    model::MiniModel,
+    sampler::MHSampler,
+    prev_state, # is just the old vi
+    kargs...
+)
+    vi = prev_state
+    new_vi = deepcopy(vi)
+    ctx = MHTransitionContext()
+    model.f(model, new_vi, ctx, model.data...)
+    log_α = logα(vi, new_vi, model.args, sampler.proposal)
+    # @show(new_vi, log_α)
+    if log(rand(rng)) < min(0, log_α)
+        return Transition(new_vi), new_vi
+    else
+        return Transition(prev_state), prev_state
+    end
+end
+```
+
+Now, let's see how our mini probabilistic programming language works.  
+Define the probabilistic model.
+
+```julia
+@mini_model function m(x)
+    a ~ Normal(0.5, 1)
+    b ~ Normal(a, 2)
+    x ~ Normal(b, 0.5)
+end
+```
+
+Given data ```x = 3.0```.
+
+```julia
+# Manually defining the model.
+model = MiniModel(m, MHSampler(Normal(0, 1)), [:x], (3.0,))
+
+# `sample` function is implemented as part of `AbstractMCMC.jl`
+samples = sample(model, model.sampler, 1000000)
+# We get a vector of `Transition`s
+values = [sample.varinfo.values for sample in samples]
+params = [key for key in Base.keys(values[1]) if key ∉ model.args]
+vals = reduce(hcat, [value[p] for value in values] for p in params)
+# Composing the `Chains` data-structure, of which analyzing infrastructure is provided
+chains = Chains(vals, params)
+```
+
+Now, let's see what Turing gives us.
+
+```julia
+using Turing
+
+@model function turing_m(x)
+    a ~ Normal(0.5, 1)
+    b ~ Normal(a, 2)
+    x ~ Normal(b, 0.5)
+end
+```
+
+```julia
+sample(turing_m(3.0), MH(), 1000000)
+```
+
+As you can see, we got the same results as Turing.

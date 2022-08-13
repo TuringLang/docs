@@ -161,15 +161,14 @@ function mini_model(expr)
 end
 ```
 
-Next, let's define a `Model` struct.
+Next, let's define a `MiniModel` struct.
 In the actual implementation of the compiler in Turing, the model construction is done as the final step of the compilation.
 But for the sake of simplicity, we will construct the model manually.
-This also requires us to keep a field for the actually data in the `Model` struct.
+This also requires us to keep a field for the actually data in the `MiniModel` struct.
 
 ```julia
 struct MiniModel <: AbstractMCMC.AbstractModel
-    f
-    sampler
+    f::F
 
     # Data
     args
@@ -186,8 +185,9 @@ To illustrate how inference work for our mini language. We will implement an ext
 In simple words, we need to implement a sub-type of `AbstractModel`, which we did in the code block above; a sub-type of `AbstractSampler`, which we'll do in the next code block; and `step` functions, following the sampler definition.
 
 ```julia
+# Just a Normal distribution as proposal in this simple case
 struct MHSampler{P<:Normal} <: AbstractMCMC.AbstractSampler
-    proposal::P # Just a Normal distribution in this simple case
+    proposal::P 
 end
 
 struct Transition
@@ -205,21 +205,21 @@ end
 
 MHTransitionContext() = MHTransitionContext(_GLOBALRNG_)
 
-function _observe(
-    __context__::MHTransitionContext, __varinfo__, sampler, dist, var_id, var_value
+function observe(
+    context::MHTransitionContext, varinfo, sampler, dist, var_id, var_value
 )
     log_p = Distributions.loglikelihood(dist, var_value)
-    return update_varinfo!(__varinfo__, var_id, var_value, log_p)
+    return update_varinfo!(varinfo, var_id, var_value, log_p)
 end
 
-function _assume(__context__::MHTransitionContext, __varinfo__, sampler, dist, var_id)
-    old_value = __varinfo__.values[var_id]
+function assume(context::MHTransitionContext, varinfo, sampler, dist, var_id)
+    old_value = varinfo.values[var_id]
     # propose a random-walk step, i.e, add the current value to a random value sampled from
     # a Normal distribution centered at 0
-    new_value = old_value + rand(__context__.rng, sampler.proposal)
-    log_p = Distributions.loglikelihood(dist, new_value)
-    update_varinfo!(__varinfo__, var_id, new_value, log_p)
-    return new_value
+    value = old_value + rand(context.rng, sampler.proposal)
+    logp = Distributions.loglikelihood(dist, value)
+    update_varinfo!(varinfo, var_id, value, logp)
+    return value
 end
 ```
 
@@ -238,8 +238,7 @@ end
 
 # Defining functions to compute values to determine if accept the proposal
 function logα(old_vi, new_vi, args, proposal)
-    return compute_joint(new_vi) - compute_joint(old_vi)
-    return +compute_condition_log(old_vi, new_vi, args, proposal) -
+    return compute_joint(new_vi) - compute_joint(old_vi) + compute_condition_log(old_vi, new_vi, args, proposal) -
            compute_condition_log(new_vi, old_vi, args, proposal)
 end
 
@@ -254,16 +253,14 @@ function compute_condition_logprob(vi, condition_vi, args, proposal)
     )
 end
 
-function compute_joint(vi)
-    return reduce(+, Base.values(vi.log_ps))
-end
+compute_joint(vi) = sum(values(vi.logps))
 
 # The following steps
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model::MiniModel,
     sampler::MHSampler,
-    prev_state, # is just the old vi
+    prev_state::VarInfo, # is just the old vi
     kargs...,
 )
     vi = prev_state
@@ -272,7 +269,7 @@ function AbstractMCMC.step(
     model.f(model, new_vi, ctx, model.data...)
     log_α = logα(vi, new_vi, model.args, sampler.proposal)
     # @show(new_vi, log_α)
-    if log(rand(rng)) < min(0, log_α)
+    if -randexp(rng) < log_α
         return Transition(new_vi), new_vi
     else
         return Transition(prev_state), prev_state

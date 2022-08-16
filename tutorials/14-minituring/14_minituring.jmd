@@ -86,7 +86,7 @@ abstract type AbstractContext end
 ```
 
 ```julia
-struct SamplingContext{R} <: AbstractContext where {R<:Random.AbstractRNG}
+struct SamplingContext{R<:Random.AbstractRNG} <: AbstractContext
     rng::R
 end
 
@@ -153,11 +153,7 @@ function mini_model(expr)
         def[:args],
     )
 
-    return Base.remove_linenums!(
-        quote
-            $(MacroTools.combinedef(def))
-        end,
-    )
+    return MacroTools.combinedef(def)
 end;
 ```
 
@@ -186,12 +182,12 @@ In simple words, we need to implement a sub-type of `AbstractModel`, which we di
 
 ```julia
 # Just a Normal distribution as proposal in this simple case
-struct MHSampler{P} <: AbstractMCMC.AbstractSampler where {P<:Normal}
+struct MHSampler{P<:Normal} <: AbstractMCMC.AbstractSampler
     proposal::P
 end
 
-struct Transition
-    varinfo::VarInfo
+struct Transition{V}
+    varinfo::V
 end
 ```
 
@@ -199,7 +195,7 @@ We hard-coded the proposal step as part of a `context` implementation.
 In Turing, to accommodate more use-cases, the `proposal` function is abstracted out.
 
 ```julia
-struct MHTransitionContext{R} <: AbstractContext where {R<:Random.AbstractRNG}
+struct MHTransitionContext{R<:Random.AbstractRNG} <: AbstractContext
     rng::R
 end
 
@@ -237,10 +233,10 @@ end
 
 # Defining functions to compute values to determine if accept the proposal
 function condition_logprob(vi, condition_vi, args, proposal)
-    return sum([
+    return sum(
         Distributions.loglikelihood(proposal, vi.values[key] - condition_vi.values[key]) for
         key in keys(vi.values) if !(key in args)
-    ])
+    )
 end
 
 log_joint(vi) = sum(values(vi.logps))
@@ -264,7 +260,6 @@ function AbstractMCMC.step(
     ctx = MHTransitionContext()
     model.f(model, new_vi, ctx, sampler, model.data...)
     log_α = logα(vi, new_vi, model.args, sampler.proposal)
-    # @show(new_vi, log_α)
     if -randexp(rng) < log_α
         return Transition(new_vi), new_vi
     else

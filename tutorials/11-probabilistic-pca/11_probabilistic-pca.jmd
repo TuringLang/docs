@@ -96,14 +96,15 @@ If you have some patience and compute resources you can increase the size of the
 
     # Noise variance.
     σ² ~ InverseGamma(1, 1)
-    
     # Data.
     m = w * z .+ μ
-    x ~ arraydist(map(eachcol(m)) do mi
-        return MvNormal(mi, σ² * I)
-    end)
+    x ~ arraydist(
+        map(eachcol(m)) do mi
+            return MvNormal(mi, σ² * I)
+        end,
+    )
 
-    return
+    return nothing
 end;
 ```
 
@@ -133,12 +134,7 @@ z = [mean(chain, "z[$i,$j]") for i in 1:nlatent, j in 1:ncells]
 X = w * z .+ μ
 
 heatmap(
-    X;
-    xlabel="cell",
-    yflip=true,
-    ylabel="gene",
-    yticks=1:9,
-    colorbar_title="expression",
+    X; xlabel="cell", yflip=true, ylabel="gene", yticks=1:9, colorbar_title="expression"
 )
 ```
 
@@ -159,12 +155,7 @@ end
 
 ```julia
 heatmap(
-    z;
-    xlabel="cell",
-    yflip=true,
-    ylabel="latent dimension",
-    yticks=1:9,
-    colorbar_title="z",
+    z; xlabel="cell", yflip=true, ylabel="latent dimension", yticks=1:9, colorbar_title="z"
 )
 ```
 
@@ -172,7 +163,9 @@ heatmap(
 scatter(
     z[1, :],
     z[2, :];
-    group=repeat(["cells 1-$(ncells ÷ 2)", "cells $((ncells ÷ 2) + 1)-$ncells"]; inner=ncells ÷ 2),
+    group=repeat(
+        ["cells 1-$(ncells ÷ 2)", "cells $((ncells ÷ 2) + 1)-$ncells"]; inner=ncells ÷ 2
+    ),
     xlabel="latent dimension \$z_1\$",
     ylabel="latent dimension \$z_2\$",
 )
@@ -200,23 +193,26 @@ You can find more details about this in Bishop's book (there a precision hyperpa
 
     # Weights/loadings with automatic relevance determination.
     v ~ filldist(InverseGamma(1.0, 1.0), nfeatures - 1)
-    w ~ arraydist(map(v) do vi
-        return MvNormal(Zeros(nfeatures), vi * I)
-    end)
+    w ~ arraydist(
+        map(v) do vi
+            return MvNormal(Zeros(nfeatures), vi * I)
+        end,
+    )
 
     # Mean offset.
     μ ~ MvNormal(Zeros(nfeatures), I)
- 
     # Noise variance.
     σ² ~ InverseGamma(1, 1)
 
     # Data.
     m = w * z .+ μ
-    x ~ arraydist(map(eachcol(m)) do mi
-        return MvNormal(mi, σ² * I)
-    end)
+    x ~ arraydist(
+        map(eachcol(m)) do mi
+            return MvNormal(mi, σ² * I)
+        end,
+    )
 
-    return
+    return nothing
 end
 
 # Create pPCA model, conditioned on our data.
@@ -253,12 +249,7 @@ z = [mean(chain, "z[$i,$j]") for i in 1:(ngenes - 1), j in 1:ncells]
 X = w[:, relevant] * z[relevant, :] .+ μ
 
 heatmap(
-    X;
-    xlabel="cell",
-    yflip=true,
-    ylabel="gene",
-    yticks=1:9,
-    colorbar_title="expression",
+    X; xlabel="cell", yflip=true, ylabel="gene", yticks=1:9, colorbar_title="expression"
 )
 ```
 
@@ -268,7 +259,9 @@ As the samples of $v$ indicated, here actually a single latent dimension is suff
 scatter(
     z[relevant[1], :],
     z[relevant[2], :];
-    group=repeat(["cells 1-$(ncells ÷ 2)", "cells $((ncells ÷ 2) + 1)-$ncells"]; inner=ncells ÷ 2),
+    group=repeat(
+        ["cells 1-$(ncells ÷ 2)", "cells $((ncells ÷ 2) + 1)-$ncells"]; inner=ncells ÷ 2
+    ),
     xlabel="latent dimension \$z_{$(relevant[1])}\$",
     ylabel="latent dimension \$z_{$(relevant[2])}\$",
 )
@@ -424,11 +417,13 @@ In our example, this means knowing which ruler was used for which measurement, h
 
     # Data.
     m = w * z + c .* batch' .+ μ
-    x ~ arraydist(map(eachcol(m)) do mi
-        return MvNormal(mi, σ² * I)
-    end)
+    x ~ arraydist(
+        map(eachcol(m)) do mi
+            return MvNormal(mi, σ² * I)
+        end,
+    )
 
-    return
+    return nothing
 end
 
 ppca = pPCA_residual(batch; nfeatures, nlatent) | (; x=Matrix(batchdata)')
@@ -534,7 +529,8 @@ end
 
     Turing.@addlogprob! -sum(abs2, sigma) / 2 + (D - Q - 1) * sum(log, sigma)
     for qi in Q:(-1):2
-        Turing.@addlogprob! 2 * (qi - 1) * log(sigma[qi]) - sum(abs2, view(sigma, 1:(qi - 1)))
+        Turing.@addlogprob! 2 * (qi - 1) * log(sigma[qi]) -
+            sum(abs2, view(sigma, 1:(qi - 1)))
     end
     Turing.@addlogprob! logtwo * (K * sum(log, sigma))
 

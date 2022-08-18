@@ -26,11 +26,12 @@ $$
 
 We will have the following model definition in our small language.
 
-```julia; eval=false
+```julia; eval=false;
 @mini_model function m(x)
     a ~ Normal(0.5, 1)
     b ~ Normal(a, 2)
     x ~ Normal(b, 0.5)
+    return nothing
 end
 ```
 
@@ -82,23 +83,22 @@ Thus, readers are advised to refer to Turing's documentations and code if knowle
 Also, it should be pointed out that the context system design in Turing is not in its definitive form as of the current version at the time of this notebook is written.*
 
 ```julia
-abstract type AbstractContext end
-```
-
-```julia
-struct SamplingContext{R<:Random.AbstractRNG} <: AbstractContext
+struct SamplingContext{R<:Random.AbstractRNG,S<:AbstractMCMC.AbstractSampler}
     rng::R
+    sampler::S
 end
 
-SamplingContext() = SamplingContext(Random.default_rng())
+struct DummySampler <: AbstractMCMC.AbstractSampler end
 
-function observe(context::SamplingContext, varinfo, sampler, dist, var_id, var_value)
+SamplingContext() = SamplingContext(Random.default_rng(), DummySampler())
+
+function observe(context::SamplingContext, sampler, varinfo, dist, var_id, var_value)
     logp = Distributions.loglikelihood(dist, var_value)
     varinfo[var_id] = (var_value, logp)
     return var_value # return value not used, only for coherent behavior as `assume`
 end
 
-function assume(context::SamplingContext, varinfo, sampler, dist, var_id)
+function assume(context::SamplingContext, sampler::DummySampler, varinfo, dist, var_id)
     sample = Random.rand(context.rng, dist)
     logp = Distributions.loglikelihood(dist, sample)
     varinfo[var_id] = (sample, logp)
@@ -130,11 +130,20 @@ function mini_model(expr)
         if MacroTools.@capture(sub_expr, var_ ~ dist_)
             if var in def[:args]
                 return quote
-                    $(observe)(context, varinfo, sampler, $dist, $(Meta.quot(var)), $var)
+                    $(observe)(
+                        context,
+                        context.sampler,
+                        varinfo,
+                        $dist,
+                        $(Meta.quot(var)),
+                        $var,
+                    )
                 end
             else
                 return quote
-                    $var = $(assume)(context, varinfo, sampler, $dist, $(Meta.quot(var)))
+                    $var = $(assume)(
+                        context, context.sampler, varinfo, $dist, $(Meta.quot(var))
+                    )
                 end
             end
         else
@@ -142,16 +151,11 @@ function mini_model(expr)
         end
     end
 
-    def[:args] = vcat(
-        [
-            # Insert extra arguments
-            :(model::($MiniModel)),
-            :(varinfo::($VarInfo)),
-            :(context::($AbstractContext)),
-            :(sampler::($(AbstractMCMC.AbstractSampler))),
-        ],
-        def[:args],
-    )
+    def[:args] = vcat([
+        # Insert extra arguments
+        :(varinfo),
+        :(context),
+    ], def[:args])
 
     return MacroTools.combinedef(def)
 end;
@@ -163,12 +167,9 @@ But for the sake of simplicity, we will construct the model manually.
 This also requires us to keep a field for the actually data in the `MiniModel` struct.
 
 ```julia
-struct MiniModel{F} <: AbstractMCMC.AbstractModel
+struct MiniModel{F,D} <: AbstractMCMC.AbstractModel
     f::F
-
-    # Data
-    args
-    data # a tuple of all the data
+    data::D # a NamedTuple of all the data
 end
 ```
 
@@ -189,28 +190,18 @@ end
 struct Transition{V}
     varinfo::V
 end
+
+SamplingContext(sampler::MHSampler) = SamplingContext(Random.default_rng(), sampler)
 ```
 
 We hard-coded the proposal step as part of a `context` implementation.
 In Turing, to accommodate more use-cases, the `proposal` function is abstracted out.
 
 ```julia
-struct MHTransitionContext{R<:Random.AbstractRNG} <: AbstractContext
-    rng::R
-end
-
-MHTransitionContext() = MHTransitionContext(Random.default_rng())
-
-function observe(context::MHTransitionContext, varinfo, sampler, dist, var_id, var_value)
-    logp = Distributions.loglikelihood(dist, var_value)
-    varinfo[var_id] = (var_value, logp)
-    return var_value
-end
-
-function assume(context::MHTransitionContext, varinfo, sampler, dist, var_id)
+function assume(context::SamplingContext, sampler::MHSampler, varinfo, dist, var_id)
     old_value = varinfo.values[var_id]
-    # propose a random-walk step, i.e, add the current value to a random value sampled from
-    # a Normal distribution centered at 0
+    # propose a random-walk step, i.e, add the current value to a random 
+    # value sampled from a Normal distribution centered at 0
     value = old_value + rand(context.rng, sampler.proposal)
     logp = Distributions.loglikelihood(dist, value)
     varinfo[var_id] = (value, logp)
@@ -226,8 +217,8 @@ function AbstractMCMC.step(
     rng::Random.AbstractRNG, model::MiniModel, sampler::MHSampler; kwargs...
 )
     vi = VarInfo()
-    ctx = SamplingContext()
-    model.f(model, vi, ctx, sampler, model.data...)
+    ctx = SamplingContext() # context with DUmmySampler
+    model.f(vi, ctx, values(model.data)...)
     return Transition(vi), vi
 end
 
@@ -257,9 +248,9 @@ function AbstractMCMC.step(
 )
     vi = prev_state
     new_vi = deepcopy(vi)
-    ctx = MHTransitionContext()
-    model.f(model, new_vi, ctx, sampler, model.data...)
-    log_α = logα(vi, new_vi, model.args, sampler.proposal)
+    ctx = SamplingContext(sampler)
+    model.f(new_vi, ctx, values(model.data)...)
+    log_α = logα(vi, new_vi, keys(model.data), ctx.sampler.proposal)
     if -randexp(rng) < log_α
         return Transition(new_vi), new_vi
     else
@@ -271,10 +262,9 @@ end
 function AbstractMCMC.bundle_samples(
     samples, model::MiniModel, ::MHSampler, ::Any, ::Type; kargs...
 )
-    print("called")
     # We get a vector of `Transition`s
     values = [sample.varinfo.values for sample in samples]
-    params = [key for key in Base.keys(values[1]) if key ∉ model.args]
+    params = [key for key in Base.keys(values[1]) if key ∉ keys(model.data)]
     vals = reduce(hcat, [value[p] for value in values] for p in params)
     # Composing the `Chains` data-structure, of which analyzing infrastructure is provided
     chains = Chains(vals, params)
@@ -290,6 +280,7 @@ Define the probabilistic model.
     a ~ Normal(0.5, 1)
     b ~ Normal(a, 2)
     x ~ Normal(b, 0.5)
+    return nothing
 end;
 ```
 
@@ -297,7 +288,7 @@ Given data `x = 3.0`.
 
 ```julia
 # Manually defining the model.
-model = MiniModel(m, [:x], (3.0,))
+model = MiniModel(m, (x=3.0,))
 
 # `sample` function is implemented as part of `AbstractMCMC.jl`
 samples = sample(model, MHSampler(Normal(0, 1)), 1000000)
@@ -312,6 +303,7 @@ using Turing
     a ~ Normal(0.5, 1)
     b ~ Normal(a, 2)
     x ~ Normal(b, 0.5)
+    return nothing
 end;
 ```
 

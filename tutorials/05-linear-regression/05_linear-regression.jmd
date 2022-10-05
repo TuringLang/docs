@@ -28,6 +28,12 @@ using MLDataUtils: shuffleobs, splitobs, rescale!
 # Functionality for evaluating the model predictions.
 using Distances
 
+# Functionality for constructing arrays with identical elements efficiently.
+using FillArrays
+
+# Functionality for working with scaled identity matrices.
+using LinearAlgebra
+
 # Set a seed for reproducibility.
 using Random
 Random.seed!(0)
@@ -93,24 +99,30 @@ $$
 
 where $\alpha$ is an intercept term common to all observations, $\boldsymbol{\beta}$ is a coefficient vector, $\boldsymbol{X_i}$ is the observed data for car $i$, and $\sigma^2$ is a common variance term.
 
-For $\sigma^2$, we assign a prior of `truncated(Normal(0, 100), 0, Inf)`. This is consistent with [Andrew Gelman's recommendations](http://www.stat.columbia.edu/%7Egelman/research/published/taumain.pdf) on noninformative priors for variance. The intercept term ($\alpha$) is assumed to be normally distributed with a mean of zero and a variance of three. This represents our assumptions that miles per gallon can be explained mostly by our assorted variables, but a high variance term indicates our uncertainty about that. Each coefficient is assumed to be normally distributed with a mean of zero and a variance of 10. We do not know that our coefficients are different from zero, and we don't know which ones are likely to be the most important, so the variance term is quite high. Lastly, each observation $y_i$ is distributed according to the calculated `mu` term given by $\alpha + \boldsymbol{\beta}^\mathsf{T}\boldsymbol{X_i}$.
+For $\sigma^2$, we assign a prior of `truncated(Normal(0, 100); lower=0)`.
+This is consistent with [Andrew Gelman's recommendations](http://www.stat.columbia.edu/%7Egelman/research/published/taumain.pdf) on noninformative priors for variance.
+The intercept term ($\alpha$) is assumed to be normally distributed with a mean of zero and a variance of three.
+This represents our assumptions that miles per gallon can be explained mostly by our assorted variables, but a high variance term indicates our uncertainty about that.
+Each coefficient is assumed to be normally distributed with a mean of zero and a variance of 10.
+We do not know that our coefficients are different from zero, and we don't know which ones are likely to be the most important, so the variance term is quite high.
+Lastly, each observation $y_i$ is distributed according to the calculated `mu` term given by $\alpha + \boldsymbol{\beta}^\mathsf{T}\boldsymbol{X_i}$.
 
 ```julia
 # Bayesian linear regression.
 @model function linear_regression(x, y)
     # Set variance prior.
-    σ₂ ~ truncated(Normal(0, 100), 0, Inf)
+    σ² ~ truncated(Normal(0, 100); lower=0)
 
     # Set intercept prior.
     intercept ~ Normal(0, sqrt(3))
 
     # Set the priors on our coefficients.
     nfeatures = size(x, 2)
-    coefficients ~ MvNormal(nfeatures, sqrt(10))
+    coefficients ~ MvNormal(Zeros(nfeatures), 10.0 * I)
 
     # Calculate all the mu terms.
     mu = intercept .+ x * coefficients
-    return y ~ MvNormal(mu, sqrt(σ₂))
+    return y ~ MvNormal(mu, σ² * I)
 end
 ```
 

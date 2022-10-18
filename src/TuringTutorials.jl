@@ -20,6 +20,7 @@ function __init__()
 end
 
 function weave(
+    source_folder::AbstractString,
     folder::AbstractString,
     file::AbstractString;
     out_path_root::AbstractString=pwd(),
@@ -33,15 +34,15 @@ function weave(
         )
     end
 
-    target = joinpath(REPO_DIR, "tutorials", folder, file)
+    target = joinpath(REPO_DIR, source_folder, folder, file)
     @info("Weaving $(target)")
 
     # Activate project
     # TODO: use separate Julia process?
-    if isfile(joinpath(REPO_DIR, "tutorials", folder, "Project.toml")) &&
+    if isfile(joinpath(REPO_DIR, source_folder, folder, "Project.toml")) &&
         (:github in build || :html in build || :pdf in build)
         @info("Instantiating", folder)
-        Pkg.activate(joinpath(REPO_DIR, "tutorials", folder))
+        Pkg.activate(joinpath(REPO_DIR, source_folder, folder))
         Pkg.instantiate()
         Pkg.build()
 
@@ -91,23 +92,23 @@ function weave(
 end
 
 # Weave all tutorials
-function weave(; kwargs...)
-    for folder in readdir(joinpath(REPO_DIR, "tutorials"))
-        weave(folder; kwargs...)
+function weave(source_folder::AbstractString; kwargs...)
+    for folder in readdir(joinpath(REPO_DIR, source_folder))
+        weave(source_folder, folder; kwargs...)
     end
 end
 
 # Weave a folder of tutorials
-function weave(folder::AbstractString; kwargs...)
-    for file in readdir(joinpath(REPO_DIR, "tutorials", folder))
+function weave(source_folder::AbstractString, folder::AbstractString; kwargs...)
+    for file in readdir(joinpath(REPO_DIR, source_folder, folder))
         # Skip non-`.jmd` files
         endswith(file, ".jmd") || continue
 
-        weave(folder, file; kwargs...)
+        weave(source_folder, folder, file; kwargs...)
     end
 end
 
-function tutorial_footer(folder=nothing, file=nothing)
+function doc_footer(folder=nothing, file=nothing)
     display(
         Markdown.md"""
 ## Appendix
@@ -116,7 +117,7 @@ These tutorials are a part of the TuringTutorials repository, found at: <https:/
     )
     if folder !== nothing && file !== nothing
         display(Markdown.parse("""
-        To locally run this tutorial, do the following commands:
+        To locally run this doc, do the following commands:
         ```
         using TuringTutorials
         TuringTutorials.weave("$folder", "$file")

@@ -10,6 +10,7 @@ using Pkg: Pkg
 const REPO_DIR = dirname(@__DIR__)
 const CSS_FILE = joinpath(REPO_DIR, "templates", "skeleton_css.css")
 const LATEX_FILE = joinpath(REPO_DIR, "templates", "julia_tex.tpl")
+const WEAVE_DIRECTORIES = ["tutorials", "docs"]
 
 const DEFAULT_BUILD = (:script, :html, :github)
 
@@ -91,14 +92,21 @@ function weave(
     end
 end
 
-# Weave all tutorials
+# Weave all tutorials and documentation
+function weave(; kwargs...)
+    for source_folder in WEAVE_DIRECTORIES
+        weave(source_folder; kwargs...)
+    end
+end
+
+# Weave all folders in specified directory
 function weave(source_folder::AbstractString; kwargs...)
     for folder in readdir(joinpath(REPO_DIR, source_folder))
         weave(source_folder, folder; kwargs...)
     end
 end
 
-# Weave a folder of tutorials
+# Weave a specific tutorials or documentation
 function weave(source_folder::AbstractString, folder::AbstractString; kwargs...)
     for file in readdir(joinpath(REPO_DIR, source_folder, folder))
         # Skip non-`.jmd` files

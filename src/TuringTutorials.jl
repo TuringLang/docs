@@ -10,7 +10,7 @@ using Pkg: Pkg
 const REPO_DIR = dirname(@__DIR__)
 const CSS_FILE = joinpath(REPO_DIR, "templates", "skeleton_css.css")
 const LATEX_FILE = joinpath(REPO_DIR, "templates", "julia_tex.tpl")
-const WEAVE_DIRECTORIES = ["tutorials", "docs"]
+const WEAVE_DIRECTORY = "tutorials"
 
 const DEFAULT_BUILD = (:script, :html, :github)
 
@@ -21,7 +21,6 @@ function __init__()
 end
 
 function weave(
-    source_folder::AbstractString,
     folder::AbstractString,
     file::AbstractString;
     out_path_root::AbstractString=pwd(),
@@ -35,15 +34,15 @@ function weave(
         )
     end
 
-    target = joinpath(REPO_DIR, source_folder, folder, file)
+    target = joinpath(REPO_DIR, WEAVE_DIRECTORY, folder, file)
     @info("Weaving $(target)")
 
     # Activate project
     # TODO: use separate Julia process?
-    if isfile(joinpath(REPO_DIR, source_folder, folder, "Project.toml")) &&
+    if isfile(joinpath(REPO_DIR, WEAVE_DIRECTORY, folder, "Project.toml")) &&
         (:github in build || :html in build || :pdf in build)
         @info("Instantiating", folder)
-        Pkg.activate(joinpath(REPO_DIR, source_folder, folder))
+        Pkg.activate(joinpath(REPO_DIR, WEAVE_DIRECTORY, folder))
         Pkg.instantiate()
         Pkg.build()
 
@@ -92,31 +91,24 @@ function weave(
     end
 end
 
-# Weave all tutorials and documentation
+# Weave all tutorials
 function weave(; kwargs...)
-    for source_folder in WEAVE_DIRECTORIES
-        weave(source_folder; kwargs...)
+    for folder in readdir(joinpath(REPO_DIR, WEAVE_DIRECTORY))
+        weave(folder; kwargs...)
     end
 end
 
-# Weave all folders in specified directory
-function weave(source_folder::AbstractString; kwargs...)
-    for folder in readdir(joinpath(REPO_DIR, source_folder))
-        weave(source_folder, folder; kwargs...)
-    end
-end
-
-# Weave a specific tutorials or documentation
-function weave(source_folder::AbstractString, folder::AbstractString; kwargs...)
-    for file in readdir(joinpath(REPO_DIR, source_folder, folder))
+# Weave a folder of tutorials
+function weave(folder::AbstractString; kwargs...)
+    for file in readdir(joinpath(REPO_DIR, WEAVE_DIRECTORY, folder))
         # Skip non-`.jmd` files
         endswith(file, ".jmd") || continue
 
-        weave(source_folder, folder, file; kwargs...)
+        weave(folder, file; kwargs...)
     end
 end
 
-function doc_footer(folder=nothing, file=nothing)
+function tutorial_footer(folder=nothing, file=nothing)
     display(
         Markdown.md"""
 ## Appendix
@@ -125,7 +117,7 @@ These tutorials are a part of the TuringTutorials repository, found at: <https:/
     )
     if folder !== nothing && file !== nothing
         display(Markdown.parse("""
-        To locally run this doc, do the following commands:
+        To locally run this tutorial, do the following commands:
         ```
         using TuringTutorials
         TuringTutorials.weave("$folder", "$file")

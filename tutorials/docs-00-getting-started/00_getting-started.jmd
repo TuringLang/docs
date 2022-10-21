@@ -25,11 +25,7 @@ using Pkg
 Pkg.add("Turing")
 ```
 
-You can check if all tests pass by running (it might take a long time)
-
-```{julia; eval=false}
-Pkg.test("Turing")
-```
+You can check if all tests pass by running `Pkg.test("Turing")` (it might take a long time)
 
 ## Example
 
@@ -40,29 +36,44 @@ First, we can load the Turing and StatsPlots modules
 ```julia
 using Turing
 using StatsPlots
+using Random
 ```
 
-Then, we define a simple Normal model with unknown mean and variance
+Then, we define a simple Normal model with unknown mean and variance.
+We assume that the variance follows an Inverse Guassian distribution,
+while the mean follows a Normal distribution. The model has an
+`obs` parameter that represents the observations (the data) that the
+model is shown.
 
 ```julia
-@model function gdemo(x, y)
+@model function gdemo(obs)
+    # Our prior belief about the variance
     s² ~ InverseGamma(2, 3)
+    # Our prior belief about the mean
     m ~ Normal(0, sqrt(s²))
-    x ~ Normal(m, sqrt(s²))
-    return y ~ Normal(m, sqrt(s²))
+    
+    # Iterate over each observation shown to the model 
+    for n in 1:length(obs)
+        # Observation means are drawn from a Normal distribution.
+        obs[n] ~ Normal(m,s²)
+    end
 end
 ```
 
-Then we can run a sampler to collect results. In this case, it is a Hamiltonian Monte Carlo sampler
+Now, let's see if our model can accurately estimate the mean and variance
+of a normal distribution with mean 5 and variance 1. We can generate 100
+observations from such a distribution using the `rand` function.
 
 ```julia
-chn = sample(gdemo(1.5, 2), HMC(0.1, 5), 1000)
+Random.seed!(1) # Setting the seed
+data = rand(Normal(5,1), 100)
 ```
 
-We can use `describe` to summarise results
+Then we can use a Hamiltonian Monte Carlo (HMC) sampler to run inference and
+collect results. We pass the data to our model and run 1000 iterations
 
 ```julia
-describe(chn)
+chn = sample(gdemo(data), HMC(0.1, 5), 1000)
 ```
 
 Finally, we can plot the results
@@ -71,8 +82,6 @@ Finally, we can plot the results
 plot(chn)
 ```
 
-The plots can also be saved
-
-```julia
-savefig("gdemo-plot.png")
-```
+Looking at the summary statistics and plots generated above, mean and variance should look
+close to 5 and 1, respectively. This implies that we have successfully learned a model on the
+data - but it is important to verify the results! Subsequent tutorials will explore this in more detail.  

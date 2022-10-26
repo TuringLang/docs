@@ -1,6 +1,6 @@
 ---
 title: Getting Started
-permalink: /docs/using-turing/get-started
+permalink: /:collection/:name/
 redirect_from: docs/0-gettingstarted/
 weave_options:
   error : false
@@ -36,51 +36,49 @@ First, we can load the Turing and StatsPlots modules
 ```julia
 using Turing
 using StatsPlots
-using Random
 ```
 
-Then, we define a simple Normal model with unknown mean and variance.
-We assume that the variance follows an Inverse Guassian distribution,
-while the mean follows a Normal distribution. The model has an
-`obs` parameter that represents the observations (the data) that the
-model is shown.
+Then, we define a simple Normal model with unknown mean and variance
 
 ```julia
-@model function gdemo(obs)
-    # Our prior belief about the variance
+@model function gdemo(x, y)
     s² ~ InverseGamma(2, 3)
-    # Our prior belief about the mean
     m ~ Normal(0, sqrt(s²))
-    # Iterate over each observation shown to the model 
-    for n in 1:length(obs)
-        # Observation means are drawn from a Normal distribution.
-        obs[n] ~ Normal(m, s²)
-    end
+    x ~ Normal(m, sqrt(s²))
+    return y ~ Normal(m, sqrt(s²))
 end
 ```
 
-Now, let's see if our model can accurately estimate the mean and variance
-of a normal distribution with mean 5 and variance 1. We can generate 100
-observations from such a distribution using the `rand` function.
+Then we can run a sampler to collect results. In this case, it is a Hamiltonian Monte Carlo sampler
 
 ```julia
-Random.seed!(1) # Setting the seed
-data = rand(Normal(5, 1), 100)
+chn = sample(gdemo(1.5, 2), HMC(0.1, 5), 1000)
 ```
 
-Then we can use a Hamiltonian Monte Carlo (HMC) sampler to run inference and
-collect results. We pass the data to our model and run 1000 iterations
-
-```julia
-chn = sample(gdemo(data), HMC(0.1, 5), 1000)
-```
-
-Finally, we can plot the results
+We can plot the results
 
 ```julia
 plot(chn)
 ```
 
-Looking at the summary statistics and plots generated above, mean and variance should look
-close to 5 and 1, respectively. This implies that we have successfully learned a model on the
-data - but it is important to verify the results! Subsequent tutorials will explore this in more detail.
+In this case, because we use the [normal-inverse gamma distribution](https://en.wikipedia.org/wiki/Normal-inverse-gamma_distribution)
+as a [conjugate prior](https://en.wikipedia.org/wiki/Conjugate_prior), we can compute
+its updated mean as follows:
+
+```julia
+s² = InverseGamma(2, 3)
+m = Normal(0, 1)
+data = [1.5,2]
+
+true_posterior_mean = (m.σ * m.μ + length(data) * mean(data)) / (m.σ + length(data))
+```
+
+Finally, we can check if the true posterior mean aligns with our approximation
+
+```julia
+# Visualize a blue density plot of the approximate posterior distribution
+density(group(chn, :m);legend=:best, label="Estimated Mean", w=2, c=:blue)
+
+# Visualize the true posterior mean in red
+vline!([true_posterior_mean]; label="True Mean", c=:red)
+```

@@ -86,17 +86,24 @@ updated_beta =
 variance_expectation = updated_beta / (updated_alpha - 1)
 ```
 
-Finally, we can check if these expectations align with our approximations
+Finally, we can check if these expectations align with our HMC approximations
+from earlier. We can compute samples from a normal-inverse gamma following the
+equations given [here](https://en.wikipedia.org/wiki/Normal-inverse-gamma_distribution#Generating_normal-inverse-gamma_random_variates).
+```julia
+function sample_posterior(alpha, beta, mean, lambda, iterations)
+    samples = []
+    for i in 1:iterations
+        sample_variance = rand(InverseGamma(alpha, beta), 1)
+        sample_x = rand(Normal(mean, sqrt(sample_variance[1]) / lambda), 1)
+        sanples = append!(samples, sample_x)
+    end
+    return samples
+end
+
+analytical_samples = sample_posterior(updated_alpha, updated_beta, mean_expectation, 2, 1000);
+```
 
 ```julia
-# Plot the posterior distribtion, calculated analytically
-updated_distribution = Normal(mean_expectation, sqrt(variance_expectation))
-samples = rand(updated_distribution, 1000)
-density(samples; label="Posterior (Analytical)", w=3)
-
-# Compare with the approximate posterior distribtion from HMC
-approx_mean = mean(chn[:m])
-approx_var = mean(chn[:s²])
-approximated_distribution = Normal(approx_mean, sqrt(approx_var))
-density!(rand(updated_distribution, 1000); label="Posterior (HMC)", w=3)
+density(analytical_samples, label="Posterior (Analytical)")
+density!(chn[:m], label="Posterior (HMC)")
 ```

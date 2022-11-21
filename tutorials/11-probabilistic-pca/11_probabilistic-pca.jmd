@@ -5,8 +5,8 @@ weave_options:
   error : false
 ---
 
-
 # Overview of PCA
+
 Principal component analysis is a fundamental technique to analyse and visualise data. <span style="color:green">It is an unsupervised learning method mainly used for dimensionality reduction. </span>.
 
 For example, we have a feature matrix $A_{m \times n}$, and we would like to extract $d$ principal components which captures most of the information from the matrix but reside in low dimensions (i.e. $d<D$). The aim is to  understand $A_{m \times n}$ through a lower dimensional subspace (e.g. two-dimensional subspace where visualisation is convenient) spanned by the principal components. Geometrically, SVD decomposes the action of $A$ into rotation-scaling-rotation.
@@ -254,12 +254,13 @@ We observe that, the samples are not clustered around a certain value, which ind
 Posterior predictive check. We reconstruct the input data from our parameter estimates, using the posterior mean as parameter estimates.
 We first retrieve the samples for the projection matrix `w` from `chain_ppca`. This can be done using the Julia `group(chain, parameter name)` function.
 Then we calculate the mean value for each element in $w$, averaging over the whole chain of samples.
+
 > You can check that, the operation `group(chain_ppca, :w)` returns a chain with sahape $500 \times 18 \times 1$ (there are $2 \times 9$ elements in the projection matrix $w$), as expected.
 > The operation `mean(group(chain_ppca, :w))` gives an array with shape (18,2) - the first column is the parameter name, and the second column its mean estimate.
-Then the vector of mean values is re-shaped into the original shape of $w$.
-We repeat this for $z$ and $mu$ to calculate their mean estimates over the whole chain.
-Finally, we obtain the predictions $x=w \times z + \mu_j$ where $\mu_j$ is specific to each original dimension $d \in D$.
-The predictions for $x$, produced using the mean estimates of $w$, $z$ and $mu$ are then visualised.
+> Then the vector of mean values is re-shaped into the original shape of $w$.
+> We repeat this for $z$ and $mu$ to calculate their mean estimates over the whole chain.
+> Finally, we obtain the predictions $x=w \times z + \mu_j$ where $\mu_j$ is specific to each original dimension $d \in D$.
+> The predictions for $x$, produced using the mean estimates of $w$, $z$ and $mu$ are then visualised.
 
 ```julia
 # Extract parameter estimates for predicting x - mean of posterior
@@ -326,7 +327,7 @@ This is a very central question for all latent factor models, i.e. how many dime
 In the case of PCA, there exist a lot of heuristics to make that choice. For example, We can tune the number of principal components using empirical methods such as cross-validation based some criteria such as MSE between the posterior predicted $\hat{x}$ and $x$ or the percentage of variation explained [3].
 
 For p-PCA, this can be done in an elegant and principled way, suing a technique called *Automatic Relevance Determination*(ARD).
-ARD can help pick the correct number of principal directions by regularizing the solution space using a parameterized, data-dependent prior distribution that effectively prunes away redundant or superfluous features [4]. 
+ARD can help pick the correct number of principal directions by regularizing the solution space using a parameterized, data-dependent prior distribution that effectively prunes away redundant or superfluous features [4].
 Essentially, we are using a specific prior over the factor loadings $w$ that allows us to prune away dimensions in the latent space. The prior is determined by a precision hyperparameter $\alpha$. Here, smaller values of $\alpha$ correspond to more important components.
 You can find more details about this in e.g. [5].
 
@@ -350,20 +351,23 @@ You can find more details about this in e.g. [5].
     end
 end;
 ```
-Instead of drawing samples of each entry in $w$ from a standard normal, this time we repeatedly draw $D$ samples from the D-dimensional MND, forming a $D \times D$ matrix $w$. 
-This matrix is a function of $\alpha$ as the samples are drawn from the MND parameterized by $\alpha$. 
+
+Instead of drawing samples of each entry in $w$ from a standard normal, this time we repeatedly draw $D$ samples from the D-dimensional MND, forming a $D \times D$ matrix $w$.
+This matrix is a function of $\alpha$ as the samples are drawn from the MND parameterized by $\alpha$.
 We also introduce a hyper-parameter $tau$ which is the precision in the sampling distribution.
 
 We instantiate the model and ask Turing to sample from it using NUTS sampler. The sample trajectories of $\alpha$ is plotted using the `plot` function from the packge `StatsPlots`.
+
 ```julia
 ppca_ARD = pPCA_ARD(expression_matrix) # instantiate the probabilistic model
 chain_ppcaARD = sample(ppca_ARD, NUTS(), 500)
 
 StatsPlots.plot(group(chain_ppcaARD, :alpha))
 ```
-Again, we do some inference diagnostics. Here we look at the convergence of the chains for the $\alpha$ parameter. This parameter determines the relevance of individual components. 
-We see that the chains have converged and the posterior of the alpha parameters is centered around much smaller values in two instances. 
-In the following, we will use the mean of the small values to select the *relevant* dimensions (remember that, smaller values of $\alpha$ correspond to more important components.). 
+
+Again, we do some inference diagnostics. Here we look at the convergence of the chains for the $\alpha$ parameter. This parameter determines the relevance of individual components.
+We see that the chains have converged and the posterior of the alpha parameters is centered around much smaller values in two instances.
+In the following, we will use the mean of the small values to select the *relevant* dimensions (remember that, smaller values of $\alpha$ correspond to more important components.).
 We can clearly see from the values of $\alpha$ that there should be two dimensions (corresponding to $\bar{\alpha}_3=\bar{\alpha}_5≈0.05$) for this dataset.
 
 ```julia
@@ -371,12 +375,12 @@ We can clearly see from the values of $\alpha$ that there should be two dimensio
 w = permutedims(reshape(mean(group(chain_ppcaARD, :w))[:, 2], (n_genes, n_genes)))
 z = permutedims(reshape(mean(group(chain_ppcaARD, :z))[:, 2], (n_genes, n_cells)))'
 α = mean(group(chain_ppcaARD, :alpha))[:, 2]
-plot(α, label="alpha")
+plot(α; label="alpha")
 ```
 
 We can inspect alpha to see which elements are small (i.e. high relevance). To do this, we first sort $\alpha$ using `sortperm()` (in ascending order by default), and record the indices of the first two smallest values (among the $D=9$ $alpha$ values).
 After picking the desired principal directions, we extract the corresponding subset loading vectors from $w$, and the corresponding dimensions of $z$.
-We obtain a posterior predicted matrix $X_{2,60}$ as the product of the two sub-matrices, and compare the recovered info with the original matrix. 
+We obtain a posterior predicted matrix $X_{2,60}$ as the product of the two sub-matrices, and compare the recovered info with the original matrix.
 
 ```julia
 alpha_indices = sortperm(α)[1:2]
@@ -397,6 +401,7 @@ df_rec[!, :cell] = 1:n_cells
     DataFrames.stack(df_rec, 1:n_genes)
 )
 ```
+
 We observe that, the data in the original space is recovered with key information, the distinct feature values in the first and last three gemes for the two cell groups, are preserved.
 We can also examine the data in the reduced space, i.e. the selected components (rows) in $z$.
 
@@ -406,8 +411,11 @@ rename!(df_pro, Symbol.(["z" * string(i) for i in collect(1:k)]))
 df_pro[!, :cell] = 1:n_cells
 
 df_pro[!, :type] = repeat([1, 2]; inner=n_cells ÷ 2)
-scatter(df_pro[:, 1], df_pro[:, 2], xlabel = "z1", ylabel="z2", color=df_pro[:,"type"],label="")
+scatter(
+    df_pro[:, 1], df_pro[:, 2]; xlabel="z1", ylabel="z2", color=df_pro[:, "type"], label=""
+)
 ```
+
 ```
 This plot is very similar to the low-dimensional plot above, with the *relevant* dimensions chosen based on the values of $\alpha$ via ARD. When you are in doubt about the number of dimensions to project onto, ARD might provide an answer to that question.
 

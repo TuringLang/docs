@@ -134,15 +134,16 @@ df_exp[!, :cell] = 1:n_cells
 By design, we mannually divide the 60 cells into two groups. the first 3 geme features of the first 30 cells have mean 10, while those of the last 30 cells have mean 10.
 These two groups of cells differ in the expression of genes.
 
-To make these differences, we draw sample values from the $3 \times 3$ multivariate normal distribution (MND) with mean 10 to fill in the first and last 3 geme features; 
-for the remaining features, we draw their values from zero-mean MND. 
+To make these differences, we draw sample values from the $3 \times 3$ multivariate normal distribution (MND) with mean 10 to fill in the first and last 3 geme features;
+for the remaining features, we draw their values from zero-mean MND.
 We then use `hcat` and `vcat` to concatenate the columns and rows to make a $9 \times 60$ matrix, and then transpose it to form a $60 \times 9$ feature matrix, with rows the instance (cells) and columns the features (gemes).
 Finally we turn this matrix into a `DataFrame` type, and add an extra ID column `cell` to number the cells.
 To visualize the $60 \times 10$ DataFrame, we use our custom-built function `vlplot()`.
 
 Note that:
-1. We have made distinct feature differences between these two groups of cells (it is fairly obvious from looking at the raw data), in practice and with large enough data sets, it is often impossible to spot the differences from the raw data alone. 
-2. If you have some patience and compute resources you can increase the size of the dataset, or play around with the noise levels to make the problem increasingly harder.
+
+ 1. We have made distinct feature differences between these two groups of cells (it is fairly obvious from looking at the raw data), in practice and with large enough data sets, it is often impossible to spot the differences from the raw data alone.
+ 2. If you have some patience and compute resources you can increase the size of the dataset, or play around with the noise levels to make the problem increasingly harder.
 
 #### Step 3: Create the pPCA model
 
@@ -176,7 +177,7 @@ end;
 
 ```julia
 @model function pPCA(x, k)
-# function pPCA(k::Int64, x::Type{TV}=Array{Float64}) where {TV}
+    # function pPCA(k::Int64, x::Type{TV}=Array{Float64}) where {TV}
     # retrieve the dimension of input matrix x.
     N, D = size(x)
 
@@ -202,18 +203,21 @@ end;
     end
 end;
 ```
-The function `pPCA(Array)` is constructed using multi-dispatch. 
-The function accepts 
-1. an Array $x$ (with dimension no. of instances times no. of features) ;
-2. optionally: an integer $k$ which is the dimension of the latent space (the space the original feature matrix is projected onto)
-as input argument and defines the probabilistic model for p-PCA. 
+
+The function `pPCA(Array)` is constructed using multi-dispatch.
+The function accepts
+
+ 1. an Array $x$ (with dimension no. of instances times no. of features) ;
+ 2. optionally: an integer $k$ which is the dimension of the latent space (the space the original feature matrix is projected onto)
+    as input argument and defines the probabilistic model for p-PCA.
 
 Specifically:
-1. it first extracts the dimension $D$ and number of instances $N$ of the input matrix;
-2. then draw $N$ samples of the latent variable $z$ with dimension $k$ from an MND; 
-3. then draw samples of each entries of the projection matrix $w$ (with dimension $D \times k$), from a standard normal;
-4. then we assume uniform offset for each dimension $d \in D$, and draw samples from an MND for each dimension;
-5. Finally, we iterate through each dimension in $D$, and define an MND (sampling distribution, likelihood), assuming all instances in that dimension follow an MND with mean $w \times z + mu_d$, for all instances in that dimension.
+
+ 1. it first extracts the dimension $D$ and number of instances $N$ of the input matrix;
+ 2. then draw $N$ samples of the latent variable $z$ with dimension $k$ from an MND;
+ 3. then draw samples of each entries of the projection matrix $w$ (with dimension $D \times k$), from a standard normal;
+ 4. then we assume uniform offset for each dimension $d \in D$, and draw samples from an MND for each dimension;
+ 5. Finally, we iterate through each dimension in $D$, and define an MND (sampling distribution, likelihood), assuming all instances in that dimension follow an MND with mean $w \times z + mu_d$, for all instances in that dimension.
 
 #### Step 4: Sampling-based inference of the pPCA model
 
@@ -227,27 +231,31 @@ k = 2 # k is the dimension of the projected space, i.e. the number of principal 
 ppca = pPCA(expression_matrix, k) # instantiate the probabilistic model
 chain_ppca = sample(ppca, NUTS(), 500);
 ```
+
 The sampling process takes about 7 mins. The samples are saved in the Chains struc `chain_ppca`, whose shape can be checked:
+
 ```julia
 size(chain_ppca)
 ```
+
 The Chains struc `chain_ppca` also contains the sampling info such as rhat, ess, mean estimates, etc. You can print it to check these quantities.
 
 #### Step 5: diagnostics and posterior predictive checks
 
-Diagnostics of the inference results, i.e. convergence (r-hat), effective samples size (ess), acceptance rate, etc, can be performed using the `MCMCChain` package. 
+Diagnostics of the inference results, i.e. convergence (r-hat), effective samples size (ess), acceptance rate, etc, can be performed using the `MCMCChain` package.
 Here we plot the sample trajectories for 1 chain:
 
 ```julia
-plot(chain_ppca[:, 1, :], xlabel = "iteration_no", ylabel="sample_value")
+plot(chain_ppca[:, 1, :]; xlabel="iteration_no", ylabel="sample_value")
 ```
+
 We observe that, the samples are not clustered around a certain value, which indicates equilibrium may not achieve. This could be associated with the probabilistic model and the sampling settings used.
 
 Posterior predictive check. We reconstruct the input data from our parameter estimates, using the posterior mean as parameter estimates.
 We first retrieve the samples for the projection matrix `w` from `chain_ppca`. This can be done using the Julia `group(chain, parameter name)` function.
 Then we calculate the mean value for each element in $w$, averaging over the whole chain of samples.
-    > You can check that, the operation `group(chain_ppca, :w)` returns a chain with sahape $500 \times 18 \times 1$ (there are $2 \times 9$ elements in the projection matrix $w$), as expected.
-    > The operation `mean(group(chain_ppca, :w))` gives an array with shape (18,2) - the first column is the parameter name, and the second column its mean estimate. 
+> You can check that, the operation `group(chain_ppca, :w)` returns a chain with sahape $500 \times 18 \times 1$ (there are $2 \times 9$ elements in the projection matrix $w$), as expected.
+> The operation `mean(group(chain_ppca, :w))` gives an array with shape (18,2) - the first column is the parameter name, and the second column its mean estimate.
 Then the vector of mean values is re-shaped into the original shape of $w$.
 We repeat this for $z$ and $mu$ to calculate their mean estimates over the whole chain.
 Finally, we obtain the predictions $x=w \times z + \mu_j$ where $\mu_j$ is specific to each original dimension $d \in D$.
@@ -275,13 +283,14 @@ df_rec[!, :cell] = 1:n_cells
     DataFrames.stack(df_rec, 1:n_genes)
 )
 ```
+
 We observe that, the recovered (posterior mean predicted) $\hat{x}$ values align with the original $x$ values - particularly the same pattern in the first and last 3 geme features are captured, which implies the inference is successful.
 This is satisfying as we have just projected the original 9-dimensional space onto a 2-dimensional space - some info has been cut off in the projection process, but we haven't lost any important info, e.g. the key difference between the two groups.
 The is the desirable property of PCA: it picks up the principal axes along which most of the (original) data data variations cluster, and remove those less relevant.
 If we choose the reduced space dimension $k$ to be exactly $D$, we would recover exactly the same input matrix $x$, as the new (projected) space contains the same information as the input space as long as we keep all the dimensions.
 
 Now we have represented the original high-dimensional data in two dimensions, without lossing the key information about the two groups of cells in the input data.
-Finally, the benefits of performing PCA is to analyse and visualise the dimension-reduced data in the projected, low-dimensional space. 
+Finally, the benefits of performing PCA is to analyse and visualise the dimension-reduced data in the projected, low-dimensional space.
 
 We can also check the average magnitudes of the gap between $\hat{x}$ and $x$:
 ```julia; echo=false
@@ -301,14 +310,14 @@ rename!(df_pca, Symbol.(["z" * string(i) for i in collect(1:k)]))
 df_pca[!, :cell] = 1:n_cells
 
 @vlplot(:rect, "cell:o", "variable:o", color = :value)(DataFrames.stack(df_pca, 1:k))
-scatter(df_pca[:,:z1], df_pca[:,:z2], xlabel="z1", ylabel="z2")
+scatter(df_pca[:, :z1], df_pca[:, :z2]; xlabel="z1", ylabel="z2")
 
 df_pca[!, :type] = repeat([1, 2]; inner=n_cells ÷ 2)
 @vlplot(:point, x = :z1, y = :z2, color = "type:n")(df_pca)
 ```
+
 We see the two groups are well separated in this 2-D space. As an unsupervised learning method, performing PCA on this dataset gives membership for each cell instance.
 Another way to put it, 2 dimensions is enough to display the main structure of the data.
-
 
 #### Further extension: automatic choice of the number of principal components with ARD
 

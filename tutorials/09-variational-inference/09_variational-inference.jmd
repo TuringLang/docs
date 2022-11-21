@@ -333,7 +333,7 @@ test = Matrix(test_cut[:, remove_names]);
 
 ```julia
 # Bayesian linear regression.
-@model function linear_regression(x, y, n_obs, n_vars, ::Type{T}=Vector{Float64}) where {T}
+@model function linear_regression(x, y, n_vars, ::Type{T}=Vector{Float64}) where {T}
     # Set variance prior.
     σ² ~ truncated(Normal(0, 100), 0, Inf)
 
@@ -348,6 +348,39 @@ test = Matrix(test_cut[:, remove_names]);
     return y ~ MvNormal(mu, σ² * I)
 end;
 ```
+
+or alternatively:
+```julia
+@model function linear_regression(x, y, n_obs, n_vars, ::Type{T}=Vector{Float64}) where {T}
+    # Set variance prior.
+    σ² ~ truncated(Normal(0, 100), 0, Inf)
+
+    # Set intercept prior.
+    intercept ~ Normal(0, 3)
+
+    # Set the priors on our coefficients.
+    coefficients ~ MvNormal(Zeros(n_vars), 10.0 * I)
+
+    # Calculate all the mu terms.
+    mu = intercept .+ x * coefficients
+    for i in 1:n_obs
+        y[i] ~ Normal(mu[i], sqrt(σ²))
+    end
+end;
+```
+
+```julia
+n_obs, n_vars = size(train)
+m = linear_regression(train, train_label, n_obs, n_vars);
+```
+
+## Performing VI
+
+First we define the initial variational distribution, or, equivalently, the family of distributions to consider. We're going to use the same mean-field approximation as Turing will use by default when we call `vi(m, advi)`, which we obtain by calling `Variational.meanfield`. This returns a `TransformedDistribution` with a `TuringDiagMvNormal` as the underlying distribution and the transformation mapping from the reals to the domain of the latent variables.
+
+```julia
+q0 = Variational.meanfield(m)
+typeof(q0)
 
 ```julia
 n_obs, n_vars = size(train)

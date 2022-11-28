@@ -143,7 +143,7 @@ let
     v, m = (mean(rand(q, 1000); dims=2)...,)
     # On Turing version 0.14, this atol could be 0.01.
     @assert isapprox(v, 1.022; atol=0.1)
-    @assert isapprox(m, -0.027; atol=0.01)
+    @assert isapprox(m, -0.027; atol=0.02)
 end
 ```
 
@@ -154,11 +154,12 @@ For that we need samples:
 
 ```julia
 samples = rand(q, 10000);
+size(samples)
 ```
 
 ```julia
 # setup for plotting
-using Plots, LaTeXStrings, StatsPlots
+using Plots, StatsPlots
 ```
 
 ```julia
@@ -299,10 +300,15 @@ function standardize(x)
     return (x .- mean(Array(x); dims=1)) ./ std(Array(x); dims=1), x
 end
 
+function standardize_test(x, orig)
+    return (x .- mean(Array(orig); dims=1)) ./ std(Array(orig); dims=1), x
+end
+
 # Another helper function to unstandardize our datasets.
 function unstandardize(x, orig)
-    return x .* std(Array(orig); dims=1) .+ mean(Array(orig); dims=1)
+    return x .* std(Array(orig);dims=1) .+ mean(Array(orig); dims=1)
 end
+
 function unstandardize(x, mean_train, std_train)
     return x .* std_train .+ mean_train
 end
@@ -312,14 +318,14 @@ end
 # Remove the model column.
 select!(data, Not(:Model))
 
-# NB: we need to split the data into train and test sets, then do standardization/normalisation. If you swap the sequence, there will be an info leakage, which means information from test sets is leaked into the trianing and leads to over-optimistic about the model performance but worse at generalisation.
-
 # Split our dataset 70%/30% into training/test sets.
 train, test = split_data(data, 0.7)
 train_copy = copy(train) #  save a copy of the train data for later unstandardize use; alternatively, you can just save the statistics (mean and var) of the traiing data.
 
 # Standardize both datasets.
 (std_train, train) = standardize(Matrix(train))
+(std_test, test) = standardize_test(Matrix(test), Matrix(train_copy))
+
 
 # Save dataframe versions of our dataset.
 train_cut = DataFrame(train, names(data))
@@ -374,19 +380,6 @@ or alternatively:
     end
 end;
 ```
-
-```julia
-n_obs, n_vars = size(train)
-m = linear_regression(train, train_label, n_obs, n_vars);
-```
-
-## Performing VI
-
-First we define the initial variational distribution, or, equivalently, the family of distributions to consider. We're going to use the same mean-field approximation as Turing will use by default when we call `vi(m, advi)`, which we obtain by calling `Variational.meanfield`. This returns a `TransformedDistribution` with a `TuringDiagMvNormal` as the underlying distribution and the transformation mapping from the reals to the domain of the latent variables.
-
-```julia
-q0 = Variational.meanfield(m)
-typeof(q0)
 
 ```julia
 n_obs, n_vars = size(train)
@@ -458,7 +451,7 @@ sym2range
 ```
 
 ```julia
-avg[union(sym2range[:σ₂]...)]
+avg[union(sym2range[:σ²]...)]
 ```
 
 ```julia
@@ -475,6 +468,35 @@ With a bit of work (this will be much easier in the future), we can also visuali
 
 ```julia
 function plot_variational_marginals(z, sym2range)
+    ps = []
+
+    for (i, sym) in enumerate(keys(sym2range))
+        indices = union(sym2range[sym]...)  # <= array of ranges
+        if sum(length.(indices)) > 1
+            offset = 1
+            for r in indices
+                for j in r
+                    p = density(
+                        z[j, :]; title="$(sym)[$offset]", titlefontsize=10, label=""
+                    )
+                    push!(ps, p)
+
+                    offset += 1
+                end
+            end
+        else
+            p = density(z[first(indices), :]; title="$(sym)", titlefontsize=10, label="")
+            push!(ps, p)
+        end
+    end
+
+    return plot(ps...; layout=(length(ps), 1), size=(500, 1500))
+end
+```
+
+```julia
+using Plots, StatsPlots
+function plot_variational_marginals2(z, sym2range)
     ps = []
 
     for (i, sym) in enumerate(keys(sym2range))
@@ -500,7 +522,7 @@ end
 ```
 
 ```julia
-plot_variational_marginals(z, sym2range)
+plot_variational_marginals2(z, sym2range)
 ```
 
 And let's compare this to using the `NUTS` sampler:
@@ -517,7 +539,7 @@ plot(chain)
 vi_mean = vec(mean(z; dims=2))[[
     union(sym2range[:coefficients]...)...,
     union(sym2range[:intercept]...)...,
-    union(sym2range[:σ₂]...)...,
+    union(sym2range[:σ²]...)...,
 ]]
 ```
 
@@ -578,8 +600,8 @@ end
 
 ```julia
 # Unstandardize the dependent variable.
-train_cut.OLSPrediction = unstandardize(GLM.predict(ols), train_copy.MPG);
-test_cut.OLSPrediction = unstandardize(GLM.predict(ols, test_cut), train_copy.MPG);
+train_cut.MPG = unstandardize(train_cut.MPG, train_copy.MPG);
+test_cut.MPG = unstandardize(test_cut.MPG, train_copy.MPG);
 ```
 
 ```julia
@@ -894,3 +916,11 @@ if isdefined(Main, :TuringTutorials)
     Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
 end
 ```
+
+# Comments: 
+1. function unstandardize(x, orig)
+2. in @model function linear_regression: n_obs is not used.
+alternatively, we can use:
+for i in range(n_obs)
+    y[i] ~ Normal(mu[i], σ₂)
+3. need to fix density ylabels.

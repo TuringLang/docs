@@ -119,7 +119,7 @@ q isa MultivariateDistribution
 This means that we can call `rand` to sample from the variational posterior `q`
 
 ```julia
-rand(q)
+histogram(rand(q,1_000)[1,:])
 ```
 
 and `logpdf` to compute the log-probability
@@ -297,11 +297,11 @@ end
 
 # A handy helper function to rescale our dataset.
 function standardize(x)
-    return (x .- mean(Array(x); dims=1)) ./ std(Array(x); dims=1), x
+    return (x .- mean(Array(x); dims=1)) ./ std(Array(x); dims=1)
 end
 
-function standardize_test(x, orig)
-    return (x .- mean(Array(orig); dims=1)) ./ std(Array(orig); dims=1), x
+function standardize(x, orig)
+    return (x .- mean(Array(orig); dims=1)) ./ std(Array(orig); dims=1)
 end
 
 # Another helper function to unstandardize our datasets.
@@ -323,19 +323,19 @@ train, test = split_data(data, 0.7)
 train_copy = copy(train) #  save a copy of the train data for later unstandardize use; alternatively, you can just save the statistics (mean and var) of the traiing data.
 
 # Standardize both datasets.
-(std_train, train) = standardize(Matrix(train))
-(std_test, test) = standardize_test(Matrix(test), Matrix(train_copy))
+std_train = standardize(Matrix(train))
+std_test = standardize(Matrix(test), Matrix(train_copy))
 
 # Save dataframe versions of our dataset.
-train_cut = DataFrame(train, names(data))
-test_cut = DataFrame(test, names(data))
+train_cut = DataFrame(std_train, names(data))
+test_cut = DataFrame(std_test, names(data))
 
 # Create our labels. These are the values we are trying to predict.
 train_label = train_cut[:, :MPG]
 test_label = test_cut[:, :MPG]
 
 # Get the list of columns to keep.
-remove_names = filter(x -> !in(x, ["MPG", "Model"]), names(data))
+remove_names = filter(x -> !in(x, [:MPG, :Model]), names(data))
 
 # Filter the test and train sets.
 train = Matrix(train_cut[:, remove_names]);
@@ -359,8 +359,6 @@ test = Matrix(test_cut[:, remove_names]);
     return y ~ MvNormal(mu, σ² * I)
 end;
 ```
-
-or alternatively:
 
 ```julia
 @model function linear_regression(x, y, n_obs, n_vars, ::Type{T}=Vector{Float64}) where {T}
@@ -443,14 +441,16 @@ Now we can for example look at the average
 avg = vec(mean(z; dims=2))
 ```
 
-The vector has the same ordering as the model, e.g. in this case `σ₂` has index `1`, `intercept` has index `2` and `coefficients` has indices `3:12`. If  you forget or you might want to do something programmatically with the result, you can obtain the `sym → indices` mapping as follows:
+The vector has the same ordering as the model, e.g. in this case `σ²` has index `1`, `intercept` has index `2` and `coefficients` has indices `3:12`. If  you forget or you might want to do something programmatically with the result, you can obtain the `sym → indices` mapping as follows:
 
 ```julia
 _, sym2range = bijector(m, Val(true));
 sym2range
 ```
+For example, we can check the sample distribution and mean value of `σ²`
 
 ```julia
+histogram(z[1,:])
 avg[union(sym2range[:σ²]...)]
 ```
 
@@ -467,36 +467,8 @@ avg[union(sym2range[:coefficients]...)]
 With a bit of work (this will be much easier in the future), we can also visualize the approximate marginals of the different variables, similar to `plot(chain)`:
 
 ```julia
-function plot_variational_marginals(z, sym2range)
-    ps = []
-
-    for (i, sym) in enumerate(keys(sym2range))
-        indices = union(sym2range[sym]...)  # <= array of ranges
-        if sum(length.(indices)) > 1
-            offset = 1
-            for r in indices
-                for j in r
-                    p = density(
-                        z[j, :]; title="$(sym)[$offset]", titlefontsize=10, label=""
-                    )
-                    push!(ps, p)
-
-                    offset += 1
-                end
-            end
-        else
-            p = density(z[first(indices), :]; title="$(sym)", titlefontsize=10, label="")
-            push!(ps, p)
-        end
-    end
-
-    return plot(ps...; layout=(length(ps), 1), size=(500, 1500))
-end
-```
-
-```julia
 using Plots, StatsPlots
-function plot_variational_marginals2(z, sym2range)
+function plot_variational_marginals(z, sym2range)
     ps = []
 
     for (i, sym) in enumerate(keys(sym2range))
@@ -506,7 +478,6 @@ function plot_variational_marginals2(z, sym2range)
             for r in indices
                 p = density(z[r, :]; title="$(sym)[$offset]", titlefontsize=10, label="")
                 push!(ps, p)
-
                 offset += 1
             end
         else
@@ -520,7 +491,7 @@ end
 ```
 
 ```julia
-plot_variational_marginals2(z, sym2range)
+plot_variational_marginals(z, sym2range)
 ```
 
 And let's compare this to using the `NUTS` sampler:
@@ -542,13 +513,17 @@ vi_mean = vec(mean(z; dims=2))[[
 ```
 
 ```julia
-mean(chain).nt.mean
+NUTS_mean = mean(chain).nt.mean
+```
+```julia
+plot(NUTS_mean, linestyle = :dot, label = "NUTS")
+plot!(vi_mean, linestyle = :dot, label = "VI")
 ```
 
 One thing we can look at is simply the squared error between the means:
 
 ```julia
-sum(abs2, mean(chain).nt.mean .- vi_mean)
+sum(abs2, NUTS_mean .- vi_mean)
 ```
 
 That looks pretty good! But let's see how the predictive distributions looks for the two.
@@ -572,7 +547,7 @@ test_cut.OLSPrediction = unstandardize(GLM.predict(ols, test_cut), train_copy.MP
 ```
 
 ```julia
-# Make a prediction given an input vector.
+# Make a prediction given an input vector, using mean parameter values from a chain.
 function prediction_chain(chain, x)
     p = get_params(chain)
     α = mean(p.intercept)
@@ -660,7 +635,7 @@ scatter(
 )
 scatter!(1:size(test, 1), unstandardize(test_label, train_copy.MPG); label="true")
 xaxis!(1:size(test, 1))
-ylims!(95, 140)
+ylims!(10, 40)
 title!("Mean-field ADVI (Normal)")
 ```
 
@@ -682,7 +657,7 @@ scatter(
 )
 scatter!(1:size(test, 1), unstandardize(test_label, train_copy.MPG); label="true")
 xaxis!(1:size(test, 1))
-ylims!(95, 140)
+ylims!(10, 40)
 title!("MCMC (NUTS)")
 ```
 

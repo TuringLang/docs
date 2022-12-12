@@ -267,8 +267,10 @@ Random.seed!(1);
 ```
 
 ```julia
-# Import RDatasets.
+using FillArrays
 using RDatasets
+
+using LinearAlgebra
 
 # Hide the progress prompt while sampling.
 Turing.setprogress!(false);
@@ -333,17 +335,17 @@ test = Matrix(test_cut[:, remove_names]);
 # Bayesian linear regression.
 @model function linear_regression(x, y, n_obs, n_vars, ::Type{T}=Vector{Float64}) where {T}
     # Set variance prior.
-    σ₂ ~ truncated(Normal(0, 100), 0, Inf)
+    σ² ~ truncated(Normal(0, 100), 0, Inf)
 
     # Set intercept prior.
     intercept ~ Normal(0, 3)
 
     # Set the priors on our coefficients.
-    coefficients ~ MvNormal(zeros(n_vars), 10 * ones(n_vars))
+    coefficients ~ MvNormal(Zeros(n_vars), 10.0 * I)
 
     # Calculate all the mu terms.
     mu = intercept .+ x * coefficients
-    return y ~ MvNormal(mu, σ₂)
+    return y ~ MvNormal(mu, σ² * I)
 end;
 ```
 
@@ -681,10 +683,6 @@ But using this interface it becomes trivial to go beyond the mean-field assumpti
 ### Relaxing the mean-field assumption
 
 Here we'll instead consider the variational family to be a full non-diagonal multivariate Gaussian. As in the previous section we'll implement this by transforming a standard multivariate Gaussian using `Scale` and `Shift`, but now `Scale` will instead be using a lower-triangular matrix (representing the Cholesky of the covariance matrix of a multivariate normal) in contrast to the diagonal matrix we used in for the mean-field approximate posterior.
-
-```julia
-using LinearAlgebra
-```
 
 ```julia
 # Using `ComponentArrays.jl` together with `UnPack.jl` makes our lives much easier.

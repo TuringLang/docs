@@ -10,6 +10,7 @@ using Pkg: Pkg
 const REPO_DIR = dirname(@__DIR__)
 const CSS_FILE = joinpath(REPO_DIR, "templates", "skeleton_css.css")
 const LATEX_FILE = joinpath(REPO_DIR, "templates", "julia_tex.tpl")
+const WEAVE_DIRECTORY = "tutorials"
 
 const DEFAULT_BUILD = (:script, :html, :github)
 
@@ -33,15 +34,15 @@ function weave(
         )
     end
 
-    target = joinpath(REPO_DIR, "tutorials", folder, file)
+    target = joinpath(REPO_DIR, WEAVE_DIRECTORY, folder, file)
     @info("Weaving $(target)")
 
     # Activate project
     # TODO: use separate Julia process?
-    if isfile(joinpath(REPO_DIR, "tutorials", folder, "Project.toml")) &&
+    if isfile(joinpath(REPO_DIR, WEAVE_DIRECTORY, folder, "Project.toml")) &&
         (:github in build || :html in build || :pdf in build)
         @info("Instantiating", folder)
-        Pkg.activate(joinpath(REPO_DIR, "tutorials", folder))
+        Pkg.activate(joinpath(REPO_DIR, WEAVE_DIRECTORY, folder))
         Pkg.instantiate()
         Pkg.build()
 
@@ -92,14 +93,14 @@ end
 
 # Weave all tutorials
 function weave(; kwargs...)
-    for folder in readdir(joinpath(REPO_DIR, "tutorials"))
+    for folder in readdir(joinpath(REPO_DIR, WEAVE_DIRECTORY))
         weave(folder; kwargs...)
     end
 end
 
 # Weave a folder of tutorials
 function weave(folder::AbstractString; kwargs...)
-    for file in readdir(joinpath(REPO_DIR, "tutorials", folder))
+    for file in readdir(joinpath(REPO_DIR, WEAVE_DIRECTORY, folder))
         # Skip non-`.jmd` files
         endswith(file, ".jmd") || continue
 

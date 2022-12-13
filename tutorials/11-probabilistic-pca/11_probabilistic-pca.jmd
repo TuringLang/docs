@@ -9,46 +9,49 @@ weave_options:
 
 Principal component analysis (PCA) is a fundamental technique to analyse and visualise data. It is an unsupervised learning method mainly used for dimensionality reduction.
 
-For example, we have a feature matrix $\mathbf{A} \in \mathbb{R}^{m \times n}$, and we would like to extract $d$ principal components which captures most of the information from the original matrix but reside in low dimensions (i.e. $d < n$). The goal is to understand $\mathbf{A}$ through a lower dimensional subspace (e.g. two-dimensional subspace for visualisation convenience) spanned by the principal components.
+For example, we have a data matrix $\mathbf{X} \in \mathbb{R}^{N \times D}$, and we would like to extract $k << D$ principal components which captures most of the variation information from the original matrix but live in low dimensions. The goal is to understand $\mathbf{X}$ through a lower dimensional subspace (e.g. two-dimensional subspace for visualisation convenience) spanned by the principal components.
 
-In order to project the original data matrix into low dimensions, we need to find the principal directions where most of the variations of $\mathbf{A}$ lie in. Traditionally, this is implemented via [singular value decomposition (SVD)](https://en.wikipedia.org/wiki/Singular_value_decomposition) which provides a robust and accurate computational framework for decomposing matrix into products of rotation-scaling-rotation matrices, particularly for large datasets(see an illustration [here](https://intoli.com/blog/pca-and-svd/)):
-
-$$
-\mathbf{A}_{m \times n} =  \mathbf{U}_{m \times r} \times \boldsymbol{\Sigma}_{r \times r}  \times  \mathbf{V}^T_{r \times n}
-$$
-
-where $\Sigma_{r \times r}$ contains only $r$ (where $r<=min(m,n)$ is the rank of $A$) non-zero singular values of $\mathbf{A}$. If we pad $\Sigma$ with zeros and add arbitrary orthonormal columns to $U$ and $V$, we obtain the more compact form [1]:
+In order to project the original data matrix into low dimensions, we need to find the principal directions where most of the variations of $\mathbf{X}$ lie in. Traditionally, this is implemented via [singular value decomposition (SVD)](https://en.wikipedia.org/wiki/Singular_value_decomposition) which provides a robust and accurate computational framework for decomposing matrix into products of rotation-scaling-rotation matrices, particularly for large datasets(see an illustration [here](https://intoli.com/blog/pca-and-svd/)):
 
 $$
-\mathbf{A}_{m \times n} = \mathbf{U}_{m \times m} \mathbf{\Sigma}_{m \times n} \mathbf{V}_{n \times n}^T
+\mathbf{X}_{N \times D} =  \mathbf{U}_{N \times r} \times \boldsymbol{\Sigma}_{r \times r}  \times  \mathbf{V}^T_{r \times D}
+$$
+
+where $\Sigma_{r \times r}$ contains only $r$ (where $r<=min(N,D)$ is the rank of $A$) non-zero singular values of $\mathbf{X}$. If we pad $\Sigma$ with zeros and add arbitrary orthonormal columns to $U$ and $V$, we obtain the more compact form [1]:
+
+$$
+\mathbf{X}_{N \times D} = \mathbf{U}_{N \times N} \mathbf{\Sigma}_{N \times D} \mathbf{V}_{D \times D}^T
 $$
 
 where $U$ and $V$ are unitary matrices (i.e. with orthonormal columns). Such decomposition always exists for any matrix. Columns of $V$ are the principal directions/axes. Percentage of variations explained can be calculated using the ratios of singular values [3].
 
-Here we take a probabilistic perspective. For more details and a mathematical derivation, we recommend Bishop's textbook (Christopher M. Bishop, Pattern Recognition and Machine Learning, 2006). The idea of proabilistic PCA is to find a latent variable $z$ that can be used to describe the hidden structure in a dataset [2]. Consider a data set $X={x_i}$ with $i=1,2,...,m$ data points, where each data point $x_i$ is n-dimensional (i.e. $x_i \in \mathcal{R}^n$). We aim to represent the original $n$ dimensional vector using a lower dimensional a latent variable $z_i \in \mathcal{R}^k$.
+Here we take a probabilistic perspective. For more details and a mathematical derivation, we recommend Bishop's textbook (Christopher M. Bishop, Pattern Recognition and Machine Learning, 2006). The idea of proabilistic PCA is to find a latent variable $z$ that can be used to describe the hidden structure in a dataset [2]. Consider a data set $X_{D \times N}=\{x_i\}$ with $i=1,2,...,N$ data points, where each data point $x_i$ is D-dimensional (i.e. $x_i \in \mathcal{R}^D$). Note that, here we use the flipped version of the data matrix. We aim to represent the original $n$ dimensional vector using a lower dimensional a latent variable $z_i \in \mathcal{R}^k$.
 
 We first assume that each latent variable $z_i$ is normally distributed:
+
 $$
 z_i \sim \mathcal{N}(0, I)
 $$
-and the corresponding data point is generated via projection:
-$$
-x_i | z_i = \mathcal{N}(x_i | W z_i + \mu, \sigma^2 I)
-$$
-where the projection matrix $W_{n \times k}$ accommodates the principal axes. We are interested in inferring $W$, $\mu$ and $\sigma$.
 
-Classical PCA is the specific case of probabilistic PCA when the covariance of the noise becomes infinitesimally small, i.e. $\sigma^2 → 0$. Probabilistic PCA generalizes classical PCA, this can be seen by marginalizing out the the latent variable.
+and the corresponding data point is generated via projection:
+
+$$
+x_i | z_i= \mathcal{N}(x_i | W z_i + μ, \sigma^2 I)
+$$
+
+where the projection matrix $W_{D \times k}$ accommodates the principal axes. The above formula expresses `x_i` as a linear combination of the basis columns in the projection matrix `W`, where the combination coefficients sit in `z_i` (they are the coordinats of `x_i` in the new $k$-dimensional space.). We can also express the above formula in matrix form: $X_{D \times N} \approx W_{D \times k} Z_{k \times N}$. We are interested in inferring $W$, $μ$ and $\sigma$.
+
+Classical PCA is the specific case of probabilistic PCA when the covariance of the noise becomes infinitesimally small, i.e. $\sigma^2 → 0$. Probabilistic PCA generalizes classical PCA, this can be seen by marginalizing out the the latent variable [2].
 
 ## The gene expression example
 
 In the first example, we illustrate:
 
   - how to specify the probabilistic model and
-  - how to perferform inference on $W$, $\mu$ and $\sigma$ using MCMC.
+  - how to perferform inference on $W$, $μ$ and $\sigma$ using MCMC.
 
 We use simulated gemnome data to demonstrate these. The simulation is inspired by biological measurement of
 expression of genes in cells, and each cell is characterized by different gene features. While the human genome is (mostly) identical between all the cells in the body, there exist interesting differences in gene expression in different human tissues and disease conditions.
-
 One way to investigate certain diseases is to look at differences in gene expression in cells from patients and healthy controls (usually from the same tissue).
 
 Usually, we can assume that the changes in gene expression only affect a subset of all genes (and these can be linked to diseases in some way).
@@ -84,7 +87,6 @@ Package usages:
 > We use `DataFrames` for instantiating matrices, `LinearAlgebra` to perform matrix operations;
 > `Turing` for model specification and MCMC sampling;
 > `VegaLite` and `StatsPlots` for visualising the resutls.
-> Further, in a later example, we retrieve the *Iris* dataset from `RDatasets`.
 > As all examples involve the sampling, for reproducity purpose, we set fixed seed using the `Random` package.
 
 #### Step 2: Data generation
@@ -95,10 +97,10 @@ This is a simplified problem with only a few cells and genes for demonstration p
 Even so, spotting the structures or patterns in a 9-feature space would be a challenging task; it would be nice to reduce the dimentionality using p-PCA.
 
 ```julia
-n_cells = 60
-n_genes = 9
-mu_1 = 10.0 * ones(n_genes ÷ 3)
+n_genes = 9 # D
+n_cells = 60 # N
 mu_0 = zeros(n_genes ÷ 3)
+mu_1 = 10.0 * ones(n_genes ÷ 3)
 S = I(n_genes ÷ 3)
 mvn_0 = MvNormal(mu_0, S)
 mvn_1 = MvNormal(mu_1, S)
@@ -114,7 +116,7 @@ expression_matrix = transpose(
 )
 
 df_exp = DataFrame(expression_matrix, :auto)
-df_exp[!, :cell] = 1:n_cells
+rename!(df_exp, Symbol.(["gene_" * string(i) for i in 1:n_genes]))
 
 @vlplot(
     :rect,
@@ -134,8 +136,25 @@ These two groups of cells differ in the expression of genes.
 To make these differences, we draw sample values from the $3 \times 3$ multivariate normal distribution (MND) with mean 10 to fill in the first and last 3 gene features;
 for the remaining features, we draw their values from zero-mean MND.
 We then use `hcat` and `vcat` to concatenate the columns and rows to make a $9 \times 60$ matrix, and then transpose it to form a $60 \times 9$ feature matrix, with rows the instance (cells) and columns the features (genes).
-Finally we turn this matrix into a `DataFrame` type, and add an extra ID column `cell` to number the cells.
-To visualize the $60 \times 10$ DataFrame, we use our custom-built function `vlplot()`.
+Finally we turn this matrix into a `DataFrame` type. The data matrix `X` now has dimension $m=60 \times D=9$ where `N=60` is the number of cells (instances), and `D=9` is the number of genes (features). This shape aligns with the common use of `design matrix` in data science. However, in order to align with our p-PCA formula, we need to transpose this dataframe into `dimension x number of instance`:
+
+```Julia
+mat_exp = transpose(Matrix(df_exp))
+```
+
+To visualize the $D=9 \times N=60$ data matrix `mat_exp`, we use our custom-built function `vlplot()`. An alternative is to use the `heatmap` plot.
+
+```julia
+heatmap(
+    mat_exp;
+    Colors = :value,
+    xlabel="cell number",
+    yflip=true,
+    ylabel="gene feature",
+    yticks=1:9,
+    colorbar_title="expression",
+)
+```
 
 Note that:
 
@@ -144,132 +163,82 @@ Note that:
 
 #### Step 3: Create the pPCA model
 
-```julia
-@model function pPCA(x, ::Type{TV}=Array{Float64}) where {TV}
-    # Dimensionality of the problem.
-    N, D = size(x)
-
-    # latent variable z
-    z ~ filldist(Normal(), D, N)
-
-    # side note for the curious
-    # we use the more concise filldist syntax partly for compactness, but also for compatibility with other AD
-    # backends, see the [Turing Performance Tipps](https://turing.ml/dev/docs/using-turing/performancetips)
-    # w = TV{2}(undef, D, D)
-    # for d in 1:D
-    #  w[d, :] ~ MvNormal(ones(D))
-    # end
-
-    # weights/loadings W
-    w ~ filldist(Normal(), D, D)
-
-    # mean offset
-    m ~ MvNormal(ones(D))
-    mu = (w * z .+ m)'
-    for d in 1:D
-        x[:, d] ~ MvNormal(mu[:, d], ones(N))
-    end
-end;
-```
+Here we construct the probabilistic model `pPCA()`. As per the p-PCA formula, we think of each row (i.e. each gene feature) following a $N=60$ dimensional multivariate normal distribution centered around the corresponding row of $W_{D \times k} \times z_{k \times N} + μ_{D ztimes N}$.
 
 ```julia
-@model function pPCA(x, k)
-    # function pPCA(k::Int64, x::Type{TV}=Array{Float64}) where {TV}
+@model function pPCA(X::Array{Float64}, k::Int64)
     # retrieve the dimension of input matrix x.
-    N, D = size(x)
+    # N, D = size(x)
+    D, N = size(X)
 
+    # weights/loadings/projection matrix W
+    W ~ filldist(Normal(), D, k)
+    
     # latent variable z
-    z ~ filldist(Normal(), k, N)
+    Z ~ filldist(Normal(), k, N)
 
-    # side note for the curious
-    # we use the more concise filldist syntax partly for compactness, but also for compatibility with other AD
-    # backends, see the [Turing Performance Tipps](https://turing.ml/dev/docs/using-turing/performancetips)
-    # w = TV{2}(undef, D, D)
-    # for d in 1:D
-    #  w[d, :] ~ MvNormal(ones(D))
-    # end
 
-    # weights/loadings W
-    w ~ filldist(Normal(), D, k)
-
-    # mean offset
-    m ~ MvNormal(ones(D))
-    for d in 1:D
-        mu_d = ((w * z)[d, :] .+ m[d]) # mu_d is an N x 1 vector representing the d-th feature values for all instances.
-        x[:, d] ~ MvNormal(mu_d, ones(N))
+    # uniform offset across features
+    μ ~ MvNormal(ones(N))
+    
+    # likelihood
+    for gene_ind in 1:D
+        gene_mean = (W * Z)[gene_ind, :] .+ μ
+        X[gene_ind, :] ~ MvNormal(gene_mean, ones(N))
     end
 end;
 ```
 
-Here we construct the multi-dispatched function `pPCA(Array)`.
+The model function `pPCA()` accepts:
 
-The function accepts:
-
- 1. an Array $x$ (with dimension no. of instances times no. of features) ;
- 2. optionally: an integer $k$ which is the dimension of the latent space (the space the original feature matrix is projected onto)
-    as input argument and defines the probabilistic model for p-PCA.
+ 1. an data array $X$ (with dimension no. of features x no. of instances) ;
+ 2. an integer $k$ which is the dimension of the latent space (the space the original feature matrix is projected onto).
 
 Specifically:
 
  1. it first extracts the dimension $D$ and number of instances $N$ of the input matrix;
- 2. then draw $N$ samples of the latent variable $z$ with dimension $k$ from an MND;
- 3. then draw samples of each entries of the projection matrix $w$ (with dimension $D \times k$), from a standard normal;
- 4. then we assume uniform offset for each dimension $d \in D$, and draw samples from an MND for each dimension;
- 5. Finally, we iterate through each dimension in $D$, and define an MND (sampling distribution, likelihood), assuming all instances in that dimension follow an MND with mean $w \times z + \mu_d$, for all instances in that dimension.
+ 2. draw samples of each entries of the projection matrix $W$ from a standard normal;
+ 3. draw samples of the latent variable $z_{k \times N}$ from an MND;
+ 4. draw samples of the offset $μ$ from an MND, assuming uniform offset for all instances;
+ 5. Finally, we iterate through each gene dimension in $X$, and define an MND for the sampling distribution (i.e. likelihood).
 
 #### Step 4: Sampling-based inference of the pPCA model
 
-Here we aim to perform MCMC sampling to infer the projection matrix $w_{D \times k}$, the latent variable matrix $z_{k \times N}$, and the offsets $\mu_{D \times 1}$.
+Here we aim to perform MCMC sampling to infer the projection matrix $W_{D \times k}$, the latent variable matrix $z_{k \times N}$, and the offsets $μ_{N \times 1}$.
 
-We run the inference using the NUTS sampler, of which the chain length is set to be 500. By default, the NUTS sampler samples 1 chain.
+We run the inference using the NUTS sampler, of which the chain length is set to be 500, target accept ratio 0.65 and initial stepsize 0.1. By default, the NUTS sampler samples 1 chain.
 You are free to try [different samplers](https://turing.ml/stable/docs/library/#samplers).
 
 ```julia
 k = 2 # k is the dimension of the projected space, i.e. the number of principal components/axes of choice
-ppca = pPCA(expression_matrix, k) # instantiate the probabilistic model
-chain_ppca = sample(ppca, NUTS(0.65), 2000);
+ppca = pPCA(Array(mat_exp), k) # ppca = pPCA_1(Array(df_exp), k), instantiate the probabilistic model
+chain_ppca = sample(ppca, NUTS(0.65; init_ϵ=0.1), 500);
 ```
 
-The sampling process takes about 7 mins on a 4-core x86_64 computer. The samples are saved in the Chains struc `chain_ppca`, whose shape can be checked:
+The sampling process takes about 10 mins to run on a 4-core x86_64 computer. The samples are saved in the Chains struct `chain_ppca`, whose shape can be checked:
 
 ```julia
-size(chain_ppca)
+size(chain_ppca) # (no. of iterations, no. of vars, no. of chains) = (500, 159, 1)
 ```
 
-The Chains struc `chain_ppca` also contains the sampling info such as rhat, ess, mean estimates, etc. You can print it to check these quantities.
+The Chains struc `chain_ppca` also contains the sampling info such as r-hat, ess, mean estimates, etc. You can print it to check these quantities.
 
-#### Step 5: diagnostics and posterior predictive checks
-
-Diagnostics of the inference results, i.e. convergence (r-hat), effective samples size (ess), acceptance rate, etc, can be performed using the `MCMCChain` package.
-Here we plot the sample trajectories for 1 chain:
-
-```julia
-plot(chain_ppca[:, 1, :]; xlabel="iteration_no", ylabel="sample_value")
-```
-
-By looking at the chain values, we observe theat, the samples are clustered around a certain value (the MAP estimate), which indicates equilibrium (i.e. stationary distribution) has been achieved. If not, it could be due to improper sampling settings and maybe misspecified probabilistic model. Note that, there will some some warmi-up (burn-in) stage before achieving equilibrium, and the samples in the initial stage can be discarded.
+#### Step 5: posterior predictive checks
 
 Posterior predictive check. We reconstruct the input data from our parameter estimates, using the posterior mean as parameter estimates.
-We first retrieve the samples for the projection matrix `w` from `chain_ppca`. This can be done using the Julia `group(chain, parameter name)` function.
-Then we calculate the mean value for each element in $w$, averaging over the whole chain of samples.
-
-> You can check that, the operation `group(chain_ppca, :w)` returns a chain with sahape $500 \times 18 \times 1$ (there are $2 \times 9$ elements in the projection matrix $w$), as expected.
-> The operation `mean(group(chain_ppca, :w))` gives an array with shape (18,2) - the first column is the parameter name, and the second column its mean estimate.
-> Then the vector of mean values is re-shaped into the original shape of $w$.
-> We repeat this for $z$ and $mu$ to calculate their mean estimates over the whole chain.
-> Finally, we obtain the predictions $x=w \times z + \mu_j$ where $\mu_j$ is specific to each original dimension $d \in D$.
-> The predictions for $x$, produced using the mean estimates of $w$, $z$ and $\mu$ are then visualised.
+We first retrieve the samples for the projection matrix `W` from `chain_ppca`. This can be done using the Julia `group(chain, parameter_name)` function.
+Then we calculate the mean value for each element in $W$, averaging over the whole chain of samples.
 
 ```julia
 # Extract parameter estimates for predicting x - mean of posterior
-w = reshape(mean(group(chain_ppca, :w))[:, 2], (n_genes, k))
-z = permutedims(reshape(mean(group(chain_ppca, :z))[:, 2], (k, n_cells)))'
-mu = mean(group(chain_ppca, :m))[:, 2]
+W = reshape(mean(group(chain_ppca, :W))[:, 2], (n_genes, k))
+Z = reshape(mean(group(chain_ppca, :Z))[:, 2], (k, n_cells))
+μ = mean(group(chain_ppca, :μ))[:, 2]
 
-X = w * z .+ mu
+mat_rec = W * Z .+ repeat(μ, inner=(1, n_genes))'
 
-df_rec = DataFrame(X', :auto)
-df_rec[!, :cell] = 1:n_cells
+df_rec = DataFrame(transpose(mat_rec), :auto)
+rename!(df_rec, Symbol.(["gene" * string(i) for i in collect(1:n_genes)]))
 
 @vlplot(
     :rect,
@@ -283,31 +252,40 @@ df_rec[!, :cell] = 1:n_cells
 )
 ```
 
-We observe that, the recovered (posterior mean predicted) $\hat{x}$ values align with the original $x$ values - particularly the same pattern in the first and last 3 gene features are captured, which implies the inference and p-PCA decomposition are successful.
-This is satisfying as we have just projected the original 9-dimensional space onto a 2-dimensional space - some info has been cut off in the projection process, but we haven't lost any important info, e.g. the key differences between the two groups.
-The is the desirable property of PCA: it picks up the principal axes along which most of the (original) data data variations cluster, and remove those less relevant.
-If we choose the reduced space dimension $k$ to be exactly $D$, we would recover exactly the same input matrix $x$, as the new (projected) space contains the same information as the input space as long as we keep all the dimensions.
+```julia
+heatmap(
+    mat_rec;
+    Colors = :value,
+    xlabel="cell number",
+    yflip=true,
+    ylabel="gene feature",
+    yticks=1:9,
+    colorbar_title="expression",
+)
+```
 
-Now we have represented the original high-dimensional data in two dimensions, without lossing the key information about the two groups of cells in the input data.
-Finally, the benefits of performing PCA is to analyse and visualise the dimension-reduced data in the projected, low-dimensional space.
-
-We can also check the average magnitudes of the gap between $\hat{x}$ and $x$:
+We can quantitatively check the absolute magnitudes of the column average of the gap between $mat_exp$ and $mat_rec$:
 
 ```julia
 let
-    diff_matrix = X' - expression_matrix
-    @assert abs(mean(diff_matrix[:, 4])) < 0.5
-    @assert abs(mean(diff_matrix[:, 5])) < 0.5
-    @assert abs(mean(diff_matrix[:, 6])) < 0.5
+    diff_matrix = mat_exp .- mat_rec
+    @assert abs(mean(diff_matrix[:, 4])) < 3
+    @assert abs(mean(diff_matrix[:, 5])) < 3
+    @assert abs(mean(diff_matrix[:, 6])) < 3
 end
 ```
 
-Finally, we save the projected results $z$ as a DataFrame, rename the columns and add an extra column for numbering cells.
+We observe that, using posterior mean, the recovered data matrix $mat_rec$ has values align with the original data matrix - particularly the same pattern in the first and last 3 gene features are captured, which implies the inference and p-PCA decomposition are successful.
+This is satisfying as we have just projected the original 9-dimensional space onto a 2-dimensional space - some info has been cut off in the projection process, but we haven't lost any important info, e.g. the key differences between the two groups.
+The is the desirable property of PCA: it picks up the principal axes along which most of the (original) data variations cluster, and remove those less relevant.
+If we choose the reduced space dimension $k$ to be exactly $D$ (the original data dimension), we would recover exactly the same original data matrix $mat_exp$, i.e. all information will be preserved.
+
+Now we have represented the original high-dimensional data in two dimensions, without lossing the key information about the two groups of cells in the input data.
+Finally, the benefits of performing PCA is to analyse and visualise the dimension-reduced data in the projected, low-dimensional space. we save the dimension-reduced matrix $Z$ as a DataFrame, rename the columns and visualise the first two dimensions.
 
 ```julia
-df_pca = DataFrame(z', :auto)
+df_pca = DataFrame(Z', :auto)
 rename!(df_pca, Symbol.(["z" * string(i) for i in collect(1:k)]))
-df_pca[!, :cell] = 1:n_cells
 
 @vlplot(:rect, "cell:o", "variable:o", color = :value)(DataFrames.stack(df_pca, 1:k))
 scatter(df_pca[:, :z1], df_pca[:, :z2]; xlabel="z1", ylabel="z2")
@@ -317,33 +295,32 @@ df_pca[!, :type] = repeat([1, 2]; inner=n_cells ÷ 2)
 ```
 
 We see the two groups are well separated in this 2-D space. As an unsupervised learning method, performing PCA on this dataset gives membership for each cell instance.
-Another way to put it, 2 dimensions is enough to display the main structure of the data.
+Another way to put it: 2 dimensions is enough to capture the main structure of the data.
 
 #### Further extension: automatic choice of the number of principal components with ARD
 
-A direct question arises from above practice is: how many principal components do we want to keep in order to sufficiently represent the latent structure in the data?
+A direct question arises from above practice is: how many principal components do we want to keep, in order to sufficiently represent the latent structure in the data?
 This is a very central question for all latent factor models, i.e. how many dimensions are needed to represent that data in the latent space.
-In the case of PCA, there exist a lot of heuristics to make that choice. For example, We can tune the number of principal components using empirical methods such as cross-validation based some criteria such as MSE between the posterior predicted $\hat{x}$ and $x$ or the percentage of variation explained [3].
+In the case of PCA, there exist a lot of heuristics to make that choice. For example, We can tune the number of principal components using empirical methods such as cross-validation based some criteria such as MSE between the posterior predicted (e.g. mean predictions) data matrix and the original data matrix or the percentage of variation explained [3].
 
-For p-PCA, this can be done in an elegant and principled way, using a technique called *Automatic Relevance Determination*(ARD).
-
+For p-PCA, this can be done in an elegant and principled way, using a technique called *Automatic Relevance Determination* (ARD).
 ARD can help pick the correct number of principal directions by regularizing the solution space using a parameterized, data-dependent prior distribution that effectively prunes away redundant or superfluous features [4].
-Essentially, we are using a specific prior over the factor loadings $w$ that allows us to prune away dimensions in the latent space. The prior is determined by a precision hyperparameter $\alpha$. Here, smaller values of $\alpha$ correspond to more important components.
+Essentially, we are using a specific prior over the factor loadings $W$ that allows us to prune away dimensions in the latent space. The prior is determined by a precision hyperparameter $α$. Here, smaller values of $α$ correspond to more important components.
 You can find more details about this in e.g. [5].
 
 ```julia
 @model function pPCA_ARD(x, ::Type{TV}=Array{Float64}) where {TV}
-    # retrieve the dimension of input matrix x.
+    # Dimensionality of the problem.
     N, D = size(x)
 
     # latent variable z
-    z ~ filldist(Normal(), D, N)
+    Z ~ filldist(Normal(), D, N)
 
-    # Determine the number of loadings, i.e. number of columns of w, with Automatic Relevance Determination
-    alpha ~ filldist(Gamma(1.0, 1.0), D)
-    w ~ filldist(MvNormal(zeros(D), 1.0 ./ sqrt.(alpha)), D)
+    # weights/loadings w with Automatic Relevance Determination part
+    α ~ filldist(Gamma(1.0, 1.0), D)
+    W ~ filldist(MvNormal(zeros(D), 1.0 ./ sqrt.(α)), D)
 
-    mu = (w' * z)'
+    mu = (W' * Z)'
 
     tau ~ Gamma(1.0, 1.0)
     for d in 1:D
@@ -352,43 +329,42 @@ You can find more details about this in e.g. [5].
 end;
 ```
 
-Instead of drawing samples of each entry in $w$ from a standard normal, this time we repeatedly draw $D$ samples from the D-dimensional MND, forming a $D \times D$ matrix $w$.
-This matrix is a function of $\alpha$ as the samples are drawn from the MND parameterized by $\alpha$.
+Instead of drawing samples of each entry in $W$ from a standard normal, this time we repeatedly draw $D$ samples from the $D$-dimensional MND, forming a $D \times D$ matrix $W$.
+This matrix is a function of $α$ as the samples are drawn from the MND parameterized by $α$.
 We also introduce a hyper-parameter $tau$ which is the precision in the sampling distribution.
+We also re-paramterise the sampling distribution, i.e. each dimension across all instances is a 60-dimensional multivariate normal distribution. Re-parameterisation can sometimes accelrate the sampling process.
 
-We instantiate the model and ask Turing to sample from it using NUTS sampler. The sample trajectories of $\alpha$ is plotted using the `plot` function from the packge `StatsPlots`.
+We instantiate the model and ask Turing to sample from it using NUTS sampler. The sample trajectories of $α$ is plotted using the `plot` function from the packge `StatsPlots`.
 
 ```julia
-ppca_ARD = pPCA_ARD(expression_matrix) # instantiate the probabilistic model
-chain_ppcaARD = sample(ppca_ARD, NUTS(), 500)
-
-StatsPlots.plot(group(chain_ppcaARD, :alpha))
+ppca_ARD = pPCA_ARD(mat_exp) # instantiate the probabilistic model
+chain_ppcaARD = sample(ppca_ARD, NUTS(), 500) # sampling
+StatsPlots.plot(group(chain_ppcaARD, :α))
 ```
 
-Again, we do some inference diagnostics. Here we look at the convergence of the chains for the $\alpha$ parameter. This parameter determines the relevance of individual components.
-We see that the chains have converged and the posterior of the alpha parameters is centered around much smaller values in two instances.
-In the following, we will use the mean of the small values to select the *relevant* dimensions (remember that, smaller values of $\alpha$ correspond to more important components.).
-We can clearly see from the values of $\alpha$ that there should be two dimensions (corresponding to $\bar{\alpha}_3=\bar{\alpha}_5≈0.05$) for this dataset.
+Again, we do some inference diagnostics. Here we look at the convergence of the chains for the $α$ parameter. This parameter determines the relevance of individual components.
+We see that the chains have converged and the posterior of the $α$ parameters is centered around much smaller values in two instances.
+In the following, we will use the mean of the small values to select the *relevant* dimensions (remember that, smaller values of $α$ correspond to more important components.).
+We can clearly see from the values of $α$ that there should be two dimensions (corresponding to $\bar{α}_3=\bar{α}_5≈0.05$) for this dataset.
 
 ```julia
 # Extract parameter mean estimates of the posterior
-w = permutedims(reshape(mean(group(chain_ppcaARD, :w))[:, 2], (n_genes, n_genes)))
-z = permutedims(reshape(mean(group(chain_ppcaARD, :z))[:, 2], (n_genes, n_cells)))'
-α = mean(group(chain_ppcaARD, :alpha))[:, 2]
-plot(α; label="alpha")
+W = permutedims(reshape(mean(group(chain_ppcaARD, :w))[:, 2], (n_genes, n_genes)))
+Z = permutedims(reshape(mean(group(chain_ppcaARD, :z))[:, 2], (n_genes, n_cells)))'
+α = mean(group(chain_ppcaARD, :α))[:, 2]
+plot(α; label="α")
 ```
 
-We can inspect alpha to see which elements are small (i.e. high relevance). To do this, we first sort $\alpha$ using `sortperm()` (in ascending order by default), and record the indices of the first two smallest values (among the $D=9$ $\alpha$ values).
-After picking the desired principal directions, we extract the corresponding subset loading vectors from $\mathbf{W}$, and the corresponding dimensions of $\mathbf{z}$.
+We can inspect $α$ to see which elements are small (i.e. high relevance). To do this, we first sort $α$ using `sortperm()` (in ascending order by default), and record the indices of the first two smallest values (among the $D=9$ $α$ values).
+After picking the desired principal directions, we extract the corresponding subset loading vectors from $\mathbf{W}$, and the corresponding dimensions of $\mathbf{Z}$.
 We obtain a posterior predicted matrix $\mathbf{X} \in \mathbb{R}^{2 \times 60}$ as the product of the two sub-matrices, and compare the recovered info with the original matrix.
 
 ```julia
-alpha_indices = sortperm(α)[1:2]
-k = size(alpha_indices)[1]
-X_rec = w[:, alpha_indices] * z[alpha_indices, :] # extract the loading vectors in w and the corresponding 
+α_indices = sortperm(α)[1:2]
+k = size(α_indices)[1]
+X_rec = W[:, α_indices] * Z[α_indices, :] # extract the loading vectors in w and the corresponding 
 
 df_rec = DataFrame(X_rec', :auto)
-df_rec[!, :cell] = 1:n_cells
 
 @vlplot(
     :rect,
@@ -403,20 +379,18 @@ df_rec[!, :cell] = 1:n_cells
 ```
 
 We observe that, the data in the original space is recovered with key information, the distinct feature values in the first and last three genes for the two cell groups, are preserved.
-We can also examine the data in the reduced space, i.e. the selected components (rows) in $z$.
+We can also examine the data in the dimension-reduced space, i.e. the selected components (rows) in $Z$.
 
 ```julia
-df_pro = DataFrame(z[alpha_indices, :]', :auto)
+df_pro = DataFrame(Z[α_indices, :]', :auto)
 rename!(df_pro, Symbol.(["z" * string(i) for i in collect(1:k)]))
-df_pro[!, :cell] = 1:n_cells
-
 df_pro[!, :type] = repeat([1, 2]; inner=n_cells ÷ 2)
 scatter(
     df_pro[:, 1], df_pro[:, 2]; xlabel="z1", ylabel="z2", color=df_pro[:, "type"], label=""
 )
 ```
 
-This plot is very similar to the low-dimensional plot above, with the *relevant* dimensions chosen based on the values of $\alpha$ via ARD. When you are in doubt about the number of dimensions to project onto, ARD might provide an answer to that question.
+This plot is very similar to the low-dimensional plot above, with the *relevant* dimensions chosen based on the values of $α$ via ARD. When you are in doubt about the number of dimensions to project onto, ARD might provide an answer to that question.
 
 ## Final comments.
 
@@ -424,9 +398,8 @@ p-PCA is a linear map which linearly transforms the data between the original an
 It can also thought as a matrix factorisation method, in which $\mathbf{X}=(\mathbf{W} \times \mathbf{Z})^T$. The projection matrix can be understood as a new basis in the projected space, and $\mathbf{Z}$ are the new coordinates.
 
 References:
-
- 1. Gilbert Strang, <Introduction to Linear Algebra>, 5th Ed., Wellesley-Cambridge Press, 2016
- 2. Probabilistic PCA by TensorFlow, https://www.tensorflow.org/probability/examples/Probabilistic_PCA
- 3. Gareth M. James, Daniela Witten, Trevor Hastie, Robert Tibshirani, <An Introduction to Statistical Learning>, Springer, 2013.
- 4. David Wipf, Srikantan Nagarajan, A New View of Automatic Relevance Determination, NIPS 2007.
- 5. Christopher Bishop, <Pattern Recognition and Machine Learning>, Springer, 2006.
+1. Gilbert Strang, <Introduction to Linear Algebra>, 5th Ed., Wellesley-Cambridge Press, 2016
+2. Probabilistic PCA by TensorFlow, https://www.tensorflow.org/probability/examples/Probabilistic_PCA
+3. Gareth M. James, Daniela Witten, Trevor Hastie, Robert Tibshirani, <An Introduction to Statistical Learning>, Springer, 2013.
+4. David Wipf, Srikantan Nagarajan, A New View of Automatic Relevance Determination, NIPS 2007.
+5. Christopher Bishop, <Pattern Recognition and Machine Learning>, Springer, 2006.

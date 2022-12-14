@@ -354,9 +354,11 @@ test = Matrix(test_cut[:, remove_names]);
 
     # Calculate all the mu terms.
     mu = intercept .+ x * coefficients
-    for i in 1:n_obs
-        y[i] ~ Normal(mu[i], sqrt(σ²))
-    end
+    # for i in 1:n_obs
+    #     y[i] ~ Normal(mu[i], sqrt(σ²))
+    # end
+    # vectorized implementation
+    y ~ MvNormal(mu, σ² * I)
 end;
 ```
 
@@ -462,7 +464,7 @@ function plot_variational_marginals(z, sym2range)
                     title="$(sym)[$offset]",
                     titlefontsize=10,
                     label="",
-                    primary=false,
+                    margin=2.0mm,
                 )
                 push!(ps, p)
                 offset += 1
@@ -473,13 +475,13 @@ function plot_variational_marginals(z, sym2range)
                 title="$(sym)",
                 titlefontsize=10,
                 label="",
-                primary=false,
+                margin=2.0mm,
             )
             push!(ps, p)
         end
     end
 
-    return plot(ps...; layout=(length(ps), 1), size=(500, 1500), primary=false)
+    return plot(ps...; layout=(length(ps), 1), size=(500, 1500), margin=2.0mm)
 end
 ```
 
@@ -506,18 +508,18 @@ vi_mean = vec(mean(z; dims=2))[[
 ```
 
 ```julia
-NUTS_mean = mean(chain).nt.mean
+mcmc_mean = mean(chain).nt.mean
 ```
 
 ```julia
-plot(NUTS_mean; linestyle=:dot, label="NUTS")
+plot(mcmc_mean; linestyle=:dot, label="NUTS")
 plot!(vi_mean; linestyle=:dot, label="VI")
 ```
 
 One thing we can look at is simply the squared error between the means:
 
 ```julia
-sum(abs2, NUTS_mean .- vi_mean)
+sum(abs2, mcmc_mean .- vi_mean)
 ```
 
 That looks pretty good! But let's see how the predictive distributions looks for the two.

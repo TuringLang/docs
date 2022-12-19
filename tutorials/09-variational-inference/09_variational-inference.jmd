@@ -318,11 +318,11 @@ select!(data, Not(:Model))
 
 # Split our dataset 70%/30% into training/test sets.
 train, test = split_data(data, 0.7)
-train_copy = copy(train) #  save a copy of the train data for later unstandardize use; alternatively, you can just save the statistics (mean and var) of the traiing data.
+train_unstandardized = copy(train) #  save a copy of the train data for later unstandardize use; alternatively, you can just save the statistics (mean and var) of the traiing data.
 
 # Standardize both datasets.
 std_train = standardize(Matrix(train))
-std_test = standardize(Matrix(test), Matrix(train_copy))
+std_test = standardize(Matrix(test), Matrix(train_unstandardized))
 
 # Save dataframe versions of our dataset.
 train_cut = DataFrame(std_train, names(data))
@@ -538,8 +538,8 @@ ols = lm(
 )
 
 # Store our predictions in the original dataframe.
-train_cut.OLSPrediction = unstandardize(GLM.predict(ols), train_copy.MPG);
-test_cut.OLSPrediction = unstandardize(GLM.predict(ols, test_cut), train_copy.MPG);
+train_cut.OLSPrediction = unstandardize(GLM.predict(ols), train_unstandardized.MPG);
+test_cut.OLSPrediction = unstandardize(GLM.predict(ols, test_cut), train_unstandardized.MPG);
 ```
 
 ```julia
@@ -569,8 +569,8 @@ end
 
 ```julia
 # Unstandardize the dependent variable.
-train_cut.MPG = unstandardize(train_cut.MPG, train_copy.MPG);
-test_cut.MPG = unstandardize(test_cut.MPG, train_copy.MPG);
+train_cut.MPG = unstandardize(train_cut.MPG, train_unstandardized.MPG);
+test_cut.MPG = unstandardize(test_cut.MPG, train_unstandardized.MPG);
 ```
 
 ```julia
@@ -584,11 +584,11 @@ z = rand(q, 10_000);
 
 ```julia
 # Calculate the predictions for the training and testing sets using the samples `z` from variational posterior
-train_cut.VIPredictions = unstandardize(prediction(z, sym2range, train), train_copy.MPG);
-test_cut.VIPredictions = unstandardize(prediction(z, sym2range, test), train_copy.MPG);
+train_cut.VIPredictions = unstandardize(prediction(z, sym2range, train), train_unstandardized.MPG);
+test_cut.VIPredictions = unstandardize(prediction(z, sym2range, test), train_unstandardized.MPG);
 
-train_cut.BayesPredictions = unstandardize(prediction_chain(chain, train), train_copy.MPG);
-test_cut.BayesPredictions = unstandardize(prediction_chain(chain, test), train_copy.MPG);
+train_cut.BayesPredictions = unstandardize(prediction_chain(chain, train), train_unstandardized.MPG);
+test_cut.BayesPredictions = unstandardize(prediction_chain(chain, test), train_unstandardized.MPG);
 ```
 
 ```julia
@@ -616,7 +616,7 @@ Interestingly the squared difference between true- and mean-prediction on the te
 z = rand(q, 1000);
 preds = hcat(
     [
-        unstandardize(prediction(z[:, i], sym2range, test), train_copy.MPG) for
+        unstandardize(prediction(z[:, i], sym2range, test), train_unstandardized.MPG) for
         i in 1:size(z, 2)
     ]...,
 );
@@ -629,7 +629,7 @@ scatter(
     size=(900, 500),
     markersize=8,
 )
-scatter!(1:size(test, 1), unstandardize(test_label, train_copy.MPG); label="true")
+scatter!(1:size(test, 1), unstandardize(test_label, train_unstandardized.MPG); label="true")
 xaxis!(1:size(test, 1))
 ylims!(10, 40)
 title!("Mean-field ADVI (Normal)")
@@ -638,7 +638,7 @@ title!("Mean-field ADVI (Normal)")
 ```julia
 preds = hcat(
     [
-        unstandardize(prediction_chain(chain[i], test), train_copy.MPG) for
+        unstandardize(prediction_chain(chain[i], test), train_unstandardized.MPG) for
         i in 1:5:size(chain, 1)
     ]...,
 );
@@ -651,7 +651,7 @@ scatter(
     size=(900, 500),
     markersize=8,
 )
-scatter!(1:size(test, 1), unstandardize(test_label, train_copy.MPG); label="true")
+scatter!(1:size(test, 1), unstandardize(test_label, train_unstandardized.MPG); label="true")
 xaxis!(1:size(test, 1))
 ylims!(10, 40)
 title!("MCMC (NUTS)")
@@ -782,8 +782,8 @@ z = rand(q_full_normal, 10_000);
 ```
 
 ```julia
-train_cut.VIFullPredictions = unstandardize(prediction(z, sym2range, train), train_copy.MPG);
-test_cut.VIFullPredictions = unstandardize(prediction(z, sym2range, test), train_copy.MPG);
+train_cut.VIFullPredictions = unstandardize(prediction(z, sym2range, train), train_unstandardized.MPG);
+test_cut.VIFullPredictions = unstandardize(prediction(z, sym2range, test), train_unstandardized.MPG);
 ```
 
 ```julia
@@ -811,7 +811,7 @@ Test set:
 z = rand(q_mf_normal, 1000);
 preds = hcat(
     [
-        unstandardize(prediction(z[:, i], sym2range, test), train_copy.MPG) for
+        unstandardize(prediction(z[:, i], sym2range, test), train_unstandardized.MPG) for
         i in 1:size(z, 2)
     ]...,
 );
@@ -824,7 +824,7 @@ p1 = scatter(
     size=(900, 500),
     markersize=8,
 )
-scatter!(1:size(test, 1), unstandardize(test_label, train_copy.MPG); label="true")
+scatter!(1:size(test, 1), unstandardize(test_label, train_unstandardized.MPG); label="true")
 xaxis!(1:size(test, 1))
 ylims!(10, 40)
 title!("Mean-field ADVI (Normal)")
@@ -834,7 +834,7 @@ title!("Mean-field ADVI (Normal)")
 z = rand(q_full_normal, 1000);
 preds = hcat(
     [
-        unstandardize(prediction(z[:, i], sym2range, test), train_copy.MPG) for
+        unstandardize(prediction(z[:, i], sym2range, test), train_unstandardized.MPG) for
         i in 1:size(z, 2)
     ]...,
 );
@@ -847,7 +847,7 @@ p2 = scatter(
     size=(900, 500),
     markersize=8,
 )
-scatter!(1:size(test, 1), unstandardize(test_label, train_copy.MPG); label="true")
+scatter!(1:size(test, 1), unstandardize(test_label, train_unstandardized.MPG); label="true")
 xaxis!(1:size(test, 1))
 ylims!(10, 40)
 title!("Full ADVI (Normal)")
@@ -856,7 +856,7 @@ title!("Full ADVI (Normal)")
 ```julia
 preds = hcat(
     [
-        unstandardize(prediction_chain(chain[i], test), train_copy.MPG) for
+        unstandardize(prediction_chain(chain[i], test), train_unstandardized.MPG) for
         i in 1:5:size(chain, 1)
     ]...,
 );
@@ -869,7 +869,7 @@ p3 = scatter(
     size=(900, 500),
     markersize=8,
 )
-scatter!(1:size(test, 1), unstandardize(test_label, train_copy.MPG); label="true")
+scatter!(1:size(test, 1), unstandardize(test_label, train_unstandardized.MPG); label="true")
 xaxis!(1:size(test, 1))
 ylims!(10, 40)
 title!("MCMC (NUTS)")

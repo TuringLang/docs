@@ -23,10 +23,10 @@ using Turing
 using AbstractGPs
 using DataFrames
 using FillArrays
+using LaTeXStrings
+using Plots
 using RDatasets
 using StatsBase
-using StatsPlots
-using VegaLite
 
 using LinearAlgebra
 using Random
@@ -151,14 +151,8 @@ chain_ppca = sample(ppca, NUTS(), 1000);
 
 ```julia
 # we extract the posterior mean estimates of the parameters from the chain
-w = reshape(mean(group(chain_ppca, :w))[:, 2], (n_features, n_features))
-z = reshape(mean(group(chain_ppca, :z))[:, 2], (n_features, n_data))
-X = w * z
-
-df_pre = DataFrame(z', :auto)
-rename!(df_pre, Symbol.(["z" * string(i) for i in collect(1:n_features)]))
-df_pre[!, :type] = labels[1:n_data]
-p_ppca = @vlplot(:point, x = :z1, y = :z2, color = "type:n")(df_pre)
+z_mean = reshape(mean(group(chain_ppca, :z))[:, 2], (n_features, n_data))
+scatter(z_mean[1, :], z_mean[2, :]; group = labels[1:n_data], xlabel = L"z_1", ylabel = L"z_2")
 ```
 
 We can see that the pPCA fails to distinguish the groups.
@@ -170,25 +164,16 @@ Let's try the same with our linear kernel GPLVM model.
 
 ```julia
 gplvm_linear = GPLVM_linear(dat[1:n_data, 1:n_features], ndim)
-
-chain_linear = sample(gplvm_linear, NUTS(), 500)
-# we extract the posterior mean estimates of the parameters from the chain
-z_mean = reshape(mean(group(chain_linear, :Z))[:, 2], (n_features, n_data))
-alpha_mean = mean(group(chain_linear, :α))[:, 2]
+chain_linear = sample(gplvm_linear, NUTS(), 500);
 ```
 
 ```julia
-df_gplvm_linear = DataFrame(z_mean', :auto)
-rename!(df_gplvm_linear, Symbol.(["z" * string(i) for i in collect(1:ndim)]))
-df_gplvm_linear[!, :sample] = 1:n_data
-df_gplvm_linear[!, :labels] = labels[1:n_data]
-alpha_indices = sortperm(alpha_mean; rev=true)[1:2]
-println(alpha_indices)
-df_gplvm_linear[!, :ard1] = z_mean[alpha_indices[1], :]
-df_gplvm_linear[!, :ard2] = z_mean[alpha_indices[2], :]
+# we extract the posterior mean estimates of the parameters from the chain
+z_mean = reshape(mean(group(chain_linear, :Z))[:, 2], (n_features, n_data))
+alpha_mean = mean(group(chain_linear, :α))[:, 2]
 
-p_linear = @vlplot(:point, x = :ard1, y = :ard2, color = "labels:n")(df_gplvm_linear)
-p_linear
+alpha1, alpha2 = partialsortperm(alpha_mean, 1:2; rev=true)
+scatter(z_mean[alpha1, :], z_mean[alpha2, :]; group = labels[1:n_data], xlabel = L"z_{\mathrm{ard}_1}", ylabel = L"z_{\mathrm{ard}_2}")
 ```
 
 We can see that similar to the pPCA case, the linear kernel GPLVM fails to distinguish between the two groups
@@ -198,25 +183,16 @@ Finally, we demonstrate that by changing the kernel to a non-linear function, we
 
 ```julia
 gplvm = GPLVM(dat[1:n_data, 1:n_features], ndim)
-
-chain_gplvm = sample(gplvm, NUTS(), 500)
-# we extract the posterior mean estimates of the parameters from the chain
-z_mean = reshape(mean(group(chain_gplvm, :Z))[:, 2], (ndim, n_data))
-alpha_mean = mean(group(chain_gplvm, :α))[:, 2]
+chain_gplvm = sample(gplvm, NUTS(), 500);
 ```
 
 ```julia
-df_gplvm = DataFrame(z_mean', :auto)
-rename!(df_gplvm, Symbol.(["z" * string(i) for i in collect(1:ndim)]))
-df_gplvm[!, :sample] = 1:n_data
-df_gplvm[!, :labels] = labels[1:n_data]
-alpha_indices = sortperm(alpha_mean; rev=true)[1:2]
-println(alpha_indices)
-df_gplvm[!, :ard1] = z_mean[alpha_indices[1], :]
-df_gplvm[!, :ard2] = z_mean[alpha_indices[2], :]
+# we extract the posterior mean estimates of the parameters from the chain
+z_mean = reshape(mean(group(chain_gplvm, :Z))[:, 2], (ndim, n_data))
+alpha_mean = mean(group(chain_gplvm, :α))[:, 2]
 
-p_gplvm = @vlplot(:point, x = :ard1, y = :ard2, color = "labels:n")(df_gplvm)
-p_gplvm
+alpha1, alpha2 = partialsortperm(alpha_mean, 1:2; rev=true)
+scatter(z_mean[alpha1, :], z_mean[alpha2, :]; group = labels[1:n_data], xlabel = L"z_{\mathrm{ard}_1}", ylabel = L"z_{\mathrm{ard}_2}")
 ```
 
 ```julia; echo=false
@@ -284,23 +260,16 @@ end
 ```julia
 n_data = 50
 gplvm_sparse = GPLVM_sparse(dat[1:n_data, :], ndim)
-
-chain_gplvm_sparse = sample(gplvm_sparse, NUTS(), 500)
-# we extract the posterior mean estimates of the parameters from the chain
-z_mean = reshape(mean(group(chain_gplvm_sparse, :Z))[:, 2], (ndim, n_data))
-alpha_mean = mean(group(chain_gplvm_sparse, :α))[:, 2]
+chain_gplvm_sparse = sample(gplvm_sparse, NUTS(), 500);
 ```
 
 ```julia
-df_gplvm_sparse = DataFrame(z_mean', :auto)
-rename!(df_gplvm_sparse, Symbol.(["z" * string(i) for i in collect(1:ndim)]))
-df_gplvm_sparse[!, :sample] = 1:n_data
-df_gplvm_sparse[!, :labels] = labels[1:n_data]
-alpha_indices = sortperm(alpha_mean; rev=true)[1:2]
-df_gplvm_sparse[!, :ard1] = z_mean[alpha_indices[1], :]
-df_gplvm_sparse[!, :ard2] = z_mean[alpha_indices[2], :]
-p_sparse = @vlplot(:point, x = :ard1, y = :ard2, color = "labels:n")(df_gplvm_sparse)
-p_sparse
+# we extract the posterior mean estimates of the parameters from the chain
+z_mean = reshape(mean(group(chain_gplvm_sparse, :Z))[:, 2], (ndim, n_data))
+alpha_mean = mean(group(chain_gplvm_sparse, :α))[:, 2]
+
+alpha1, alpha2 = partialsortperm(alpha_mean, 1:2; rev=true)
+scatter(z_mean[alpha1, :], z_mean[alpha2, :]; group = labels[1:n_data], xlabel = L"z_{\mathrm{ard}_1}", ylabel = L"z_{\mathrm{ard}_2}")
 ```
 
 Comparing the runtime, between the two versions, we can observe a clear speed-up with the sparse version.

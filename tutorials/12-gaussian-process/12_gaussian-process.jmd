@@ -21,11 +21,11 @@ Let's start by loading some dependencies.
 ```julia
 using Turing
 using AbstractGPs
-using DataFrames
 using FillArrays
 using LaTeXStrings
 using Plots
 using RDatasets
+using ReverseDiff
 using StatsBase
 
 using LinearAlgebra
@@ -67,7 +67,7 @@ Indeed, pPCA is basically equivalent to running the GPLVM model with an automati
 First, we re-introduce the pPCA model (see the tutorial on pPCA for details)
 
 ```julia
-@model function pPCA(x, ::Type{TV}=Array{Float64}) where {TV}
+@model function pPCA(x)
     # Dimensionality of the problem.
     N, D = size(x)
     # latent variable z
@@ -78,6 +78,7 @@ First, we re-introduce the pPCA model (see the tutorial on pPCA for details)
     for d in 1:D
         x[:, d] ~ MvNormal(mu[:, d], I)
     end
+    return nothing
 end;
 ```
 
@@ -93,8 +94,7 @@ And here is the GPLVM model.
 We create separate models for the two types of kernel.
 
 ```julia
-@model function GPLVM_linear(Y, K=4, ::Type{T}=Float64) where {T}
-
+@model function GPLVM_linear(Y, K)
     # Dimensionality of the problem.
     N, D = size(Y)
     # K is the dimension of the latent space
@@ -104,17 +104,15 @@ We create separate models for the two types of kernel.
     # Priors
     α ~ MvLogNormal(MvNormal(Zeros(K), I))
     Z ~ filldist(Normal(), K, N)
-    mu ~ filldist(Normal(), N)
 
-    kernel = linear_kernel(α)
+    gp = GP(linear_kernel(α))
+    gpz = gp(ColVecs(Z), noise)
+    Y ~ filldist(convert(MvNormal, gpz), D)
 
-    gp = GP(mu, kernel)
-    cv = cov(gp(ColVecs(Z), noise))
-    return Y ~ filldist(MvNormal(mu, cv), D)
+    return nothing
 end;
 
-@model function GPLVM(Y, K=4, ::Type{T}=Float64) where {T}
-
+@model function GPLVM(Y, K)
     # Dimensionality of the problem.
     N, D = size(Y)
     # K is the dimension of the latent space
@@ -127,11 +125,11 @@ end;
     Z ~ filldist(Normal(), K, N)
     mu ~ filldist(Normal(), N)
 
-    kernel = sekernel(α, σ)
+    gp = GP(sekernel(α, σ))
+    gpz = gp(ColVecs(Z), noise)
+    Y ~ filldist(convert(MvNormal, gpz), D)
 
-    gp = GP(mu, kernel)
-    cv = cov(gp(ColVecs(Z), noise))
-    return Y ~ filldist(MvNormal(mu, cv), D)
+    return nothing
 end;
 ```
 
@@ -146,7 +144,7 @@ ndim = 4;
 
 ```julia
 ppca = pPCA(dat[1:n_data, 1:n_features])
-chain_ppca = sample(ppca, NUTS(), 1000);
+chain_ppca = sample(ppca, NUTS{Turing.ReverseDiffAD{true}}(), 1000);
 ```
 
 ```julia
@@ -164,7 +162,7 @@ Let's try the same with our linear kernel GPLVM model.
 
 ```julia
 gplvm_linear = GPLVM_linear(dat[1:n_data, 1:n_features], ndim)
-chain_linear = sample(gplvm_linear, NUTS(), 500);
+chain_linear = sample(gplvm_linear, NUTS{Turing.ReverseDiffAD{true}}(), 500);
 ```
 
 ```julia
@@ -189,7 +187,7 @@ Finally, we demonstrate that by changing the kernel to a non-linear function, we
 
 ```julia
 gplvm = GPLVM(dat[1:n_data, 1:n_features], ndim)
-chain_gplvm = sample(gplvm, NUTS(), 500);
+chain_gplvm = sample(gplvm, NUTS{Turing.ReverseDiffAD{true}}(), 500);
 ```
 
 ```julia
@@ -226,46 +224,38 @@ Speeding up Gaussian process inference is an active area of research.
 
 ```julia
 using Stheno
-@model function GPLVM_sparse(Y, K, ::Type{T}=Float64) where {T}
-
+@model function GPLVM_sparse(Y, K, locations = quantile(vec(Y), range(0.01, 0.99; length=25)))
     # Dimensionality of the problem.
     N, D = size(Y)
     # dimension of latent space
     @assert K <= D
-    # number of inducing points
-    n_inducing = 25
     noise = 1e-3
 
     # Priors
     α ~ MvLogNormal(MvNormal(Zeros(K), I))
     σ ~ LogNormal(1.0, 1.0)
     Z ~ filldist(Normal(), K, N)
-    mu ~ filldist(Normal(), N)
-
-    kernel = σ * SqExponentialKernel() ∘ ARDTransform(α)
 
     ## Standard
-    # gpc = GPC()
-    # f = atomic(GP(kernel), gpc)
-    # gp = f(ColVecs(Z), noise)
-    # Y ~ filldist(gp, D)
+    # gp = atomic(GP(sekernel(α, σ)), GPC())
+    # gpz = gp(ColVecs(Z), noise)
+    # Y ~ filldist(convert(MvNormal, gpz), D)
 
     ## SPARSE GP
     #  xu = reshape(repeat(locations, K), :, K) # inducing points
     #  xu = reshape(repeat(collect(range(-2.0, 2.0; length=20)), K), :, K) # inducing points
-    lbound = minimum(Y) + 1e-6
-    ubound = maximum(Y) - 1e-6
+    #  lbound = minimum(Y) + 1e-6
+    #  ubound = maximum(Y) - 1e-6
     #  locations ~ filldist(Uniform(lbound, ubound), n_inducing)
     #  locations = [-2., -1.5 -1., -0.5, -0.25, 0.25, 0.5, 1., 2.]
     #  locations = collect(LinRange(lbound, ubound, n_inducing))
-    locations = quantile(vec(Y), LinRange(0.01, 0.99, n_inducing))
-    xu = reshape(locations, 1, :)
-    gp = atomic(GP(kernel), GPC())
-    fobs = gp(ColVecs(Z), noise)
-    finducing = gp(xu, 1e-12)
-    sfgp = SparseFiniteGP(fobs, finducing)
-    cv = cov(sfgp.fobs)
-    return Y ~ filldist(MvNormal(mu, cv), D)
+    gp = atomic(GP(sekernel(α, σ)), GPC())
+    gpz = gp(ColVecs(Z), noise)
+    gpinducing = gp(locations', 1e-12)
+    sgpz = SparseFiniteGP(gpz, gpinducing)
+    Y ~ filldist(sgpz, D)
+
+    return nothing
 end
 ```
 

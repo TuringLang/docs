@@ -158,7 +158,7 @@ samples = rand(q, 10000);
 
 ```julia
 # setup for plotting
-using Plots, LaTeXStrings, StatsPlots
+using LaTeXStrings, StatsPlots
 ```
 
 ```julia
@@ -179,77 +179,57 @@ plot(p1, p2; layout=(2, 1), size=(900, 500))
 
 For this particular `Model`, we can in fact obtain the posterior of the latent variables in closed form. This allows us to compare both `NUTS` and `ADVI` to the true posterior $p(s, m \mid x_1, \ldots, x_n)$.
 
-*The code below is just work to get the marginals $p(s \mid x_1, \ldots, x_n)$ and $p(m \mid x_1, \ldots, x_n)$ from the posterior obtained using ConjugatePriors.jl. Feel free to skip it.*
+*The code below is just work to get the marginals $p(s \mid x_1, \ldots, x_n)$ and $p(m \mid x_1, \ldots, x_n)$. Feel free to skip it.*
 
 ```julia
-# used to compute closed form expression of posterior
-using ConjugatePriors
+# closed form computation of the Normal-inverse-gamma posterior
+# based on "Conjugate Bayesian analysis of the Gaussian distribution" by Murphy
+function posterior(μ₀::Real, κ₀::Real, α₀::Real, β₀::Real, x::AbstractVector{<:Real})
+    # Compute summary statistics
+    n = length(x)
+    x̄ = mean(x)
+    sum_of_squares = sum(xi -> (xi - x̄)^2, x)
 
-# closed form computation
-# notation mapping has been verified by explicitly computing expressions
-# in "Conjugate Bayesian analysis of the Gaussian distribution" by Murphy
-μ₀ = 0.0 # => μ
-κ₀ = 1.0 # => ν, which scales the precision of the Normal
-α₀ = 2.0 # => "shape"
-β₀ = 3.0 # => "rate", which is 1 / θ, where θ is "scale"
+    # Compute parameters of the posterior
+    κₙ = κ₀ + n
+    μₙ = (κ₀ * μ₀ + n * x̄) / κₙ
+    αₙ = α₀ + n / 2
+    βₙ = β₀ + (sum_of_squares + n * κ₀ / κₙ * (x̄ - μ₀)^2) / 2
 
-# prior
-pri = NormalGamma(μ₀, κ₀, α₀, β₀)
+    return μₙ, κₙ, αₙ, βₙ
+end
+μₙ, κₙ, αₙ, βₙ = posterior(0.0, 1.0, 2.0, 3.0, x)
 
-# posterior
-post = posterior(pri, Normal, x)
-
-# marginal distribution of τ = 1 / σ²
-# Eq. (90) in "Conjugate Bayesian analysis of the Gaussian distribution" by Murphy
-# `scale(post)` = θ
-p_τ = Gamma(post.shape, scale(post))
-p_σ²_pdf = z -> pdf(p_τ, 1 / z) # τ => 1 / σ² 
+# marginal distribution of σ²
+# cf. Eq. (90) in "Conjugate Bayesian analysis of the Gaussian distribution" by Murphy
+p_σ² = InverseGamma(αₙ, βₙ)
+p_σ²_pdf = z -> pdf(p_σ², z)
 
 # marginal of μ
 # Eq. (91) in "Conjugate Bayesian analysis of the Gaussian distribution" by Murphy
-p_μ = TDist(2 * post.shape)
-
-μₙ = post.mu    # μ → μ
-κₙ = post.nu    # κ → ν
-αₙ = post.shape # α → shape
-βₙ = post.rate  # β → rate
-
-# numerically more stable but doesn't seem to have effect; issue is probably internal to
-# `pdf` which needs to compute ≈ Γ(1000) 
-p_μ_pdf =
-    z -> exp(logpdf(p_μ, (z - μₙ) * exp(-0.5 * log(βₙ) + 0.5 * log(αₙ) + 0.5 * log(κₙ))))
+p_μ = μₙ + sqrt(βₙ / (αₙ * κₙ)) * TDist(2 * αₙ)
+p_μ_pdf = z -> pdf(p_μ, z)
 
 # posterior plots
-p1 = plot();
+p1 = plot()
 histogram!(samples[1, :]; bins=100, normed=true, alpha=0.2, color=:blue, label="")
 density!(samples[1, :]; label="s (ADVI)", color=:blue)
 density!(samples_nuts, :s; label="s (NUTS)", color=:green)
 vline!([mean(samples[1, :])]; linewidth=1.5, color=:blue, label="")
+plot!(range(0.75, 1.35; length=1_001), p_σ²_pdf; label="s (posterior)", color=:red)
+vline!([var(x)]; label="s (data)", linewidth=1.5, color=:black, alpha=0.7)
+xlims!(0.75, 1.35)
 
-# normalize using Riemann approx. because of (almost certainly) numerical issues
-Δ = 0.001
-r = 0.75:0.001:1.50
-norm_const = sum(p_σ²_pdf.(r) .* Δ)
-plot!(r, p_σ²_pdf; label="s (posterior)", color=:red);
-vline!([var(x)]; label="s (data)", linewidth=1.5, color=:black, alpha=0.7);
-xlims!(0.75, 1.35);
-
-p2 = plot();
+p2 = plot()
 histogram!(samples[2, :]; bins=100, normed=true, alpha=0.2, color=:blue, label="")
 density!(samples[2, :]; label="m (ADVI)", color=:blue)
 density!(samples_nuts, :m; label="m (NUTS)", color=:green)
 vline!([mean(samples[2, :])]; linewidth=1.5, color=:blue, label="")
+plot!(range(-0.25, 0.25; length=1_001), p_μ_pdf; label="m (posterior)", color=:red)
+vline!([mean(x)]; label="m (data)", linewidth=1.5, color=:black, alpha=0.7)
+xlims!(-0.25, 0.25)
 
-# normalize using Riemann approx. because of (almost certainly) numerical issues
-Δ = 0.0001
-r = (-0.1 + mean(x)):Δ:(0.1 + mean(x))
-norm_const = sum(p_μ_pdf.(r) .* Δ)
-plot!(r, z -> p_μ_pdf(z) / norm_const; label="m (posterior)", color=:red);
-vline!([mean(x)]; label="m (data)", linewidth=1.5, color=:black, alpha=0.7);
-
-xlims!(-0.25, 0.25);
-
-p = plot(p1, p2; layout=(2, 1), size=(900, 500))
+plot(p1, p2; layout=(2, 1), size=(900, 500))
 ```
 
 # Bayesian linear regression example using `ADVI`

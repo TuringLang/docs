@@ -19,11 +19,11 @@ using Turing, Distributions
 # Import RDatasets.
 using RDatasets
 
-# Import MCMCChains, Plots, and StatPlots for visualizations and diagnostics.
-using MCMCChains, Plots, StatsPlots
+# Import MCMCChains and StatPlots for visualizations and diagnostics.
+using MCMCChains, StatsPlots
 
-# Functionality for splitting and normalizing the data.
-using MLDataUtils: shuffleobs, splitobs, rescale!
+# Functionality for splitting the data.
+using MLUtils: splitobs
 
 # Functionality for evaluating the model predictions.
 using Distances
@@ -31,15 +31,15 @@ using Distances
 # Functionality for constructing arrays with identical elements efficiently.
 using FillArrays
 
+# Functionality for normalizing the data.
+using StatsBase
+
 # Functionality for working with scaled identity matrices.
 using LinearAlgebra
 
 # Set a seed for reproducibility.
 using Random
-Random.seed!(0)
-
-# Hide the progress prompt while sampling.
-Turing.setprogress!(false);
+Random.seed!(0);
 ```
 
 We will use the `mtcars` dataset from the [RDatasets](https://github.com/johnmyleswhite/RDatasets.jl) package. `mtcars` contains a variety of statistics on different car models, including their miles per gallon, number of cylinders, and horsepower, among others.
@@ -48,7 +48,7 @@ We want to know if we can construct a Bayesian linear regression model to predic
 
 ```julia
 # Import the "Default" dataset.
-data = RDatasets.dataset("datasets", "mtcars");
+data = RDatasets.dataset("datasets", "mtcars")
 
 # Show the first six rows of the dataset.
 first(data, 6)
@@ -65,7 +65,7 @@ The next step is to get our data ready for testing. We'll split the `mtcars` dat
 select!(data, Not(:Model))
 
 # Split our dataset 70%/30% into training/test sets.
-trainset, testset = splitobs(shuffleobs(data), 0.7)
+trainset, testset = map(DataFrame, splitobs(data; at=0.7, shuffle=true))
 
 # Turing requires data in matrix form.
 target = :MPG
@@ -75,12 +75,14 @@ train_target = trainset[:, target]
 test_target = testset[:, target]
 
 # Standardize the features.
-μ, σ = rescale!(train; obsdim=1)
-rescale!(test, μ, σ; obsdim=1)
+dt_features = fit(ZScoreTransform, train; dims=1)
+StatsBase.transform!(dt_features, train)
+StatsBase.transform!(dt_features, test)
 
 # Standardize the targets.
-μtarget, σtarget = rescale!(train_target; obsdim=1)
-rescale!(test_target, μtarget, σtarget; obsdim=1);
+dt_targets = fit(ZScoreTransform, train_target)
+StatsBase.transform!(dt_targets, train_target)
+StatsBase.transform!(dt_targets, test_target);
 ```
 
 ## Model Specification

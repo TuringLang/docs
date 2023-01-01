@@ -155,16 +155,14 @@ using GLM
 train_with_intercept = hcat(ones(size(train, 1)), train)
 ols = lm(train_with_intercept, train_target)
 
-# Compute predictions on the training data set
-# and unstandardize them.
-p = GLM.predict(ols)
-train_prediction_ols = μtarget .+ σtarget .* p
+# Compute predictions on the training data set and unstandardize them.
+train_prediction_ols = GLM.predict(ols)
+StatsBase.reconstruct!(dt_targets, train_prediction_ols)
 
-# Compute predictions on the test data set
-# and unstandardize them.
+# Compute predictions on the test data set and unstandardize them.
 test_with_intercept = hcat(ones(size(test, 1)), test)
-p = GLM.predict(ols, test_with_intercept)
-test_prediction_ols = μtarget .+ σtarget .* p;
+test_prediction_ols = GLM.predict(ols, test_with_intercept)
+StatsBase.reconstruct!(dt_targets, test_prediction_ols);
 ```
 
 The function below accepts a chain and an input matrix and calculates predictions. We use the samples of the model parameters in the chain starting with sample 200, which is where the warm-up period for the NUTS sampler ended.
@@ -181,12 +179,11 @@ end
 When we make predictions, we unstandardize them so they are more understandable.
 
 ```julia
-# Calculate the predictions for the training and testing sets
-# and unstandardize them.
-p = prediction(chain, train)
-train_prediction_bayes = μtarget .+ σtarget .* p
-p = prediction(chain, test)
-test_prediction_bayes = μtarget .+ σtarget .* p
+# Calculate the predictions for the training and testing sets and unstandardize them.
+train_prediction_bayes = prediction(chain, train)
+StatsBase.reconstruct!(dt_targets, train_prediction_bayes)
+test_prediction_bayes = prediction(chain, test)
+StatsBase.reconstruct!(dt_targets, test_prediction_bayes)
 
 # Show the predictions on the test data set.
 DataFrame(; MPG=testset[!, target], Bayes=test_prediction_bayes, OLS=test_prediction_ols)

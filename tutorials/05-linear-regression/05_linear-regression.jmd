@@ -13,42 +13,41 @@ Turing is powerful when applied to complex hierarchical models, but it can also 
 We begin by importing all the necessary libraries.
 
 ```julia
-# Import Turing and Distributions.
-using Turing, Distributions
+# Import Turing.
+using Turing
 
-# Import RDatasets.
+# Package for loading the data set.
 using RDatasets
 
-# Import MCMCChains, Plots, and StatPlots for visualizations and diagnostics.
-using MCMCChains, Plots, StatsPlots
+# Package for visualization.
+using StatsPlots
 
-# Functionality for splitting and normalizing the data.
-using MLDataUtils: shuffleobs, splitobs, rescale!
-
-# Functionality for evaluating the model predictions.
-using Distances
+# Functionality for splitting the data.
+using MLUtils: splitobs
 
 # Functionality for constructing arrays with identical elements efficiently.
 using FillArrays
+
+# Functionality for normalizing the data and evaluating the model predictions.
+using StatsBase
 
 # Functionality for working with scaled identity matrices.
 using LinearAlgebra
 
 # Set a seed for reproducibility.
 using Random
-Random.seed!(0)
-
-# Hide the progress prompt while sampling.
-Turing.setprogress!(false);
+Random.seed!(0);
 ```
 
-We will use the `mtcars` dataset from the [RDatasets](https://github.com/johnmyleswhite/RDatasets.jl) package. `mtcars` contains a variety of statistics on different car models, including their miles per gallon, number of cylinders, and horsepower, among others.
+We will use the `mtcars` dataset from the [RDatasets](https://github.com/JuliaStats/RDatasets.jl) package.
+`mtcars` contains a variety of statistics on different car models, including their miles per gallon, number of cylinders, and horsepower, among others.
 
-We want to know if we can construct a Bayesian linear regression model to predict the miles per gallon of a car, given the other statistics it has. Lets take a look at the data we have.
+We want to know if we can construct a Bayesian linear regression model to predict the miles per gallon of a car, given the other statistics it has.
+Let us take a look at the data we have.
 
 ```julia
-# Import the "Default" dataset.
-data = RDatasets.dataset("datasets", "mtcars");
+# Load the dataset.
+data = RDatasets.dataset("datasets", "mtcars")
 
 # Show the first six rows of the dataset.
 first(data, 6)
@@ -65,7 +64,7 @@ The next step is to get our data ready for testing. We'll split the `mtcars` dat
 select!(data, Not(:Model))
 
 # Split our dataset 70%/30% into training/test sets.
-trainset, testset = splitobs(shuffleobs(data), 0.7)
+trainset, testset = map(DataFrame, splitobs(data; at=0.7, shuffle=true))
 
 # Turing requires data in matrix form.
 target = :MPG
@@ -75,12 +74,14 @@ train_target = trainset[:, target]
 test_target = testset[:, target]
 
 # Standardize the features.
-μ, σ = rescale!(train; obsdim=1)
-rescale!(test, μ, σ; obsdim=1)
+dt_features = fit(ZScoreTransform, train; dims=1)
+StatsBase.transform!(dt_features, train)
+StatsBase.transform!(dt_features, test)
 
 # Standardize the targets.
-μtarget, σtarget = rescale!(train_target; obsdim=1)
-rescale!(test_target, μtarget, σtarget; obsdim=1);
+dt_targets = fit(ZScoreTransform, train_target)
+StatsBase.transform!(dt_targets, train_target)
+StatsBase.transform!(dt_targets, test_target);
 ```
 
 ## Model Specification
@@ -153,16 +154,14 @@ using GLM
 train_with_intercept = hcat(ones(size(train, 1)), train)
 ols = lm(train_with_intercept, train_target)
 
-# Compute predictions on the training data set
-# and unstandardize them.
-p = GLM.predict(ols)
-train_prediction_ols = μtarget .+ σtarget .* p
+# Compute predictions on the training data set and unstandardize them.
+train_prediction_ols = GLM.predict(ols)
+StatsBase.reconstruct!(dt_targets, train_prediction_ols)
 
-# Compute predictions on the test data set
-# and unstandardize them.
+# Compute predictions on the test data set and unstandardize them.
 test_with_intercept = hcat(ones(size(test, 1)), test)
-p = GLM.predict(ols, test_with_intercept)
-test_prediction_ols = μtarget .+ σtarget .* p;
+test_prediction_ols = GLM.predict(ols, test_with_intercept)
+StatsBase.reconstruct!(dt_targets, test_prediction_ols);
 ```
 
 The function below accepts a chain and an input matrix and calculates predictions. We use the samples of the model parameters in the chain starting with sample 200, which is where the warm-up period for the NUTS sampler ended.
@@ -179,12 +178,11 @@ end
 When we make predictions, we unstandardize them so they are more understandable.
 
 ```julia
-# Calculate the predictions for the training and testing sets
-# and unstandardize them.
-p = prediction(chain, train)
-train_prediction_bayes = μtarget .+ σtarget .* p
-p = prediction(chain, test)
-test_prediction_bayes = μtarget .+ σtarget .* p
+# Calculate the predictions for the training and testing sets and unstandardize them.
+train_prediction_bayes = prediction(chain, train)
+StatsBase.reconstruct!(dt_targets, train_prediction_bayes)
+test_prediction_bayes = prediction(chain, test)
+StatsBase.reconstruct!(dt_targets, test_prediction_bayes)
 
 # Show the predictions on the test data set.
 DataFrame(; MPG=testset[!, target], Bayes=test_prediction_bayes, OLS=test_prediction_ols)

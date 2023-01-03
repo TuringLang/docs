@@ -159,17 +159,16 @@ size(samples)
 ```
 
 ```julia
-p1 = histogram(samples[1, :]; bins=100, normed=true, alpha=0.2, color=:blue, label="")
-density!(samples[1, :]; ylabel="Density", label="s (ADVI)", color=:blue, linewidth=2)
-density!(samples_nuts, :s; ylabel="Density", label="s (NUTS)", color=:green, linewidth=2)
-vline!([var(x)]; ylabel="Density", label="s (data)", color=:black)
-vline!([mean(samples[1, :])]; ylabel="Density", color=:blue, label="")
+p1 = histogram(samples[1, :]; bins=100, normed=true, alpha=0.2, color=:blue, label="", ylabel="density")
+density!(samples[1, :]; label="s (ADVI)", color=:blue, linewidth=2)
+density!(samples_nuts, :s; label="s (NUTS)", color=:green, linewidth=2)
+vline!([var(x)]; label="s (data)", color=:black)
+vline!([mean(samples[1, :])]; color=:blue, label="")
 
-p2 = histogram(samples[2, :]; bins=100, normed=true, alpha=0.2, color=:blue, label="")
-density!(samples[2, :]; ylabel="Density", label="m (ADVI)", color=:blue, linewidth=2)
-density!(samples_nuts, :m; ylabel="Density", label="m (NUTS)", color=:green, linewidth=2)
-vline!([mean(x)]; ylabel="Density", color=:black, label="m (data)")
-vline!([mean(samples[2, :])]; ylabel="Density", color=:blue, label="")
+p2 = histogram(samples[2, :]; bins=100, normed=true, alpha=0.2, color=:blue, label="", ylabel="density")
+density!(samples[2, :]; label="m (ADVI)", color=:blue, linewidth=2)
+density!(samples_nuts, :m; label="m (NUTS)", color=:green, linewidth=2)
+vline!([mean(x)]; color=:black, label="m (data)")
 
 plot(p1, p2; layout=(2, 1), size=(900, 500), legend=true)
 ```
@@ -291,6 +290,7 @@ select!(data, Not(:Model))
 
 # Split our dataset 70%/30% into training/test sets.
 train, test = split_data(data, 0.7)
+train_unstandardized = copy(train)
 
 # Standardize both datasets.
 std_train = standardize(Matrix(train))
@@ -432,7 +432,8 @@ function plot_variational_marginals(z, sym2range)
                     title="$(sym)[$offset]",
                     titlefontsize=10,
                     label="",
-                    margin=2.0mm,
+                    ylabel="Density",
+                    margin=1.5mm,
                 )
                 push!(ps, p)
                 offset += 1
@@ -443,13 +444,14 @@ function plot_variational_marginals(z, sym2range)
                 title="$(sym)",
                 titlefontsize=10,
                 label="",
-                margin=2.0mm,
+                ylabel="Density",
+                margin=1.5mm,
             )
             push!(ps, p)
         end
     end
 
-    return plot(ps...; layout=(length(ps), 1), size=(500, 1500), margin=2.0mm)
+    return plot(ps...; layout=(length(ps), 1), size=(500, 2000), margin=4.0mm)
 end
 ```
 
@@ -506,8 +508,8 @@ ols = lm(
 )
 
 # Store our predictions in the original dataframe.
-train_cut.OLSPrediction = unstandardize(GLM.predict(ols), train.MPG)
-test_cut.OLSPrediction = unstandardize(GLM.predict(ols, test_cut), train.MPG);
+train_cut.OLSPrediction = unstandardize(GLM.predict(ols), train_unstandardized.MPG)
+test_cut.OLSPrediction = unstandardize(GLM.predict(ols, test_cut), train_unstandardized.MPG);
 ```
 
 ```julia
@@ -537,8 +539,8 @@ end
 
 ```julia
 # Unstandardize the dependent variable.
-train_cut.MPG = unstandardize(train_cut.MPG, train.MPG)
-test_cut.MPG = unstandardize(test_cut.MPG, train.MPG);
+train_cut.MPG = unstandardize(train_cut.MPG, train_unstandardized.MPG)
+test_cut.MPG = unstandardize(test_cut.MPG, train_unstandardized.MPG);
 ```
 
 ```julia
@@ -552,11 +554,11 @@ z = rand(q, 10_000);
 
 ```julia
 # Calculate the predictions for the training and testing sets using the samples `z` from variational posterior
-train_cut.VIPredictions = unstandardize(prediction(z, sym2range, train), train.MPG)
-test_cut.VIPredictions = unstandardize(prediction(z, sym2range, test), train.MPG)
+train_cut.VIPredictions = unstandardize(prediction(z, sym2range, train), train_unstandardized.MPG)
+test_cut.VIPredictions = unstandardize(prediction(z, sym2range, test), train_unstandardized.MPG)
 
-train_cut.BayesPredictions = unstandardize(prediction_chain(chain, train), train.MPG)
-test_cut.BayesPredictions = unstandardize(prediction_chain(chain, test), train.MPG);
+train_cut.BayesPredictions = unstandardize(prediction_chain(chain, train), train_unstandardized.MPG)
+test_cut.BayesPredictions = unstandardize(prediction_chain(chain, test), train_unstandardized.MPG);
 ```
 
 ```julia
@@ -597,19 +599,16 @@ scatter(
     size=(900, 500),
     markersize=8,
 )
-scatter!(1:size(test, 1), unstandardize(test_label, train.MPG); label="true")
+scatter!(1:size(test, 1), unstandardize(test_label, train_unstandardized.MPG); label="true")
 xaxis!(1:size(test, 1))
 ylims!(10, 40)
 title!("Mean-field ADVI (Normal)")
 ```
 
 ```julia
-preds = hcat(
-    [
-        unstandardize(prediction_chain(chain[i], test), train_unstandardized.MPG) for
-        i in 1:5:size(chain, 1)
-    ]...,
-);
+preds = mapreduce(hcat, 1:5:size(chain, 1)) do i
+    return unstandardize(prediction_chain(chain[i], test), train_unstandardized.MPG)
+end
 
 scatter(
     1:size(test, 1),
@@ -619,7 +618,7 @@ scatter(
     size=(900, 500),
     markersize=8,
 )
-scatter!(1:size(test, 1), unstandardize(test_label, train.MPG); label="true")
+scatter!(1:size(test, 1), unstandardize(test_label, train_unstandardized.MPG); label="true")
 xaxis!(1:size(test, 1))
 ylims!(10, 40)
 title!("MCMC (NUTS)")
@@ -750,8 +749,8 @@ z = rand(q_full_normal, 10_000);
 ```
 
 ```julia
-train_cut.VIFullPredictions = unstandardize(prediction(z, sym2range, train), train.MPG)
-test_cut.VIFullPredictions = unstandardize(prediction(z, sym2range, test), train.MPG);
+train_cut.VIFullPredictions = unstandardize(prediction(z, sym2range, train), train_unstandardized.MPG)
+test_cut.VIFullPredictions = unstandardize(prediction(z, sym2range, test), train_unstandardized.MPG);
 ```
 
 ```julia
@@ -777,12 +776,9 @@ Test set:
 
 ```julia
 z = rand(q_mf_normal, 1000);
-preds = hcat(
-    [
-        unstandardize(prediction(z[:, i], sym2range, test), train_unstandardized.MPG) for
-        i in 1:size(z, 2)
-    ]...,
-);
+preds = mapreduce(hcat, eachcol(z)) do zi
+    return unstandardize(prediction(zi, sym2range, test), train_unstandardized.MPG)
+end
 
 p1 = scatter(
     1:size(test, 1),
@@ -792,7 +788,7 @@ p1 = scatter(
     size=(900, 500),
     markersize=8,
 )
-scatter!(1:size(test, 1), unstandardize(test_label, train.MPG); label="true")
+scatter!(1:size(test, 1), unstandardize(test_label, train_unstandardized.MPG); label="true")
 xaxis!(1:size(test, 1))
 ylims!(10, 40)
 title!("Mean-field ADVI (Normal)")
@@ -800,12 +796,9 @@ title!("Mean-field ADVI (Normal)")
 
 ```julia
 z = rand(q_full_normal, 1000);
-preds = hcat(
-    [
-        unstandardize(prediction(z[:, i], sym2range, test), train_unstandardized.MPG) for
-        i in 1:size(z, 2)
-    ]...,
-);
+preds = mapreduce(hcat, eachcol(z)) do zi
+   return unstandardize(prediction(zi, sym2range, test), train_unstandardized.MPG)
+end
 
 p2 = scatter(
     1:size(test, 1),
@@ -815,19 +808,16 @@ p2 = scatter(
     size=(900, 500),
     markersize=8,
 )
-scatter!(1:size(test, 1), unstandardize(test_label, train.MPG); label="true")
+scatter!(1:size(test, 1), unstandardize(test_label, train_unstandardized.MPG); label="true")
 xaxis!(1:size(test, 1))
 ylims!(10, 40)
 title!("Full ADVI (Normal)")
 ```
 
 ```julia
-preds = hcat(
-    [
-        unstandardize(prediction_chain(chain[i], test), train_unstandardized.MPG) for
-        i in 1:5:size(chain, 1)
-    ]...,
-);
+preds = mapreduce(hcat, 1:5:size(chain, 1)) do i
+    return unstandardize(prediction_chain(chain[i], test), train_unstandardized.MPG)
+end
 
 p3 = scatter(
     1:size(test, 1),
@@ -837,7 +827,7 @@ p3 = scatter(
     size=(900, 500),
     markersize=8,
 )
-scatter!(1:size(test, 1), unstandardize(test_label, train.MPG); label="true")
+scatter!(1:size(test, 1), unstandardize(test_label, train_unstandardized.MPG); label="true")
 xaxis!(1:size(test, 1))
 ylims!(10, 40)
 title!("MCMC (NUTS)")

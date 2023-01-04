@@ -173,7 +173,7 @@ p2 = histogram(
 density!(samples[2, :]; label="m (ADVI)", color=:blue, linewidth=2)
 density!(samples_nuts, :m; label="m (NUTS)", color=:green, linewidth=2)
 vline!([mean(x)]; color=:black, label="m (data)")
-
+vline!([mean(samples[2, :])]; color=:blue, label="")
 plot(p1, p2; layout=(2, 1), size=(900, 500), legend=true)
 ```
 
@@ -482,7 +482,7 @@ vi_mean = vec(mean(z; dims=2))[[
 ```
 
 ```julia
-mcmc_mean = mean(chain).nt.mean
+mcmc_mean = mean(chain, names(chain, :parameters))[:, 2]
 ```
 
 ```julia
@@ -596,12 +596,9 @@ Interestingly the squared difference between true- and mean-prediction on the te
 
 ```julia
 z = rand(q, 1000);
-preds = hcat(
-    [
-        unstandardize(prediction(z[:, i], sym2range, test), train_unstandardized.MPG) for
-        i in 1:size(z, 2)
-    ]...,
-);
+preds = mapreduce(hcat, eachcol(z)) do zi
+    return unstandardize(prediction(zi, sym2range, test), train_unstandardized.MPG)
+end
 
 scatter(
     1:size(test, 1),

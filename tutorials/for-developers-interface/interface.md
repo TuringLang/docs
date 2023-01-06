@@ -1,6 +1,6 @@
 ---
 title: Interface Guide
-permalink: /docs/for-developers/how_turing_implements_abstractmcmc
+permalink: /docs/for-developers/interface
 weave_options:
   error : false
 ---

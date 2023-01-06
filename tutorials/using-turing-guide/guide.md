@@ -1,6 +1,6 @@
 ---
 title: Guide
-permalink: /docs/for-developers/how_turing_implements_abstractmcmc
+permalink: /docs/using-turing/guide/
 weave_options:
   error : false
 ---

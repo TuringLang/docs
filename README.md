@@ -3,7 +3,7 @@
 [![Build status](https://badge.buildkite.com/ffe577bc0ee60b5514a50dbe464a7abb9f2a02c0f35be8ca43.svg?branch=master)](https://buildkite.com/julialang/turingtutorials/builds?branch=master)
 [![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/invenia/BlueStyle)
 
-This repository contains tutorials on the universal probabilistic programming language **Turing**.
+This repository contains tutorials and docs on the probabilistic programming language **Turing**.
 
 The tutorials are defined in the `tutorials` folder.
 All the outputs are generated automatically from that.

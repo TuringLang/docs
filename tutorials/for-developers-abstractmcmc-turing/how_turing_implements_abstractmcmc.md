@@ -277,6 +277,7 @@ We focus on the AbstractMCMC functions that are overridden in `is.jl` and execut
         
           * the transition's `vi` field is simply `spl.state.vi`
           * the `lp` field contains the likelihood `spl.state.vi.logp[]`
+
   - When the, `n_samples` iterations are completed, `sample_end!` fills the `final_logevidence` field of `spl.state`
     
       + it simply takes the logarithm of the average of the sample weights, using the log weights for numerical stability

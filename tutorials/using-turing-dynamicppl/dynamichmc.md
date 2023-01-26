@@ -13,17 +13,16 @@ To use the `DynamicNUTS` function, you must import the `DynamicHMC` package as w
 
 Here is a brief example of how to apply `DynamicNUTS`:
 
-
 ```julia
 # Import Turing and DynamicHMC.
 using DynamicHMC, Turing
 
 # Model definition.
 @model function gdemo(x, y)
-  s² ~ InverseGamma(2, 3)
-  m ~ Normal(0, sqrt(s²))
-  x ~ Normal(m, sqrt(s²))
-  y ~ Normal(m, sqrt(s²))
+    s² ~ InverseGamma(2, 3)
+    m ~ Normal(0, sqrt(s²))
+    x ~ Normal(m, sqrt(s²))
+    return y ~ Normal(m, sqrt(s²))
 end
 
 # Pull 2,000 samples using DynamicNUTS.

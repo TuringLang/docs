@@ -33,9 +33,9 @@ Random.seed!(0)
     s² ~ InverseGamma(2, 3)
     m ~ Normal(0, sqrt(s²))
     bumps = sin(m) + cos(m)
-    m = m + 5*bumps
+    m = m + 5 * bumps
     for i in eachindex(x)
-      x[i] ~ Normal(m, sqrt(s²))
+        x[i] ~ Normal(m, sqrt(s²))
     end
     return s², m
 end
@@ -50,7 +50,7 @@ vi = Turing.VarInfo(model)
 # Convert the variance parameter to the real line before sampling.
 # Note: We only have to do this here because we are being very hands-on.
 # Turing will handle all of this for you during normal sampling.
-dist = InverseGamma(2,3)
+dist = InverseGamma(2, 3)
 svn = vi.metadata.s².vns[1]
 mvn = vi.metadata.m.vns[1]
 setval!(vi, vectorize(dist, Bijectors.link(dist, reconstruct(dist, getval(vi, svn)))), svn)
@@ -62,7 +62,7 @@ function evaluate(m1, m2)
     vi[svn] = [m1]
     vi[mvn] = [m2]
     model(vi, spl)
-    getlogp(vi)
+    return getlogp(vi)
 end
 
 function plot_sampler(chain; label="")
@@ -77,26 +77,42 @@ function plot_sampler(chain; label="")
 
     # Range start/stop points.
     spread = 0.5
-    σ_start = minimum(ss) - spread * std(ss); σ_stop = maximum(ss) + spread * std(ss);
-    μ_start = minimum(ms) - spread * std(ms); μ_stop = maximum(ms) + spread * std(ms);
-    σ_rng = collect(range(σ_start, stop=σ_stop, length=granularity))
-    μ_rng = collect(range(μ_start, stop=μ_stop, length=granularity))
+    σ_start = minimum(ss) - spread * std(ss)
+    σ_stop = maximum(ss) + spread * std(ss)
+    μ_start = minimum(ms) - spread * std(ms)
+    μ_stop = maximum(ms) + spread * std(ms)
+    σ_rng = collect(range(σ_start; stop=σ_stop, length=granularity))
+    μ_rng = collect(range(μ_start; stop=μ_stop, length=granularity))
 
     # Make surface plot.
-    p = surface(σ_rng, μ_rng, evaluate,
-          camera=(30, 65),
+    p = surface(
+        σ_rng,
+        μ_rng,
+        evaluate;
+        camera=(30, 65),
         #   ticks=nothing,
-          colorbar=false,
-          color=:inferno,
-          title=label)
+        colorbar=false,
+        color=:inferno,
+        title=label,
+    )
 
     line_range = 1:length(ms)
 
-    scatter3d!(ss[line_range], ms[line_range], lps[line_range],
-        mc =:viridis, marker_z=collect(line_range), msw=0,
-        legend=false, colorbar=false, alpha=0.5,
-        xlabel="σ", ylabel="μ", zlabel="Log probability",
-        title=label)
+    scatter3d!(
+        ss[line_range],
+        ms[line_range],
+        lps[line_range];
+        mc=:viridis,
+        marker_z=collect(line_range),
+        msw=0,
+        legend=false,
+        colorbar=false,
+        alpha=0.5,
+        xlabel="σ",
+        ylabel="μ",
+        zlabel="Log probability",
+        title=label,
+    )
 
     return p
 end;
@@ -126,7 +142,6 @@ plot_sampler(c)
 
 ![](sampler-figs/samplers-2.svg)
 
-
 ### HMCDA
 
 The HMCDA sampler is an implementation of the Hamiltonian Monte Carlo with Dual Averaging algorithm found in the paper "The No-U-Turn Sampler: Adaptively Setting Path Lengths in Hamiltonian Monte Carlo" by Hoffman and Gelman (2011). The paper can be found on [arXiv](https://arxiv.org/abs/1111.4246) for the interested reader.
@@ -137,7 +152,6 @@ plot_sampler(c)
 ```
 
 ![](sampler-figs/samplers-3.svg)
-
 
 ### MH
 
@@ -151,7 +165,6 @@ plot_sampler(c)
 ```
 
 ![](sampler-figs/samplers-4.svg)
-
 
 As you can see, the MH sampler doesn't move parameter estimates very often.
 
@@ -168,7 +181,6 @@ plot_sampler(c)
 
 ![](sampler-figs/samplers-5.svg)
 
-
 The only parameter that needs to be set other than the number of iterations to run is the target acceptance rate. In the Hoffman and Gelman paper, they note that a target acceptance rate of 0.65 is typical.
 
 Here is a plot showing a very high acceptance rate. Note that it appears to "stick" to a mode and is not particularly good at exploring the posterior as compared to the 0.65 target acceptance ratio case.
@@ -180,7 +192,6 @@ plot_sampler(c)
 
 ![](sampler-figs/samplers-6.svg)
 
-
 An exceptionally low acceptance rate will show very few moves on the posterior:
 
 ```julia
@@ -189,7 +200,6 @@ plot_sampler(c)
 ```
 
 ![](sampler-figs/samplers-7.svg)
-
 
 ### PG
 
@@ -203,7 +213,6 @@ plot_sampler(c)
 ```
 
 ![](sampler-figs/samplers-8.svg)
-
 
 Next, we plot using 50 particles.
 

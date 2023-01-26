@@ -18,7 +18,7 @@ Consider the following Turing, code block:
     s² ~ InverseGamma(2, 3)
     m ~ Normal(0, sqrt(s²))
     x ~ Normal(m, sqrt(s²))
-    y ~ Normal(m, sqrt(s²))
+    return y ~ Normal(m, sqrt(s²))
 end
 
 mod = gdemo(1.5, 2)
@@ -43,8 +43,6 @@ y &\sim \text{Normal}(m, \sqrt{s}).
 \end{align*}
 ```
 
-
-
 The **latent** variables are ``s`` and ``m``, the **observed** variables are ``x`` and ``y``. The model **joint** distribution ``p(s,m,x,y)`` decomposes into the **prior** ``p(s,m)`` and the **likelihood** ``p(x,y \mid s,m).`` Since ``x = 1.5`` and ``y = 2`` are observed, the goal is to infer the **posterior** distribution ``p(s,m \mid x,y).``
 
 Importance Sampling produces independent samples ``(s_i, m_i)`` from the prior distribution. It also outputs unnormalized weights
@@ -57,7 +55,7 @@ such that the empirical distribution
 
 ```math
 \frac{1}{N} \sum_{i =1}^N \frac {w_i} {\sum_{j=1}^N w_j} \delta_{(s_i, m_i)}
-``` 
+```
 
 is a good approximation of the posterior.
 
@@ -112,24 +110,24 @@ Samplers are **not** the same as algorithms. An algorithm is a generic sampling 
 
 Turing implements `AbstractMCMC`'s `AbstractSampler` with the `Sampler` struct defined in `DynamicPPL`. The most important attributes of an instance `spl` of `Sampler` are:
 
-* `spl.alg`: the sampling method used, an instance of a subtype of `InferenceAlgorithm`
-* `spl.state`: information about the sampling process, see [below](#States)
+  - `spl.alg`: the sampling method used, an instance of a subtype of `InferenceAlgorithm`
+  - `spl.state`: information about the sampling process, see [below](#States)
 
 When you call `sample(mod, alg, n_samples)`, Turing first uses `model` and `alg` to build an instance `spl` of `Sampler` , then calls the native `AbstractMCMC` function `sample(mod, spl, n_samples)`.
 
 When you define your own Turing sampling method, you must therefore build:
 
-* a **sampler constructor** that uses a model and an algorithm to initialize an instance of `Sampler`. For Importance Sampling:
+  - a **sampler constructor** that uses a model and an algorithm to initialize an instance of `Sampler`. For Importance Sampling:
 
 ```julia
 function Sampler(alg::IS, model::Model, s::Selector)
-    info = Dict{Symbol, Any}()
+    info = Dict{Symbol,Any}()
     state = ISState(model)
     return Sampler(alg, info, s, state)
 end
 ```
 
-* a **state** struct implementing `AbstractSamplerState` corresponding to your method: we cover this in the following paragraph.
+  - a **state** struct implementing `AbstractSamplerState` corresponding to your method: we cover this in the following paragraph.
 
 ### <a style="text-decoration:none" name="States">States</a>
 
@@ -139,31 +137,31 @@ By default, you can use `SamplerState`, a concrete type defined in `inference/In
 
 ```julia
 mutable struct SamplerState{VIType<:VarInfo} <: AbstractSamplerState
-    vi :: VIType
+    vi::VIType
 end
 ```
 
-When doing Importance Sampling, we care not only about the values of the samples but also their weights. We will see below that the weight of each sample is also added to `spl.state.vi`. Moreover, the average 
+When doing Importance Sampling, we care not only about the values of the samples but also their weights. We will see below that the weight of each sample is also added to `spl.state.vi`. Moreover, the average
 
 ```math
 \frac 1 N \sum_{j=1}^N w_i = \frac 1 N \sum_{j=1}^N p(x,y \mid s_i, m_i)
-``` 
+```
 
 of the sample weights is a particularly important quantity:
 
-* it is used to **normalize** the **empirical approximation** of the posterior distribution
-* its logarithm is the importance sampling **estimate** of the **log evidence** ``\log p(x, y)``
+  - it is used to **normalize** the **empirical approximation** of the posterior distribution
+  - its logarithm is the importance sampling **estimate** of the **log evidence** ``\log p(x, y)``
 
-To avoid having to compute it over and over again, `is.jl`defines an IS-specific concrete type `ISState` for sampler states, with an additional field `final_logevidence` containing 
+To avoid having to compute it over and over again, `is.jl`defines an IS-specific concrete type `ISState` for sampler states, with an additional field `final_logevidence` containing
 
 ```math
 \log \left( \frac 1 N \sum_{j=1}^N w_i \right).
 ```
 
 ```julia
-mutable struct ISState{V<:VarInfo, F<:AbstractFloat} <: AbstractSamplerState
-    vi                 ::  V
-    final_logevidence  ::  F
+mutable struct ISState{V<:VarInfo,F<:AbstractFloat} <: AbstractSamplerState
+    vi::V
+    final_logevidence::F
 end
 
 # additional constructor
@@ -182,15 +180,15 @@ A lot of the things here are method-specific. However Turing also has some funct
 
 `AbstractMCMC` stores information corresponding to each individual sample in objects called `transition`, but does not specify what the structure of these objects could be. You could decide to implement a type `MyTransition` for transitions corresponding to the specifics of your methods. However, there are many situations in which the only information you need for each sample is:
 
-* its value: ``\theta``
-* log of the joint probability of the observed data and this sample: `lp`
+  - its value: ``\theta``
+  - log of the joint probability of the observed data and this sample: `lp`
 
 `Inference.jl` [defines](https://github.com/TuringLang/Turing.jl/blob/master/src/inference/Inference.jl#L103) a struct `Transition`, which corresponds to this default situation
 
 ```julia
-struct Transition{T, F<:AbstractFloat}
-    θ  :: T
-    lp :: F
+struct Transition{T,F<:AbstractFloat}
+    θ::T
+    lp::F
 end
 ```
 
@@ -200,12 +198,12 @@ It also [contains](https://github.com/TuringLang/Turing.jl/blob/master/src/infer
 
 A crude summary, which ignores things like parallelism, is the following:
 
- `sample` calls `mcmcsample`, which calls
+`sample` calls `mcmcsample`, which calls
 
-* `sample_init!` to set things up
-* `step!` repeatedly to produce multiple new transitions
-* `sample_end!` to perform operations once all samples have been obtained
-* `bundle_samples` to convert a vector of transitions into a more palatable type, for instance a `Chain`.
+  - `sample_init!` to set things up
+  - `step!` repeatedly to produce multiple new transitions
+  - `sample_end!` to perform operations once all samples have been obtained
+  - `bundle_samples` to convert a vector of transitions into a more palatable type, for instance a `Chain`.
 
 You can of course implement all of these functions, but `AbstractMCMC` as well as Turing also provide default implementations for simple cases. For instance, importance sampling uses the default implementations of `sample_init!` and `bundle_samples`, which is why you don't see code for them inside `is.jl`.
 
@@ -215,17 +213,17 @@ The functions mentioned above, such as `sample_init!`, `step!`, etc.,  must of c
 
 For an example of the former, consider **Importance Sampling** as defined in `is.jl`. This implementation of Importance Sampling uses the model prior distribution as a proposal distribution, and therefore requires **samples from the prior distribution** of the model. Another example is **Approximate Bayesian Computation**, which requires multiple **samples from the model prior and likelihood distributions** in order to generate a single sample.
 
-An example of the latter is the **Metropolis-Hastings** algorithm. At every step of sampling from a target posterior 
+An example of the latter is the **Metropolis-Hastings** algorithm. At every step of sampling from a target posterior
 
 ```math
 p(\theta \mid x_{\text{obs}}),
-``` 
+```
 
-in order to compute the acceptance ratio, you need to **evaluate the model joint density** 
+in order to compute the acceptance ratio, you need to **evaluate the model joint density**
 
 ```math
 p\left(\theta_{\text{prop}}, x_{\text{obs}}\right)
-``` 
+```
 
 with ``\theta_{\text{prop}}`` a sample from the proposal and ``x_{\text{obs}}`` the observed data.
 
@@ -233,11 +231,12 @@ This begs the question: how can these functions access model information during 
 
 Consider an instance `m` of `Model` and a sampler `spl`, with associated `VarInfo` `vi = spl.state.vi`. At some point during the sampling process, an AbstractMCMC function such as `step!` calls  `m(vi, ...)`, which calls the model evaluation function `m.f(vi, ...)`.
 
-* for every tilde statement in the `@model` macro, `m.f(vi, ...)` returns model-related information (samples, value of the model density, etc.), and adds it to `vi`. How does it do that?
-  * recall that the code for `m.f(vi, ...)` is automatically generated by compilation of the `@model` macro
-  * for every tilde statement in the `@model` declaration, this code contains a call to `assume(vi, ...)` if the variable on the LHS of the tilde is a **model parameter to infer**, and `observe(vi, ...)` if the variable on the LHS of the tilde is an **observation**
-  * in the file corresponding to your sampling method (ie in `Turing.jl/src/inference/<your_method>.jl`), you have **overloaded** `assume` and `observe`, so that they can modify `vi` to include the information and samples that you care about!
-  * at a minimum, `assume` and `observe` return the log density `lp` of the sample or observation. the model evaluation function then immediately calls `acclogp!!(vi, lp)`, which adds `lp` to the value of the log joint density stored in `vi`.
+  - for every tilde statement in the `@model` macro, `m.f(vi, ...)` returns model-related information (samples, value of the model density, etc.), and adds it to `vi`. How does it do that?
+    
+      + recall that the code for `m.f(vi, ...)` is automatically generated by compilation of the `@model` macro
+      + for every tilde statement in the `@model` declaration, this code contains a call to `assume(vi, ...)` if the variable on the LHS of the tilde is a **model parameter to infer**, and `observe(vi, ...)` if the variable on the LHS of the tilde is an **observation**
+      + in the file corresponding to your sampling method (ie in `Turing.jl/src/inference/<your_method>.jl`), you have **overloaded** `assume` and `observe`, so that they can modify `vi` to include the information and samples that you care about!
+      + at a minimum, `assume` and `observe` return the log density `lp` of the sample or observation. the model evaluation function then immediately calls `acclogp!!(vi, lp)`, which adds `lp` to the value of the log joint density stored in `vi`.
 
 Here's what `assume` looks like for Importance Sampling:
 
@@ -265,15 +264,19 @@ It simply returns the density (in the discrete case, the probability) of the obs
 
 We focus on the AbstractMCMC functions that are overridden in `is.jl` and executed inside `mcmcsample`: `step!`, which is called `n_samples` times, and `sample_end!`, which is executed once after those `n_samples` iterations.
 
-* During the ``i``-th iteration, `step!` does 3 things:
-  * `empty!!(spl.state.vi)`: remove information about the previous sample from the sampler's `VarInfo`
-  * `model(rng, spl.state.vi, spl)`: call the model evaluation function
-    * calls to `assume` add the samples from the prior ``s_i`` and ``m_i`` to `spl.state.vi`
-    * calls to both `assume` or `observe` are followed by the line `acclogp!!(vi, lp)`, where `lp` is an output of `assume` and `observe`
-    * `lp` is set to 0 after `assume`, and to the value of the density at the observation after `observe`
-    * when all the tilde statements have been covered, `spl.state.vi.logp[]` is the sum of the `lp`, i.e., the likelihood ``\log p(x, y \mid s_i, m_i) = \log p(x \mid s_i, m_i) + \log p(y \mid s_i, m_i)`` of the observations given the latent variable samples ``s_i`` and ``m_i``.
-  * `return Transition(spl)`: build a transition from the sampler, and return that transition
-    * the transition's `vi` field is simply `spl.state.vi`
-    * the `lp` field contains the likelihood `spl.state.vi.logp[]`
-* When the, `n_samples` iterations are completed, `sample_end!` fills the `final_logevidence` field of `spl.state`
-  * it simply takes the logarithm of the average of the sample weights, using the log weights for numerical stability
+  - During the ``i``-th iteration, `step!` does 3 things:
+    
+      + `empty!!(spl.state.vi)`: remove information about the previous sample from the sampler's `VarInfo`
+      + `model(rng, spl.state.vi, spl)`: call the model evaluation function
+        
+          * calls to `assume` add the samples from the prior ``s_i`` and ``m_i`` to `spl.state.vi`
+          * calls to both `assume` or `observe` are followed by the line `acclogp!!(vi, lp)`, where `lp` is an output of `assume` and `observe`
+          * `lp` is set to 0 after `assume`, and to the value of the density at the observation after `observe`
+          * when all the tilde statements have been covered, `spl.state.vi.logp[]` is the sum of the `lp`, i.e., the likelihood ``\log p(x, y \mid s_i, m_i) = \log p(x \mid s_i, m_i) + \log p(y \mid s_i, m_i)`` of the observations given the latent variable samples ``s_i`` and ``m_i``.
+      + `return Transition(spl)`: build a transition from the sampler, and return that transition
+        
+          * the transition's `vi` field is simply `spl.state.vi`
+          * the `lp` field contains the likelihood `spl.state.vi.logp[]`
+  - When the, `n_samples` iterations are completed, `sample_end!` fills the `final_logevidence` field of `spl.state`
+    
+      + it simply takes the logarithm of the average of the sample weights, using the log weights for numerical stability

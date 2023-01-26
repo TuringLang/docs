@@ -327,11 +327,12 @@ For example, let `c` be a `Chain`:
 #### Variable Types and Type Parameters
 
 The element type of a vector (or matrix) of random variables should match the `eltype` of the its prior distribution, `<: Integer` for discrete distributions and `<: AbstractFloat` for continuous distributions. Moreover, if the continuous random variable is to be sampled using a Hamiltonian sampler, the vector's element type needs to either be:
-1. `Real` to enable auto-differentiation through the model which uses special number types that are sub-types of `Real`, or
-2. Some type parameter `T` defined in the model header using the type parameter syntax, e.g. `function gdemo(x, ::Type{T} = Float64) where {T}`.
-Similarly, when using a particle sampler, the Julia variable used should either be:
-1. An `Array`, or
-2. An instance of some type parameter `T` defined in the model header using the type parameter syntax, e.g. `function gdemo(x, ::Type{T} = Vector{Float64}) where {T}`.
+
+ 1. `Real` to enable auto-differentiation through the model which uses special number types that are sub-types of `Real`, or
+ 2. Some type parameter `T` defined in the model header using the type parameter syntax, e.g. `function gdemo(x, ::Type{T} = Float64) where {T}`.
+    Similarly, when using a particle sampler, the Julia variable used should either be:
+ 3. An `Array`, or
+ 4. An instance of some type parameter `T` defined in the model header using the type parameter syntax, e.g. `function gdemo(x, ::Type{T} = Vector{Float64}) where {T}`.
 
 ### Querying Probabilities from Model or Chain
 

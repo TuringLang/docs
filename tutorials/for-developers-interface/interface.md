@@ -5,7 +5,6 @@ weave_options:
   error : false
 ---
 
-
 # The sampling interface
 
 Turing implements a sampling interface (hosted at
@@ -21,26 +20,26 @@ This guide will demonstrate how to implement the interface without Turing.
 Any implementation of an inference method that uses the AbstractMCMC interface should
 implement a subset of the following types and functions:
 
-1. A subtype of `AbstractSampler`, defined as a mutable struct containing state information or sampler parameters.
-2. A function `sample_init!` which performs any necessary set-up (default: do not perform any set-up). 
-3. A function `step!` which returns a transition that represents a single draw from the sampler.
-4. A function `transitions_init` which returns a container for the transitions obtained from the sampler
-   (default: return a `Vector{T}` of length `N` where `T` is the type of the transition obtained in the first step and `N` is the number of requested samples).
-5. A function `transitions_save!` which saves transitions to the container (default: save the transition of iteration `i`
-   at position `i` in the vector of transitions).
-6. A function `sample_end!` which handles any sampler wrap-up (default: do not perform any wrap-up).
-7. A function `bundle_samples` which accepts the container of transitions and returns a collection of samples
-   (default: return the vector of transitions).
+ 1. A subtype of `AbstractSampler`, defined as a mutable struct containing state information or sampler parameters.
+ 2. A function `sample_init!` which performs any necessary set-up (default: do not perform any set-up).
+ 3. A function `step!` which returns a transition that represents a single draw from the sampler.
+ 4. A function `transitions_init` which returns a container for the transitions obtained from the sampler
+    (default: return a `Vector{T}` of length `N` where `T` is the type of the transition obtained in the first step and `N` is the number of requested samples).
+ 5. A function `transitions_save!` which saves transitions to the container (default: save the transition of iteration `i`
+    at position `i` in the vector of transitions).
+ 6. A function `sample_end!` which handles any sampler wrap-up (default: do not perform any wrap-up).
+ 7. A function `bundle_samples` which accepts the container of transitions and returns a collection of samples
+    (default: return the vector of transitions).
 
 The interface methods with exclamation points are those that are intended to allow for
 state mutation. Any mutating function is meant to allow mutation where needed -- you might
 use:
 
-- `sample_init!` to run some kind of sampler preparation, before sampling begins. This
-  could mutate a sampler's state.
-- `step!` might mutate a sampler flag after each sample. 
-- `sample_end!` contains any wrap-up you might need to do. If you were sampling in a
-  transformed space, this might be where you convert everything back to a constrained space.
+  - `sample_init!` to run some kind of sampler preparation, before sampling begins. This
+    could mutate a sampler's state.
+  - `step!` might mutate a sampler flag after each sample.
+  - `sample_end!` contains any wrap-up you might need to do. If you were sampling in a
+    transformed space, this might be where you convert everything back to a constrained space.
 
 ## Why do you have an interface?
 
@@ -48,7 +47,7 @@ The motivation for the interface is to allow Julia's fantastic probabilistic pro
 language community to have a set of standards and common implementations so we can all
 thrive together. Markov chain Monte Carlo methods tend to have a very similar framework to
 one another, and so a common interface should help more great inference methods built in
-single-purpose packages to experience more use among the community. 
+single-purpose packages to experience more use among the community.
 
 ## Implementing Metropolis-Hastings without Turing
 
@@ -68,12 +67,12 @@ the interface framework we'll fill out. We also need `Distributions` and `Random
 
 ```julia
 # Import the relevant libraries.
-import AbstractMCMC
+using AbstractMCMC: AbstractMCMC
 using Distributions
 using Random
 ```
 
-An interface extension (like the one we're writing right now) typically requires that you overload or implement several functions. Specifically, you should `import` the functions you intend to overload. This next code block accomplishes that. 
+An interface extension (like the one we're writing right now) typically requires that you overload or implement several functions. Specifically, you should `import` the functions you intend to overload. This next code block accomplishes that.
 
 From `Distributions`, we need `Sampleable`, `VariateForm`, and `ValueSupport`, three abstract types that define a distribution. Models in the interface are assumed to be subtypes of `Sampleable{VariateForm, ValueSupport}`. In this section our model is going be be extremely simple, so we will not end up using these except to make sure that the inference functions are dispatching correctly.
 
@@ -86,20 +85,22 @@ you call `sample`.
 
 ```julia
 # Define a sampler type.
-struct MetropolisHastings{T, D} <: AbstractMCMC.AbstractSampler 
+struct MetropolisHastings{T,D} <: AbstractMCMC.AbstractSampler
     init_θ::T
     proposal::D
 end
 
 # Default constructors.
-MetropolisHastings(init_θ::Real) = MetropolisHastings(init_θ, Normal(0,1))
-MetropolisHastings(init_θ::Vector{<:Real}) = MetropolisHastings(init_θ, MvNormal(zero(init_θ), I))
+MetropolisHastings(init_θ::Real) = MetropolisHastings(init_θ, Normal(0, 1))
+function MetropolisHastings(init_θ::Vector{<:Real})
+    return MetropolisHastings(init_θ, MvNormal(zero(init_θ), I))
+end
 ```
 
 Above, we have defined a sampler that stores the initial parameterization of the prior,
 and a distribution object from which proposals are drawn. You can have a struct that has no
 fields, and simply use it for dispatching onto the relevant functions, or you can store a
-large amount of state information in your sampler. 
+large amount of state information in your sampler.
 
 The general intuition for what to store in your sampler struct is that anything you may
 need to perform inference between samples but you don't want to store in a transition
@@ -111,11 +112,11 @@ information between `step!` calls.
 Next, we need to have a model of some kind. A model is a struct that's a subtype of
 `AbstractModel` that contains whatever information is necessary to perform inference on
 your problem. In our case we want to know the mean and variance parameters for a standard
-Normal distribution, so we can keep our model to the log density of a Normal. 
+Normal distribution, so we can keep our model to the log density of a Normal.
 
 Note that we only have to do this because we are not yet integrating the sampler with Turing
 -- Turing has a very sophisticated modelling engine that removes the need to define custom
-model structs. 
+model structs.
 
 ```julia
 # Define a model type. Stores the log density function.
@@ -133,7 +134,7 @@ and the log density of that draw:
 ```julia
 # Create a very basic Transition type, only stores the 
 # parameter draws and the log probability of the draw.
-struct Transition{T, L}
+struct Transition{T,L}
     θ::T
     lp::L
 end
@@ -152,14 +153,15 @@ need, but we need to implement the `step!` function which actually performs infe
 
 As a refresher, Metropolis-Hastings implements a very basic algorithm:
 
-1. Pick some initial state, ``\theta_0``.
-2. For ``t`` in ``[1,N],`` do
-    - Generate a proposal parameterization ``\theta^\prime_t \sim q(\theta^\prime_t \mid \theta_{t-1}).``
-    - Calculate the acceptance probability, ``\alpha = \text{min}\left[1,\frac{\pi(\theta'_t)}{\pi(\theta_{t-1})} \frac{q(\theta_{t-1} \mid \theta'_t)}{q(\theta'_t \mid \theta_{t-1})}) \right].``
-    - If ``U \le \alpha`` where ``U \sim [0,1],`` then ``\theta_t = \theta'_t.`` Otherwise, ``\theta_t = \theta_{t-1}.``
+ 1. Pick some initial state, ``\theta_0``.
+ 2. For ``t`` in ``[1,N],`` do
+    
+      + Generate a proposal parameterization ``\theta^\prime_t \sim q(\theta^\prime_t \mid \theta_{t-1}).``
+      + Calculate the acceptance probability, ``\alpha = \text{min}\left[1,\frac{\pi(\theta'_t)}{\pi(\theta_{t-1})} \frac{q(\theta_{t-1} \mid \theta'_t)}{q(\theta'_t \mid \theta_{t-1})}) \right].``
+      + If ``U \le \alpha`` where ``U \sim [0,1],`` then ``\theta_t = \theta'_t.`` Otherwise, ``\theta_t = \theta_{t-1}.``
 
 Of course, it's much easier to do this in the log space, so the acceptance probability is
-more commonly written as 
+more commonly written as
 
 ```math
 \log \alpha = \min\left[0, \log \pi(\theta'_t) - \log \pi(\theta_{t-1}) + \log q(\theta_{t-1} \mid \theta^\prime_t) - \log q(\theta\prime_t \mid \theta_{t-1}) \right].
@@ -167,9 +169,9 @@ more commonly written as
 
 In interface terms, we should do the following:
 
-1. Make a new transition containing a proposed sample.
-2. Calculate the acceptance probability.
-3. If we accept, return the new transition, otherwise, return the old one.
+ 1. Make a new transition containing a proposed sample.
+ 2. Calculate the acceptance probability.
+ 3. If we accept, return the new transition, otherwise, return the old one.
 
 ### Steps
 
@@ -187,7 +189,7 @@ function AbstractMCMC.step!(
     spl::MetropolisHastings,
     N::Integer,
     ::Nothing;
-    kwargs...
+    kwargs...,
 )
     return Transition(model, spl.init_θ)
 end
@@ -200,29 +202,33 @@ The other `step!` function performs the usual steps from Metropolis-Hastings. In
 several helper functions, `proposal` and `q`, which are designed to replicate the functions
 in the pseudocode above.
 
-- `proposal` generates a new proposal in the form of a `Transition`, which can be
-  univariate if the value passed in is univariate, or it can be multivariate if the
-  `Transition` given is multivariate. Proposals use a basic `Normal` or `MvNormal` proposal
-  distribution.
-- `q` returns the log density of one parameterization conditional on another, according to
-  the proposal distribution.
-- `step!` generates a new proposal, checks the acceptance probability, and then returns
-  either the previous transition or the proposed transition.
+  - `proposal` generates a new proposal in the form of a `Transition`, which can be
+    univariate if the value passed in is univariate, or it can be multivariate if the
+    `Transition` given is multivariate. Proposals use a basic `Normal` or `MvNormal` proposal
+    distribution.
+  - `q` returns the log density of one parameterization conditional on another, according to
+    the proposal distribution.
+  - `step!` generates a new proposal, checks the acceptance probability, and then returns
+    either the previous transition or the proposed transition.
 
 ```julia
 # Define a function that makes a basic proposal depending on a univariate
 # parameterization or a multivariate parameterization.
-propose(spl::MetropolisHastings, model::DensityModel, θ::Real) = 
-    Transition(model, θ + rand(spl.proposal))
-propose(spl::MetropolisHastings, model::DensityModel, θ::Vector{<:Real}) = 
-    Transition(model, θ + rand(spl.proposal))
-propose(spl::MetropolisHastings, model::DensityModel, t::Transition) =
-    propose(spl, model, t.θ)
+function propose(spl::MetropolisHastings, model::DensityModel, θ::Real)
+    return Transition(model, θ + rand(spl.proposal))
+end
+function propose(spl::MetropolisHastings, model::DensityModel, θ::Vector{<:Real})
+    return Transition(model, θ + rand(spl.proposal))
+end
+function propose(spl::MetropolisHastings, model::DensityModel, t::Transition)
+    return propose(spl, model, t.θ)
+end
 
 # Calculates the probability `q(θ|θcond)`, using the proposal distribution `spl.proposal`.
 q(spl::MetropolisHastings, θ::Real, θcond::Real) = logpdf(spl.proposal, θ - θcond)
-q(spl::MetropolisHastings, θ::Vector{<:Real}, θcond::Vector{<:Real}) =
-    logpdf(spl.proposal, θ - θcond)
+function q(spl::MetropolisHastings, θ::Vector{<:Real}, θcond::Vector{<:Real})
+    return logpdf(spl.proposal, θ - θcond)
+end
 q(spl::MetropolisHastings, t1::Transition, t2::Transition) = q(spl, t1.θ, t2.θ)
 
 # Calculate the density of the model given some parameterization.
@@ -238,7 +244,7 @@ function AbstractMCMC.step!(
     spl::MetropolisHastings,
     ::Integer,
     θ_prev::Transition;
-    kwargs...
+    kwargs...,
 )
     # Generate a new proposal.
     θ = propose(spl, model, θ_prev)
@@ -267,21 +273,21 @@ parameter names passed in by the user.
 ```julia
 # A basic chains constructor that works with the Transition struct we defined.
 function AbstractMCMC.bundle_samples(
-    rng::AbstractRNG, 
-    ℓ::DensityModel, 
-    s::MetropolisHastings, 
-    N::Integer, 
+    rng::AbstractRNG,
+    ℓ::DensityModel,
+    s::MetropolisHastings,
+    N::Integer,
     ts::Vector{<:Transition},
     chain_type::Type{Any};
     param_names=missing,
-    kwargs...
+    kwargs...,
 )
     # Turn all the transitions into a vector-of-vectors.
-    vals = copy(reduce(hcat,[vcat(t.θ, t.lp) for t in ts])')
+    vals = copy(reduce(hcat, [vcat(t.θ, t.lp) for t in ts])')
 
     # Check if we received any parameter names.
     if ismissing(param_names)
-        param_names = ["Parameter $i" for i in 1:(length(first(vals))-1)]
+        param_names = ["Parameter $i" for i in 1:(length(first(vals)) - 1)]
     end
 
     # Add the log density field to the parameter names.

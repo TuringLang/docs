@@ -7,13 +7,13 @@ weave_options:
 
 # Overview
 
-In this post we'll have a look at what's known as **variational inference (VI)**, a family of _approximate_ Bayesian inference methods. In particular, we will focus on one of the more standard VI methods called **Automatic Differentiation Variational Inference (ADVI)**. 
+In this post we'll have a look at what's known as **variational inference (VI)**, a family of _approximate_ Bayesian inference methods. In particular, we will focus on one of the more standard VI methods called **Automatic Differentiation Variational Inference (ADVI)**.
 
 Here we'll have a look at the theory behind VI, but if you're interested in how to use ADVI in Turing.jl, [check out this tutorial](../../tutorials/09-variational-inference).
 
 # Motivation
 
-In Bayesian inference one usually specifies a model as follows: given data ``\\{x_i\\}_{i = 1}^n``, 
+In Bayesian inference one usually specifies a model as follows: given data ``\\{x_i\\}_{i = 1}^n``,
 
 ```math
 \begin{align*}
@@ -32,7 +32,7 @@ In general one cannot obtain a closed form expression for ``p(z \mid \\{ x\_i \\
 
 As you are hopefully already aware, Turing.jl provides a lot of different methods with asymptotic exactness guarantees that we can apply to such a problem!
 
-Unfortunately, these unbiased samplers can be prohibitively expensive to run. As the model ``p`` increases in complexity, the convergence of these unbiased samplers can slow down dramatically. Still, in the _infinite_ limit, these methods should converge to the true posterior! But infinity is fairly large, like, _at least_ more than 12, so this might take a while. 
+Unfortunately, these unbiased samplers can be prohibitively expensive to run. As the model ``p`` increases in complexity, the convergence of these unbiased samplers can slow down dramatically. Still, in the _infinite_ limit, these methods should converge to the true posterior! But infinity is fairly large, like, _at least_ more than 12, so this might take a while.
 
 In such a case it might be desirable to sacrifice some of these asymptotic guarantees, and instead _approximate_ the posterior ``p(z \mid \\{ x_i \\}_{i = 1}^n)`` using some other model which we'll denote ``q(z)``.
 
@@ -134,8 +134,9 @@ Also, I fooled you real good: the ELBO _isn't_ an arbitrary name, hah! In fact i
 ## Maximizing the ELBO
 
 Finding the optimal ``q`` over _all_ possible densities of course isn't feasible. Instead we consider a family of _parameterized_ densities ``\mathscr{D}\_{\Theta}`` where ``\Theta`` denotes the space of possible parameters. Each density in this family ``q\_{\theta} \in \mathscr{D}\_{\Theta}`` is parameterized by a unique ``\theta \in \Theta``. Moreover, we'll assume
-1. ``q\_{\theta}(z)``, i.e. evaluating the probability density ``q`` at any point ``z``, is differentiable
-2. ``z \sim q\_{\theta}(z)``, i.e. the process of sampling from ``q\_{\theta}(z)``, is differentiable
+
+ 1. ``q\_{\theta}(z)``, i.e. evaluating the probability density ``q`` at any point ``z``, is differentiable
+ 2. ``z \sim q\_{\theta}(z)``, i.e. the process of sampling from ``q\_{\theta}(z)``, is differentiable
 
 (1) is fairly straight-forward, but (2) is a bit tricky. What does it even mean for a _sampling process_ to be differentiable? This is quite an interesting problem in its own right and would require something like a [50-page paper to properly review the different approaches (highly recommended read)](https://arxiv.org/abs/1906.10652).
 
@@ -154,13 +155,14 @@ With all this nailed down, we eventually reach the section on **Automatic Differ
 ## Automatic Differentiation Variational Inference (ADVI)
 
 So let's revisit the assumptions we've made at this point:
-1. The variational posterior ``q\_{\theta}`` is in a parameterized family of densities denoted ``\mathscr{Q}\_{\Theta}``, with ``\theta \in \Theta``.
-2. ``\mathscr{Q}\_{\Theta}`` is a space of _reparameterizable_ densities with ``\bar{q}(z)`` as the base-density.
-3. The parameterization function ``g\_{\theta}`` is differentiable wrt. ``\theta``.
-4. Evaluation of the probability density ``q\_{\theta}(z)`` is differentiable wrt. ``\theta``.
-5. ``\mathbb{H}\left(q\_{\theta}(z)\right)`` is tractable.
-6. Evaluation of the joint density ``p(x, z)`` is tractable and differentiable wrt. ``z``
-7. The support of ``q(z)`` is a subspace of the support of ``p(z \mid x)`` : ``\mathrm{supp}\left(q(z)\right) \subseteq \mathrm{supp}\left(p(z \mid x)\right)``.
+
+ 1. The variational posterior ``q\_{\theta}`` is in a parameterized family of densities denoted ``\mathscr{Q}\_{\Theta}``, with ``\theta \in \Theta``.
+ 2. ``\mathscr{Q}\_{\Theta}`` is a space of _reparameterizable_ densities with ``\bar{q}(z)`` as the base-density.
+ 3. The parameterization function ``g\_{\theta}`` is differentiable wrt. ``\theta``.
+ 4. Evaluation of the probability density ``q\_{\theta}(z)`` is differentiable wrt. ``\theta``.
+ 5. ``\mathbb{H}\left(q\_{\theta}(z)\right)`` is tractable.
+ 6. Evaluation of the joint density ``p(x, z)`` is tractable and differentiable wrt. ``z``
+ 7. The support of ``q(z)`` is a subspace of the support of ``p(z \mid x)`` : ``\mathrm{supp}\left(q(z)\right) \subseteq \mathrm{supp}\left(p(z \mid x)\right)``.
 
 All of these are not *necessary* to do VI, but they are very convenient and results in a fairly flexible approach. One distribution which has a density satisfying all of the above assumptions _except_ (7) (we'll get back to this in second) for any tractable and differentiable ``p(z \mid \\{ x\_i \\}\_{i = 1}^n)`` is the good ole' Gaussian/normal distribution:
 
@@ -183,6 +185,7 @@ Though not necessary, we'll often make a *mean-field* assumption for the variati
 ```
 
 ### Examples
+
 As a (trivial) example we could apply the approach described above to is the following generative model for ``p(z \mid \\{ x_i \\}\_{i = 1}^n)``:
 
 ```math
@@ -250,7 +253,7 @@ where ``\mathcal{J}_{f^{-1}}(x)`` denotes the jacobian of ``f^{-1}`` evaluted at
 \mathbb{P}\_{\tilde{p}}\left(y \in f^{-1}(A) \right) = \int\_{f^{-1}(A)} \tilde{p}(y) \mathrm{d}y,
 ```
 
-since ``f^{-1}\left(\mathrm{supp} (p(x)) \right) = \mathbb{R}^d `` which has probability 1. This probability distribution has *density* ``\tilde{p}(y)`` with ``\mathrm{supp} \left( \tilde{p}(y) \right) = \mathbb{R}^d``, defined
+since ``f^{-1}\left(\mathrm{supp} (p(x)) \right) = \mathbb{R}^d`` which has probability 1. This probability distribution has *density* ``\tilde{p}(y)`` with ``\mathrm{supp} \left( \tilde{p}(y) \right) = \mathbb{R}^d``, defined
 
 ```math
 \tilde{p}(y) = p \left( f^{-1}(y) \right) \ \left| \det \mathcal{J}\_{f^{-1}}(y) \right|
@@ -298,7 +301,7 @@ If we want to write the ELBO explicitly in terms of ``\eta`` rather than ``z``, 
 \end{align*}
 ```
 
-The entropy is invariant under change of variables, thus ``\mathbb{H} \left(q\_{\mu, \Sigma}(z)\right)`` is simply the entropy of the normal distribution which is known analytically. 
+The entropy is invariant under change of variables, thus ``\mathbb{H} \left(q\_{\mu, \Sigma}(z)\right)`` is simply the entropy of the normal distribution which is known analytically.
 
 Hence, the resulting empirical estimate of the ELBO is
 
@@ -312,4 +315,3 @@ Hence, the resulting empirical estimate of the ELBO is
 And maximizing this wrt. ``\mu`` and ``\Sigma`` is what's referred to as **Automatic Differentiation Variational Inference (ADVI)**!
 
 Now if you want to try it out, [check out the tutorial on how to use ADVI in Turing.jl](../../tutorials/09-variational-inference)!
-

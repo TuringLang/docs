@@ -9,18 +9,13 @@ weave_options:
 
 ## How to Define a Customized Distribution
 
-
 Turing.jl supports the use of distributions from the Distributions.jl package. By extension it also supports the use of customized distributions, by defining them as subtypes of `Distribution` type of the Distributions.jl package, as well as corresponding functions.
-
 
 Below shows a workflow of how to define a customized distribution, using our own implementation of a simple `Uniform` distribution as a simple example.
 
-
 ### 1. Define the Distribution Type
 
-
 First, define a type of the distribution, as a subtype of a corresponding distribution type in the Distributions.jl package.
-
 
 ```julia
 struct CustomUniform <: ContinuousUnivariateDistribution end
@@ -28,9 +23,7 @@ struct CustomUniform <: ContinuousUnivariateDistribution end
 
 ### 2. Implement Sampling and Evaluation of the log-pdf
 
-
 Second, define `rand` and `logpdf`, which will be used to run the model.
-
 
 ```julia
 # sample in [0, 1]
@@ -42,7 +35,6 @@ Distributions.logpdf(d::CustomUniform, x::Real) = zero(x)
 
 ### 3. Define Helper Functions
 
-
 In most cases, it may be required to define some helper functions.
 
 #### 3.1 Domain Transformation
@@ -52,7 +44,7 @@ Certain samplers, such as `HMC`, require the domain of the priors to be unbounde
 To transform from `[0, 1]` to `ℝ` we can use the `Logit` bijector:
 
 ```julia
-Bijectors.bijector(d::CustomUniform) = Logit(0., 1.)
+Bijectors.bijector(d::CustomUniform) = Logit(0.0, 1.0)
 ```
 
 You'd do the exact same thing for `ContinuousMultivariateDistribution` and `ContinuousMatrixDistribution`. For example, `Wishart` defines a distribution over positive-definite matrices and so `bijector` returns a `PDBijector` when called with a `Wishart` distribution as an argument. For discrete distributions, there is no need to define a bijector; the `Identity` bijector is used by default.
@@ -60,20 +52,23 @@ You'd do the exact same thing for `ContinuousMultivariateDistribution` and `Cont
 Alternatively, for `UnivariateDistribution` we can define the `minimum` and `maximum` of the distribution
 
 ```julia
-Distributions.minimum(d::CustomUniform) = 0.
-Distributions.maximum(d::CustomUniform) = 1.
+Distributions.minimum(d::CustomUniform) = 0.0
+Distributions.maximum(d::CustomUniform) = 1.0
 ```
 
 and `Bijectors.jl` will return a default `Bijector` called `TruncatedBijector` which makes use of `minimum` and `maximum` derive the correct transformation.
 
 Internally, Turing basically does the following when it needs to convert a constrained distribution to an unconstrained distribution, e.g. when sampling using `HMC`:
+
 ```julia
 b = bijector(dist)
 transformed_dist = transformed(dist, b) # results in distribution with transformed support + correction for logpdf
 ```
+
 and then we can call `rand` and `logpdf` as usual, where
-- `rand(transformed_dist)` returns a sample in the unconstrained space, and
-- `logpdf(transformed_dist, y)` returns the log density of the original distribution, but with `y` living in the unconstrained space.
+
+  - `rand(transformed_dist)` returns a sample in the unconstrained space, and
+  - `logpdf(transformed_dist, y)` returns the log density of the original distribution, but with `y` living in the unconstrained space.
 
 To read more about Bijectors.jl, check out [the project README](https://github.com/TuringLang/Bijectors.jl).
 
@@ -107,11 +102,11 @@ using LinearAlgebra
     if dot(m, x) < 0
         Turing.@addlogprob! -Inf
         # Exit the model evaluation early
-        return
+        return nothing
     end
 
     x ~ MvNormal(m, I)
-    return
+    return nothing
 end
 ```
 
@@ -129,7 +124,6 @@ end
 
 ## Model Internals
 
-
 The `@model` macro accepts a function definition and rewrites it such that call of the function generates a `Model` struct for use by the sampler.
 Models can be constructed by hand without the use of a macro.
 Taking the `gdemo` model as an example, the macro-based definition
@@ -138,12 +132,12 @@ Taking the `gdemo` model as an example, the macro-based definition
 using Turing
 
 @model function gdemo(x)
-  # Set priors.
-  s² ~ InverseGamma(2, 3)
-  m ~ Normal(0, sqrt(s²))
+    # Set priors.
+    s² ~ InverseGamma(2, 3)
+    m ~ Normal(0, sqrt(s²))
 
-  # Observe each value of x.
-  @. x ~ Normal(m, sqrt(s²))
+    # Observe each value of x.
+    @. x ~ Normal(m, sqrt(s²))
 end
 
 model = gdemo([1.5, 2.0])
@@ -158,22 +152,18 @@ using Turing
 function gdemo(model, varinfo, context, x)
     # Assume s² has an InverseGamma distribution.
     s², varinfo = DynamicPPL.tilde_assume!!(
-        context,
-        InverseGamma(2, 3),
-        Turing.@varname(s²),
-        varinfo,
+        context, InverseGamma(2, 3), Turing.@varname(s²), varinfo
     )
 
     # Assume m has a Normal distribution.
     m, varinfo = DynamicPPL.tilde_assume!!(
-        context,
-        Normal(0, sqrt(s²)),
-        Turing.@varname(m),
-        varinfo,
+        context, Normal(0, sqrt(s²)), Turing.@varname(m), varinfo
     )
 
     # Observe each value of x[i] according to a Normal distribution.
-    DynamicPPL.dot_tilde_observe!!(context, Normal(m, sqrt(s²)), x, Turing.@varname(x), varinfo)
+    return DynamicPPL.dot_tilde_observe!!(
+        context, Normal(m, sqrt(s²)), x, Turing.@varname(x), varinfo
+    )
 end
 gdemo(x) = Turing.Model(gdemo, (; x))
 

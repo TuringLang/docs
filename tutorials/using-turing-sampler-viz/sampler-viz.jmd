@@ -21,9 +21,7 @@ ENV["GKS_ENCODING"] = "utf-8" # Allows the use of unicode characters in Plots.jl
 using Plots
 using StatsPlots
 using Turing
-using Bijectors
 using Random
-using DynamicPPL: getlogp, settrans!, getval, reconstruct, vectorize, setval!
 
 # Set a seed.
 Random.seed!(0)
@@ -45,25 +43,9 @@ x = [1.5, 2.0, 13.0, 2.1, 0.0]
 
 # Set up the model call, sample from the prior.
 model = gdemo(x)
-vi = Turing.VarInfo(model)
-
-# Convert the variance parameter to the real line before sampling.
-# Note: We only have to do this here because we are being very hands-on.
-# Turing will handle all of this for you during normal sampling.
-dist = InverseGamma(2, 3)
-svn = vi.metadata.s².vns[1]
-mvn = vi.metadata.m.vns[1]
-setval!(vi, vectorize(dist, Bijectors.link(dist, reconstruct(dist, getval(vi, svn)))), svn)
-settrans!(vi, true, svn)
 
 # Evaluate surface at coordinates.
-function evaluate(m1, m2)
-    spl = Turing.SampleFromPrior()
-    vi[svn] = [m1]
-    vi[mvn] = [m2]
-    model(vi, spl)
-    return getlogp(vi)
-end
+evaluate(m1, m2) = logjoint(model, (m=m2, s²=m1))
 
 function plot_sampler(chain; label="")
     # Extract values from chain.
@@ -125,7 +107,7 @@ end;
 Gibbs sampling tends to exhibit a "jittery" trajectory. The example below combines `HMC` and `PG` sampling to traverse the posterior.
 
 ```julia
-c = sample(model, Gibbs(HMC(0.01, 5, :s), PG(20, :m)), 1000)
+c = sample(model, Gibbs(HMC(0.01, 5, :s²), PG(20, :m)), 1000)
 plot_sampler(c)
 ```
 

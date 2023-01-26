@@ -7,28 +7,21 @@ weave_options:
 
 # Guide
 
-
 ## Basics
-
 
 ### Introduction
 
-A probabilistic program is Julia code wrapped in a `@model` macro. It can use arbitrary Julia code, but to ensure correctness of inference it should not have external effects or modify global state. Stack-allocated variables are safe, but mutable heap-allocated objects may lead to subtle bugs when using task copying. By default Libtask deepcopies `Array` and `Dict` objects when copying task to avoid bugs with data stored in mutable structure in Turing models. 
-
+A probabilistic program is Julia code wrapped in a `@model` macro. It can use arbitrary Julia code, but to ensure correctness of inference it should not have external effects or modify global state. Stack-allocated variables are safe, but mutable heap-allocated objects may lead to subtle bugs when using task copying. By default Libtask deepcopies `Array` and `Dict` objects when copying task to avoid bugs with data stored in mutable structure in Turing models.
 
 To specify distributions of random variables, Turing programs should use the `~` notation:
 
-
 `x ~ distr` where `x` is a symbol and `distr` is a distribution. If `x` is undefined in the model function, inside the probabilistic program, this puts a random variable named `x`, distributed according to `distr`, in the current scope. `distr` can be a value of any type that implements `rand(distr)`, which samples a value from the distribution `distr`. If `x` is defined, this is used for conditioning in a style similar to [Anglican](https://probprog.github.io/anglican/index.html) (another PPL). In this case, `x` is an observed value, assumed to have been drawn from the distribution `distr`. The likelihood is computed using `logpdf(distr,y)`. The observe statements should be arranged so that every possible run traverses all of them in exactly the same order. This is equivalent to demanding that they are not placed inside stochastic control flow.
 
-
 Available inference methods include Importance Sampling (IS), Sequential Monte Carlo (SMC), Particle Gibbs (PG), Hamiltonian Monte Carlo (HMC), Hamiltonian Monte Carlo with Dual Averaging (HMCDA) and The No-U-Turn Sampler (NUTS).
-
 
 ### Simple Gaussian Demo
 
 Below is a simple Gaussian demo illustrate the basic usage of Turing.jl.
-
 
 ```julia
 # Import packages.
@@ -40,10 +33,9 @@ using StatsPlots
     s² ~ InverseGamma(2, 3)
     m ~ Normal(0, sqrt(s²))
     x ~ Normal(m, sqrt(s²))
-    y ~ Normal(m, sqrt(s²))
+    return y ~ Normal(m, sqrt(s²))
 end
 ```
-
 
 Note: As a sanity check, the prior expectation of `s²` is `mean(InverseGamma(2, 3)) = 3/(2 - 1) = 3` and the prior expectation of `m` is 0. This can be easily checked using `Prior`:
 
@@ -51,10 +43,7 @@ Note: As a sanity check, the prior expectation of `s²` is `mean(InverseGamma(2,
 p1 = sample(gdemo(missing, missing), Prior(), 100000)
 ```
 
-
-
-We can perform inference by using the `sample` function, the first argument of which is our probabilistic program and the second of which is a sampler. More information on each sampler is located in the [API]({{site.baseurl}}/docs/library).
-
+We can perform inference by using the `sample` function, the first argument of which is our probabilistic program and the second of which is a sampler. More information on each sampler is located in the [API](%7B%7Bsite.baseurl%7D%7D/docs/library).
 
 ```julia
 #  Run sampler, collect results.
@@ -66,9 +55,7 @@ c5 = sample(gdemo(1.5, 2), HMCDA(0.15, 0.65), 1000)
 c6 = sample(gdemo(1.5, 2), NUTS(0.65), 1000)
 ```
 
-
 The `MCMCChains` module (which is re-exported by Turing) provides plotting tools for the `Chain` objects returned by a `sample` function. See the [MCMCChains](https://github.com/TuringLang/MCMCChains.jl) repository for more information on the suite of tools available for diagnosing MCMC chains.
-
 
 ```julia
 # Summarise results
@@ -79,61 +66,47 @@ plot(c3)
 savefig("gdemo-plot.png")
 ```
 
-
 The arguments for each sampler are:
 
+  - SMC: number of particles.
+  - PG: number of particles, number of iterations.
+  - HMC: leapfrog step size, leapfrog step numbers.
+  - Gibbs: component sampler 1, component sampler 2, ...
+  - HMCDA: total leapfrog length, target accept ratio.
+  - NUTS: number of adaptation steps (optional), target accept ratio.
 
-  * SMC: number of particles.
-  * PG: number of particles, number of iterations.
-  * HMC: leapfrog step size, leapfrog step numbers.
-  * Gibbs: component sampler 1, component sampler 2, ...
-  * HMCDA: total leapfrog length, target accept ratio.
-  * NUTS: number of adaptation steps (optional), target accept ratio.
-
-
-For detailed information on the samplers, please review Turing.jl's [API]({{site.baseurl}}/docs/library) documentation.
-
+For detailed information on the samplers, please review Turing.jl's [API](%7B%7Bsite.baseurl%7D%7D/docs/library) documentation.
 
 ### Modelling Syntax Explained
 
-
 Using this syntax, a probabilistic model is defined in Turing. The model function generated by Turing can then be used to condition the model onto data. Subsequently, the sample function can be used to generate samples from the posterior distribution.
-
 
 In the following example, the defined model is conditioned to the data (arg*1 = 1, arg*2 = 2) by passing (1, 2) to the model function.
 
-
 ```julia
 @model function model_name(arg_1, arg_2)
-  ...
+    return ...
 end
 ```
 
-
 The conditioned model can then be passed onto the sample function to run posterior inference.
-
 
 ```julia
 model_func = model_name(1, 2)
 chn = sample(model_func, HMC(..)) # Perform inference by sampling using HMC.
 ```
 
-
 The returned chain contains samples of the variables in the model.
-
 
 ```julia
 var_1 = mean(chn[:var_1]) # Taking the mean of a variable named var_1.
 ```
 
-
 The key (`:var_1`) can be a `Symbol` or a `String`. For example, to fetch `x[1]`, one can use `chn[Symbol("x[1]")]` or `chn["x[1]"]`.
 If you want to retrieve all parameters associated with a specific symbol, you can use `group`. As an example, if you have the
 parameters `"x[1]"`, `"x[2]"`, and `"x[3]"`, calling `group(chn, :x)` or `group(chn, "x")` will return a new chain with only `"x[1]"`, `"x[2]"`, and `"x[3]"`.
 
-
 Turing does not have a declarative form. More generally, the order in which you place the lines of a `@model` macro matters. For example, the following example works:
-
 
 ```julia
 # Define a simple Normal model with unknown mean and variance.
@@ -145,11 +118,9 @@ end
 
 sample(model_function(10), SMC(), 100)
 ```
-
 
 But if we switch the `s ~ Poisson(1)` and `y ~ Normal(s, 1)` lines, the model will no longer sample correctly:
 
-
 ```julia
 # Define a simple Normal model with unknown mean and variance.
 @model function model_function(y)
@@ -160,8 +131,6 @@ end
 
 sample(model_function(10), SMC(), 100)
 ```
-
-
 
 ### Sampling Multiple Chains
 
@@ -251,7 +220,6 @@ chain = sample(model, Prior(), n_samples)
 
 You can also run your model (as if it were a function) from the prior distribution, by calling the model without specifying inputs or a sampler. In the below example, we specify a `gdemo` model which returns two variables, `x` and `y`. The model includes `x` and `y` as arguments, but calling the function without passing in `x` or `y` means that Turing's compiler will assume they are missing values to draw from the relevant distribution. The `return` statement is necessary to retrieve the sampled `x` and `y` values.
 
-
 ```julia
 @model function gdemo(x, y)
     s² ~ InverseGamma(2, 3)
@@ -262,9 +230,7 @@ You can also run your model (as if it were a function) from the prior distributi
 end
 ```
 
-
 Assign the function with `missing` inputs to a variable, and Turing will produce a sample from the prior distribution.
-
 
 ```julia
 # Samples from p(x,y)
@@ -272,26 +238,20 @@ g_prior_sample = gdemo(missing, missing)
 g_prior_sample()
 ```
 
-
 Output:
-
 
 ```
 (0.685690547873451, -1.1972706455914328)
 ```
 
-
 ### Sampling from a Conditional Distribution (The Posterior)
-
 
 #### Treating observations as random variables
 
-
 Inputs to the model that have a value `missing` are treated as parameters, aka random variables, to be estimated/sampled. This can be useful if you want to simulate draws for that parameter, or if you are sampling from a conditional distribution. Turing supports the following syntax:
 
-
 ```julia
-@model function gdemo(x, ::Type{T} = Float64) where {T}
+@model function gdemo(x, ::Type{T}=Float64) where {T}
     if x === missing
         # Initialize `x` if missing
         x = Vector{T}(undef, 2)
@@ -310,9 +270,7 @@ c = sample(model, HMC(0.01, 5), 500)
 
 Note the need to initialize `x` when missing since we are iterating over its elements later in the model. The generated values for `x` can be extracted from the `Chains` object using `c[:x]`.
 
-
 Turing also supports mixed `missing` and non-`missing` values in `x`, where the missing ones will be treated as random variables to be sampled while the others get treated as observations. For example:
-
 
 ```julia
 @model function gdemo(x)
@@ -328,16 +286,14 @@ model = gdemo([missing, 2.4])
 c = sample(model, HMC(0.01, 5), 500)
 ```
 
-
 #### Default Values
-
 
 Arguments to Turing models can have default values much like how default values work in normal Julia functions. For instance, the following will assign `missing` to `x` and treat it as a random variable. If the default value is not `missing`, `x` will be assigned that value and will be treated as an observation instead.
 
 ```julia
 using Turing
 
-@model function generative(x = missing, ::Type{T} = Float64) where {T <: Real}
+@model function generative(x=missing, ::Type{T}=Float64) where {T<:Real}
     if x === missing
         # Initialize x when missing
         x = Vector{T}(undef, 10)
@@ -354,41 +310,38 @@ m = generative()
 chain = sample(m, HMC(0.01, 5), 1000)
 ```
 
-
 #### Access Values inside Chain
-
 
 You can access the values inside a chain several ways:
 
-1. Turn them into a `DataFrame` object
-2. Use their raw `AxisArray` form
-3. Create a three-dimensional `Array` object
+ 1. Turn them into a `DataFrame` object
+ 2. Use their raw `AxisArray` form
+ 3. Create a three-dimensional `Array` object
 
 For example, let `c` be a `Chain`:
-1. `DataFrame(c)` converts `c` to a `DataFrame`,
-2. `c.value` retrieves the values inside `c` as an `AxisArray`, and
-3. `c.value.data` retrieves the values inside `c` as a 3D `Array`.
 
+ 1. `DataFrame(c)` converts `c` to a `DataFrame`,
+ 2. `c.value` retrieves the values inside `c` as an `AxisArray`, and
+ 3. `c.value.data` retrieves the values inside `c` as a 3D `Array`.
 
 #### Variable Types and Type Parameters
 
-
 The element type of a vector (or matrix) of random variables should match the `eltype` of the its prior distribution, `<: Integer` for discrete distributions and `<: AbstractFloat` for continuous distributions. Moreover, if the continuous random variable is to be sampled using a Hamiltonian sampler, the vector's element type needs to either be:
-    1. `Real` to enable auto-differentiation through the model which uses special number types that are sub-types of `Real`, or
-    2. Some type parameter `T` defined in the model header using the type parameter syntax, e.g. `function gdemo(x, ::Type{T} = Float64) where {T}`.
+1. `Real` to enable auto-differentiation through the model which uses special number types that are sub-types of `Real`, or
+2. Some type parameter `T` defined in the model header using the type parameter syntax, e.g. `function gdemo(x, ::Type{T} = Float64) where {T}`.
 Similarly, when using a particle sampler, the Julia variable used should either be:
-    1. An `Array`, or
-    2. An instance of some type parameter `T` defined in the model header using the type parameter syntax, e.g. `function gdemo(x, ::Type{T} = Vector{Float64}) where {T}`.
-
+1. An `Array`, or
+2. An instance of some type parameter `T` defined in the model header using the type parameter syntax, e.g. `function gdemo(x, ::Type{T} = Vector{Float64}) where {T}`.
 
 ### Querying Probabilities from Model or Chain
 
 Consider first the following simplified `gdemo` model:
+
 ```julia
 @model function gdemo0(x)
     s ~ InverseGamma(2, 3)
     m ~ Normal(0, sqrt(s))
-    x ~ Normal(m, sqrt(s))
+    return x ~ Normal(m, sqrt(s))
 end
 
 # Instantiate three models, with different value of x
@@ -398,6 +351,7 @@ model10 = gdemo0(10)
 ```
 
 Now, query the instantiated models: compute the likelihood of `x = 1.0` given the values of `s = 1.0` and `m = 1.0` for the parameters:
+
 ```julia
 prob"x = 1.0 | model = model1, s = 1.0, m = 1.0"
 prob"x = 1.0 | model = model4, s = 1.0, m = 1.0"
@@ -410,14 +364,14 @@ Notice that even if we use three models, instantiated with three different value
 pdf(Normal(1.0, 1.0), 1.0)
 ```
 
-
 Let us now consider the following `gdemo` model:
+
 ```julia
 @model function gdemo(x, y)
     s² ~ InverseGamma(2, 3)
     m ~ Normal(0, sqrt(s²))
     x ~ Normal(m, sqrt(s²))
-    y ~ Normal(m, sqrt(s²))
+    return y ~ Normal(m, sqrt(s²))
 end
 
 # Instantiate the model.
@@ -426,20 +380,15 @@ model = gdemo(2.0, 4.0)
 
 The following are examples of valid queries of the `Turing` model or chain:
 
-- `prob"x = 1.0, y = 1.0 | model = model, s = 1.0, m = 1.0"` calculates the likelihood of `x = 1` and `y = 1` given `s = 1` and `m = 1`.
+  - `prob"x = 1.0, y = 1.0 | model = model, s = 1.0, m = 1.0"` calculates the likelihood of `x = 1` and `y = 1` given `s = 1` and `m = 1`.
 
-- `prob"s² = 1.0, m = 1.0 | model = model, x = nothing, y = nothing"` calculates the joint probability of `s = 1` and `m = 1` ignoring `x` and `y`. `x` and `y` are ignored so they can be optionally dropped from the RHS of `|`, but it is recommended to define them.
-
-- `prob"s² = 1.0, m = 1.0, x = 1.0 | model = model, y = nothing"` calculates the joint probability of `s = 1`, `m = 1` and `x = 1` ignoring `y`.
-
-- `prob"s² = 1.0, m = 1.0, x = 1.0, y = 1.0 | model = model"` calculates the joint probability of all the variables.
-
-- After the MCMC sampling, given a `chain`, `prob"x = 1.0, y = 1.0 | chain = chain, model = model"` calculates the element-wise likelihood of `x = 1.0` and `y = 1.0` for each sample in `chain`.
-
-- If `save_state=true` was used during sampling (i.e., `sample(model, sampler, N; save_state=true)`), you can simply do `prob"x = 1.0, y = 1.0 | chain = chain"`.
+  - `prob"s² = 1.0, m = 1.0 | model = model, x = nothing, y = nothing"` calculates the joint probability of `s = 1` and `m = 1` ignoring `x` and `y`. `x` and `y` are ignored so they can be optionally dropped from the RHS of `|`, but it is recommended to define them.
+  - `prob"s² = 1.0, m = 1.0, x = 1.0 | model = model, y = nothing"` calculates the joint probability of `s = 1`, `m = 1` and `x = 1` ignoring `y`.
+  - `prob"s² = 1.0, m = 1.0, x = 1.0, y = 1.0 | model = model"` calculates the joint probability of all the variables.
+  - After the MCMC sampling, given a `chain`, `prob"x = 1.0, y = 1.0 | chain = chain, model = model"` calculates the element-wise likelihood of `x = 1.0` and `y = 1.0` for each sample in `chain`.
+  - If `save_state=true` was used during sampling (i.e., `sample(model, sampler, N; save_state=true)`), you can simply do `prob"x = 1.0, y = 1.0 | chain = chain"`.
 
 In all the above cases, `logprob` can be used instead of `prob` to calculate the log probabilities instead.
-
 
 ### Maximum likelihood and maximum a posterior estimates
 
@@ -508,7 +457,9 @@ Some methods may have trouble calculating the mode because not enough iterations
 
 ```julia
 # Increase the iterations and allow function eval to increase between calls.
-mle_estimate = optimize(model, MLE(), Newton(), Optim.Options(iterations=10_000, allow_f_increases=true))
+mle_estimate = optimize(
+    model, MLE(), Newton(), Optim.Options(; iterations=10_000, allow_f_increases=true)
+)
 ```
 
 More options for Optim are available [here](https://julianlsolvers.github.io/Optim.jl/stable/#user/config/).
@@ -527,7 +478,7 @@ using StatsBase
 coeftable(mle_estimate)
 ```
 
-```julia
+```
 ─────────────────────────────
    estimate  stderror   tstat
 ─────────────────────────────
@@ -547,17 +498,14 @@ You can begin sampling your chain from an MLE/MAP estimate by extracting the vec
 map_estimate = optimize(model, MAP())
 
 # Sample with the MAP estimate as the starting point.
-chain = sample(model, NUTS(), 1_000, init_params = map_estimate.values.array)
+chain = sample(model, NUTS(), 1_000; init_params=map_estimate.values.array)
 ```
 
 ## Beyond the Basics
 
-
 ### Compositional Sampling Using Gibbs
 
-
 Turing.jl provides a Gibbs interface to combine different samplers. For example, one can combine an `HMC` sampler with a `PG` sampler to run inference for different parameters in a single model as below.
-
 
 ```julia
 @model function simple_choice(xs)
@@ -577,9 +525,7 @@ simple_choice_f = simple_choice([1.5, 2.0, 0.3])
 chn = sample(simple_choice_f, Gibbs(HMC(0.2, 3, :p), PG(20, :z)), 1000)
 ```
 
-
-The `Gibbs` sampler can be used to specify unique automatic differentiation backends for different variable spaces. Please see the [Automatic Differentiation]({{site.baseurl}}/docs/using-turing/autodiff) article for more.
-
+The `Gibbs` sampler can be used to specify unique automatic differentiation backends for different variable spaces. Please see the [Automatic Differentiation](%7B%7Bsite.baseurl%7D%7D/docs/using-turing/autodiff) article for more.
 
 For more details of compositional sampling in Turing.jl, please check the corresponding [paper](http://proceedings.mlr.press/v84/ge18b.html).
 
@@ -596,10 +542,10 @@ Example usage:
 
 ```julia
 @model function demo(x, g)
-  k = length(unique(g))
-  a ~ filldist(Exponential(), k) # = Product(fill(Exponential(), k))
-  mu = a[g]
-  x .~ Normal.(mu)
+    k = length(unique(g))
+    a ~ filldist(Exponential(), k) # = Product(fill(Exponential(), k))
+    mu = a[g]
+    return x .~ Normal.(mu)
 end
 ```
 
@@ -612,46 +558,37 @@ Example usage:
 
 ```julia
 @model function demo(x, g)
-  k = length(unique(g))
-  a ~ arraydist([Exponential(i) for i in 1:k])
-  mu = a[g]
-  x .~ Normal.(mu)
+    k = length(unique(g))
+    a ~ arraydist([Exponential(i) for i in 1:k])
+    mu = a[g]
+    return x .~ Normal.(mu)
 end
 ```
 
 ### Working with MCMCChains.jl
 
-
 Turing.jl wraps its samples using `MCMCChains.Chain` so that all the functions working for `MCMCChains.Chain` can be re-used in Turing.jl. Two typical functions are `MCMCChains.describe` and `MCMCChains.plot`, which can be used as follows for an obtained chain `chn`. For more information on `MCMCChains`, please see the [GitHub repository](https://github.com/TuringLang/MCMCChains.jl).
-
 
 ```julia
 describe(chn) # Lists statistics of the samples.
 plot(chn) # Plots statistics of the samples.
 ```
 
-
 There are numerous functions in addition to `describe` and `plot` in the `MCMCChains` package, such as those used in convergence diagnostics. For more information on the package, please see the [GitHub repository](https://github.com/TuringLang/MCMCChains.jl).
-
 
 ### Changing Default Settings
 
-
 Some of Turing.jl's default settings can be changed for better usage.
 
-
 #### AD Chunk Size
-
 
 ForwardDiff (Turing's default AD backend) uses forward-mode chunk-wise AD. The chunk size can be set manually by `setchunksize(new_chunk_size)`.
 
 #### AD Backend
 
-
 Turing supports four packages of automatic differentiation (AD) in the back end during sampling. The default AD backend is [ForwardDiff](https://github.com/JuliaDiff/ForwardDiff.jl) for forward-mode AD. Three reverse-mode AD backends are also supported, namely [Tracker](https://github.com/FluxML/Tracker.jl), [Zygote](https://github.com/FluxML/Zygote.jl) and [ReverseDiff](https://github.com/JuliaDiff/ReverseDiff.jl). `Zygote` and `ReverseDiff` are supported optionally if explicitly loaded by the user with `using Zygote` or `using ReverseDiff` next to `using Turing`.
 
-For more information on Turing's automatic differentiation backend, please see the [Automatic Differentiation]({{site.baseurl}}/docs/using-turing/autodiff) article.
-
+For more information on Turing's automatic differentiation backend, please see the [Automatic Differentiation](%7B%7Bsite.baseurl%7D%7D/docs/using-turing/autodiff) article.
 
 #### Progress Logging
 
@@ -668,4 +605,3 @@ In all other cases progress logs are displayed with
 [TerminalLoggers.jl](https://github.com/c42f/TerminalLoggers.jl). Alternatively,
 if you provide a custom visualization backend, Turing uses it instead of the
 default backend.
-

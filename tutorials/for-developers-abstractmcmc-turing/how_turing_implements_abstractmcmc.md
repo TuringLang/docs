@@ -267,6 +267,7 @@ We focus on the AbstractMCMC functions that are overridden in `is.jl` and execut
   - During the ``i``-th iteration, `step!` does 3 things:
     
       + `empty!!(spl.state.vi)`: remove information about the previous sample from the sampler's `VarInfo`
+    
       + `model(rng, spl.state.vi, spl)`: call the model evaluation function
         
           * calls to `assume` add the samples from the prior ``s_i`` and ``m_i`` to `spl.state.vi`

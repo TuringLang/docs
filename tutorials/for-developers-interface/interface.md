@@ -154,6 +154,7 @@ need, but we need to implement the `step!` function which actually performs infe
 As a refresher, Metropolis-Hastings implements a very basic algorithm:
 
  1. Pick some initial state, ``\theta_0``.
+
  2. For ``t`` in ``[1,N],`` do
     
       + Generate a proposal parameterization ``\theta^\prime_t \sim q(\theta^\prime_t \mid \theta_{t-1}).``

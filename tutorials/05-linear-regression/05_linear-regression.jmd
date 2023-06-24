@@ -132,7 +132,7 @@ With our model specified, we can call the sampler. We will use the No U-Turn Sam
 
 ```julia
 model = linear_regression(train, train_target)
-chain = sample(model, NUTS(), 3_000)
+chain = sample(model, NUTS(), 5_000)
 ```
 
 We can also check the densities and traces of the parameters visually using the `plot` functionality.
@@ -142,6 +142,15 @@ plot(chain)
 ```
 
 It looks like all parameters have converged.
+
+```julia; echo=false
+let
+    ess_df = ess(chain)
+    @assert minimum(ess_df[:, :ess]) > 750
+    @assert mean(ess_df[:, :ess]) > 2_000
+    @assert maximum(ess_df[:, :ess]) > 4_000
+end
+```
 
 ## Comparing to OLS
 
@@ -165,7 +174,7 @@ test_prediction_ols = GLM.predict(ols, test_with_intercept)
 StatsBase.reconstruct!(dt_targets, test_prediction_ols);
 ```
 
-The function below accepts a chain and an input matrix and calculates predictions. We use the samples of the model parameters in the chain starting with sample 200, which is where the warm-up period for the NUTS sampler ended.
+The function below accepts a chain and an input matrix and calculates predictions. We use the samples of the model parameters in the chain starting with sample 200.
 
 ```julia
 # Make a prediction given an input vector.
@@ -218,9 +227,11 @@ let
     bayes_train_loss = msd(train_prediction_bayes, trainset[!, target])
     bayes_test_loss = msd(test_prediction_bayes, testset[!, target])
     ols_train_loss = msd(train_prediction_ols, trainset[!, target])
-    @assert bayes_train_loss < 5.5
-    @assert bayes_test_loss < 15.5
-    @assert isapprox(bayes_train_loss, ols_train_loss; atol=1)
+    ols_test_loss = msd(test_prediction_ols, testset[!, target])
+    @assert bayes_train_loss < bayes_test_loss
+    @assert ols_train_loss < ols_test_loss
+    @assert isapprox(bayes_train_loss, ols_train_loss; rtol=0.01)
+    @assert isapprox(bayes_test_loss, ols_test_loss; rtol=0.05)
 end
 ```
 

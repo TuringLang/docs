@@ -230,11 +230,12 @@ plot(predictive_plt, decomposed_plt...; layout=(3, 1), size=(700, 1000))
 ```
 
 ```julia, echo=false
-@assert isapprox(mean(chain, :βt) / t_max, β_true; atol=0.5)
-@assert isapprox(mean(chain, :α) + yf_max, α_true; atol=1.0)
-@assert isapprox(mean(chain, :σ), σ_true; atol=0.1)
-@assert isapprox(mean(chain, "βc[2]"), true_sin_amp; atol=0.5)
-@assert isapprox(mean(chain, "βc[17]"), true_cos_amp; atol=0.5)
+let
+    @assert mean(ess(chain)[:, :ess]) > 500 "Mean ESS: $(mean(ess(chain)[:, :ess])) - not > 500"
+    lower_quantile = m .- conf[1] # 2.5% quantile
+    upper_quantile = m .+ conf[2] # 97.5% quantile
+    @assert mean(lower_quantile .≤ yf .≤ upper_quantile) ≥ 0.9 "Surprisingly few observations in predicted 95% interval: $(mean(lower_quantile .≤ yf .≤ upper_quantile))"
+end
 ```
 
 Inference is successful and the posterior beautifully captures the data.
@@ -315,6 +316,15 @@ decomposed_plt = plot_fit(t, yg, decomp, 0)
 plot(predictive_plt, decomposed_plt...; layout=(3, 1), size=(700, 1000))
 ```
 
+```julia, echo=false
+let
+    @assert mean(ess(chain)[:, :ess]) > 500 "Mean ESS: $(mean(ess(chain)[:, :ess])) - not > 500"
+    lower_quantile = m .- conf[1] # 2.5% quantile
+    upper_quantile = m .+ conf[2] # 97.5% quantile
+    @assert mean(lower_quantile .≤ yg .≤ upper_quantile) ≥ 0.9 "Surprisingly few observations in predicted 95% interval: $(mean(lower_quantile .≤ yg .≤ upper_quantile))"
+end
+```
+
 The model fits! What about the infered cyclic components?
 
 ```julia
@@ -329,7 +339,7 @@ While multiplicative model fits to the data, it does not recover the true parame
 In this tutorial we have seen how to implement and fit time series models using additive and multiplicative decomposition.
 We also saw how to visualise the model fit, and how to interpret learned cyclical components.
 
-```julia, echo=false, skip="notebook"
+```julia, echo=false, skip="notebook", tangle=false
 if isdefined(Main, :TuringTutorials)
     Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
 end

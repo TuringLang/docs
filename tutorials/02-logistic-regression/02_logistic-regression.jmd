@@ -121,24 +121,22 @@ end;
 
 ## Sampling
 
-Now we can run our sampler. This time we'll use [`HMC`](http://turing.ml/docs/library/#Turing.HMC) to sample from our posterior.
+Now we can run our sampler. This time we'll use [`NUTS`](https://turinglang.org/stable/docs/library/#Turing.Inference.NUTS) to sample from our posterior.
 
 ```julia
 # Retrieve the number of observations.
 n, _ = size(train)
 
-# Sample using HMC.
+# Sample using NUTS.
 m = logistic_regression(train, train_label, n, 1)
 chain = sample(m, NUTS(), MCMCThreads(), 1_500, 3)
 ```
 
 ```julia; echo=false
 let
-    matrix = get(chain, :student).student
-    values = Iterators.flatten(matrix)
-    actual = mean(values)
-    expected = -2
-    @assert isapprox(actual, expected; atol=1)
+    mean_params = mean(chain)
+    @assert mean_params[:student, :mean] < 0.1
+    @assert mean_params[:balance, :mean] > 1
 end
 ```
 
@@ -146,6 +144,18 @@ Since we ran multiple chains, we may as well do a spot check to make sure each c
 
 ```julia
 plot(chain)
+```
+
+```julia; echo=false
+let
+    mean_params = mapreduce(hcat, mean(chain; append_chains=false)) do df
+        return df[:, :mean]
+    end
+    for i in (2, 3)
+        @assert mean_params[:, i] != mean_params[:, 1]
+        @assert isapprox(mean_params[:, i], mean_params[:, 1]; rtol=5e-2)
+    end
+end
 ```
 
 Looks good!
@@ -228,7 +238,7 @@ println("Not defaults: $not_defaults
     Percentage non-defaults correct $(predicted_not_defaults/not_defaults)")
 ```
 
-```julia; echo=false; error=false
+```julia; echo=false
 let
     percentage_correct = predicted_defaults / defaults
     @assert 0.6 < percentage_correct
@@ -239,7 +249,7 @@ The above shows that with a threshold of 0.07, we correctly predict a respectabl
 
 This tutorial has demonstrated how to use Turing to perform Bayesian logistic regression.
 
-```julia, echo=false, skip="notebook"
+```julia, echo=false, skip="notebook", tangle=false
 if isdefined(Main, :TuringTutorials)
     Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
 end

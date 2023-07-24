@@ -128,11 +128,11 @@ Lastly, each observation $y_i$ is distributed according to the calculated `mu` t
 end
 ```
 
-With our model specified, we can call the sampler. We will use the No U-Turn Sampler ([NUTS](http://turing.ml/docs/library/#-turingnuts--type)) here.
+With our model specified, we can call the sampler. We will use the No U-Turn Sampler ([NUTS](https://turinglang.org/stable/docs/library/#Turing.Inference.NUTS)) here.
 
 ```julia
 model = linear_regression(train, train_target)
-chain = sample(model, NUTS(), 3_000)
+chain = sample(model, NUTS(), 5_000)
 ```
 
 We can also check the densities and traces of the parameters visually using the `plot` functionality.
@@ -142,6 +142,15 @@ plot(chain)
 ```
 
 It looks like all parameters have converged.
+
+```julia; echo=false
+let
+    ess_df = ess(chain)
+    @assert minimum(ess_df[:, :ess]) > 500 "Minimum ESS: $(minimum(ess_df[:, :ess])) - not > 700"
+    @assert mean(ess_df[:, :ess]) > 2_000 "Mean ESS: $(mean(ess_df[:, :ess])) - not > 2000"
+    @assert maximum(ess_df[:, :ess]) > 3_500 "Maximum ESS: $(maximum(ess_df[:, :ess])) - not > 3500"
+end
+```
 
 ## Comparing to OLS
 
@@ -165,7 +174,7 @@ test_prediction_ols = GLM.predict(ols, test_with_intercept)
 StatsBase.reconstruct!(dt_targets, test_prediction_ols);
 ```
 
-The function below accepts a chain and an input matrix and calculates predictions. We use the samples of the model parameters in the chain starting with sample 200, which is where the warm-up period for the NUTS sampler ended.
+The function below accepts a chain and an input matrix and calculates predictions. We use the samples of the model parameters in the chain starting with sample 200.
 
 ```julia
 # Make a prediction given an input vector.
@@ -218,15 +227,17 @@ let
     bayes_train_loss = msd(train_prediction_bayes, trainset[!, target])
     bayes_test_loss = msd(test_prediction_bayes, testset[!, target])
     ols_train_loss = msd(train_prediction_ols, trainset[!, target])
-    @assert bayes_train_loss < 5.5
-    @assert bayes_test_loss < 15.5
-    @assert isapprox(bayes_train_loss, ols_train_loss; atol=1)
+    ols_test_loss = msd(test_prediction_ols, testset[!, target])
+    @assert bayes_train_loss < bayes_test_loss "Bayesian training loss ($bayes_train_loss) >= Bayesian test loss ($bayes_test_loss)"
+    @assert ols_train_loss < ols_test_loss "OLS training loss ($ols_train_loss) >= OLS test loss ($ols_test_loss)"
+    @assert isapprox(bayes_train_loss, ols_train_loss; rtol=0.01) "Difference between Bayesian training loss ($bayes_train_loss) and OLS training loss ($ols_train_loss) unexpectedly large!"
+    @assert isapprox(bayes_test_loss, ols_test_loss; rtol=0.05) "Difference between Bayesian test loss ($bayes_test_loss) and OLS test loss ($ols_test_loss) unexpectedly large!"
 end
 ```
 
 As we can see above, OLS and our Bayesian model fit our training and test data set about the same.
 
-```julia, echo=false, skip="notebook"
+```julia, echo=false, skip="notebook", tangle=false
 if isdefined(Main, :TuringTutorials)
     Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
 end

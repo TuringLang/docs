@@ -58,7 +58,7 @@ Note that if the external sampler produces transitions that Turing cannot parse 
 
 ## AdvancedMH
 
-A good point to start to show how this is done in practice is by looking at the sampling library `AdvancedMH`[^*] for Metropolis Hastings methods.
+A good point to start to show how this is done in practice is by looking at the sampling library `AdvancedMH` ((`AdvancedMH`'s GitHub)[[https://github.com/TuringLang/AdvancedMH.jl]) for Metropolis Hastings methods.
 Let's say that we want to use a random walk Metropolis Hastings sampler without specifying the proposal distributions.
 We can do this in two different ways:
 
@@ -76,29 +76,66 @@ The second method uses the priors of the model as a proposal. Note that the seco
 Let us now compare the performance and posteriors of these two samplers to the native MH sampler within Turing.
 
 ```julia
-mh_chain_0 = sample(model, MH(), 1_000)
-mh_chain_1 = sample(model, externalsampler(rwmh_1), 1_000)
-mh_chain_2 = sample(model, externalsampler(rwmh_2), 1_000)
+mh_chain_0 = sample(model, MH(), 10_000)
+mh_chain_1 = sample(model, externalsampler(rwmh_1), 10_000)
+mh_chain_2 = sample(model, externalsampler(rwmh_2), 10_000)
 ```
 
 ## AdvancedHMC
 
 As previously mentioned the Turing wrappers can often limit the capabilities of the sampling libraries they wrap.
-`AdvancedHMC`[^2] is a clear example of this. A common practice when performing HMC is to provide an initial guess for the mass matrix.
+`AdvancedHMC`[^1] ((`AdvancedHMC`'s GitHub)[https://github.com/TuringLang/AdvancedHMC.jl]) is a clear example of this. A common practice when performing HMC is to provide an initial guess for the mass matrix.
 However, the native HMC sampler within Turing only allows the user to specify the type of the mass matrix despite the two options being possible within `AdvancedHMC`.
-Thankfully, we can use Turing's support for external samplers to define a HMC sampler with a custom mass matrix in AdvancedHMC and then use it to sample our Turing model.
+Thankfully, we can use Turing's support for external samplers to define a HMC sampler with a custom mass matrix in `AdvancedHMC` and then use it to sample our Turing model.
+
+We will use the library `Pathfinder`[^2] ((`Pathfinder`'s GitHub)[https://github.com/mlcolab/Pathfinder.jl]) to construct our estimate of mass matrix. 
+`Pathfinder` is a variational inference algorithm which first finds the maximum a posteriori (MAP) estimate of a target posterior distribution and then uses the trace of the optimization to construct a sequence of multivariate normal approximations to the target distribution. 
+In this process, `Pathfinder` computes an estimate of the mass matrix that the user can access. 
+
+The code below shows can this be done in practice.
+
+```julia
+using AdvancedHMC, Pathfidner
+# Running pathfidner
+draws = 1_000
+result_multi = multipathfinder(model, draws; nruns=8)
+
+# Estimating the metric
+inv_metric = result_multi.pathfinder_results[1].fit_distribution.Σ
+metric = Pathfinder.RankUpdateEuclideanMetric(inv_metric)
+
+# Creating an AdvancedHMC NUTS sampler with the custom metric.
+n_adapts = 1000 # Number of adaptation steps
+tap = 0.9 # Large target acceptance probability to deal with the funel structure of the posterior
+nuts = AdvancedHMC.NUTS(n_adapts, tap; metric=metric)
+
+# Sample
+chain = sample(model, externalsampler(nuts), 10_000)
+```
 
 ## Micro-Canonical HMC
 
 So far we have used to Turing's support for external samplers to go beyond the capabilities of the wrappers.
 Now we want to use this support to employ a sampler not supported within Turing's ecosystem yet.
 We will use the recently developped Micro-Cannoncial Hamiltonian Monte Carlo (MCHMC) sampler to showcase this.
-MCHMC[^3,^4] is HMC sampler that conserves energy along the exploration of the phase space.
+MCHMC[^3,^4] ((MCHMC's GitHub)[https://github.com/JaimeRZP/MicroCanonicalHMC.jl]) is HMC sampler that conserves energy along the exploration of the phase space.
 This is achieved by simulating the dynamics of a microcanonical Hamiltonian with an additional noise term to ensure ergodicity.
+
+Using this as well as other inference methods outside the Turing ecosystem is as simple as executing the code shown below:
+
+```julia
+using MicroCanonicalHMC
+# Create MCHMC sampler
+n_adapts = 1_000 # adaptation steps
+tev = 0.01 # target energy variance
+mchmc = MCHMC(n_adapts, tev; adaptive=true)
+
+# Sample
+chain = sample(model, externalsampler(mchmc), 10_000)
+```
 
 # Refences
 
-[^*]: AdvancedMH, [https://github.com/TuringLang/AdvancedMH.jl]
 [^1]: Xu et al, (AdvancedHMC.jl: A robust, modular and efficient implementation of advanced HMC algorithms)[http://proceedings.mlr.press/v118/xu20a/xu20a.pdf], 2019
 [^2]: Zhang et al, (Pathfinder: Parallel quasi-Newton variational inference)[https://arxiv.org/abs/2108.03782], 2021
 [^3]: Robnik et al, (Microcanonical Hamiltonian Monte Carlo)[https://arxiv.org/abs/2212.08549], 2022

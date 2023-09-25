@@ -15,43 +15,49 @@ used here, please consult the
 [JuliaGPs](https://github.com/JuliaGaussianProcesses/#welcome-to-juliagps) docs.
 
 In this tutorial, we will model the putting dataset discussed in chapter 21 of
-[Bayesian Data Analysis](http://www.stat.columbia.edu/~gelman/book/).
+[Bayesian Data Analysis](http://www.stat.columbia.edu/%7Egelman/book/).
 The dataset comprises the result of measuring how often a golfer successfully gets the ball
 in the hole, depending on how far away from it they are.
 The goal of inference is to estimate the probability of any given shot being successful at a
 given distance.
 
 Let's download the data and take a look at it:
+
 ```julia
 using CSV, DataDeps, DataFrames
 
 ENV["DATADEPS_ALWAYS_ACCEPT"] = true
-register(DataDep(
-    "putting",
-    "Putting data from BDA",
-    "http://www.stat.columbia.edu/~gelman/book/data/golf.dat",
-    "fc28d83896af7094d765789714524d5a389532279b64902866574079c1a977cc",
-))
+register(
+    DataDep(
+        "putting",
+        "Putting data from BDA",
+        "http://www.stat.columbia.edu/~gelman/book/data/golf.dat",
+        "fc28d83896af7094d765789714524d5a389532279b64902866574079c1a977cc",
+    ),
+)
 
 fname = joinpath(datadep"putting", "golf.dat")
 df = CSV.read(fname, DataFrame; delim=' ', ignorerepeated=true)
 df[1:5, :]
 ```
+
 We've printed the first 5 rows of the dataset (which comprises only 19 rows in total).
 Observe it has three columns:
-1. `distance` -- how far away from the hole. I'll refer to `distance` as `d` throughout the rest of this tutorial
-1. `n` -- how many shots were taken from a given distance
-1. `y` -- how many shots were successful from a given distance
+
+ 1. `distance` -- how far away from the hole. I'll refer to `distance` as `d` throughout the rest of this tutorial
+ 2. `n` -- how many shots were taken from a given distance
+ 3. `y` -- how many shots were successful from a given distance
 
 We will use a Binomial model for the data, whose success probability is parametrised by a
 transformation of a GP. Something along the lines of:
 $$
-    f \sim \operatorname{GP}(0, k) \\
-    y_j \mid f(d_j) \sim \operatorname{Binomial}(n_j, g(f(d_j))) \\
-    g(x) := \frac{1}{1 + e^{-x}}
+f \sim \operatorname{GP}(0, k) \\
+y_j \mid f(d_j) \sim \operatorname{Binomial}(n_j, g(f(d_j))) \\
+g(x) := \frac{1}{1 + e^{-x}}
 $$
 
 To do this, let's define our Turing.jl model:
+
 ```julia
 using AbstractGPs, LogExpFunctions, ReverseDiff, Turing
 
@@ -67,6 +73,7 @@ Turing.setrdcache(true)           # cache the tape between runs
     return (fx=f(d, jitter), f_latent=f_latent, y=y)
 end
 ```
+
 We first define an `AbstractGPs.GP`, which represents a distribution over functions, and
 is entirely separate from Turing.jl.
 We place a prior over its variance `v` and length-scale `l`.
@@ -86,19 +93,21 @@ Before performing inference, we might want to inspect the prior that our model p
 the data, to see whether there is anything that is obviously wrong.
 These kinds of prior predictive checks are straightforward to perform using Turing.jl, since
 it is possible to sample from the prior easily by just calling the model:
+
 ```julia
 m = putting_model(Float64.(df.distance), df.n)
 m().y
 ```
 
 We make use of this to see what kinds of datasets we simulate from the prior:
+
 ```julia
 using Plots
 
 function plot_data(d, n, y, xticks, yticks)
     ylims = (0, round(maximum(n), RoundUp; sigdigits=2))
     margin = -0.5 * Plots.mm
-    plt = plot(xticks=xticks, yticks=yticks, ylims=ylims, margin=margin, grid=false)
+    plt = plot(; xticks=xticks, yticks=yticks, ylims=ylims, margin=margin, grid=false)
     bar!(plt, d, n; color=:red, label="", alpha=0.5)
     bar!(plt, d, y; label="", color=:blue, alpha=0.7)
     return plt
@@ -113,6 +122,7 @@ hists = map(1:20) do j
 end
 plot(hists...; layout=(4, 5))
 ```
+
 In this case, the only prior knowledge I have is that the proportion of successful shots
 ought to decrease monotonically as the distance from the hole increases, which should show
 up in the data as the blue lines generally going down as we move from left to right on each
@@ -125,14 +135,16 @@ visualisation that we can perform -- if you think there is something better to l
 please let us know!
 
 Moving on, we generate samples from the posterior using the default `NUTS` sampler:
+
 ```julia
 using Random
-m_post = m | (y=df.y, )
+m_post = m | (y=df.y,)
 chn = sample(Xoshiro(123456), m_post, NUTS(), 1_000)
 ```
 
 We can use these samples and the `posterior` function from `AbstractGPs` to sample from the
 posterior probability of success at any distance we choose:
+
 ```julia
 d_pred = 1:0.2:21
 samples = map(generated_quantities(m_post, chn)[1:10:end]) do x
@@ -142,6 +154,7 @@ p = plot()
 plot!(d_pred, reduce(hcat, samples); label="", color=:blue, alpha=0.2)
 scatter!(df.distance, df.y ./ df.n; label="", color=:red)
 ```
+
 We can see that the general trend is indeed down as the distance from the hole increases,
 and that if we move away from the data, the posterior uncertainty quickly inflates.
 This suggests that the model is probably going to do a reasonable job of interpolating

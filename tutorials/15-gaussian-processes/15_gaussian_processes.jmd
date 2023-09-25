@@ -59,10 +59,7 @@ $$
 To do this, let's define our Turing.jl model:
 
 ```julia
-using AbstractGPs, LogExpFunctions, ReverseDiff, Turing
-
-Turing.setadbackend(:reversediff) # use ReverseDiff for AD
-Turing.setrdcache(true)           # cache the tape between runs
+using AbstractGPs, LogExpFunctions, Turing
 
 @model function putting_model(d, n; jitter=1e-4)
     v ~ Gamma(2, 1)
@@ -134,10 +131,17 @@ In any case, you can judge for yourself whether you think this is the most usefu
 visualisation that we can perform -- if you think there is something better to look at,
 please let us know!
 
-Moving on, we generate samples from the posterior using the default `NUTS` sampler:
+Moving on, we generate samples from the posterior using the default `NUTS` sampler.
+We'll make use of [ReverseDiff.jl](https://github.com/JuliaDiff/ReverseDiff.jl), as it has
+better performance than [ForwardDiff.jl](https://github.com/JuliaDiff/ForwardDiff.jl/) on
+this example. See Turing.jl's docs on Automatic Differentiation for more info.
 
 ```julia
-using Random
+using Random, ReverseDiff
+
+Turing.setadbackend(:reversediff)
+Turing.setrdcache(true)
+
 m_post = m | (y=df.y,)
 chn = sample(Xoshiro(123456), m_post, NUTS(), 1_000)
 ```

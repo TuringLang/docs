@@ -8,7 +8,7 @@ This repository contains tutorials and docs on the probabilistic programming lan
 The tutorials are defined in the `tutorials` folder.
 All the outputs are generated automatically from that.
 
-Additional educational materials can be found at [StatisticalRethinkingJulia/TuringModels.jl](https://github.com/StatisticalRethinkingJulia/TuringModels.jl), which contains Turing adaptations of models from Richard McElreath's [Statistical Rethinking](https://xcelab.net/rm/statistical-rethinking/).
+Additional educational materials can be found at [StatisticalRethinkingJulia/SR2TuringPluto.jl](https://github.com/StatisticalRethinkingJulia/SR2TuringPluto.jl), which contains Turing adaptations of models from Richard McElreath's [Statistical Rethinking](https://xcelab.net/rm/statistical-rethinking/).
 It is a highly recommended resource if you are looking for a greater breadth of examples.
 
 ## Interactive Notebooks

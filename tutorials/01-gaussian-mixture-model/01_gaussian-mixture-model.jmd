@@ -357,24 +357,23 @@ posterior predictive assignments from a categorial distribution.
 For details on the mathematics here, see [the Stan documentation on latent discrete parameters](https://mc-stan.org/docs/stan-users-guide/latent-discrete.html).
 
 ```julia
+function sample_class(xi, dists, w)
+    lvec = [(logpdf(d, xi) + log(w[i])) for (i, d) in enumerate(dists)]
+    rand(Categorical(softmax(lvec)))
+end
+
 @model function gmm_recover(x)
     K = 2
     D, N =  size(x)
-    μ ~ Bijectors.ordered(MvNormal(Zeros(K), I))
+    μ ~ ordered(MvNormal(Zeros(K), I))
     w ~ Dirichlet(K, 1.0)
 
     dists = [MvNormal(Fill(μₖ, D), I) for μₖ in μ]
 
     x ~ MixtureModel(dists, w)
 
-    # Return sample_class(yi) for fixed μ, w.
-    function sample_class(xi)
-        lvec = [(logpdf(d, xi) + log(w[i])) for (i, d) in enumerate(dists)]
-        rand(Categorical(exp.(lvec .- logsumexp(lvec))))
-    end
-
     # Return assignment draws for each datapoint.
-    return [sample_class(x[:, i]) for i in 1:N]
+    return [sample_class(x[:, i], dists, w) for i in 1:N]
 end
 ```
 

@@ -331,66 +331,65 @@ The element type of a vector (or matrix) of random variables should match the `e
 
 ### Querying Probabilities from Model or Chain
 
-Consider first the following simplified `gdemo` model:
+Turing offers three functions: [`loglikelihood`](https://turinglang.org/DynamicPPL.jl/dev/api/#StatsAPI.loglikelihood), [`logprior`](https://turinglang.org/DynamicPPL.jl/dev/api/#DynamicPPL.logprior), and [`logjoint`](https://turinglang.org/DynamicPPL.jl/dev/api/#DynamicPPL.logjoint) to query the log-likelihood, log-prior, and log-joint probabilities of a model, respectively.
+
+Let's look at a simple model called `gdemo`:
 
 ```julia
-@model function gdemo0(x)
+@model function gdemo0()
     s ~ InverseGamma(2, 3)
     m ~ Normal(0, sqrt(s))
     return x ~ Normal(m, sqrt(s))
 end
-
-# Instantiate three models, with different value of x
-model1 = gdemo0(1)
-model4 = gdemo0(4)
-model10 = gdemo0(10)
 ```
 
-Now, query the instantiated models: compute the likelihood of `x = 1.0` given the values of `s = 1.0` and `m = 1.0` for the parameters:
+If we observe x to be 1.0, we can condition the model on this datum using the [`condition`](https://turinglang.org/DynamicPPL.jl/dev/api/#AbstractPPL.condition) syntax:
 
 ```julia
-prob"x = 1.0 | model = model1, s = 1.0, m = 1.0"
+model = gdemo0() | (x = 1.0,)
+```
+
+Now, let's compute the log-likelihood of the observation given specific values of the model parameters, `s` and `m`:
+
+```julia
+loglikelihood(model, (s = 1.0, m = 1.0))
+```
+
+We can easily verify that value in this case:
+
+```julia
+logpdf(Normal(1.0, 1.0), 1.0)
+```
+
+We can also compute the log-prior probability of the model for the same values of s and m:
+
+```julia
+logprior(model, (s = 1.0, m = 1.0))
 ```
 
 ```julia
-prob"x = 1.0 | model = model4, s = 1.0, m = 1.0"
+logpdf(InverseGamma(2, 3), 1.0) + logpdf(Normal(0, sqrt(1.0)), 1.0)
+```
+
+Finally, we can compute the log-joint probability of the model parameters and data:
+
+```julia
+logjoint(model, (s = 1.0, m = 1.0))
 ```
 
 ```julia
-prob"x = 1.0 | model = model10, s = 1.0, m = 1.0"
+logpdf(Normal(1.0, 1.0), 1.0) + logpdf(InverseGamma(2, 3), 1.0) + logpdf(Normal(0, sqrt(1.0)), 1.0)
 ```
 
-Notice that even if we use three models, instantiated with three different values of `x`, we should obtain the same likelihood. We can easily verify that value in this case:
+Querying with `Chains` object is easy as well:
 
 ```julia
-pdf(Normal(1.0, 1.0), 1.0)
+chn = sample(model, NUTS(), 10)
 ```
-
-Let us now consider the following `gdemo` model:
 
 ```julia
-@model function gdemo(x, y)
-    s² ~ InverseGamma(2, 3)
-    m ~ Normal(0, sqrt(s²))
-    x ~ Normal(m, sqrt(s²))
-    return y ~ Normal(m, sqrt(s²))
-end
-
-# Instantiate the model.
-model = gdemo(2.0, 4.0)
+loglikelihood(model, chn)
 ```
-
-The following are examples of valid queries of the `Turing` model or chain:
-
-  - `prob"x = 1.0, y = 1.0 | model = model, s = 1.0, m = 1.0"` calculates the likelihood of `x = 1` and `y = 1` given `s = 1` and `m = 1`.
-
-  - `prob"s² = 1.0, m = 1.0 | model = model, x = nothing, y = nothing"` calculates the joint probability of `s = 1` and `m = 1` ignoring `x` and `y`. `x` and `y` are ignored so they can be optionally dropped from the RHS of `|`, but it is recommended to define them.
-  - `prob"s² = 1.0, m = 1.0, x = 1.0 | model = model, y = nothing"` calculates the joint probability of `s = 1`, `m = 1` and `x = 1` ignoring `y`.
-  - `prob"s² = 1.0, m = 1.0, x = 1.0, y = 1.0 | model = model"` calculates the joint probability of all the variables.
-  - After the MCMC sampling, given a `chain`, `prob"x = 1.0, y = 1.0 | chain = chain, model = model"` calculates the element-wise likelihood of `x = 1.0` and `y = 1.0` for each sample in `chain`.
-  - If `save_state=true` was used during sampling (i.e., `sample(model, sampler, N; save_state=true)`), you can simply do `prob"x = 1.0, y = 1.0 | chain = chain"`.
-
-In all the above cases, `logprob` can be used instead of `prob` to calculate the log probabilities instead.
 
 ### Maximum likelihood and maximum a posterior estimates
 

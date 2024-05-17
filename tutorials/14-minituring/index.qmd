@@ -1,9 +1,6 @@
 ---
 title: MiniTuring
-permalink: /:collection/:name/
-redirect_from: tutorials/14-minituring/
-weave_options:
-  error : false
+engine: julia
 ---
 
 In this tutorial we develop a very simple probabilistic programming language.
@@ -13,7 +10,7 @@ This is intentional as we want to demonstrate some key ideas from Turing's inter
 To make things easy to understand and to implement we restrict our language to a very simple subset of the language that Turing actually supports.
 Defining an accurate syntax description is not our goal here, instead, we give a simple example and all similar programs should work.
 
-Consider a probabilistic model defined by
+# Consider a probabilistic model defined by
 
 $$
 \begin{aligned}
@@ -26,7 +23,8 @@ $$
 We assume that `x` is data, i.e., an observed variable.
 In our small language this model will be defined as
 
-```julia; eval=false;
+```{julia}
+#| eval: false
 @mini_model function m(x)
     a ~ Normal(0.5, 1)
     b ~ Normal(a, 2)
@@ -44,14 +42,14 @@ Specifically, we demand that
 
 First, we import some required packages:
 
-```julia
+```{julia}
 using MacroTools, Distributions, Random, AbstractMCMC, MCMCChains
 ```
 
 Before getting to the actual "compiler", we first build the data structure for the program trace.
 A program trace for a probabilistic programming language needs to at least record the values of stochastic variables and their log-probabilities.
 
-```julia
+```{julia}
 struct VarInfo{V,L}
     values::V
     logps::L
@@ -81,7 +79,7 @@ Thus readers are advised to refer to the documentation of DynamicPPL and Turing 
 
 Here we can see the implementation of a sampler that draws values of unobserved variables from the prior and computes the log-probability for every variable.
 
-```julia
+```{julia}
 struct SamplingContext{S<:AbstractMCMC.AbstractSampler,R<:Random.AbstractRNG}
     rng::R
     sampler::S
@@ -114,7 +112,7 @@ Afterwards, as usual the Julia compiler will just-in-time compile the model func
 The manipulation of Julia expressions is an advanced part of the Julia language.
 The [Julia documentation](https://docs.julialang.org/en/v1/manual/metaprogramming/) provides an introduction to and more details about this so-called metaprogramming.
 
-```julia
+```{julia}
 macro mini_model(expr)
     return esc(mini_model(expr))
 end
@@ -159,7 +157,7 @@ The AbstractMCMC interface requires us to at least
 Thus here we define a `MiniModel` model.
 In this model we store the model function and the observed data.
 
-```julia
+```{julia}
 struct MiniModel{F,D} <: AbstractMCMC.AbstractModel
     f::F
     data::D # a NamedTuple of all the data
@@ -173,7 +171,7 @@ To illustrate probabilistic inference with our mini language we implement an ext
 We hard-code the proposal step as part of the sampler and only allow normal distributions with zero mean and fixed standard deviation.
 The Metropolis-Hastings sampler in Turing is more flexible.
 
-```julia
+```{julia}
 struct MHSampler{T<:Real} <: AbstractMCMC.AbstractSampler
     sigma::T
 end
@@ -198,7 +196,7 @@ We need to define two `step` functions, one for the first step and the other for
 In the first step we sample values from the prior distributions and in the following steps we sample with the random-walk proposal.
 The two functions are identified by the different arguments they take.
 
-```julia
+```{julia}
 # The fist step: Sampling from the prior distributions
 function AbstractMCMC.step(
     rng::Random.AbstractRNG, model::MiniModel, sampler::MHSampler; kwargs...
@@ -237,7 +235,7 @@ end;
 
 To make it easier to analyze the samples and compare them with results from Turing, additionally we define a version of `AbstractMCMC.bundle_samples` for our model and sampler that returns a `MCMCChains.Chains` object of samples.
 
-```julia
+```{julia}
 function AbstractMCMC.bundle_samples(
     samples, model::MiniModel, ::MHSampler, ::Any, ::Type{Chains}; kwargs...
 )
@@ -254,7 +252,7 @@ end;
 Let us check how our mini probabilistic programming language works.
 We define the probabilistic model:
 
-```julia
+```{julia}
 @mini_model function m(x)
     a ~ Normal(0.5, 1)
     b ~ Normal(a, 2)
@@ -265,13 +263,13 @@ end;
 
 We perform inference with data `x = 3.0`:
 
-```julia
-sample(MiniModel(m, (x=3.0,)), MHSampler(), 1_000_000; chain_type=Chains)
+```{julia}
+sample(MiniModel(m, (x=3.0,)), MHSampler(), 1_000_000; chain_type=Chains, progress=false)
 ```
 
 We compare these results with Turing.
 
-```julia
+```{julia}
 using Turing
 using PDMats
 
@@ -282,13 +280,7 @@ using PDMats
     return nothing
 end
 
-sample(turing_m(3.0), MH(ScalMat(2, 1.0)), 1_000_000)
+sample(turing_m(3.0), MH(ScalMat(2, 1.0)), 1_000_000, progress=false)
 ```
 
 As you can see, with our simple probabilistic programming language and custom samplers we get similar results as Turing.
-
-```julia, echo=false, skip="notebook", tangle=false
-if isdefined(Main, :TuringTutorials)
-    Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
-end
-```

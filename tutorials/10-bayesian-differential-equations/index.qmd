@@ -1,9 +1,6 @@
 ---
 title: Bayesian Estimation of Differential Equations
-permalink: /tutorials/:name/
-redirect_from: tutorials/10-bayesiandiffeq/
-weave_options:
-  error : false
+engine: julia
 ---
 
 Most of the scientific community deals with the basic problem of trying to mathematically model the reality around them and this often involves dynamical systems. The general trend to model these complex dynamical systems is through the use of differential equations.
@@ -11,7 +8,8 @@ Differential equation models often have non-measurable parameters.
 The popular “forward-problem” of simulation consists of solving the differential equations for a given set of parameters, the “inverse problem” to simulation, known as parameter estimation, is the process of utilizing data to determine these model parameters.
 Bayesian inference provides a robust approach to parameter estimation with quantified uncertainty.
 
-```julia
+```{julia}
+#| eval: false
 using Turing
 using DifferentialEquations
 
@@ -42,7 +40,8 @@ where $x(t)$ and $y(t)$ denote the populations of prey and predator at time $t$,
 
 We implement the Lotka-Volterra model and simulate it with parameters $\alpha = 1.5$, $\beta = 1$, $\gamma = 3$, and $\delta = 1$ and initial conditions $x(0) = y(0) = 1$.
 
-```julia
+```{julia}
+#| eval: false
 # Define Lotka-Volterra model.
 function lotka_volterra(du, u, p, t)
     # Model parameters.
@@ -71,7 +70,8 @@ We generate noisy observations to use for the parameter estimation tasks in this
 With the [`saveat` argument](https://docs.sciml.ai/latest/basics/common_solver_opts/) we specify that the solution is stored only at `0.1` time units.
 To make the example more realistic we add random normally distributed noise to the simulation.
 
-```julia
+```{julia}
+#| eval: false
 sol = solve(prob, Tsit5(); saveat=0.1)
 odedata = Array(sol) + 0.8 * randn(size(Array(sol)))
 
@@ -89,7 +89,8 @@ Previously, functions in Turing and DifferentialEquations were not inter-composa
 Nowadays, however, Turing and DifferentialEquations are completely composable and we can just simulate differential equations inside a Turing `@model`.
 Therefore, we write the Lotka-Volterra parameter estimation problem using the Turing `@model` macro as below:
 
-```julia
+```{julia}
+#| eval: false
 @model function fitlv(data, prob)
     # Prior distributions.
     σ ~ InverseGamma(2, 3)
@@ -119,7 +120,8 @@ chain = sample(model, NUTS(), MCMCSerial(), 1000, 3; progress=false)
 The estimated parameters are close to the parameter values the observations were generated with.
 We can also check visually that the chains have converged.
 
-```julia
+```{julia}
+#| eval: false
 plot(chain)
 ```
 
@@ -130,7 +132,8 @@ Here, we solve the ODE for 300 randomly picked posterior samples in the `chain`.
 We plot the ensemble of solutions to check if the solution resembles the data.
 The 300 retrodicted time courses from the posterior are plotted in gray, the noisy observations are shown as blue and red dots, and the green and purple lines are the ODE solution that was used to generate the data.
 
-```julia
+```{julia}
+#| eval: false
 plot(; legend=false)
 posterior_samples = sample(chain[[:α, :β, :γ, :δ]], 300; replace=false)
 for p in eachrow(Array(posterior_samples))
@@ -151,7 +154,8 @@ One can also perform parameter inference for a Lotka-Volterra model with incompl
 For instance, let us suppose we have only observations of the predators but not of the prey.
 I.e., we fit the model only to the $y$ variable of the system without providing any data for $x$:
 
-```julia
+```{julia}
+#| eval: false
 @model function fitlv2(data::AbstractVector, prob)
     # Prior distributions.
     σ ~ InverseGamma(2, 3)
@@ -178,7 +182,8 @@ chain2 = sample(model2, NUTS(0.45), MCMCSerial(), 5000, 3; progress=false)
 
 Again we inspect the trajectories of 300 randomly selected posterior samples.
 
-```julia
+```{julia}
+#| eval: false
 plot(; legend=false)
 posterior_samples = sample(chain2[[:α, :β, :γ, :δ]], 300; replace=false)
 for p in eachrow(Array(posterior_samples))
@@ -216,7 +221,8 @@ As described in the [DDE example](https://diffeq.sciml.ai/stable/tutorials/dde_e
 Again we use parameters $\alpha = 1.5$, $\beta = 1$, $\gamma = 3$, and $\delta = 1$ and initial conditions $x(0) = y(0) = 1$.
 Moreover, we assume $x(t) = 1$ for $t < 0$.
 
-```julia
+```{julia}
+#| eval: false
 function delay_lotka_volterra(du, u, h, p, t)
     # Model parameters.
     α, β, γ, δ = p
@@ -240,7 +246,8 @@ prob_dde = DDEProblem(delay_lotka_volterra, u0, h, tspan, p);
 
 We generate observations by adding normally distributed noise to the results of our simulations.
 
-```julia
+```{julia}
+#| eval: false
 sol_dde = solve(prob_dde; saveat=0.1)
 ddedata = Array(sol_dde) + 0.5 * randn(size(sol_dde))
 
@@ -251,7 +258,8 @@ scatter!(sol_dde.t, ddedata'; color=[1 2], label="")
 
 Now we define the Turing model for the Lotka-Volterra model with delay and sample 3 independent chains.
 
-```julia
+```{julia}
+#| eval: false
 @model function fitlv_dde(data, prob)
     # Prior distributions.
     σ ~ InverseGamma(2, 3)
@@ -276,14 +284,16 @@ model_dde = fitlv_dde(ddedata, prob_dde)
 chain_dde = sample(model_dde, NUTS(), MCMCSerial(), 300, 3; progress=false)
 ```
 
-```julia
+```{julia}
+#| eval: false
 plot(chain_dde)
 ```
 
 Finally, plot trajectories of 300 randomly selected samples from the posterior.
 Again, the dots indicate our observations, the colored lines are the "true" simulations without noise, and the gray lines are trajectories from the posterior samples.
 
-```julia
+```{julia}
+#| eval: false
 plot(; legend=false)
 posterior_samples = sample(chain_dde[[:α, :β, :γ, :δ]], 300; replace=false)
 for p in eachrow(Array(posterior_samples))
@@ -321,7 +331,8 @@ Notice that on this model adjoints are slower.
 This is because adjoints have a higher overhead on small parameter models and therefore we suggest using these methods only for models with around 100 parameters or more.
 For more details, see https://arxiv.org/abs/1812.01892.
 
-```julia
+```{julia}
+#| eval: false
 using Zygote, SciMLSensitivity
 
 # Sample a single chain with 1000 samples using Zygote.
@@ -332,7 +343,8 @@ sample(model, NUTS(), 1000; progress=false)
 If desired, we can control the sensitivity analysis method that is used by providing the `sensealg` keyword argument to `solve`.
 Here we will not choose a `sensealg` and let it use the default choice:
 
-```julia
+```{julia}
+#| eval: false
 @model function fitlv_sensealg(data, prob)
     # Prior distributions.
     σ ~ InverseGamma(2, 3)
@@ -370,7 +382,8 @@ Here we fit a stochastic version of the Lokta-Volterra system.
 We use a quasi-likelihood approach in which all trajectories of a solution are compared instead of a reduction such as mean, this increases the robustness of fitting and makes the likelihood more identifiable.
 We use SOSRI to solve the equation.
 
-```julia
+```{julia}
+#| eval: false
 u0 = [1.0, 1.0]
 tspan = (0.0, 10.0)
 function multiplicative_noise!(du, u, p, t)
@@ -394,7 +407,8 @@ data = solve(ensembleprob, SOSRI(); saveat=0.1, trajectories=1000)
 plot(EnsembleSummary(data))
 ```
 
-```julia
+```{julia}
+#| eval: false
 @model function fitlv_sde(data, prob)
     # Prior distributions.
     σ ~ InverseGamma(2, 3)
@@ -428,7 +442,8 @@ The probabilistic nature of the SDE solution makes the likelihood function noisy
 Therefore we use NUTS with a low target acceptance rate of `0.25` and specify a set of initial parameters.
 SGHMC might be a more suitable algorithm to be used here.
 
-```julia
+```{julia}
+#| eval: false
 model_sde = fitlv_sde(odedata, prob_sde)
 
 setadbackend(:forwarddiff)
@@ -440,10 +455,4 @@ chain_sde = sample(
     progress=false,
 )
 plot(chain_sde)
-```
-
-```julia, echo=false, skip="notebook", tangle=false
-if isdefined(Main, :TuringTutorials)
-    Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
-end
 ```

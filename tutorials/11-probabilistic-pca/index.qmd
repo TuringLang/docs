@@ -1,9 +1,6 @@
 ---
 title: Probabilistic Principal Component Analysis (p-PCA)
-permalink: /tutorials/:name/
-mathjax: true
-weave_options:
-  error : false
+engine: julia
 ---
 
 ## Overview of PCA
@@ -82,7 +79,7 @@ We use PCA to explore underlying structure or pattern which may not necessarily 
 
 First, we load the dependencies used.
 
-```julia
+```{julia}
 
 using Turing
 using ReverseDiff
@@ -117,7 +114,7 @@ Even so, spotting the structures or patterns in a 9-feature space would be a cha
 By design, we mannually divide the 60 cells into two groups. the first 3 gene features of the first 30 cells have mean 10, while those of the last 30 cells have mean 10.
 These two groups of cells differ in the expression of genes.
 
-```julia
+```{julia}
 n_genes = 9 # D
 n_cells = 60 # N
 
@@ -130,7 +127,7 @@ mat_exp[(2 * (n_genes ÷ 3) + 1):end, (n_cells ÷ 2 + 1):end] .+= 10
 
 To visualize the $(D=9) \times (N=60)$ data matrix `mat_exp`, we use the `heatmap` plot.
 
-```julia
+```{julia}
 heatmap(
     mat_exp;
     c=:summer,
@@ -153,7 +150,7 @@ Note that:
 Here we construct the probabilistic model `pPCA()`.
 As per the p-PCA formula, we think of each row (i.e. each gene feature) following a $N=60$ dimensional multivariate normal distribution centered around the corresponding row of $\mathbf{W}_{D \times k} \times \mathbf{Z}_{k \times N} + \boldsymbol{\mu}_{D \times N}$.
 
-```julia
+```{julia}
 @model function pPCA(X::AbstractMatrix{<:Real}, k::Int)
     # retrieve the dimension of input matrix X.
     N, D = size(X)
@@ -191,7 +188,13 @@ Here we aim to perform MCMC sampling to infer the projection matrix $\mathbf{W}_
 We run the inference using the NUTS sampler, of which the chain length is set to be 500, target accept ratio 0.65 and initial stepsize 0.1. By default, the NUTS sampler samples 1 chain.
 You are free to try [different samplers](https://turinglang.org/stable/docs/library/#samplers).
 
-```julia
+```{julia}
+#| echo: false
+#| output: false
+setprogress!(false)
+```
+
+```{julia}
 k = 2 # k is the dimension of the projected space, i.e. the number of principal components/axes of choice
 ppca = pPCA(mat_exp', k) # instantiate the probabilistic model
 chain_ppca = sample(ppca, NUTS(), 500);
@@ -199,7 +202,7 @@ chain_ppca = sample(ppca, NUTS(), 500);
 
 The samples are saved in the Chains struct `chain_ppca`, whose shape can be checked:
 
-```julia
+```{julia}
 size(chain_ppca) # (no. of iterations, no. of vars, no. of chains) = (500, 159, 1)
 ```
 
@@ -212,7 +215,7 @@ We try to reconstruct the input data using the posterior mean as parameter estim
 We first retrieve the samples for the projection matrix `W` from `chain_ppca`. This can be done using the Julia `group(chain, parameter_name)` function.
 Then we calculate the mean value for each element in $W$, averaging over the whole chain of samples.
 
-```julia
+```{julia}
 # Extract parameter estimates for predicting x - mean of posterior
 W = reshape(mean(group(chain_ppca, :W))[:, 2], (n_genes, k))
 Z = reshape(mean(group(chain_ppca, :Z))[:, 2], (k, n_cells))
@@ -221,7 +224,7 @@ Z = reshape(mean(group(chain_ppca, :Z))[:, 2], (k, n_cells))
 mat_rec = W * Z .+ repeat(μ; inner=(1, n_cells))
 ```
 
-```julia
+```{julia}
 heatmap(
     mat_rec;
     c=:summer,
@@ -236,7 +239,8 @@ heatmap(
 
 We can quantitatively check the absolute magnitudes of the column average of the gap between `mat_exp` and `mat_rec`:
 
-```julia; echo=false
+```{julia}
+#| echo: false
 # let
 #     diff_matrix = mat_exp .- mat_rec
 #     @assert abs(mean(diff_matrix[:, 4])) <= 0.5 #0.327
@@ -254,7 +258,7 @@ Now we have represented the original high-dimensional data in two dimensions, wi
 Finally, the benefits of performing PCA is to analyse and visualise the dimension-reduced data in the projected, low-dimensional space.
 we save the dimension-reduced matrix $\mathbf{Z}$ as a `DataFrame`, rename the columns and visualise the first two dimensions.
 
-```julia
+```{julia}
 df_pca = DataFrame(Z', :auto)
 rename!(df_pca, Symbol.(["z" * string(i) for i in collect(1:k)]))
 df_pca[!, :type] = repeat([1, 2]; inner=n_cells ÷ 2)
@@ -278,7 +282,7 @@ ARD can help pick the correct number of principal directions by regularizing the
 Essentially, we are using a specific prior over the factor loadings $\mathbf{W}$ that allows us to prune away dimensions in the latent space. The prior is determined by a precision hyperparameter $\alpha$. Here, smaller values of $\alpha$ correspond to more important components.
 You can find more details about this in e.g. [5].
 
-```julia
+```{julia}
 @model function pPCA_ARD(X)
     # Dimensionality of the problem.
     N, D = size(X)
@@ -304,7 +308,7 @@ We also re-paramterise the sampling distribution, i.e. each dimension across all
 
 We instantiate the model and ask Turing to sample from it using NUTS sampler. The sample trajectories of $\alpha$ is plotted using the `plot` function from the package `StatsPlots`.
 
-```julia
+```{julia}
 ppca_ARD = pPCA_ARD(mat_exp') # instantiate the probabilistic model
 chain_ppcaARD = sample(ppca_ARD, NUTS(), 500) # sampling
 plot(group(chain_ppcaARD, :α); margin=6.0mm)
@@ -317,7 +321,7 @@ We see that the chains have converged and the posterior of the $\alpha$ paramete
 In the following, we will use the mean of the small values to select the *relevant* dimensions (remember that, smaller values of $\alpha$ correspond to more important components.).
 We can clearly see from the values of $\alpha$ that there should be two dimensions (corresponding to $\bar{\alpha}_3=\bar{\alpha}_5≈0.05$) for this dataset.
 
-```julia
+```{julia}
 # Extract parameter mean estimates of the posterior
 W = permutedims(reshape(mean(group(chain_ppcaARD, :W))[:, 2], (n_genes, n_genes)))
 Z = permutedims(reshape(mean(group(chain_ppcaARD, :Z))[:, 2], (n_genes, n_cells)))'
@@ -330,7 +334,7 @@ To do this, we first sort `α` using `sortperm()` (in ascending order by default
 After picking the desired principal directions, we extract the corresponding subset loading vectors from $\mathbf{W}$, and the corresponding dimensions of $\mathbf{Z}$.
 We obtain a posterior predicted matrix $\mathbf{X} \in \mathbb{R}^{2 \times 60}$ as the product of the two sub-matrices, and compare the recovered info with the original matrix.
 
-```julia
+```{julia}
 α_indices = sortperm(α)[1:2]
 k = size(α_indices)[1]
 X_rec = W[:, α_indices] * Z[α_indices, :]
@@ -351,7 +355,7 @@ heatmap(
 We observe that, the data in the original space is recovered with key information, the distinct feature values in the first and last three genes for the two cell groups, are preserved.
 We can also examine the data in the dimension-reduced space, i.e. the selected components (rows) in $\mathbf{Z}$.
 
-```julia
+```{julia}
 df_pro = DataFrame(Z[α_indices, :]', :auto)
 rename!(df_pro, Symbol.(["z" * string(i) for i in collect(1:k)]))
 df_pro[!, :type] = repeat([1, 2]; inner=n_cells ÷ 2)
@@ -368,15 +372,9 @@ When you are in doubt about the number of dimensions to project onto, ARD might 
 p-PCA is a linear map which linearly transforms the data between the original and projected spaces.
 It can also thought as a matrix factorisation method, in which $\mathbf{X}=(\mathbf{W} \times \mathbf{Z})^T$. The projection matrix can be understood as a new basis in the projected space, and $\mathbf{Z}$ are the new coordinates.
 
-## References:
 
 [^1]: Gilbert Strang, *Introduction to Linear Algebra*, 5th Ed., Wellesley-Cambridge Press, 2016.
 [^2]: Probabilistic PCA by TensorFlow, "https://www.tensorflow.org/probability/examples/Probabilistic_PCA".
 [^3]: Gareth M. James, Daniela Witten, Trevor Hastie, Robert Tibshirani, *An Introduction to Statistical Learning*, Springer, 2013.
 [^4]: David Wipf, Srikantan Nagarajan, *A New View of Automatic Relevance Determination*, NIPS 2007.
 [^5]: Christopher Bishop, *Pattern Recognition and Machine Learning*, Springer, 2006.
-```julia, echo=false, skip="notebook", tangle=false
-if isdefined(Main, :TuringTutorials)
-    Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
-end
-```

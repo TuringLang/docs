@@ -1,9 +1,6 @@
 ---
 title: Bayesian Logistic Regression
-permalink: /tutorials/:name/
-redirect_from: tutorials/2-logisticregression/
-weave_options:
-  error : false
+engine: julia
 ---
 
 [Bayesian logistic regression](https://en.wikipedia.org/wiki/Logistic_regression#Bayesian) is the Bayesian counterpart to a common tool in machine learning, logistic regression.
@@ -14,7 +11,7 @@ In our example, we'll be working to predict whether someone is likely to default
 
 To start, let's import all the libraries we'll need.
 
-```julia
+```{julia}
 # Import Turing and Distributions.
 using Turing, Distributions
 
@@ -39,7 +36,7 @@ Random.seed!(0);
 
 Now we're going to import our dataset. The first six rows of the dataset are shown below so you can get a good feel for what kind of data we have.
 
-```julia
+```{julia}
 # Import the "Default" dataset.
 data = RDatasets.dataset("ISLR", "Default");
 
@@ -49,7 +46,7 @@ first(data, 6)
 
 Most machine learning processes require some effort to tidy up the data, and this is no different. We need to convert the `Default` and `Student` columns, which say "Yes" or "No" into 1s and 0s. Afterwards, we'll get rid of the old words-based columns.
 
-```julia
+```{julia}
 # Convert "Default" and "Student" to numeric values.
 data[!, :DefaultNum] = [r.Default == "Yes" ? 1.0 : 0.0 for r in eachrow(data)]
 data[!, :StudentNum] = [r.Student == "Yes" ? 1.0 : 0.0 for r in eachrow(data)]
@@ -65,7 +62,7 @@ After we've done that tidying, it's time to split our dataset into training and 
 
 We must rescale our variables so that they are centered around zero by subtracting each column by the mean and dividing it by the standard deviation. Without this step, Turing's sampler will have a hard time finding a place to start searching for parameter estimates. To do this we will leverage `MLDataUtils`, which also lets us effortlessly shuffle our observations and perform a stratified split to get a representative test set.
 
-```julia
+```{julia}
 function split_data(df, target; at=0.70)
     shuffled = shuffleobs(df)
     return trainset, testset = stratifiedobs(row -> row[target], shuffled; p=at)
@@ -103,7 +100,7 @@ Within the model, we create four coefficients (`intercept`, `student`, `balance`
 
 The `for` block creates a variable `v` which is the logistic function. We then observe the likelihood of calculating `v` given the actual label, `y[i]`.
 
-```julia
+```{julia}
 # Bayesian logistic regression (LR)
 @model function logistic_regression(x, y, n, σ)
     intercept ~ Normal(0, σ)
@@ -123,7 +120,13 @@ end;
 
 Now we can run our sampler. This time we'll use [`NUTS`](https://turinglang.org/stable/docs/library/#Turing.Inference.NUTS) to sample from our posterior.
 
-```julia
+```{julia}
+#| echo: false
+#| output: false
+setprogress!(false)
+```
+
+```{julia}
 # Retrieve the number of observations.
 n, _ = size(train)
 
@@ -132,7 +135,8 @@ m = logistic_regression(train, train_label, n, 1)
 chain = sample(m, NUTS(), MCMCThreads(), 1_500, 3)
 ```
 
-```julia; echo=false
+```{julia}
+#| echo: false
 let
     mean_params = mean(chain)
     @assert mean_params[:student, :mean] < 0.1
@@ -142,11 +146,12 @@ end
 
 Since we ran multiple chains, we may as well do a spot check to make sure each chain converges around similar points.
 
-```julia
+```{julia}
 plot(chain)
 ```
 
-```julia; echo=false
+```{julia}
+#| echo: false
 let
     mean_params = mapreduce(hcat, mean(chain; append_chains=false)) do df
         return df[:, :mean]
@@ -162,7 +167,7 @@ Looks good!
 
 We can also use the `corner` function from MCMCChains to show the distributions of the various parameters of our logistic regression.
 
-```julia
+```{julia}
 # The labels to use.
 l = [:student, :balance, :income]
 
@@ -178,7 +183,7 @@ How do we test how well the model actually predicts whether someone is likely to
 
 The `prediction` function below takes a `Matrix` and a `Chain` object. It takes the mean of each parameter's sampled values and re-runs the logistic function using those mean values for every element in the test set.
 
-```julia
+```{julia}
 function prediction(x::Matrix, chain, threshold)
     # Pull the means from each parameter's sampled values in the chain.
     intercept = mean(chain[:intercept])
@@ -209,7 +214,7 @@ end;
 
 Let's see how we did! We run the test matrix through the prediction function, and compute the [mean squared error](https://en.wikipedia.org/wiki/Mean_squared_error) (MSE) for our prediction. The `threshold` variable sets the sensitivity of the predictions. For example, a threshold of 0.07 will predict a defualt value of 1 for any predicted value greater than 0.07 and no default if it is less than 0.07.
 
-```julia
+```{julia}
 # Set the prediction threshold.
 threshold = 0.07
 
@@ -222,7 +227,7 @@ loss = sum((predictions - test_label) .^ 2) / length(test_label)
 
 Perhaps more important is to see what percentage of defaults we correctly predicted. The code below simply counts defaults and predictions and presents the results.
 
-```julia
+```{julia}
 defaults = sum(test_label)
 not_defaults = length(test_label) - defaults
 
@@ -238,7 +243,8 @@ println("Not defaults: $not_defaults
     Percentage non-defaults correct $(predicted_not_defaults/not_defaults)")
 ```
 
-```julia; echo=false
+```{julia}
+#| echo: false
 let
     percentage_correct = predicted_defaults / defaults
     @assert 0.6 < percentage_correct
@@ -248,9 +254,3 @@ end
 The above shows that with a threshold of 0.07, we correctly predict a respectable portion of the defaults, and correctly identify most non-defaults. This is fairly sensitive to a choice of threshold, and you may wish to experiment with it.
 
 This tutorial has demonstrated how to use Turing to perform Bayesian logistic regression.
-
-```julia, echo=false, skip="notebook", tangle=false
-if isdefined(Main, :TuringTutorials)
-    Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
-end
-```

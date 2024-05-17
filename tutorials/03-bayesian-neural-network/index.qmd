@@ -1,16 +1,13 @@
 ---
 title: Bayesian Neural Networks
-permalink: /tutorials/:name/
-redirect_from: tutorials/3-bayesnn/
-weave_options:
-  error : false
+engine: julia
 ---
 
 In this tutorial, we demonstrate how one can implement a Bayesian Neural Network using a combination of Turing and [Flux](https://github.com/FluxML/Flux.jl), a suite of machine learning tools. We will use Flux to specify the neural network's layers and Turing to implement the probabilistic inference, with the goal of implementing a classification algorithm.
 
 We will begin with importing the relevant libraries.
 
-```julia
+```{julia}
 using Turing
 using FillArrays
 using Flux
@@ -27,7 +24,7 @@ Turing.setadbackend(:reversediff)
 Our goal here is to use a Bayesian neural network to classify points in an artificial dataset.
 The code below generates data points arranged in a box-like pattern and displays a graph of the dataset we will be working with.
 
-```julia
+```{julia}
 # Number of points to generate.
 N = 80
 M = round(Int, N / 4)
@@ -72,13 +69,13 @@ The next step is to define a [feedforward neural network](https://en.wikipedia.o
 For this we will use `Dense` to define liner layers and compose them via `Chain`, both are neural network primitives from Flux.
 The network `nn_initial` we created has two hidden layers with `tanh` activations and one output layer with sigmoid (`σ`) activation, as shown below.
 
-![nn-diagram](https://user-images.githubusercontent.com/422990/47970321-bd172080-e038-11e8-9c6d-6c2bd790bd8a.png)
+![](https://user-images.githubusercontent.com/422990/47970321-bd172080-e038-11e8-9c6d-6c2bd790bd8a.png)
 
 The `nn_initial` is an instance that acts as a function and can take data as inputs and output predictions.
 We will define distributions on the neural network parameters and use `destructure` from Flux to extract the parameters as `parameters_initial`.
 The function `destructure` also returns another function `reconstruct` that can take (new) parameters in and return us a neural network instance whose architecture is the same as `nn_initial` but with updated parameters.
 
-```julia
+```{julia}
 # Construct a neural network using Flux
 nn_initial = Chain(Dense(2, 3, tanh), Dense(3, 2, tanh), Dense(2, 1, σ))
 
@@ -90,7 +87,7 @@ length(parameters_initial) # number of paraemters in NN
 
 The probabilistic model specification below creates a `parameters` variable, which has IID normal variables. The `parameters` vector represents all parameters of our neural net (weights and biases).
 
-```julia
+```{julia}
 @model function bayes_nn(xs, ts, nparameters, reconstruct; alpha=0.09)
     # Create the weight and bias vector.
     parameters ~ MvNormal(Zeros(nparameters), I / alpha)
@@ -109,7 +106,13 @@ end;
 
 Inference can now be performed by calling `sample`. We use the `NUTS` Hamiltonian Monte Carlo sampler here.
 
-```julia
+```{julia}
+#| echo: false
+#| output: false
+setprogress!(false)
+```
+
+```{julia}
 # Perform inference.
 N = 5000
 ch = sample(bayes_nn(hcat(xs...), ts, length(parameters_initial), reconstruct), NUTS(), N);
@@ -118,7 +121,7 @@ ch = sample(bayes_nn(hcat(xs...), ts, length(parameters_initial), reconstruct), 
 Now we extract the parameter samples from the sampled chain as `theta` (this is of size `5000 x 20` where `5000` is the number of iterations and `20` is the number of parameters).
 We'll use these primarily to determine how good our model's classifier is.
 
-```julia
+```{julia}
 # Extract all weight and bias parameters.
 theta = MCMCChains.group(ch, :parameters).value;
 ```
@@ -127,7 +130,7 @@ theta = MCMCChains.group(ch, :parameters).value;
 
 We can use [MAP estimation](https://en.wikipedia.org/wiki/Maximum_a_posteriori_estimation) to classify our population by using the set of weights that provided the highest log posterior.
 
-```julia
+```{julia}
 # A helper to create NN from weights `theta` and run it through data `x`
 nn_forward(x, theta) = reconstruct(theta)(x)
 
@@ -157,7 +160,7 @@ $$
 
 The `nn_predict` function takes the average predicted value from a network parameterized by weights drawn from the MCMC chain.
 
-```julia
+```{julia}
 # Return the average predicted value across
 # multiple weights.
 function nn_predict(x, theta, num)
@@ -167,7 +170,7 @@ end;
 
 Next, we use the `nn_predict` function to predict the value at a sample of points where the `x1` and `x2` coordinates range between -6 and 6. As we can see below, we still have a satisfactory fit to our data, and more importantly, we can also see where the neural network is uncertain about its predictions much easier---those regions between cluster boundaries.
 
-```julia
+```{julia}
 # Plot the average prediction.
 plot_data()
 
@@ -180,7 +183,7 @@ contour!(x1_range, x2_range, Z)
 
 Suppose we are interested in how the predictive power of our Bayesian neural network evolved between samples. In that case, the following graph displays an animation of the contour plot generated from the network weights in samples 1 to 1,000.
 
-```julia
+```{julia}
 # Number of iterations to plot.
 n_end = 500
 
@@ -192,9 +195,3 @@ end every 5
 ```
 
 This has been an introduction to the applications of Turing and Flux in defining Bayesian neural networks.
-
-```julia, echo=false, skip="notebook", tangle=false
-if isdefined(Main, :TuringTutorials)
-    Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
-end
-```

@@ -1,9 +1,6 @@
 ---
 title: Bayesian Poisson Regression
-permalink: /tutorials/:name/
-redirect_from: tutorials/7-poissonregression/
-weave_options:
-  error : false
+engine: julia
 ---
 
 This notebook is ported from the [example notebook](https://docs.pymc.io/notebooks/GLM-poisson-regression.html) of PyMC3 on Poisson Regression.
@@ -16,7 +13,7 @@ We will generate the dataset that we will be working on which describes the rela
 
 We start by importing the required libraries.
 
-```julia
+```{julia}
 #Import Turing, Distributions and DataFrames
 using Turing, Distributions, DataFrames, Distributed
 
@@ -34,7 +31,7 @@ We start off by creating a toy dataset. We take the case of a person who takes m
 
 5 random rows are printed from the generated data to get a gist of the data generated.
 
-```julia
+```{julia}
 theta_noalcohol_meds = 1    # no alcohol, took medicine
 theta_alcohol_meds = 3      # alcohol, took medicine
 theta_noalcohol_nomeds = 6  # no alcohol, no medicine
@@ -71,7 +68,7 @@ df[sample(1:nrow(df), 5; replace=false), :]
 
 We plot the distribution of the number of sneezes for the 4 different cases taken above. As expected, the person sneezes the most when he has taken alcohol and not taken his medicine. He sneezes the least when he doesn't consume alcohol and takes his medicine.
 
-```julia
+```{julia}
 #Data Plotting
 
 p1 = Plots.histogram(
@@ -95,7 +92,7 @@ plot(p1, p2, p3, p4; layout=(2, 2), legend=false)
 
 We must convert our `DataFrame` data into the `Matrix` form as the manipulations that we are about are designed to work with `Matrix` data. We also separate the features from the labels which will be later used by the Turing sampler to generate samples from the posterior.
 
-```julia
+```{julia}
 # Convert the DataFrame object to matrices.
 data = Matrix(df[:, [:alcohol_taken, :nomeds_taken, :product_alcohol_meds]])
 data_labels = df[:, :nsneeze]
@@ -104,7 +101,7 @@ data
 
 We must recenter our data about 0 to help the Turing sampler in initialising the parameter estimates. So, normalising the data in each column by subtracting the mean and dividing by the standard deviation:
 
-```julia
+```{julia}
 # # Rescale our matrices.
 data = (data .- mean(data; dims=1)) ./ std(data; dims=1)
 ```
@@ -128,7 +125,7 @@ Intuitively, we can think of the coefficients as:
 
 The `for` block creates a variable `theta` which is the weighted combination of the input features. We have defined the priors on these weights above. We then observe the likelihood of calculating `theta` given the actual label, `y[i]`.
 
-```julia
+```{julia}
 # Bayesian poisson regression (LR)
 @model function poisson_regression(x, y, n, σ²)
     b0 ~ Normal(0, σ²)
@@ -146,7 +143,7 @@ end;
 
 We use the `NUTS` sampler to sample values from the posterior. We run multiple chains using the `MCMCThreads()` function to nullify the effect of a problematic chain. We then use the Gelman, Rubin, and Brooks Diagnostic to check the convergence of these multiple chains.
 
-```julia
+```{julia}
 # Retrieve the number of observations.
 n, _ = size(data)
 
@@ -154,7 +151,7 @@ n, _ = size(data)
 
 num_chains = 4
 m = poisson_regression(data, data_labels, n, 10)
-chain = sample(m, NUTS(), MCMCThreads(), 2_500, num_chains; discard_adapt=false)
+chain = sample(m, NUTS(), MCMCThreads(), 2_500, num_chains; discard_adapt=false, progress=false)
 ```
 
 # Viewing the Diagnostics
@@ -163,7 +160,7 @@ We use the Gelman, Rubin, and Brooks Diagnostic to check whether our chains have
 
 We expect the chains to have converged. This is because we have taken sufficient number of iterations (1500) for the NUTS sampler. However, in case the test fails, then we will have to take a larger number of iterations, resulting in longer computation time.
 
-```julia
+```{julia}
 gelmandiag(chain)
 ```
 
@@ -171,7 +168,7 @@ From the above diagnostic, we can conclude that the chains have converged becaus
 
 So, we have obtained the posterior distributions of the parameters. We transform the coefficients and recover theta values by taking the exponent of the meaned values of the coefficients `b0`, `b1`, `b2` and `b3`. We take the exponent of the means to get a better comparison of the relative values of the coefficients. We then compare this with the intuitive meaning that was described earlier.
 
-```julia
+```{julia}
 # Taking the first chain
 c1 = chain[:, :, 1]
 
@@ -191,7 +188,7 @@ print("The posterior distributions obtained after sampling can be visualised as 
 
 Visualising the posterior by plotting it:
 
-```julia
+```{julia}
 plot(chain)
 ```
 
@@ -207,18 +204,13 @@ Thus, we remove these warmup values and once again view the diagnostics.
 To remove these warmup values, we take all values except the first 200.
 This is because we set the second parameter of the NUTS sampler (which is the number of adaptations) to be equal to 200.
 
-```julia
+```{julia}
 chains_new = chain[201:end, :, :]
 ```
 
-```julia
+```{julia}
 plot(chains_new)
 ```
 
 As can be seen from the numeric values and the plots above, the standard deviation values have decreased and all the plotted values are from the estimated posteriors. The exponentiated mean values, with the warmup samples removed, have not changed by much and they are still in accordance with their intuitive meanings as described earlier.
 
-```julia, echo=false, skip="notebook", tangle=false
-if isdefined(Main, :TuringTutorials)
-    Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
-end
-```

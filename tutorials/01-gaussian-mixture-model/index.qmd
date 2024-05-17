@@ -1,9 +1,6 @@
 ---
 title: Unsupervised Learning using Bayesian Mixture Models
-permalink: /tutorials/:name/
-redirect_from: tutorials/1-gaussianmixturemodel/
-weave_options:
-  error : false
+engine: julia
 ---
 
 The following tutorial illustrates the use of Turing for clustering data using a Bayesian mixture model.
@@ -14,12 +11,12 @@ The aim of this task is to infer a latent grouping (hidden structure) from unlab
 We generate a synthetic dataset of $N = 60$ two-dimensional points $x_i \in \mathbb{R}^2$ drawn from a Gaussian mixture model.
 For simplicity, we use $K = 2$ clusters with
 
-  - equal weights, i.e., we use mixture weights $w = [0.5, 0.5]$, and
-  - isotropic Gaussian distributions of the points in each cluster.
+- equal weights, i.e., we use mixture weights $w = [0.5, 0.5]$, and
+- isotropic Gaussian distributions of the points in each cluster.
 
 More concretely, we use the Gaussian distributions $\mathcal{N}([\mu_k, \mu_k]^\mathsf{T}, I)$ with parameters $\mu_1 = -3.5$ and $\mu_2 = 0.5$.
 
-```julia
+```{julia}
 using Distributions
 using FillArrays
 using StatsPlots
@@ -42,7 +39,7 @@ x = rand(mixturemodel, N);
 
 The following plot shows the dataset.
 
-```julia
+```{julia}
 scatter(x[1, :], x[2, :]; legend=false, title="Synthetic Dataset")
 ```
 
@@ -72,7 +69,7 @@ For more details on Gaussian mixture models, we refer to Christopher M. Bishop, 
 
 We specify the model with Turing.
 
-```julia
+```{julia}
 using Turing
 
 @model function gaussian_mixture_model(x)
@@ -109,14 +106,22 @@ We run a MCMC simulation to obtain an approximation of the posterior distributio
 We use a `Gibbs` sampler that combines a [particle Gibbs](https://www.stats.ox.ac.uk/%7Edoucet/andrieu_doucet_holenstein_PMCMC.pdf) sampler for the discrete parameters (assignments $k$) and a Hamiltonion Monte Carlo sampler for the continuous parameters ($\mu$ and $w$).
 We generate multiple chains in parallel using multi-threading.
 
-```julia
+```{julia}
+#| echo: false
+#| output: false
+setprogress!(false)
+```
+
+```{julia}
+#| output: false
 sampler = Gibbs(PG(100, :k), HMC(0.05, 10, :μ, :w))
 nsamples = 100
 nchains = 3
 chains = sample(model, sampler, MCMCThreads(), nsamples, nchains);
 ```
 
-```julia; echo=false
+```{julia}
+#| echo: false
 let
     # Verify that the output of the chain is as expected.
     for i in MCMCChains.chains(chains)
@@ -134,7 +139,7 @@ After sampling we can visualize the trace and density of the parameters of inter
 
 We consider the samples of the location parameters $\mu_1$ and $\mu_2$ for the two clusters.
 
-```julia
+```{julia}
 plot(chains[["μ[1]", "μ[2]"]]; colordim=:parameter, legend=true)
 ```
 
@@ -143,19 +148,19 @@ For more information see the [Stan documentation](https://mc-stan.org/users/docu
 
 We also inspect the samples of the mixture weights $w$.
 
-```julia
+```{julia}
 plot(chains[["w[1]", "w[2]"]]; colordim=:parameter, legend=true)
 ```
 
 In the following, we just use the first chain to ensure the validity of our inference.
 
-```julia
+```{julia}
 chain = chains[:, :, 1];
 ```
 
 As the distributions of the samples for the parameters $\mu_1$, $\mu_2$, $w_1$, and $w_2$ are unimodal, we can safely visualize the density region of our model using the average values.
 
-```julia
+```{julia}
 # Model with mean of samples as parameters.
 μ_mean = [mean(chain, "μ[$i]") for i in 1:2]
 w_mean = [mean(chain, "w[$i]") for i in 1:2]
@@ -175,7 +180,7 @@ scatter!(x[1, :], x[2, :]; legend=false, title="Synthetic Dataset")
 Finally, we can inspect the assignments of the data points inferred using Turing.
 As we can see, the dataset is partitioned into two distinct groups.
 
-```julia
+```{julia}
 assignments = [mean(chain, "k[$i]") for i in 1:N]
 scatter(
     x[1, :],
@@ -184,10 +189,4 @@ scatter(
     title="Assignments on Synthetic Dataset",
     zcolor=assignments,
 )
-```
-
-```julia, echo=false, skip="notebook", tangle=false
-if isdefined(Main, :TuringTutorials)
-    Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
-end
 ```

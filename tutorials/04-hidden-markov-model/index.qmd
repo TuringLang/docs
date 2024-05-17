@@ -1,18 +1,15 @@
 ---
 title: Bayesian Hidden Markov Models
-permalink: /tutorials/:name/
-redirect_from: tutorials/4-bayeshmm/
-weave_options:
-  error : false
+engine: julia
 ---
 
 This tutorial illustrates training Bayesian [Hidden Markov Models](https://en.wikipedia.org/wiki/Hidden_Markov_model) (HMM) using Turing. The main goals are learning the transition matrix, emission parameter, and hidden states. For a more rigorous academic overview on Hidden Markov Models, see [An introduction to Hidden Markov Models and Bayesian Networks](http://mlg.eng.cam.ac.uk/zoubin/papers/ijprai.pdf) (Ghahramani, 2001).
 
 In this tutorial, we assume there are $k$ discrete hidden states; the observations are continuous and normally distributed - centered around the hidden states. This assumption reduces the number of parameters to be estimated in the emission matrix.
 
-Let's load the libraries we'll need. We also set a random seed (for reproducibility) and the automatic differentiation backend to forward mode (more [here](https://turinglang.org/stable/docs/using-turing/autodiff) on why this is useful).
+Let's load the libraries we'll need. We also set a random seed (for reproducibility) and the automatic differentiation backend to forward mode (more [here](https://turinglang.org/dev/docs/using-turing/autodiff) on why this is useful).
 
-```julia
+```{julia}
 # Load libraries.
 using Turing, StatsPlots, Random
 
@@ -24,7 +21,7 @@ Random.seed!(12345678);
 
 In this example, we'll use something where the states and emission parameters are straightforward.
 
-```julia
+```{julia}
 # Define the emission parameter.
 y = [
     1.0,
@@ -83,7 +80,7 @@ Simply put, this says that we expect state one to emit values in a Normally dist
 
 The priors on our transition matrix are noninformative, using `T[i] ~ Dirichlet(ones(K)/K)`. The Dirichlet prior used in this way assumes that the state is likely to change to any other state with equal probability. As we'll see, this transition matrix prior will be overwritten as we observe data.
 
-```julia
+```{julia}
 # Turing model definition.
 @model function BayesHmm(y, K)
     # Get observation length.
@@ -117,15 +114,21 @@ The priors on our transition matrix are noninformative, using `T[i] ~ Dirichlet(
 end;
 ```
 
-We will use a combination of two samplers ([HMC](https://turinglang.org/stable/docs/library/#Turing.Inference.HMC) and [Particle Gibbs](https://turinglang.org/stable/docs/library/#Turing.Inference.PG)) by passing them to the [Gibbs](https://turinglang.org/stable/docs/library/#Turing.Inference.Gibbs) sampler. The Gibbs sampler allows for compositional inference, where we can utilize different samplers on different parameters.
+We will use a combination of two samplers ([HMC](https://turinglang.org/dev/docs/library/#Turing.Inference.HMC) and [Particle Gibbs](https://turinglang.org/dev/docs/library/#Turing.Inference.PG)) by passing them to the [Gibbs](https://turinglang.org/dev/docs/library/#Turing.Inference.Gibbs) sampler. The Gibbs sampler allows for compositional inference, where we can utilize different samplers on different parameters.
 
 In this case, we use HMC for `m` and `T`, representing the emission and transition matrices respectively. We use the Particle Gibbs sampler for `s`, the state sequence. You may wonder why it is that we are not assigning `s` to the HMC sampler, and why it is that we need compositional Gibbs sampling at all.
 
-The parameter `s` is not a continuous variable. It is a vector of **integers**, and thus Hamiltonian methods like HMC and [NUTS](https://turinglang.org/stable/docs/library/#Turing.Inference.NUTS) won't work correctly. Gibbs allows us to apply the right tools to the best effect. If you are a particularly advanced user interested in higher performance, you may benefit from setting up your Gibbs sampler to use [different automatic differentiation](https://turinglang.org/stable/docs/using-turing/autodiff#compositional-sampling-with-differing-ad-modes) backends for each parameter space.
+The parameter `s` is not a continuous variable. It is a vector of **integers**, and thus Hamiltonian methods like HMC and [NUTS](https://turinglang.org/dev/docs/library/#Turing.Inference.NUTS) won't work correctly. Gibbs allows us to apply the right tools to the best effect. If you are a particularly advanced user interested in higher performance, you may benefit from setting up your Gibbs sampler to use [different automatic differentiation](https://turinglang.org/dev/docs/using-turing/autodiff#compositional-sampling-with-differing-ad-modes) backends for each parameter space.
 
 Time to run our sampler.
 
-```julia
+```{julia}
+#| echo: false
+#| output: false
+setprogress!(false)
+```
+
+```{julia}
 g = Gibbs(HMC(0.01, 50, :m, :T), PG(120, :s))
 chn = sample(BayesHmm(y, 3), g, 1000);
 ```
@@ -136,7 +139,7 @@ It's a bit easier to show how our model performed graphically.
 
 The code below generates an animation showing the graph of the data above, and the data our model generates in each sample.
 
-```julia
+```{julia}
 
 # Extract our m and s parameters from the chain.
 m_set = MCMCChains.group(chn, :m).value
@@ -168,7 +171,7 @@ end every 3
 
 Looks like our model did a pretty good job, but we should also check to make sure our chain converges. A quick check is to examine whether the diagonal (representing the probability of remaining in the current state) of the transition matrix appears to be stationary. The code below extracts the diagonal and shows a traceplot of each persistence probability.
 
-```julia
+```{julia}
 # Index the chain with the persistence probabilities.
 subchain = chn[["T[1][1]", "T[2][2]", "T[3][3]"]]
 
@@ -178,15 +181,8 @@ plot(subchain; seriestype=:traceplot, title="Persistence Probability", legend=fa
 A cursory examination of the traceplot above indicates that all three chains converged to something resembling
 stationary. We can use the diagnostic functions provided by [MCMCChains](https://github.com/TuringLang/MCMCChains.jl) to engage in some more formal tests, like the Heidelberg and Welch diagnostic:
 
-```julia
-
+```{julia}
 heideldiag(MCMCChains.group(chn, :T))[1]
 ```
 
 The p-values on the test suggest that we cannot reject the hypothesis that the observed sequence comes from a stationary distribution, so we can be reasonably confident that our transition matrix has converged to something reasonable.
-
-```julia, echo=false, skip="notebook", tangle=false
-if isdefined(Main, :TuringTutorials)
-    Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
-end
-```

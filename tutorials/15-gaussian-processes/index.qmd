@@ -1,9 +1,6 @@
 ---
 title: Introduction to Gaussian Processes using JuliaGPs and Turing.jl
-permalink: /tutorials/:name/
-redirect_from: tutorials/15-gaussian-processes/
-weave_options:
-  error : false
+engine: julia
 ---
 
 [JuliaGPs](https://github.com/JuliaGaussianProcesses/#welcome-to-juliagps) packages integrate well with Turing.jl because they implement the Distributions.jl
@@ -21,9 +18,9 @@ in the hole, depending on how far away from it they are.
 The goal of inference is to estimate the probability of any given shot being successful at a
 given distance.
 
-Let's download the data and take a look at it:
+### Let's download the data and take a look at it:
 
-```julia
+```{julia}
 using CSV, DataDeps, DataFrames
 
 ENV["DATADEPS_ALWAYS_ACCEPT"] = true
@@ -58,7 +55,7 @@ $$
 
 To do this, let's define our Turing.jl model:
 
-```julia
+```{julia}
 using AbstractGPs, LogExpFunctions, Turing
 
 @model function putting_model(d, n; jitter=1e-4)
@@ -91,14 +88,14 @@ the data, to see whether there is anything that is obviously wrong.
 These kinds of prior predictive checks are straightforward to perform using Turing.jl, since
 it is possible to sample from the prior easily by just calling the model:
 
-```julia
+```{julia}
 m = putting_model(Float64.(df.distance), df.n)
 m().y
 ```
 
 We make use of this to see what kinds of datasets we simulate from the prior:
 
-```julia
+```{julia}
 using Plots
 
 function plot_data(d, n, y, xticks, yticks)
@@ -136,20 +133,20 @@ We'll make use of [ReverseDiff.jl](https://github.com/JuliaDiff/ReverseDiff.jl),
 better performance than [ForwardDiff.jl](https://github.com/JuliaDiff/ForwardDiff.jl/) on
 this example. See Turing.jl's docs on Automatic Differentiation for more info.
 
-```julia
+```{julia}
 using Random, ReverseDiff
 
 Turing.setadbackend(:reversediff)
 Turing.setrdcache(true)
 
 m_post = m | (y=df.y,)
-chn = sample(Xoshiro(123456), m_post, NUTS(), 1_000)
+chn = sample(Xoshiro(123456), m_post, NUTS(), 1_000, progress=false)
 ```
 
 We can use these samples and the `posterior` function from `AbstractGPs` to sample from the
 posterior probability of success at any distance we choose:
 
-```julia
+```{julia}
 d_pred = 1:0.2:21
 samples = map(generated_quantities(m_post, chn)[1:10:end]) do x
     return logistic.(rand(posterior(x.fx, x.f_latent)(d_pred, 1e-4)))

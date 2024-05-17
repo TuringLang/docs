@@ -1,16 +1,13 @@
 ---
 title: Probabilistic Modelling using the Infinite Mixture Model
-permalink: /tutorials/:name/
-redirect_from: tutorials/6-infinitemixturemodel/
-weave_options:
-  error : false
+engine: julia
 ---
 
 In many applications it is desirable to allow the model to adjust its complexity to the amount of data. Consider for example the task of assigning objects into clusters or groups. This task often involves the specification of the number of groups. However, often times it is not known beforehand how many groups exist. Moreover, in some applictions, e.g. modelling topics in text documents or grouping species, the number of examples per group is heavy tailed. This makes it impossible to predefine the number of groups and requiring the model to form new groups when data points from previously unseen groups are observed.
 
 A natural approach for such applications is the use of non-parametric models. This tutorial will introduce how to use the Dirichlet process in a mixture of infinitely many Gaussians using Turing. For further information on Bayesian nonparametrics and the Dirichlet process we refer to the [introduction by Zoubin Ghahramani](http://mlg.eng.cam.ac.uk/pub/pdf/Gha12.pdf) and the book "Fundamentals of Nonparametric Bayesian Inference" by Subhashis Ghosal and Aad van der Vaart.
 
-```julia
+```{julia}
 using Turing
 ```
 
@@ -38,7 +35,7 @@ where $\pi_1, \pi_2$ are the mixing weights of the mixture model, i.e. $\pi_1 + 
 
 We can implement this model in Turing for 1D data as follows:
 
-```julia
+```{julia}
 @model function two_model(x)
     # Hyper-parameters
     μ0 = 0.0
@@ -85,7 +82,7 @@ The question now arises, is there a generalization of a Dirichlet distribution f
 
 But first, to implement an infinite Gaussian mixture model in Turing, we first need to load the `Turing.RandomMeasures` module. `RandomMeasures` contains a variety of tools useful in nonparametrics.
 
-```julia
+```{julia}
 using Turing.RandomMeasures
 ```
 
@@ -119,7 +116,7 @@ Those equations show that the conditional prior for component assignments is pro
 
 To get a better understanding of this property, we can plot the cluster choosen by for each new observation drawn from the conditional prior.
 
-```julia
+```{julia}
 # Concentration parameter.
 α = 10.0
 
@@ -142,7 +139,7 @@ for i in 1:Nmax
 end
 ```
 
-```julia
+```{julia}
 using Plots
 
 # Plot the cluster assignments over time 
@@ -168,7 +165,7 @@ We can see from the equation that the concentration parameter $\alpha$ allows us
 
 In Turing we can implement an infinite Gaussian mixture model using the Chinese restaurant process construction of a Dirichlet process as follows:
 
-```julia
+```{julia}
 @model function infiniteGMM(x)
     # Hyper-parameters, i.e. concentration parameter and parameters of H.
     α = 1.0
@@ -212,7 +209,7 @@ end
 
 We can now use Turing to infer the assignments of some data points. First, we will create some random data that comes from three clusters, with means of 0, -5, and 10.
 
-```julia
+```{julia}
 using Plots, Random
 
 # Generate some test data.
@@ -224,7 +221,13 @@ data /= std(data);
 
 Next, we'll sample from our posterior using SMC.
 
-```julia
+```{julia}
+#| echo: false
+#| output: false
+setprogress!(false)
+```
+
+```{julia}
 # MCMC sampling
 Random.seed!(2)
 iterations = 1000
@@ -234,7 +237,7 @@ chain = sample(model_fun, SMC(), iterations);
 
 Finally, we can plot the number of clusters in each sample.
 
-```julia
+```{julia}
 # Extract the number of clusters for each sample of the Markov chain.
 k = map(
     t -> length(unique(vec(chain[t, MCMCChains.namesingroup(chain, :z), :].value))),
@@ -247,7 +250,7 @@ plot(k; xlabel="Iteration", ylabel="Number of clusters", label="Chain 1")
 
 If we visualize the histogram of the number of clusters sampled from our posterior, we observe that the model seems to prefer 3 clusters, which is the true number of clusters. Note that the number of clusters in a Dirichlet process mixture model is not limited a priori and will grow to infinity with probability one. However, if conditioned on data the posterior will concentrate on a finite number of clusters enforcing the resulting model to have a finite amount of clusters. It is, however, not given that the posterior of a Dirichlet process Gaussian mixture model converges to the true number of clusters, given that data comes from a finite mixture model. See Jeffrey Miller and Matthew Harrison: [A simple example of Dirichlet process mixture inconsitency for the number of components](https://arxiv.org/pdf/1301.2708.pdf) for details.
 
-```julia
+```{julia}
 histogram(k; xlabel="Number of clusters", legend=false)
 ```
 
@@ -273,9 +276,3 @@ p(z_n = k | z_{1:n-1}) \propto \begin{cases}
 $$
 
 For more details see [this article](https://www.stats.ox.ac.uk/%7Eteh/research/npbayes/Teh2010a.pdf).
-
-```julia, echo=false, skip="notebook", tangle=false
-if isdefined(Main, :TuringTutorials)
-    Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
-end
-```

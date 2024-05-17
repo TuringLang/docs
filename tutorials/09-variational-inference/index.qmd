@@ -1,9 +1,6 @@
 ---
 title: Variational inference (VI) in Turing.jl
-permalink: /tutorials/:name/
-redirect_from: tutorials/9-variationalinference/
-weave_options:
-  error : false
+engine: julia
 ---
 
 In this post we'll have a look at what's know as **variational inference (VI)**, a family of _approximate_ Bayesian inference methods, and how to use it in Turing.jl as an alternative to other approaches such as MCMC. In particular, we will focus on one of the more standard VI methods called **Automatic Differentation Variational Inference (ADVI)**.
@@ -14,7 +11,8 @@ If you are interested in understanding the mathematics you can checkout [our wri
 Using VI in Turing.jl is very straight forward.
 If `model` denotes a definition of a `Turing.Model`, performing VI is as simple as
 
-```julia; eval = false
+```{julia}
+#| eval: false
 m = model(data...) # instantiate model on the data
 q = vi(m, vi_alg)  # perform VI on `m` using the VI method `vi_alg`, which returns a `VariationalPosterior`
 ```
@@ -25,7 +23,7 @@ To get a bit more into what we can do with `vi`, we'll first have a look at a si
 
 We first import the packages to be used:
 
-```julia
+```{julia}
 using Random
 using Turing
 using Turing: Variational
@@ -48,12 +46,12 @@ Recall that *conjugate* refers to the fact that we can obtain a closed-form expr
 
 First we generate some synthetic data, define the `Turing.Model` and instantiate the model on the data:
 
-```julia
+```{julia}
 # generate data
 x = randn(2000);
 ```
 
-```julia
+```{julia}
 @model function model(x)
     s ~ InverseGamma(2, 3)
     m ~ Normal(0.0, sqrt(s))
@@ -63,7 +61,7 @@ x = randn(2000);
 end;
 ```
 
-```julia
+```{julia}
 # Instantiate model
 m = model(x);
 ```
@@ -74,13 +72,19 @@ We'll produce 10 000 samples with 200 steps used for adaptation and a target acc
 
 If you don't understand what "adaptation" or "target acceptance rate" refers to, all you really need to know is that `NUTS` is known to be one of the most accurate and efficient samplers (when applicable) while requiring little to no hand-tuning to work well.
 
-```julia
+```{julia}
+#| echo: false
+#| output: false
+setprogress!(false)
+```
+
+```{julia}
 samples_nuts = sample(m, NUTS(), 10_000);
 ```
 
 Now let's try VI. The most important function you need to now about to do VI in Turing is `vi`:
 
-```julia
+```{julia}
 @doc(Variational.vi)
 ```
 
@@ -91,19 +95,19 @@ Additionally, you can pass
 
 By default, i.e. when calling `vi(m, advi)`, Turing use a *mean-field* approximation with a multivariate normal as the base-distribution. Mean-field refers to the fact that we assume all the latent variables to be *independent*. This the "standard" ADVI approach; see [Automatic Differentiation Variational Inference (2016)](https://arxiv.org/abs/1603.00788) for more. In Turing, one can obtain such a mean-field approximation by calling `Variational.meanfield(model)` for which there exists an internal implementation for `update`:
 
-```julia
+```{julia}
 @doc(Variational.meanfield)
 ```
 
 Currently the only implementation of `VariationalInference` available is `ADVI`, which is very convenient and applicable as long as your `Model` is differentiable with respect to the *variational parameters*, that is, the parameters of your variational distribution, e.g. mean and variance in the mean-field approximation.
 
-```julia
+```{julia}
 @doc(Variational.ADVI)
 ```
 
 To perform VI on the model `m` using 10 samples for gradient estimation and taking 1000 gradient steps is then as simple as:
 
-```julia
+```{julia}
 # ADVI
 advi = ADVI(10, 1000)
 q = vi(m, advi);
@@ -115,33 +119,34 @@ With that being said, this is not the case in general. For very complex models w
 
 And one significant advantage of using `vi` is that we can sample from the resulting `q` with ease. In fact, the result of the `vi` call is a `TransformedDistribution` from Bijectors.jl, and it implements the Distributions.jl interface for a `Distribution`:
 
-```julia
+```{julia}
 q isa MultivariateDistribution
 ```
 
 This means that we can call `rand` to sample from the variational posterior `q`
 
-```julia
+```{julia}
 histogram(rand(q, 1_000)[1, :])
 ```
 
 and `logpdf` to compute the log-probability
 
-```julia
+```{julia}
 logpdf(q, rand(q))
 ```
 
 Let's check the first and second moments of the data to see how our approximation compares to the point-estimates form the data:
 
-```julia
+```{julia}
 var(x), mean(x)
 ```
 
-```julia
+```{julia}
 (mean(rand(q, 1000); dims=2)...,)
 ```
 
-```julia; echo=false
+```{julia}
+#| echo: false
 let
     v, m = (mean(rand(q, 1000); dims=2)...,)
     # On Turing version 0.14, this atol could be 0.01.
@@ -155,12 +160,12 @@ Let's instead look the actual density `q`.
 
 For that we need samples:
 
-```julia
+```{julia}
 samples = rand(q, 10000);
 size(samples)
 ```
 
-```julia
+```{julia}
 p1 = histogram(
     samples[1, :]; bins=100, normed=true, alpha=0.2, color=:blue, label="", ylabel="density"
 )
@@ -184,7 +189,7 @@ For this particular `Model`, we can in fact obtain the posterior of the latent v
 
 *The code below is just work to get the marginals $p(s \mid x_1, \ldots, x_n)$ and $p(m \mid x_1, \ldots, x_n)$. Feel free to skip it.*
 
-```julia
+```{julia}
 # closed form computation of the Normal-inverse-gamma posterior
 # based on "Conjugate Bayesian analysis of the Gaussian distribution" by Murphy
 function posterior(μ₀::Real, κ₀::Real, α₀::Real, β₀::Real, x::AbstractVector{<:Real})
@@ -243,18 +248,18 @@ As we'll see, there is really no additional work required to apply variational i
 
 This section is basically copy-pasting the code from the [linear regression tutorial](../regression/02_linear-regression).
 
-```julia
+```{julia}
 Random.seed!(1);
 ```
 
-```julia
+```{julia}
 using FillArrays
 using RDatasets
 
 using LinearAlgebra
 ```
 
-```julia
+```{julia}
 # Import the "Default" dataset.
 data = RDatasets.dataset("datasets", "mtcars");
 
@@ -262,7 +267,7 @@ data = RDatasets.dataset("datasets", "mtcars");
 first(data, 6)
 ```
 
-```julia
+```{julia}
 # Function to split samples.
 function split_data(df, at=0.70)
     r = size(df, 1)
@@ -291,7 +296,7 @@ function unstandardize(x, mean_train, std_train)
 end
 ```
 
-```julia
+```{julia}
 # Remove the model column.
 select!(data, Not(:Model))
 
@@ -319,7 +324,7 @@ train = Matrix(train_cut[:, remove_names]);
 test = Matrix(test_cut[:, remove_names]);
 ```
 
-```julia
+```{julia}
 # Bayesian linear regression.
 @model function linear_regression(x, y, n_obs, n_vars, ::Type{T}=Vector{Float64}) where {T}
     # Set variance prior.
@@ -337,7 +342,7 @@ test = Matrix(test_cut[:, remove_names]);
 end;
 ```
 
-```julia
+```{julia}
 n_obs, n_vars = size(train)
 m = linear_regression(train, train_label, n_obs, n_vars);
 ```
@@ -346,12 +351,12 @@ m = linear_regression(train, train_label, n_obs, n_vars);
 
 First we define the initial variational distribution, or, equivalently, the family of distributions to consider. We're going to use the same mean-field approximation as Turing will use by default when we call `vi(m, advi)`, which we obtain by calling `Variational.meanfield`. This returns a `TransformedDistribution` with a `TuringDiagMvNormal` as the underlying distribution and the transformation mapping from the reals to the domain of the latent variables.
 
-```julia
+```{julia}
 q0 = Variational.meanfield(m)
 typeof(q0)
 ```
 
-```julia
+```{julia}
 advi = ADVI(10, 10_000)
 ```
 
@@ -363,7 +368,8 @@ Turing also provides a couple of different optimizers:
 
 With that being said, thanks to Requires.jl, if we add a `using Flux` prior to `using Turing` we can also make use of all the optimizers in `Flux`, e.g. `ADAM`, without any additional changes to your code! For example:
 
-```julia; eval = false
+```{julia}
+#| eval: false
 using Flux, Turing
 using Turing.Variational
 
@@ -374,11 +380,11 @@ just works.
 
 For this problem we'll use the `DecayedADAGrad` from Turing:
 
-```julia
+```{julia}
 opt = Variational.DecayedADAGrad(1e-2, 1.1, 0.9)
 ```
 
-```julia
+```{julia}
 q = vi(m, advi, q0; optimizer=opt)
 typeof(q)
 ```
@@ -389,35 +395,35 @@ typeof(q)
 
 To compute statistics for our approximation we need samples:
 
-```julia
+```{julia}
 z = rand(q, 10_000);
 ```
 
 Now we can for example look at the average
 
-```julia
+```{julia}
 avg = vec(mean(z; dims=2))
 ```
 
 The vector has the same ordering as the model, e.g. in this case `σ²` has index `1`, `intercept` has index `2` and `coefficients` has indices `3:12`. If  you forget or you might want to do something programmatically with the result, you can obtain the `sym → indices` mapping as follows:
 
-```julia
+```{julia}
 _, sym2range = bijector(m, Val(true));
 sym2range
 ```
 
 For example, we can check the sample distribution and mean value of `σ²`:
 
-```julia
+```{julia}
 histogram(z[1, :])
 avg[union(sym2range[:σ²]...)]
 ```
 
-```julia
+```{julia}
 avg[union(sym2range[:intercept]...)]
 ```
 
-```julia
+```{julia}
 avg[union(sym2range[:coefficients]...)]
 ```
 
@@ -425,7 +431,7 @@ avg[union(sym2range[:coefficients]...)]
 
 With a bit of work (this will be much easier in the future), we can also visualize the approximate marginals of the different variables, similar to `plot(chain)`:
 
-```julia
+```{julia}
 function plot_variational_marginals(z, sym2range)
     ps = []
 
@@ -462,21 +468,21 @@ function plot_variational_marginals(z, sym2range)
 end
 ```
 
-```julia
+```{julia}
 plot_variational_marginals(z, sym2range)
 ```
 
 And let's compare this to using the `NUTS` sampler:
 
-```julia
+```{julia}
 chain = sample(m, NUTS(), 10_000);
 ```
 
-```julia
+```{julia}
 plot(chain; margin=12.00mm)
 ```
 
-```julia
+```{julia}
 vi_mean = vec(mean(z; dims=2))[[
     union(sym2range[:coefficients]...)...,
     union(sym2range[:intercept]...)...,
@@ -484,18 +490,18 @@ vi_mean = vec(mean(z; dims=2))[[
 ]]
 ```
 
-```julia
+```{julia}
 mcmc_mean = mean(chain, names(chain, :parameters))[:, 2]
 ```
 
-```julia
+```{julia}
 plot(mcmc_mean; xticks=1:1:length(mcmc_mean), linestyle=:dot, label="NUTS")
 plot!(vi_mean; linestyle=:dot, label="VI")
 ```
 
 One thing we can look at is simply the squared error between the means:
 
-```julia
+```{julia}
 sum(abs2, mcmc_mean .- vi_mean)
 ```
 
@@ -505,7 +511,7 @@ That looks pretty good! But let's see how the predictive distributions looks for
 
 Similarily to the linear regression tutorial, we're going to compare to multivariate ordinary linear regression using the `GLM` package:
 
-```julia
+```{julia}
 # Import the GLM package.
 using GLM
 
@@ -519,7 +525,7 @@ train_cut.OLSPrediction = unstandardize(GLM.predict(ols), train_unstandardized.M
 test_cut.OLSPrediction = unstandardize(GLM.predict(ols, test_cut), train_unstandardized.MPG);
 ```
 
-```julia
+```{julia}
 # Make a prediction given an input vector, using mean parameter values from a chain.
 function prediction_chain(chain, x)
     p = get_params(chain)
@@ -529,7 +535,7 @@ function prediction_chain(chain, x)
 end
 ```
 
-```julia
+```{julia}
 # Make a prediction using samples from the variational posterior given an input vector.
 function prediction(samples::AbstractVector, sym2ranges, x)
     α = mean(samples[union(sym2ranges[:intercept]...)])
@@ -544,22 +550,22 @@ function prediction(samples::AbstractMatrix, sym2ranges, x)
 end
 ```
 
-```julia
+```{julia}
 # Unstandardize the dependent variable.
 train_cut.MPG = unstandardize(train_cut.MPG, train_unstandardized.MPG)
 test_cut.MPG = unstandardize(test_cut.MPG, train_unstandardized.MPG);
 ```
 
-```julia
+```{julia}
 # Show the first side rows of the modified dataframe.
 first(test_cut, 6)
 ```
 
-```julia
+```{julia}
 z = rand(q, 10_000);
 ```
 
-```julia
+```{julia}
 # Calculate the predictions for the training and testing sets using the samples `z` from variational posterior
 train_cut.VIPredictions = unstandardize(
     prediction(z, sym2range, train), train_unstandardized.MPG
@@ -576,7 +582,7 @@ test_cut.BayesPredictions = unstandardize(
 );
 ```
 
-```julia
+```{julia}
 vi_loss1 = mean((train_cut.VIPredictions - train_cut.MPG) .^ 2)
 bayes_loss1 = mean((train_cut.BayesPredictions - train_cut.MPG) .^ 2)
 ols_loss1 = mean((train_cut.OLSPrediction - train_cut.MPG) .^ 2)
@@ -597,7 +603,7 @@ Test set:
 
 Interestingly the squared difference between true- and mean-prediction on the test-set is actually *better* for the mean-field variational posterior than for the "true" posterior obtained by MCMC sampling using `NUTS`. But, as Bayesians, we know that the mean doesn't tell the entire story. One quick check is to look at the mean predictions ± standard deviation of the two different approaches:
 
-```julia
+```{julia}
 z = rand(q, 1000);
 preds = mapreduce(hcat, eachcol(z)) do zi
     return unstandardize(prediction(zi, sym2range, test), train_unstandardized.MPG)
@@ -617,7 +623,7 @@ ylims!(10, 40)
 title!("Mean-field ADVI (Normal)")
 ```
 
-```julia
+```{julia}
 preds = mapreduce(hcat, 1:5:size(chain, 1)) do i
     return unstandardize(prediction_chain(chain[i], test), train_unstandardized.MPG)
 end
@@ -644,26 +650,26 @@ As mentioned earlier, it's also possible to just provide the mapping $\theta \ma
 
 In this section we're going to construct a mean-field approximation to the model by hand using a composition of`Shift` and `Scale` from Bijectors.jl togheter with a standard multivariate Gaussian as the base distribution.
 
-```julia
+```{julia}
 using Bijectors
 ```
 
-```julia
+```{julia}
 using Bijectors: Scale, Shift
 ```
 
-```julia
+```{julia}
 d = length(q)
 base_dist = Turing.DistributionsAD.TuringDiagMvNormal(zeros(d), ones(d))
 ```
 
 `bijector(model::Turing.Model)` is defined by Turing, and will return a `bijector` which takes you from the space of the latent variables to the real space. In this particular case, this is a mapping `((0, ∞) × ℝ × ℝ¹⁰) → ℝ¹²`. We're interested in using a normal distribution as a base-distribution and transform samples to the latent space, thus we need the inverse mapping from the reals to the latent space:
 
-```julia
+```{julia}
 to_constrained = inverse(bijector(m));
 ```
 
-```julia
+```{julia}
 function getq(θ)
     d = length(θ) ÷ 2
     A = @inbounds θ[1:d]
@@ -675,11 +681,11 @@ function getq(θ)
 end
 ```
 
-```julia
+```{julia}
 q_mf_normal = vi(m, advi, getq, randn(2 * d));
 ```
 
-```julia
+```{julia}
 p1 = plot_variational_marginals(rand(q_mf_normal, 10_000), sym2range) # MvDiagNormal + Affine transformation + to_constrained
 p2 = plot_variational_marginals(rand(q, 10_000), sym2range)  # Turing.meanfield(m)
 
@@ -694,12 +700,12 @@ But using this interface it becomes trivial to go beyond the mean-field assumpti
 
 Here we'll instead consider the variational family to be a full non-diagonal multivariate Gaussian. As in the previous section we'll implement this by transforming a standard multivariate Gaussian using `Scale` and `Shift`, but now `Scale` will instead be using a lower-triangular matrix (representing the Cholesky of the covariance matrix of a multivariate normal) in contrast to the diagonal matrix we used in for the mean-field approximate posterior.
 
-```julia
+```{julia}
 # Using `ComponentArrays.jl` together with `UnPack.jl` makes our lives much easier.
 using ComponentArrays, UnPack
 ```
 
-```julia
+```{julia}
 proto_arr = ComponentArray(; L=zeros(d, d), b=zeros(d))
 proto_axes = getaxes(proto_arr)
 num_params = length(proto_arr)
@@ -720,11 +726,11 @@ function getq(θ)
 end
 ```
 
-```julia
+```{julia}
 advi = ADVI(10, 20_000)
 ```
 
-```julia
+```{julia}
 q_full_normal = vi(
     m, advi, getq, randn(num_params); optimizer=Variational.DecayedADAGrad(1e-2)
 );
@@ -732,19 +738,19 @@ q_full_normal = vi(
 
 Let's have a look at the learned covariance matrix:
 
-```julia
+```{julia}
 A = q_full_normal.transform.inner.a
 ```
 
-```julia
+```{julia}
 heatmap(cov(A * A'))
 ```
 
-```julia
+```{julia}
 zs = rand(q_full_normal, 10_000);
 ```
 
-```julia
+```{julia}
 p1 = plot_variational_marginals(rand(q_mf_normal, 10_000), sym2range)
 p2 = plot_variational_marginals(rand(q_full_normal, 10_000), sym2range)
 
@@ -753,14 +759,14 @@ plot(p1, p2; layout=(1, 2), size=(800, 2000))
 
 So it seems like the "full" ADVI approach, i.e. no mean-field assumption, obtain the same modes as the mean-field approach but with greater uncertainty for some of the `coefficients`. This
 
-```julia
+```{julia}
 # Unfortunately, it seems like this has quite a high variance which is likely to be due to numerical instability, 
 # so we consider a larger number of samples. If we get a couple of outliers due to numerical issues, 
 # these kind affect the mean prediction greatly.
 z = rand(q_full_normal, 10_000);
 ```
 
-```julia
+```{julia}
 train_cut.VIFullPredictions = unstandardize(
     prediction(z, sym2range, train), train_unstandardized.MPG
 )
@@ -769,7 +775,7 @@ test_cut.VIFullPredictions = unstandardize(
 );
 ```
 
-```julia
+```{julia}
 vi_loss1 = mean((train_cut.VIPredictions - train_cut.MPG) .^ 2)
 vifull_loss1 = mean((train_cut.VIFullPredictions - train_cut.MPG) .^ 2)
 bayes_loss1 = mean((train_cut.BayesPredictions - train_cut.MPG) .^ 2)
@@ -790,13 +796,15 @@ Test set:
     OLS loss: $ols_loss2")
 ```
 
-```julia; echo=false
+```{julia}
+#| echo: false
+#| eval: false
 # Verify the loss on the test set.
 @assert vi_loss2 < 0.01 "VI loss on the test set: $(vi_loss2)"
 @assert bayes_loss2 < 0.000001 "Bayes loss on the test set: $(bayes_loss2)"
 ```
 
-```julia
+```{julia}
 z = rand(q_mf_normal, 1000);
 preds = mapreduce(hcat, eachcol(z)) do zi
     return unstandardize(prediction(zi, sym2range, test), train_unstandardized.MPG)
@@ -816,7 +824,7 @@ ylims!(10, 40)
 title!("Mean-field ADVI (Normal)")
 ```
 
-```julia
+```{julia}
 z = rand(q_full_normal, 1000);
 preds = mapreduce(hcat, eachcol(z)) do zi
     return unstandardize(prediction(zi, sym2range, test), train_unstandardized.MPG)
@@ -836,7 +844,7 @@ ylims!(10, 40)
 title!("Full ADVI (Normal)")
 ```
 
-```julia
+```{julia}
 preds = mapreduce(hcat, 1:5:size(chain, 1)) do i
     return unstandardize(prediction_chain(chain[i], test), train_unstandardized.MPG)
 end
@@ -855,16 +863,10 @@ ylims!(10, 40)
 title!("MCMC (NUTS)")
 ```
 
-```julia
+```{julia}
 plot(p1, p2, p3; layout=(1, 3), size=(900, 250), label="")
 ```
 
 Here we actually see that indeed both the full ADVI and the MCMC approaches does a much better job of quantifying the uncertainty of predictions for never-before-seen samples, with full ADVI seemingly *underestimating* the variance slightly compared to MCMC.
 
 So now you know how to do perform VI on your Turing.jl model! Great isn't it?
-
-```julia, echo=false, skip="notebook", tangle=false
-if isdefined(Main, :TuringTutorials)
-    Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
-end
-```

@@ -1,9 +1,6 @@
 ---
 title: Linear Regression
-permalink: /tutorials/:name/
-redirect_from: tutorials/5-linearregression/
-weave_options:
-  error : false
+engine: julia
 ---
 
 Turing is powerful when applied to complex hierarchical models, but it can also be put to task at common statistical procedures, like [linear regression](https://en.wikipedia.org/wiki/Linear_regression).
@@ -13,7 +10,8 @@ This tutorial covers how to implement a linear regression model in Turing.
 
 We begin by importing all the necessary libraries.
 
-```julia
+```{julia}
+#| eval: false
 # Import Turing.
 using Turing
 
@@ -40,13 +38,21 @@ using Random
 Random.seed!(0);
 ```
 
+```{julia}
+#| eval: false
+#| echo: false
+#| output: false
+setprogress!(false)
+```
+
 We will use the `mtcars` dataset from the [RDatasets](https://github.com/JuliaStats/RDatasets.jl) package.
 `mtcars` contains a variety of statistics on different car models, including their miles per gallon, number of cylinders, and horsepower, among others.
 
 We want to know if we can construct a Bayesian linear regression model to predict the miles per gallon of a car, given the other statistics it has.
 Let us take a look at the data we have.
 
-```julia
+```{julia}
+#| eval: false
 # Load the dataset.
 data = RDatasets.dataset("datasets", "mtcars")
 
@@ -54,13 +60,15 @@ data = RDatasets.dataset("datasets", "mtcars")
 first(data, 6)
 ```
 
-```julia
+```{julia}
+#| eval: false
 size(data)
 ```
 
 The next step is to get our data ready for testing. We'll split the `mtcars` dataset into two subsets, one for training our model and one for evaluating our model. Then, we separate the targets we want to learn (`MPG`, in this case) and standardize the datasets by subtracting each column's means and dividing by the standard deviation of that column. The resulting data is not very familiar looking, but this standardization process helps the sampler converge far easier.
 
-```julia
+```{julia}
+#| eval: false
 # Remove the model column.
 select!(data, Not(:Model))
 
@@ -109,7 +117,8 @@ Each coefficient is assumed to be normally distributed with a mean of zero and a
 We do not know that our coefficients are different from zero, and we don't know which ones are likely to be the most important, so the variance term is quite high.
 Lastly, each observation $y_i$ is distributed according to the calculated `mu` term given by $\alpha + \boldsymbol{\beta}^\mathsf{T}\boldsymbol{X_i}$.
 
-```julia
+```{julia}
+#| eval: false
 # Bayesian linear regression.
 @model function linear_regression(x, y)
     # Set variance prior.
@@ -130,20 +139,24 @@ end
 
 With our model specified, we can call the sampler. We will use the No U-Turn Sampler ([NUTS](https://turinglang.org/stable/docs/library/#Turing.Inference.NUTS)) here.
 
-```julia
+```{julia}
+#| eval: false
 model = linear_regression(train, train_target)
 chain = sample(model, NUTS(), 5_000)
 ```
 
 We can also check the densities and traces of the parameters visually using the `plot` functionality.
 
-```julia
+```{julia}
+#| eval: false
 plot(chain)
 ```
 
 It looks like all parameters have converged.
 
-```julia; echo=false
+```{julia}
+#| eval: false
+#| echo: false
 let
     ess_df = ess(chain)
     @assert minimum(ess_df[:, :ess]) > 500 "Minimum ESS: $(minimum(ess_df[:, :ess])) - not > 700"
@@ -156,7 +169,8 @@ end
 
 A satisfactory test of our model is to evaluate how well it predicts. Importantly, we want to compare our model to existing tools like OLS. The code below uses the [GLM.jl]() package to generate a traditional OLS multiple regression model on the same data as our probabilistic model.
 
-```julia
+```{julia}
+#| eval: false
 # Import the GLM package.
 using GLM
 
@@ -176,7 +190,8 @@ StatsBase.reconstruct!(dt_targets, test_prediction_ols);
 
 The function below accepts a chain and an input matrix and calculates predictions. We use the samples of the model parameters in the chain starting with sample 200.
 
-```julia
+```{julia}
+#| eval: false
 # Make a prediction given an input vector.
 function prediction(chain, x)
     p = get_params(chain[200:end, :, :])
@@ -187,7 +202,8 @@ end
 
 When we make predictions, we unstandardize them so they are more understandable.
 
-```julia
+```{julia}
+#| eval: false
 # Calculate the predictions for the training and testing sets and unstandardize them.
 train_prediction_bayes = prediction(chain, train)
 StatsBase.reconstruct!(dt_targets, train_prediction_bayes)
@@ -204,7 +220,8 @@ $$
 $$
 where $y_i$ is the actual value (true MPG) and $\hat{y_i}$ is the predicted value using either OLS or Bayesian linear regression. A lower SSE indicates a closer fit to the data.
 
-```julia
+```{julia}
+#| eval: false
 println(
     "Training set:",
     "\n\tBayes loss: ",
@@ -222,7 +239,9 @@ println(
 )
 ```
 
-```julia; echo=false
+```{julia}
+#| eval: false
+#| echo: false
 let
     bayes_train_loss = msd(train_prediction_bayes, trainset[!, target])
     bayes_test_loss = msd(test_prediction_bayes, testset[!, target])
@@ -236,9 +255,3 @@ end
 ```
 
 As we can see above, OLS and our Bayesian model fit our training and test data set about the same.
-
-```julia, echo=false, skip="notebook", tangle=false
-if isdefined(Main, :TuringTutorials)
-    Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
-end
-```

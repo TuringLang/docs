@@ -1,8 +1,6 @@
 ---
 title: Bayesian Time Series Analysis
-permalink: /tutorials/:name/
-weave_options:
-  error : false
+engine: julia
 ---
 
 In time series analysis we are often interested in understanding how various real-life circumstances impact our quantity of interest.
@@ -29,7 +27,7 @@ Two common components are *trends*, which represent the overall change of the ti
 and *cyclic effects* which contribute oscillating effects around the trend.
 Let us simulate some data with an additive linear trend and oscillating effects.
 
-```julia
+```{julia}
 using Turing
 using FillArrays
 using StatsPlots
@@ -68,7 +66,7 @@ In this time series, cyclic effects are just added on top of the trend.
 If we instead multiply the components the cyclic effects cause the series to oscillate
 between larger and larger values, since they get scaled by the trend.
 
-```julia
+```{julia}
 g(t) = f₁(t) * f₂(t) * f₃(t)
 
 plot(g, tt; label="f(t)", title="Observed time series", legend=:topleft, linewidth=3)
@@ -87,7 +85,7 @@ Having discussed time series decomposition, let us fit a model to the time serie
 Before building our model, we standardise the time axis to $[0, 1]$ and subtract the max of the time series.
 This helps convergence while maintaining interpretability and the correct scales for the cyclic components.
 
-```julia
+```{julia}
 σ_true = 0.35
 t = collect(tt[begin:3:end])
 t_min, t_max = extrema(t)
@@ -108,7 +106,7 @@ How long a period should be is problem dependent, but as an example let us say i
 If we then find evidence for a cyclic effect with a frequency of 2, that would mean a biannual effect. A frequency of 4 would mean quarterly etc.
 Since we are using synthetic data, we are simply going to let the period be 1, which is the entire length of the time series.
 
-```julia
+```{julia}
 freqs = 1:10
 num_freqs = length(freqs)
 period = 1
@@ -134,7 +132,7 @@ And just because it is so easy, we parameterise our model with the operation wit
 This lets us use the exact same code for both additive and multiplicative models.
 Finally, we plot prior predictive samples to make sure our priors make sense.
 
-```julia
+```{julia}
 @model function decomp_model(t, c, op)
     α ~ Normal(0, 10)
     βt ~ Normal(0, 2)
@@ -157,7 +155,7 @@ scatter!(t, yf; color=2, label="Data")
 
 With the model specified and with a reasonable prior we can now let Turing decompose the time series for us!
 
-```julia; fig_ext = ".png"
+```{julia}
 function mean_ribbon(samples)
     qs = quantile(samples)
     low = qs[:, Symbol("2.5%")]
@@ -210,7 +208,7 @@ function plot_fit(x, y, decomp, ymax)
     return trend_plt, cyclic_plt
 end
 
-chain = sample(decomp_model(x, cyclic_features, +) | (; y=yf), NUTS(), 2000)
+chain = sample(decomp_model(x, cyclic_features, +) | (; y=yf), NUTS(), 2000, progress=false)
 yf_samples = predict(decomp_model(x, cyclic_features, +), chain)
 m, conf = mean_ribbon(yf_samples)
 predictive_plt = plot(
@@ -229,7 +227,8 @@ decomposed_plt = plot_fit(t, yf, decomp, yf_max)
 plot(predictive_plt, decomposed_plt...; layout=(3, 1), size=(700, 1000))
 ```
 
-```julia, echo=false
+```{julia}
+#| echo: false
 let
     @assert mean(ess(chain)[:, :ess]) > 500 "Mean ESS: $(mean(ess(chain)[:, :ess])) - not > 500"
     lower_quantile = m .- conf[1] # 2.5% quantile
@@ -244,7 +243,7 @@ Since our model takes cyclic effects into account separately,
 we get a better estimate of the true overall trend than if we would have just fitted a line.
 But what frequency content did the model identify?
 
-```julia
+```{julia}
 function plot_cyclic_features(βsin, βcos)
     labels = reshape(["freq = $i" for i in freqs], 1, :)
     colors = collect(freqs)'
@@ -286,7 +285,7 @@ Plotting the posterior over the cyclic features reveals that the model managed t
 
 Since we wrote our model to accept a combining operator, we can easily run the same analysis for a multiplicative model.
 
-```julia
+```{julia}
 yg = g.(t) .+ σ_true .* randn(size(t))
 
 y_prior_samples = mapreduce(hcat, 1:100) do _
@@ -296,8 +295,8 @@ plot(t, y_prior_samples; linewidth=1, alpha=0.5, color=1, label="", title="Prior
 scatter!(t, yf; color=2, label="Data")
 ```
 
-```julia; fig_ext = ".png"
-chain = sample(decomp_model(x, cyclic_features, .*) | (; y=yg), NUTS(), 2000)
+```{julia}
+chain = sample(decomp_model(x, cyclic_features, .*) | (; y=yg), NUTS(), 2000, progress=false)
 yg_samples = predict(decomp_model(x, cyclic_features, .*), chain)
 m, conf = mean_ribbon(yg_samples)
 predictive_plt = plot(
@@ -316,7 +315,8 @@ decomposed_plt = plot_fit(t, yg, decomp, 0)
 plot(predictive_plt, decomposed_plt...; layout=(3, 1), size=(700, 1000))
 ```
 
-```julia, echo=false
+```{julia}
+#| echo: false
 let
     @assert mean(ess(chain)[:, :ess]) > 500 "Mean ESS: $(mean(ess(chain)[:, :ess])) - not > 500"
     lower_quantile = m .- conf[1] # 2.5% quantile
@@ -327,7 +327,7 @@ end
 
 The model fits! What about the infered cyclic components?
 
-```julia
+```{julia}
 βc = Array(group(chain, :βc))
 plot_cyclic_features(βc[:, begin:num_freqs, :], βc[:, (num_freqs + 1):end, :])
 ```
@@ -338,9 +338,3 @@ While multiplicative model fits to the data, it does not recover the true parame
 
 In this tutorial we have seen how to implement and fit time series models using additive and multiplicative decomposition.
 We also saw how to visualise the model fit, and how to interpret learned cyclical components.
-
-```julia, echo=false, skip="notebook", tangle=false
-if isdefined(Main, :TuringTutorials)
-    Main.TuringTutorials.tutorial_footer(WEAVE_ARGS[:folder], WEAVE_ARGS[:file])
-end
-```

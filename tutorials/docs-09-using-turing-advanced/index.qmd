@@ -1,15 +1,12 @@
 ---
 title: Advanced Usage
-permalink: docs/using-turing/advanced
-weave_options:
-  error : false
+engine: julia
 ---
 
-```{julia; eval=true; echo=false}
+```{julia}
+#| echo: false
 using Distributions, Turing, Random, Bijectors
 ```
-
-# Advanced Usage
 
 ## How to Define a Customized Distribution
 
@@ -21,7 +18,7 @@ Below shows a workflow of how to define a customized distribution, using our own
 
 First, define a type of the distribution, as a subtype of a corresponding distribution type in the Distributions.jl package.
 
-```{julia; eval=true}
+```{julia}
 struct CustomUniform <: ContinuousUnivariateDistribution end
 ```
 
@@ -29,7 +26,7 @@ struct CustomUniform <: ContinuousUnivariateDistribution end
 
 Second, define `rand` and `logpdf`, which will be used to run the model.
 
-```{julia; eval=true}
+```{julia}
 # sample in [0, 1]
 Distributions.rand(rng::AbstractRNG, d::CustomUniform) = rand(rng)
 
@@ -47,7 +44,7 @@ Certain samplers, such as `HMC`, require the domain of the priors to be unbounde
 
 To transform from `[0, 1]` to `ℝ` we can use the `Logit` bijector:
 
-```{julia; eval=true}
+```{julia}
 Bijectors.bijector(d::CustomUniform) = Logit(0.0, 1.0)
 ```
 
@@ -55,7 +52,7 @@ You'd do the exact same thing for `ContinuousMultivariateDistribution` and `Cont
 
 Alternatively, for `UnivariateDistribution` we can define the `minimum` and `maximum` of the distribution
 
-```{julia; eval=true}
+```{julia}
 Distributions.minimum(d::CustomUniform) = 0.0
 Distributions.maximum(d::CustomUniform) = 1.0
 ```
@@ -64,7 +61,7 @@ and `Bijectors.jl` will return a default `Bijector` called `TruncatedBijector` w
 
 Internally, Turing basically does the following when it needs to convert a constrained distribution to an unconstrained distribution, e.g. when sampling using `HMC`:
 
-```{julia; eval=true}
+```{julia}
 dist = Gamma(2,3)
 b = bijector(dist)
 transformed_dist = transformed(dist, b) # results in distribution with transformed support + correction for logpdf
@@ -72,8 +69,8 @@ transformed_dist = transformed(dist, b) # results in distribution with transform
 
 and then we can call `rand` and `logpdf` as usual, where
 
-  - `rand(transformed_dist)` returns a sample in the unconstrained space, and
-  - `logpdf(transformed_dist, y)` returns the log density of the original distribution, but with `y` living in the unconstrained space.
+- `rand(transformed_dist)` returns a sample in the unconstrained space, and
+- `logpdf(transformed_dist, y)` returns the log density of the original distribution, but with `y` living in the unconstrained space.
 
 To read more about Bijectors.jl, check out [the project README](https://github.com/TuringLang/Bijectors.jl).
 
@@ -85,7 +82,7 @@ However, since users should not have to deal with internal data structures, a ma
 that increases the accumulated log probability. For instance, this allows you to
 [include arbitrary terms in the likelihood](https://github.com/TuringLang/Turing.jl/issues/1332)
 
-```julia
+```{julia}
 using Turing
 
 myloglikelihood(x, μ) = loglikelihood(Normal(μ, 1), x)
@@ -98,7 +95,7 @@ end
 
 and to [reject samples](https://github.com/TuringLang/Turing.jl/issues/1328):
 
-```julia
+```{julia}
 using Turing
 using LinearAlgebra
 
@@ -115,13 +112,10 @@ using LinearAlgebra
 end
 ```
 
-Note that `@addlogprob!` always increases the accumulated log probability, regardless of the provided
-sampling context. For instance, if you do not want to apply `Turing.@addlogprob!` when evaluating the
-prior of your model but only when computing the log likelihood and the log joint probability, then you
-should [check the type of the internal variable `__context_`](https://github.com/TuringLang/DynamicPPL.jl/issues/154)
-such as
+Note that `@addlogprob!` always increases the accumulated log probability, regardless of the provided sampling context. For instance, if you do not want to apply `Turing.@addlogprob!` when evaluating the prior of your model but only when computing the log likelihood and the log joint probability, then you should [check the type of the internal variable `__context_`](https://github.com/TuringLang/DynamicPPL.jl/issues/154) such as
 
-```{julia; eval=false}
+```{julia}
+#| eval: false
 if DynamicPPL.leafcontext(__context__) !== Turing.PriorContext()
     Turing.@addlogprob! myloglikelihood(x, μ)
 end
@@ -133,7 +127,7 @@ The `@model` macro accepts a function definition and rewrites it such that call 
 Models can be constructed by hand without the use of a macro.
 Taking the `gdemo` model as an example, the macro-based definition
 
-```julia
+```{julia}
 using Turing
 
 @model function gdemo(x)
@@ -150,7 +144,7 @@ model = gdemo([1.5, 2.0])
 
 can be implemented also (a bit less generally) with the macro-free version
 
-```julia
+```{julia}
 using Turing
 
 # Create the model function.
@@ -178,8 +172,4 @@ model = gdemo([1.5, 2.0])
 
 ## Task Copying
 
-Turing [copies](https://github.com/JuliaLang/julia/issues/4085) Julia tasks to
-deliver efficient inference algorithms, but it also provides alternative slower
-implementation as a fallback. Task copying is enabled by default. Task copying
-requires us to use the `TapedTask` facility which is provided by
-[Libtask](https://github.com/TuringLang/Libtask.jl) to create tasks.
+Turing [copies](https://github.com/JuliaLang/julia/issues/4085) Julia tasks to deliver efficient inference algorithms, but it also provides alternative slower implementation as a fallback. Task copying is enabled by default. Task copying requires us to use the `TapedTask` facility which is provided by [Libtask](https://github.com/TuringLang/Libtask.jl) to create tasks.

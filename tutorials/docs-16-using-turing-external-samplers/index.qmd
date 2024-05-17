@@ -1,12 +1,10 @@
 ---
 title: Using External Sampler
-permalink: /docs/using-turing/external-samplers
-mathjax: true
-weave_options:
-  error : false
+# title: Using External Samplers on Turing Models
+engine: julia
 ---
 
-# Using External Samplers on Turing Models
+## Using External Samplers on Turing Models
 
 `Turing` provides several wrapped samplers from external sampling libraries, e.g., HMC samplers from `AdvancedHMC`.
 These wrappers allow new users to seamlessly sample statistical models without leaving `Turing`
@@ -16,7 +14,7 @@ Moreover, users might want to use samplers currently not wrapped within `Turing`
 For these reasons, `Turing` also makes running external samplers on Turing models easy without any necessary modifications or wrapping!
 Throughout, we will use a 10-dimensional Neal's funnel as a running example::
 
-```julia
+```{julia}
 # Import libraries.
 using Turing, Random, LinearAlgebra
 
@@ -30,7 +28,7 @@ end
 
 Now we sample the model to generate some observations, which we can then condition on.
 
-```julia
+```{julia}
 (; x) = rand(funnel() | (θ=0,))
 model = funnel() | (; x);
 ```
@@ -44,15 +42,19 @@ An excellent point to start to show how this is done in practice is by looking a
 Let's say we want to use a random walk Metropolis-Hastings sampler without specifying the proposal distributions.
 The code below constructs an MH sampler using a multivariate Gaussian distribution with zero mean and unit variance in `d` dimensions as a random walk proposal.
 
-```julia
+```{julia}
 # Importing the sampling library
 using AdvancedMH
 rwmh = AdvancedMH.RWMH(d)
 ```
 
+```{julia}
+setprogress!(false)
+```
+
 Sampling is then as easy as:
 
-```julia
+```{julia}
 chain = sample(model, externalsampler(rwmh), 10_000)
 ```
 
@@ -69,7 +71,7 @@ In this process, `Pathfinder` computes an estimate of the mass matrix the user c
 
 The code below shows this can be done in practice.
 
-```julia
+```{julia}
 using AdvancedHMC, Pathfinder
 # Running pathfinder
 draws = 1_000
@@ -93,12 +95,12 @@ chain = sample(model, externalsampler(nuts), 10_000; n_adapts=1_000)
 So far we have used Turing's support for external samplers to go beyond the capabilities of the wrappers.
 We want to use this support to employ a sampler not supported within Turing's ecosystem yet.
 We will use the recently developed Micro-Cannoncial Hamiltonian Monte Carlo (MCHMC) sampler to showcase this.
-MCHMC[^3,^4] ((MCHMC's GitHub)[https://github.com/JaimeRZP/MicroCanonicalHMC.jl]) is HMC sampler that uses one single Hamiltonian energy level to explore the whole parameter space.
+MCHMC[[^3],[^4]] ((MCHMC's GitHub)[https://github.com/JaimeRZP/MicroCanonicalHMC.jl]) is HMC sampler that uses one single Hamiltonian energy level to explore the whole parameter space.
 This is achieved by simulating the dynamics of a microcanonical Hamiltonian with an additional noise term to ensure ergodicity.
 
 Using this as well as other inference methods outside the Turing ecosystem is as simple as executing the code shown below:
 
-```julia
+```{julia}
 using MicroCanonicalHMC
 # Create MCHMC sampler
 n_adapts = 1_000 # adaptation steps
@@ -116,7 +118,8 @@ In this section, we will briefly dwell on what this entails.
 First and foremost, the sampler should be a subtype of `AbstractMCMC.AbstractSampler`.
 Second, the stepping function of the MCMC algorithm must be made defined using `AbstractMCMC.step` and follow the structure below:
 
-```
+```{julia}
+#| eval: false
 # First step
 function AbstractMCMC.step{T<:AbstractMCMC.AbstractSampler}(
     rng::Random.AbstractRNG,
@@ -161,7 +164,6 @@ For practical examples of how to adapt a sampling library to the `AbstractMCMC` 
   - [AdvancedHMC](https://github.com/TuringLang/AdvancedHMC.jl/blob/762e55f894d142495a41a6eba0eed9201da0a600/src/abstractmcmc.jl#L102-L170)
   - [MicroCanonicalHMC](https://github.com/JaimeRZP/MicroCanonicalHMC.jl/blob/master/src/abstractmcmc.jl)
 
-# Refences
 
 [^1]: Xu et al., [AdvancedHMC.jl: A robust, modular and efficient implementation of advanced HMC algorithms](http://proceedings.mlr.press/v118/xu20a/xu20a.pdf), 2019
 [^2]: Zhang et al., [Pathfinder: Parallel quasi-Newton variational inference](https://arxiv.org/abs/2108.03782), 2021

@@ -1,14 +1,9 @@
 ---
 title: Getting Started
-permalink: /docs/using-turing/get-started
-redirect_from: docs/0-gettingstarted/
-weave_options:
-  error : false
+engine: julia
 ---
 
-# Getting Started
-
-## Installation
+### Installation
 
 To use Turing, you need to install Julia first and then install Turing.
 
@@ -20,27 +15,28 @@ You will need to install Julia 1.3 or greater, which you can get from [the offic
 
 Turing is an officially registered Julia package, so you can install a stable version of Turing by running the following in the Julia REPL:
 
-```julia
+```{julia}
+#| output: false
 using Pkg
 Pkg.add("Turing")
 ```
 
 You can check if all tests pass by running `Pkg.test("Turing")` (it might take a long time)
 
-## Example
+### Example
 
 Here's a simple example showing Turing in action.
 
 First, we can load the Turing and StatsPlots modules
 
-```julia
+```{julia}
 using Turing
 using StatsPlots
 ```
 
 Then, we define a simple Normal model with unknown mean and variance
 
-```julia
+```{julia}
 @model function gdemo(x, y)
     s² ~ InverseGamma(2, 3)
     m ~ Normal(0, sqrt(s²))
@@ -51,21 +47,19 @@ end
 
 Then we can run a sampler to collect results. In this case, it is a Hamiltonian Monte Carlo sampler
 
-```julia
-chn = sample(gdemo(1.5, 2), NUTS(), 1000)
+```{julia}
+chn = sample(gdemo(1.5, 2), NUTS(), 1000, progress=false)
 ```
 
 We can plot the results
 
-```julia
+```{julia}
 plot(chn)
 ```
 
-In this case, because we use the [normal-inverse gamma distribution](https://en.wikipedia.org/wiki/Normal-inverse-gamma_distribution)
-as a [conjugate prior](https://en.wikipedia.org/wiki/Conjugate_prior), we can compute
-its updated mean as follows:
+In this case, because we use the normal-inverse gamma distribution as a conjugate prior, we can compute its updated mean as follows:
 
-```julia
+```{julia}
 s² = InverseGamma(2, 3)
 m = Normal(0, 1)
 data = [1.5, 2]
@@ -77,7 +71,7 @@ mean_exp = (m.σ * m.μ + N * x_bar) / (m.σ + N)
 
 We can also compute the updated variance
 
-```julia
+```{julia}
 updated_alpha = shape(s²) + (N / 2)
 updated_beta =
     scale(s²) +
@@ -86,11 +80,9 @@ updated_beta =
 variance_exp = updated_beta / (updated_alpha - 1)
 ```
 
-Finally, we can check if these expectations align with our HMC approximations
-from earlier. We can compute samples from a normal-inverse gamma following the
-equations given [here](https://en.wikipedia.org/wiki/Normal-inverse-gamma_distribution#Generating_normal-inverse-gamma_random_variates).
+Finally, we can check if these expectations align with our HMC approximations from earlier. We can compute samples from a normal-inverse gamma following the equations given [here](https://en.wikipedia.org/wiki/Normal-inverse-gamma_distribution#Generating_normal-inverse-gamma_random_variates).
 
-```julia
+```{julia}
 function sample_posterior(alpha, beta, mean, lambda, iterations)
     samples = []
     for i in 1:iterations
@@ -104,7 +96,7 @@ end
 analytical_samples = sample_posterior(updated_alpha, updated_beta, mean_exp, 2, 1000);
 ```
 
-```julia
+```{julia}
 density(analytical_samples; label="Posterior (Analytical)")
 density!(chn[:m]; label="Posterior (HMC)")
 ```

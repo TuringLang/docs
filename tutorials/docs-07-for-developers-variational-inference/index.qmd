@@ -1,8 +1,6 @@
 ---
 title: Variational Inference
-permalink: /docs/for-developers/variational_inference
-weave_options:
-  error : false
+engine: julia
 ---
 
 # Overview
@@ -15,7 +13,7 @@ Here we'll have a look at the theory behind VI, but if you're interested in how 
 
 In Bayesian inference one usually specifies a model as follows: given data ``\\{x_i\\}_{i = 1}^n``,
 
-```math
+```{.cell-bg}
 \begin{align*}
   \text{prior:} \quad z &\sim p(z)   \\\\
   \text{likelihood:} \quad x_i &\overset{\text{i.i.d.}}{\sim} p(x \mid z) \quad  \text{where} \quad i = 1, \dots, n
@@ -24,7 +22,7 @@ In Bayesian inference one usually specifies a model as follows: given data ``\\{
 
 where ``\overset{\text{i.i.d.}}{\sim}`` denotes that the samples are identically independently distributed. Our goal in Bayesian inference is then to find the _posterior_
 
-```math
+```{.cell-bg}
 p(z \mid \\{ x\_i \\}\_{i = 1}^n) \propto p(z) \prod\_{i=1}^{n} p(x\_i \mid z).
 ```
 
@@ -44,7 +42,7 @@ In VI, we're looking to approximate ``p(z \mid \\{ x_i \\}_{i = 1}^n )`` using s
 
 To approximate something you need a notion of what "close" means. In the context of probability densities a standard such "measure" of closeness is the _Kullback-Leibler (KL) divergence_ , though this is far from the only one. The KL-divergence is defined between two densities ``q(z)`` and ``p(z \mid \\{ x_i \\}_{i = 1}^n)`` as
 
-```math
+```{.cell-bg}
 \begin{align*}
   \mathrm{D\_{KL}} \left( q(z), p(z \mid \\{ x\_i \\}\_{i = 1}^n) \right) &= \int \log \left( \frac{q(z)}{\prod\_{i = 1}^n p(z \mid x\_i)} \right) q(z) \mathrm{d}{z} \\\\
   &= \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) - \sum\_{i = 1}^n \log p(z \mid x\_i) \right] \\\\
@@ -54,7 +52,7 @@ To approximate something you need a notion of what "close" means. In the context
 
 It's worth noting that unfortunately the KL-divergence is _not_ a metric/distance in the analysis-sense due to its lack of symmetry. On the other hand, it turns out that minimizing the KL-divergence that it's actually equivalent to maximizing the log-likelihood! Also, under reasonable restrictions on the densities at hand,
 
-```math
+```{.cell-bg}
 \mathrm{D\_{KL}}\left(q(z), p(z \mid \\{ x\_i \\}\_{i = 1}^n) \right) = 0 \quad \iff \quad q(z) = p(z \mid \\{ x\_i \\}\_{i = 1}^n), \quad \forall z.
 ```
 
@@ -62,7 +60,7 @@ Therefore one could (and we will) attempt to approximate ``p(z \mid \\{ x_i \\}_
 
 One can also show that ``\mathrm{D_{KL}} \ge 0``, which we'll need later. Finally notice that the KL-divergence is only well-defined when in fact ``q(z)`` is zero everywhere ``p(z \mid \\{ x_i \\}_{i = 1}^n)`` is zero, i.e.
 
-```math
+```{.cell-bg}
 \mathrm{supp}\left(q(z)\right) \subseteq \mathrm{supp}\left(p(z \mid x)\right).
 ```
 
@@ -74,13 +72,13 @@ One major problem: as we can see in the definition of the KL-divergence, we need
 
 First off, recall that
 
-```math
+```{.cell-bg}
 p(z \mid x\_i) = \frac{p(x\_i, z)}{p(x\_i)}
 ```
 
 so we can write
 
-```math
+```{.cell-bg}
 \begin{align*}
 \mathrm{D\_{KL}} \left( q(z), p(z \mid \\{ x\_i \\}\_{i = 1}^n) \right) &= \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) \right] - \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) - \log p(x\_i) \right] \\\\
     &= \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) \right] - \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) \right] + \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x_i) \right] \\\\
@@ -92,19 +90,19 @@ where in the last equality we used the fact that ``p(x_i)`` is independent of ``
 
 Now you're probably thinking "Oh great! Now you've introduced ``p(x_i)`` which we _also_ can't compute (in general)!". Woah. Calm down human. Let's do some more algebra. The above expression can be rearranged to
 
-```math
+```{.cell-bg}
 \mathrm{D\_{KL}} \left( q(z), p(z \mid \\{ x\_i \\}\_{i = 1}^n) \right) + \underbrace{\sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) \right] - \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) \right]}\_{=: \mathrm{ELBO}(q)} = \underbrace{\sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i) \right]}\_{\text{constant}}.
 ```
 
 See? The left-hand side is _constant_ and, as we mentioned before, ``\mathrm{D_{KL}} \ge 0``. What happens if we try to _maximize_ the term we just gave the completely arbitrary name ``\mathrm{ELBO}``? Well, if ``\mathrm{ELBO}`` goes up while ``p(x_i)`` stays constant then ``\mathrm{D_{KL}}`` _has to_ go down! That is, the ``q(z)`` which _minimizes_ the KL-divergence is the same ``q(z)`` which _maximizes_ ``\mathrm{ELBO}(q)``:
 
-```math
+```{.cell-bg}
 \underset{q}{\mathrm{argmin}} \  \mathrm{D\_{KL}} \left( q(z), p(z \mid \\{ x\_i \\}\_{i = 1}^n) \right) = \underset{q}{\mathrm{argmax}} \ \mathrm{ELBO}(q)
 ```
 
 where
 
-```math
+```{.cell-bg}
 \begin{align*}
 \mathrm{ELBO}(q) &:= \left( \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) \right]  \right) - \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) \right] \\\\
     &= \left( \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) \right] \right) + \mathbb{H}\left( q(z) \right)
@@ -115,13 +113,13 @@ and ``\mathbb{H} \left(q(z) \right)`` denotes the [(differential) entropy](https
 
 Assuming joint ``p(x_i, z)`` and the entropy ``\mathbb{H}\left(q(z)\right)`` are both tractable, we can use a Monte-Carlo for the remaining expectation. This leaves us with the following tractable expression
 
-```math
+```{.cell-bg}
 \underset{q}{\mathrm{argmin}} \ \mathrm{D\_{KL}} \left( q(z), p(z \mid \\{ x\_i \\}\_{i = 1}^n) \right) \approx \underset{q}{\mathrm{argmax}} \ \widehat{\mathrm{ELBO}}(q)
 ```
 
 where
 
-```math
+```{.cell-bg}
 \widehat{\mathrm{ELBO}}(q) = \frac{1}{m} \left( \sum\_{k = 1}^m \sum\_{i = 1}^n \log p(x\_i, z\_k) \right) + \mathbb{H} \left(q(z)\right) \quad \text{where} \quad z\_k \sim q(z) \quad \forall k = 1, \dots, m.
 ```
 
@@ -142,7 +140,7 @@ Finding the optimal ``q`` over _all_ possible densities of course isn't feasible
 
 We're going to make use of a particular such approach which goes under a bunch of different names: _reparametrization trick_, _path derivative_, etc. This refers to making the assumption that all elements ``q\_{\theta} \in \mathscr{Q}\_{\Theta}`` can be considered as reparameterizations of some base density, say ``\bar{q}(z)``. That is, if ``q\_{\theta} \in \mathscr{Q}\_{\Theta}`` then
 
-```math
+```{.cell-bg}
 z \sim q\_{\theta}(z) \quad \iff \quad z := g\_{\theta}(\tilde{z}) \quad \text{where} \quad \bar{z} \sim \bar{q}(z)
 ```
 
@@ -157,22 +155,28 @@ With all this nailed down, we eventually reach the section on **Automatic Differ
 So let's revisit the assumptions we've made at this point:
 
  1. The variational posterior ``q\_{\theta}`` is in a parameterized family of densities denoted ``\mathscr{Q}\_{\Theta}``, with ``\theta \in \Theta``.
+ 
  2. ``\mathscr{Q}\_{\Theta}`` is a space of _reparameterizable_ densities with ``\bar{q}(z)`` as the base-density.
+
  3. The parameterization function ``g\_{\theta}`` is differentiable wrt. ``\theta``.
+
  4. Evaluation of the probability density ``q\_{\theta}(z)`` is differentiable wrt. ``\theta``.
+
  5. ``\mathbb{H}\left(q\_{\theta}(z)\right)`` is tractable.
+
  6. Evaluation of the joint density ``p(x, z)`` is tractable and differentiable wrt. ``z``
+
  7. The support of ``q(z)`` is a subspace of the support of ``p(z \mid x)`` : ``\mathrm{supp}\left(q(z)\right) \subseteq \mathrm{supp}\left(p(z \mid x)\right)``.
 
 All of these are not *necessary* to do VI, but they are very convenient and results in a fairly flexible approach. One distribution which has a density satisfying all of the above assumptions _except_ (7) (we'll get back to this in second) for any tractable and differentiable ``p(z \mid \\{ x\_i \\}\_{i = 1}^n)`` is the good ole' Gaussian/normal distribution:
 
-```math
+```{.cell-bg}
 z \sim \mathcal{N}(\mu, \Sigma) \quad \iff \quad z = g\_{\mu, L}(\bar{z}) := \mu + L^T \tilde{z} \quad \text{where} \quad \bar{z} \sim \bar{q}(z) := \mathcal{N}(1\_d, I\_{d \times d})
 ```
 
 where ``\Sigma = L L^T,`` with ``L`` obtained from the Cholesky-decomposition. Abusing notation a bit, we're going to write
 
-```math
+```{.cell-bg}
 \theta = (\mu, \Sigma) := (\mu\_1, \dots, \mu\_d, L\_{11}, \dots, L\_{1, d}, L\_{2, 1}, \dots, L\_{2, d}, \dots, L\_{d, 1}, \dots, L\_{d, d}).
 ```
 
@@ -180,7 +184,7 @@ With this assumption we finally have a tractable expression for ``\widehat{\math
 
 Though not necessary, we'll often make a *mean-field* assumption for the variational posterior ``q(z)``, i.e. assume independence between the latent variables. In this case, we'll write
 
-```math
+```{.cell-bg}
 \theta = (\mu, \sigma^2) := (\mu\_1, \dots, \mu\_d, \sigma\_1^2, \dots, \sigma\_d^2).
 ```
 
@@ -188,7 +192,7 @@ Though not necessary, we'll often make a *mean-field* assumption for the variati
 
 As a (trivial) example we could apply the approach described above to is the following generative model for ``p(z \mid \\{ x_i \\}\_{i = 1}^n)``:
 
-```math
+```{.cell-bg}
 \begin{align*}
     m &\sim \mathcal{N}(0, 1) \\\\
     x\_i &\overset{\text{i.i.d.}}{=} \mathcal{N}(m, 1), \quad i = 1, \dots, n.
@@ -197,7 +201,7 @@ As a (trivial) example we could apply the approach described above to is the fol
 
 In this case ``z = m`` and we have the posterior defined ``p(m \mid \\{ x\_i \\}\_{i = 1}^n) = p(m) \prod\_{i = 1}^n p(x\_i \mid m)``. Then the variational posterior would be
 
-```math
+```{.cell-bg}
 q\_{\mu, \sigma} = \mathcal{N}(\mu, \sigma^2), \quad \text{where} \quad \mu \in \mathbb{R}, \ \sigma^2 \in \mathbb{R}^{ + }.
 ```
 
@@ -205,7 +209,7 @@ And since prior of ``m``, ``\mathcal{N}(0, 1)``, has non-zero probability on the
 
 But what about this generative model for ``p(z \mid \\{ x_i \\}_{i = 1}^n)``:
 
-```math
+```{.cell-bg}
 \begin{align*}
     s &\sim \mathrm{InverseGamma}(2, 3), \\\\
     m &\sim \mathcal{N}(0, s), \\\\
@@ -215,7 +219,7 @@ But what about this generative model for ``p(z \mid \\{ x_i \\}_{i = 1}^n)``:
 
 with posterior ``p(s, m \mid \\{ x\_i \\}\_{i = 1}^n) = p(s) p(m \mid s) \prod\_{i = 1}^n p(x\_i \mid s, m)`` and the mean-field variational posterior ``q(s, m)`` will be
 
-```math
+```{.cell-bg}
 q\_{\mu\_1, \mu\_2, \sigma\_1^2, \sigma\_2^2}(s, m) = p\_{\mathcal{N}(\mu\_1, \sigma\_1^2)}(s)\ p\_{\mathcal{N}(\mu\_2, \sigma\_2^2)}(m),
 ```
 
@@ -223,7 +227,7 @@ where we've denoted the evaluation of the probability density of a Gaussian as `
 
 Observe that ``\mathrm{InverseGamma}(2, 3)`` has non-zero probability only on ``\mathbb{R}^{ + } := (0, \infty)`` which is clearly not all of ``\mathbb{R}`` like ``q(s, m)`` has, i.e.
 
-```math
+```{.cell-bg}
 \mathrm{supp} \left( q(s, m) \right) \not\subseteq \mathrm{supp} \left( p(z \mid \\{ x\_i \\}\_{i = 1}^n) \right).
 ```
 
@@ -237,37 +241,37 @@ For a lot of the standard (continuous) densities ``p`` we can actually construct
 
 If we want to compute the probability of ``x`` taking a value in some set ``A \subseteq \mathrm{supp} \left( p(x) \right)``, we have to integrate ``p(x)`` over ``A``, i.e.
 
-```math
+```{.cell-bg}
 \mathbb{P}_p(x \in A) = \int_A p(x) \mathrm{d}x.
 ```
 
 This means that if we have a differentiable bijection ``f: \mathrm{supp} \left( q(x) \right) \to \mathbb{R}^d`` with differentiable inverse ``f^{-1}: \mathbb{R}^d \to \mathrm{supp} \left( p(x) \right)``, we can perform a change of variables
 
-```math
+```{.cell-bg}
 \mathbb{P}\_p(x \in A) = \int\_{f^{-1}(A)} p \left(f^{-1}(y) \right) \ \left| \det \mathcal{J}\_{f^{-1}}(y) \right| \mathrm{d}y,
 ```
 
 where ``\mathcal{J}_{f^{-1}}(x)`` denotes the jacobian of ``f^{-1}`` evaluated at ``x``. Observe that this defines a probability distribution
 
-```math
+```{.cell-bg}
 \mathbb{P}\_{\tilde{p}}\left(y \in f^{-1}(A) \right) = \int\_{f^{-1}(A)} \tilde{p}(y) \mathrm{d}y,
 ```
 
 since ``f^{-1}\left(\mathrm{supp} (p(x)) \right) = \mathbb{R}^d`` which has probability 1. This probability distribution has *density* ``\tilde{p}(y)`` with ``\mathrm{supp} \left( \tilde{p}(y) \right) = \mathbb{R}^d``, defined
 
-```math
+```{.cell-bg}
 \tilde{p}(y) = p \left( f^{-1}(y) \right) \ \left| \det \mathcal{J}\_{f^{-1}}(y) \right|
 ```
 
 or equivalently
 
-```math
+```{.cell-bg}
 \tilde{p} \left( f(x) \right) = \frac{p(x)}{\big| \det \mathcal{J}\_{f}(x) \big|}
 ```
 
 due to the fact that
 
-```math
+```{.cell-bg}
 \big| \det \mathcal{J}\_{f^{-1}}(y) \big| = \big| \det \mathcal{J}\_{f}(x) \big|^{-1}
 ```
 
@@ -277,7 +281,7 @@ due to the fact that
 
 So why is this is useful? Well, we're looking to generalize our approach using a normal distribution to cases where the supports don't match up. How about defining ``q(z)`` by
 
-```math
+```{.cell-bg}
 \begin{align*}
   \eta &\sim \mathcal{N}(\mu, \Sigma), \\\\
   z &= f^{-1}(\eta),
@@ -286,7 +290,7 @@ So why is this is useful? Well, we're looking to generalize our approach using a
 
 where ``f^{-1}: \mathbb{R}^d \to \mathrm{supp} \left( p(z \mid x) \right)`` is a differentiable bijection with differentiable inverse. Then ``z \sim q_{\mu, \Sigma}(z) \implies z \in \mathrm{supp} \left( p(z \mid x) \right)`` as we wanted. The resulting variational density is
 
-```math
+```{.cell-bg}
 q\_{\mu, \Sigma}(z) = p\_{\mathcal{N}(\mu, \Sigma)}\left( f(z) \right) \ \big| \det \mathcal{J}\_{f}(z) \big|.
 ```
 
@@ -294,7 +298,7 @@ Note that the way we've constructed ``q(z)`` here is basically a reverse of the 
 
 If we want to write the ELBO explicitly in terms of ``\eta`` rather than ``z``, the first term in the ELBO becomes
 
-```math
+```{.cell-bg}
 \begin{align*}
   \mathbb{E}\_{z \sim q_{\mu, \Sigma}(z)} \left[ \log p(x\_i, z) \right] &= \mathbb{E}\_{\eta \sim \mathcal{N}(\mu, \Sigma)} \Bigg[ \log \frac{p\left(x\_i, f^{-1}(\eta) \right)}{\big| \det \mathcal{J}_{f^{-1}}(\eta) \big|} \Bigg] \\\\
   &= \mathbb{E}\_{\eta \sim \mathcal{N}(\mu, \Sigma)} \left[ \log p\left(x\_i, f^{-1}(\eta) \right) \right] - \mathbb{E}\_{\eta \sim \mathcal{N}(\mu, \Sigma)} \left[ \left| \det \mathcal{J}\_{f^{-1}}(\eta) \right| \right].
@@ -305,7 +309,7 @@ The entropy is invariant under change of variables, thus ``\mathbb{H} \left(q\_{
 
 Hence, the resulting empirical estimate of the ELBO is
 
-```math
+```{.cell-bg}
 \begin{align*}
 \widehat{\mathrm{ELBO}}(q\_{\mu, \Sigma}) &= \frac{1}{m} \left( \sum\_{k = 1}^m \sum\_{i = 1}^n \left(\log p\left(x\_i, f^{-1}(\eta_k)\right) - \log \big| \det \mathcal{J}\_{f^{-1}}(\eta\_k) \big| \right) \right) + \mathbb{H} \left(p\_{\mathcal{N}(\mu, \Sigma)}(z)\right) \\\\
 & \text{where} \quad z\_k  \sim \mathcal{N}(\mu, \Sigma) \quad \forall k = 1, \dots, m

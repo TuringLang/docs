@@ -3,6 +3,13 @@ title: Bayesian Estimation of Differential Equations
 engine: julia
 ---
 
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate(".");
+```
+
 Most of the scientific community deals with the basic problem of trying to mathematically model the reality around them and this often involves dynamical systems. The general trend to model these complex dynamical systems is through the use of differential equations.
 Differential equation models often have non-measurable parameters.
 The popular “forward-problem” of simulation consists of solving the differential equations for a given set of parameters, the “inverse problem” to simulation, known as parameter estimation, is the process of utilizing data to determine these model parameters.
@@ -239,7 +246,6 @@ prob_dde = DDEProblem(delay_lotka_volterra, u0, h, tspan, p);
 We generate observations by adding normally distributed noise to the results of our simulations.
 
 ```{julia}
-#| eval: false
 sol_dde = solve(prob_dde; saveat=0.1)
 ddedata = Array(sol_dde) + 0.5 * randn(size(sol_dde))
 
@@ -251,7 +257,6 @@ scatter!(sol_dde.t, ddedata'; color=[1 2], label="")
 Now we define the Turing model for the Lotka-Volterra model with delay and sample 3 independent chains.
 
 ```{julia}
-#| eval: false
 @model function fitlv_dde(data, prob)
     # Prior distributions.
     σ ~ InverseGamma(2, 3)
@@ -277,7 +282,6 @@ chain_dde = sample(model_dde, NUTS(), MCMCSerial(), 300, 3; progress=false)
 ```
 
 ```{julia}
-#| eval: false
 plot(chain_dde)
 ```
 
@@ -285,7 +289,6 @@ Finally, plot trajectories of 300 randomly selected samples from the posterior.
 Again, the dots indicate our observations, the colored lines are the "true" simulations without noise, and the gray lines are trajectories from the posterior samples.
 
 ```{julia}
-#| eval: false
 plot(; legend=false)
 posterior_samples = sample(chain_dde[[:α, :β, :γ, :δ]], 300; replace=false)
 for p in eachrow(Array(posterior_samples))
@@ -324,19 +327,16 @@ This is because adjoints have a higher overhead on small parameter models and th
 For more details, see https://arxiv.org/abs/1812.01892.
 
 ```{julia}
-#| eval: false
 using Zygote, SciMLSensitivity
 
 # Sample a single chain with 1000 samples using Zygote.
-setadbackend(:zygote)
-sample(model, NUTS(), 1000; progress=false)
+sample(model, NUTS(;adtype=AutoZygote()), 1000; progress=false)
 ```
 
 If desired, we can control the sensitivity analysis method that is used by providing the `sensealg` keyword argument to `solve`.
 Here we will not choose a `sensealg` and let it use the default choice:
 
 ```{julia}
-#| eval: false
 @model function fitlv_sensealg(data, prob)
     # Prior distributions.
     σ ~ InverseGamma(2, 3)
@@ -360,8 +360,7 @@ end;
 model_sensealg = fitlv_sensealg(odedata, prob)
 
 # Sample a single chain with 1000 samples using Zygote.
-setadbackend(:zygote)
-sample(model_sensealg, NUTS(), 1000; progress=false)
+sample(model_sensealg, NUTS(;adtype=AutoZygote()), 1000; progress=false)
 ```
 
 For more examples of adjoint usage on large parameter models, consult the [DiffEqFlux documentation](https://diffeqflux.sciml.ai/dev/).
@@ -375,7 +374,6 @@ We use a quasi-likelihood approach in which all trajectories of a solution are c
 We use SOSRI to solve the equation.
 
 ```{julia}
-#| eval: false
 u0 = [1.0, 1.0]
 tspan = (0.0, 10.0)
 function multiplicative_noise!(du, u, p, t)
@@ -400,7 +398,6 @@ plot(EnsembleSummary(data))
 ```
 
 ```{julia}
-#| eval: false
 @model function fitlv_sde(data, prob)
     # Prior distributions.
     σ ~ InverseGamma(2, 3)
@@ -435,7 +432,6 @@ Therefore we use NUTS with a low target acceptance rate of `0.25` and specify a 
 SGHMC might be a more suitable algorithm to be used here.
 
 ```{julia}
-#| eval: false
 model_sde = fitlv_sde(odedata, prob_sde)
 
 setadbackend(:forwarddiff)

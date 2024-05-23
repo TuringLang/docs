@@ -53,6 +53,10 @@ append!(xt0s, Array([[x1s[i] - 5; x2s[i] + 0.5] for i in 1:M]))
 xs = [xt1s; xt0s]
 ts = [ones(2 * M); zeros(2 * M)]
 
+# Convert xs to Float32
+xs = hcat(xs...)
+xs = convert(Array{Float32}, xs)
+
 # Plot data points.
 function plot_data()
     x1 = map(e -> e[1], xt1s)
@@ -73,7 +77,70 @@ The next step is to define a [feedforward neural network](https://en.wikipedia.o
 For this we will use `Dense` to define liner layers and compose them via `Chain`, both are neural network primitives from Flux.
 The network `nn_initial` we created has two hidden layers with `tanh` activations and one output layer with sigmoid (`σ`) activation, as shown below.
 
-![](https://user-images.githubusercontent.com/422990/47970321-bd172080-e038-11e8-9c6d-6c2bd790bd8a.png)
+```{dot}
+//| echo: false
+graph G {
+    rankdir=LR;
+    nodesep=0.8;
+    ranksep=0.8;
+    node [shape=circle, fixedsize=true, width=0.8, style="filled", color=black, fillcolor="white", fontsize=12];
+
+    // Input layer
+    subgraph cluster_input {
+        node [label=""];
+        input1;
+        input2;
+        style="rounded"
+    }
+
+    // Hidden layers
+    subgraph cluster_hidden1 {
+        node [label=""];
+        hidden11;
+        hidden12;
+        hidden13;
+        style="rounded"
+    }
+
+    subgraph cluster_hidden2 {
+        node [label=""];
+        hidden21;
+        hidden22;
+        style="rounded"
+    }
+
+    // Output layer
+    subgraph cluster_output {
+        output1 [label=""];
+        style="rounded"
+    }
+
+    // Connections from input to hidden layer 1
+    input1 -- hidden11;
+    input1 -- hidden12;
+    input1 -- hidden13;
+    input2 -- hidden11;
+    input2 -- hidden12;
+    input2 -- hidden13;
+
+    // Connections from hidden layer 1 to hidden layer 2
+    hidden11 -- hidden21;
+    hidden11 -- hidden22;
+    hidden12 -- hidden21;
+    hidden12 -- hidden22;
+    hidden13 -- hidden21;
+    hidden13 -- hidden22; 
+
+    // Connections from hidden layer 2 to output
+    hidden21 -- output1;
+    hidden22 -- output1;
+
+    // Labels
+    labelloc="b";
+    fontsize=17;
+    label="Input layer                   Hidden layers                  Output layer";
+}
+```
 
 The `nn_initial` is an instance that acts as a function and can take data as inputs and output predictions.
 We will define distributions on the neural network parameters and use `destructure` from Flux to extract the parameters as `parameters_initial`.
@@ -81,7 +148,7 @@ The function `destructure` also returns another function `reconstruct` that can 
 
 ```{julia}
 # Construct a neural network using Flux
-nn_initial = Chain(Dense(2, 3, tanh), Dense(3, 2, tanh), Dense(2, 1, σ))
+nn_initial = Chain(Dense(2, 3, tanh), Dense(3, 2, tanh), Dense(2, 1, σ)) |> f32
 
 # Extract weights and a helper function to reconstruct NN from weights
 parameters_initial, reconstruct = Flux.destructure(nn_initial)
@@ -118,7 +185,7 @@ setprogress!(false)
 ```{julia}
 # Perform inference.
 N = 5000
-ch = sample(bayes_nn(hcat(xs...), ts, length(parameters_initial), reconstruct), NUTS(;adtype=AutoReverseDiff()), N);
+ch = sample(bayes_nn(xs, ts, length(parameters_initial), reconstruct), NUTS(;adtype=AutoReverseDiff()), N);
 ```
 
 Now we extract the parameter samples from the sampled chain as `theta` (this is of size `5000 x 20` where `5000` is the number of iterations and `20` is the number of parameters).
@@ -126,7 +193,7 @@ We'll use these primarily to determine how good our model's classifier is.
 
 ```{julia}
 # Extract all weight and bias parameters.
-theta = MCMCChains.group(ch, :parameters).value;
+theta = convert(Array{Float32}, MCMCChains.group(ch, :parameters).value)
 ```
 
 ## Prediction Visualization
@@ -149,7 +216,7 @@ i = i.I[1]
 # Plot the posterior distribution with a contour plot
 x1_range = collect(range(-6; stop=6, length=25))
 x2_range = collect(range(-6; stop=6, length=25))
-Z = [nn_forward([x1, x2], theta[i, :])[1] for x1 in x1_range, x2 in x2_range]
+Z = [nn_forward(Float32[x1, x2], theta[i, :])[1] for x1 in x1_range, x2 in x2_range]
 contour!(x1_range, x2_range, Z)
 ```
 
@@ -167,8 +234,10 @@ The `nn_predict` function takes the average predicted value from a network param
 # Return the average predicted value across
 # multiple weights.
 function nn_predict(x, theta, num)
+    x = convert(Vector{Float32}, x) # Ensure x is Float32
     return mean([nn_forward(x, theta[i, :])[1] for i in 1:10:num])
-end;
+end
+
 ```
 
 Next, we use the `nn_predict` function to predict the value at a sample of points where the `x1` and `x2` coordinates range between -6 and 6. As we can see below, we still have a satisfactory fit to our data, and more importantly, we can also see where the neural network is uncertain about its predictions much easier---those regions between cluster boundaries.
@@ -178,9 +247,11 @@ Next, we use the `nn_predict` function to predict the value at a sample of point
 plot_data()
 
 n_end = 1500
-x1_range = collect(range(-6; stop=6, length=25))
-x2_range = collect(range(-6; stop=6, length=25))
-Z = [nn_predict([x1, x2], theta, n_end)[1] for x1 in x1_range, x2 in x2_range]
+x1_range = collect(range(-6, stop=6, length=25))
+x2_range = collect(range(-6, stop=6, length=25))
+
+# Ensure x1, x2 are Float32 within the comprehension
+Z = [nn_predict(Float32[x1, x2], theta, n_end)[1] for x1 in x1_range, x2 in x2_range]
 contour!(x1_range, x2_range, Z)
 ```
 
@@ -193,7 +264,7 @@ n_end = 500
 
 anim = @gif for i in 1:n_end
     plot_data()
-    Z = [nn_forward([x1, x2], theta[i, :])[1] for x1 in x1_range, x2 in x2_range]
+    Z = [nn_forward(Float32[x1, x2], theta[i, :])[1] for x1 in x1_range, x2 in x2_range]
     contour!(x1_range, x2_range, Z; title="Iteration $i", clim=(0, 1))
 end every 5
 ```

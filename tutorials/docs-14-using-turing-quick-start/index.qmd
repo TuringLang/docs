@@ -1,0 +1,74 @@
+---
+pagetitle: Quick Start
+title: Probabilistic Programming in Thirty Seconds
+engine: julia
+---
+
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate();
+```
+
+If you are already well-versed in probabilistic programming and want to take a quick look at how Turing's syntax works or otherwise just want a model to start with, we have provided a complete Bayesian coin-flipping model below.
+
+This example can be run wherever you have Julia installed (see [Getting Started]({{< meta site-url >}}/dev/docs/using-turing/getting-started/), but you will need to install the packages `Turing` and `StatsPlots` if you have not done so already.
+
+This is an excerpt from a more formal example which can be found in the documentation website [here]({{< meta site-url >}}/dev/docs/tutorials/introduction/).
+
+## Import Libraries
+```{julia}
+# Import libraries.
+using Turing, StatsPlots, Random
+```
+
+```{julia}
+# Set the true probability of heads in a coin.
+p_true = 0.5
+
+# Iterate from having seen 0 observations to 100 observations.
+Ns = 0:100
+```
+
+```{julia}
+# Draw data from a Bernoulli distribution, i.e. draw heads or tails.
+Random.seed!(12)
+data = rand(Bernoulli(p_true), last(Ns))
+```
+
+
+## Declare Turing Model
+```{julia}
+# Declare our Turing model.
+@model function coinflip(y)
+    # Our prior belief about the probability of heads in a coin.
+    p ~ Beta(1, 1)
+
+    # The number of observations.
+    N = length(y)
+    for n in 1:N
+        # Heads or tails of a coin are drawn from a Bernoulli distribution.
+        y[n] ~ Bernoulli(p)
+    end
+end
+```
+
+
+## Setting HMC Sampler
+```{julia}
+# Settings of the Hamiltonian Monte Carlo (HMC) sampler.
+iterations = 1000
+ϵ = 0.05
+τ = 10
+
+# Start sampling.
+chain = sample(coinflip(data), HMC(ϵ, τ), iterations, progress=false)
+```
+
+
+## Plot a summary
+```{julia}
+# Plot a summary of the sampling process for the parameter p, i.e. the probability of heads in a coin.
+histogram(chain[:p])
+```

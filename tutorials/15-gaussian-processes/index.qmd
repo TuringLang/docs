@@ -1,0 +1,167 @@
+---
+title: Introduction to Gaussian Processes using JuliaGPs and Turing.jl
+engine: julia
+---
+
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate();
+```
+
+[JuliaGPs](https://github.com/JuliaGaussianProcesses/#welcome-to-juliagps) packages integrate well with Turing.jl because they implement the Distributions.jl
+interface.
+You should be able to understand what is going on in this tutorial if you know what a GP is.
+For a more in-depth understanding of the
+[JuliaGPs](https://github.com/JuliaGaussianProcesses/#welcome-to-juliagps) functionality
+used here, please consult the
+[JuliaGPs](https://github.com/JuliaGaussianProcesses/#welcome-to-juliagps) docs.
+
+In this tutorial, we will model the putting dataset discussed in chapter 21 of
+[Bayesian Data Analysis](http://www.stat.columbia.edu/%7Egelman/book/).
+The dataset comprises the result of measuring how often a golfer successfully gets the ball
+in the hole, depending on how far away from it they are.
+The goal of inference is to estimate the probability of any given shot being successful at a
+given distance.
+
+### Let's download the data and take a look at it:
+
+```{julia}
+using CSV, DataDeps, DataFrames
+
+ENV["DATADEPS_ALWAYS_ACCEPT"] = true
+register(
+    DataDep(
+        "putting",
+        "Putting data from BDA",
+        "http://www.stat.columbia.edu/~gelman/book/data/golf.dat",
+        "fc28d83896af7094d765789714524d5a389532279b64902866574079c1a977cc",
+    ),
+)
+
+fname = joinpath(datadep"putting", "golf.dat")
+df = CSV.read(fname, DataFrame; delim=' ', ignorerepeated=true)
+df[1:5, :]
+```
+
+We've printed the first 5 rows of the dataset (which comprises only 19 rows in total).
+Observe it has three columns:
+
+ 1. `distance` -- how far away from the hole. I'll refer to `distance` as `d` throughout the rest of this tutorial
+ 2. `n` -- how many shots were taken from a given distance
+ 3. `y` -- how many shots were successful from a given distance
+
+We will use a Binomial model for the data, whose success probability is parametrised by a
+transformation of a GP. Something along the lines of:
+$$
+f \sim \operatorname{GP}(0, k) \\
+y_j \mid f(d_j) \sim \operatorname{Binomial}(n_j, g(f(d_j))) \\
+g(x) := \frac{1}{1 + e^{-x}}
+$$
+
+To do this, let's define our Turing.jl model:
+
+```{julia}
+using AbstractGPs, LogExpFunctions, Turing
+
+@model function putting_model(d, n; jitter=1e-4)
+    v ~ Gamma(2, 1)
+    l ~ Gamma(4, 1)
+    f = GP(v * with_lengthscale(SEKernel(), l))
+    f_latent ~ f(d, jitter)
+    y ~ product_distribution(Binomial.(n, logistic.(f_latent)))
+    return (fx=f(d, jitter), f_latent=f_latent, y=y)
+end
+```
+
+We first define an `AbstractGPs.GP`, which represents a distribution over functions, and
+is entirely separate from Turing.jl.
+We place a prior over its variance `v` and length-scale `l`.
+`f(d, jitter)` constructs the multivariate Gaussian comprising the random variables
+in `f` whose indices are in `d` (+ a bit of independent Gaussian noise with variance
+`jitter` -- see [the docs](https://juliagaussianprocesses.github.io/AbstractGPs.jl/dev/api/#FiniteGP-and-AbstractGP)
+for more details).
+`f(d, jitter) isa AbstractMvNormal`, and is the bit of AbstractGPs.jl that implements the
+Distributions.jl interface, so it's legal to put it on the right hand side
+of a `~`.
+From this you should deduce that `f_latent` is distributed according to a multivariate
+Gaussian.
+The remaining lines comprise standard Turing.jl code that is encountered in other tutorials
+and Turing documentation.
+
+Before performing inference, we might want to inspect the prior that our model places over
+the data, to see whether there is anything that is obviously wrong.
+These kinds of prior predictive checks are straightforward to perform using Turing.jl, since
+it is possible to sample from the prior easily by just calling the model:
+
+```{julia}
+m = putting_model(Float64.(df.distance), df.n)
+m().y
+```
+
+We make use of this to see what kinds of datasets we simulate from the prior:
+
+```{julia}
+using Plots
+
+function plot_data(d, n, y, xticks, yticks)
+    ylims = (0, round(maximum(n), RoundUp; sigdigits=2))
+    margin = -0.5 * Plots.mm
+    plt = plot(; xticks=xticks, yticks=yticks, ylims=ylims, margin=margin, grid=false)
+    bar!(plt, d, n; color=:red, label="", alpha=0.5)
+    bar!(plt, d, y; label="", color=:blue, alpha=0.7)
+    return plt
+end
+
+# Construct model and run some prior predictive checks.
+m = putting_model(Float64.(df.distance), df.n)
+hists = map(1:20) do j
+    xticks = j > 15 ? :auto : nothing
+    yticks = rem(j, 5) == 1 ? :auto : nothing
+    return plot_data(df.distance, df.n, m().y, xticks, yticks)
+end
+plot(hists...; layout=(4, 5))
+```
+
+In this case, the only prior knowledge I have is that the proportion of successful shots
+ought to decrease monotonically as the distance from the hole increases, which should show
+up in the data as the blue lines generally going down as we move from left to right on each
+graph.
+Unfortunately, there is not a simple way to enforce monotonicity in the samples from a GP,
+and we can see this in some of the plots above, so we must hope that we have enough data to
+ensure that this relationship approximately holds under the posterior.
+In any case, you can judge for yourself whether you think this is the most useful
+visualisation that we can perform -- if you think there is something better to look at,
+please let us know!
+
+Moving on, we generate samples from the posterior using the default `NUTS` sampler.
+We'll make use of [ReverseDiff.jl](https://github.com/JuliaDiff/ReverseDiff.jl), as it has
+better performance than [ForwardDiff.jl](https://github.com/JuliaDiff/ForwardDiff.jl/) on
+this example. See Turing.jl's docs on Automatic Differentiation for more info.
+
+
+```{julia}
+using Random, ReverseDiff
+
+m_post = m | (y=df.y,)
+chn = sample(Xoshiro(123456), m_post, NUTS(;adtype=AutoReverseDiff()), 1_000, progress=false)
+```
+
+We can use these samples and the `posterior` function from `AbstractGPs` to sample from the
+posterior probability of success at any distance we choose:
+
+```{julia}
+d_pred = 1:0.2:21
+samples = map(generated_quantities(m_post, chn)[1:10:end]) do x
+    return logistic.(rand(posterior(x.fx, x.f_latent)(d_pred, 1e-4)))
+end
+p = plot()
+plot!(d_pred, reduce(hcat, samples); label="", color=:blue, alpha=0.2)
+scatter!(df.distance, df.y ./ df.n; label="", color=:red)
+```
+
+We can see that the general trend is indeed down as the distance from the hole increases,
+and that if we move away from the data, the posterior uncertainty quickly inflates.
+This suggests that the model is probably going to do a reasonable job of interpolating
+between observed data, but less good a job at extrapolating to larger distances.

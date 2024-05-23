@@ -1,0 +1,366 @@
+---
+title: Bayesian Estimation of Differential Equations
+engine: julia
+---
+
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate();
+```
+
+Most of the scientific community deals with the basic problem of trying to mathematically model the reality around them and this often involves dynamical systems. The general trend to model these complex dynamical systems is through the use of differential equations.
+Differential equation models often have non-measurable parameters.
+The popular “forward-problem” of simulation consists of solving the differential equations for a given set of parameters, the “inverse problem” to simulation, known as parameter estimation, is the process of utilizing data to determine these model parameters.
+Bayesian inference provides a robust approach to parameter estimation with quantified uncertainty.
+
+```{julia}
+using Turing
+using DifferentialEquations
+
+# Load StatsPlots for visualizations and diagnostics.
+using StatsPlots
+
+using LinearAlgebra
+
+# Set a seed for reproducibility.
+using Random
+Random.seed!(14);
+```
+
+## The Lotka-Volterra Model
+
+The Lotka–Volterra equations, also known as the predator–prey equations, are a pair of first-order nonlinear differential equations.
+These differential equations are frequently used to describe the dynamics of biological systems in which two species interact, one as a predator and the other as prey.
+The populations change through time according to the pair of equations
+
+$$
+\begin{aligned}
+\frac{\mathrm{d}x}{\mathrm{d}t} &= (\alpha - \beta y(t))x(t), \\
+\frac{\mathrm{d}y}{\mathrm{d}t} &= (\delta x(t) - \gamma)y(t)
+\end{aligned}
+$$
+
+where $x(t)$ and $y(t)$ denote the populations of prey and predator at time $t$, respectively, and $\alpha, \beta, \gamma, \delta$ are positive parameters.
+
+We implement the Lotka-Volterra model and simulate it with parameters $\alpha = 1.5$, $\beta = 1$, $\gamma = 3$, and $\delta = 1$ and initial conditions $x(0) = y(0) = 1$.
+
+```{julia}
+# Define Lotka-Volterra model.
+function lotka_volterra(du, u, p, t)
+    # Model parameters.
+    α, β, γ, δ = p
+    # Current state.
+    x, y = u
+
+    # Evaluate differential equations.
+    du[1] = (α - β * y) * x # prey
+    du[2] = (δ * x - γ) * y # predator
+
+    return nothing
+end
+
+# Define initial-value problem.
+u0 = [1.0, 1.0]
+p = [1.5, 1.0, 3.0, 1.0]
+tspan = (0.0, 10.0)
+prob = ODEProblem(lotka_volterra, u0, tspan, p)
+
+# Plot simulation.
+plot(solve(prob, Tsit5()))
+```
+
+We generate noisy observations to use for the parameter estimation tasks in this tutorial.
+With the [`saveat` argument](https://docs.sciml.ai/latest/basics/common_solver_opts/) we specify that the solution is stored only at `0.1` time units.
+To make the example more realistic we add random normally distributed noise to the simulation.
+
+```{julia}
+sol = solve(prob, Tsit5(); saveat=0.1)
+odedata = Array(sol) + 0.8 * randn(size(Array(sol)))
+
+# Plot simulation and noisy observations.
+plot(sol; alpha=0.3)
+scatter!(sol.t, odedata'; color=[1 2], label="")
+```
+
+Alternatively, we can use real-world data from Hudson’s Bay Company records (an Stan implementation with slightly different priors can be found here: https://mc-stan.org/users/documentation/case-studies/lotka-volterra-predator-prey.html).
+
+## Direct Handling of Bayesian Estimation with Turing
+
+Previously, functions in Turing and DifferentialEquations were not inter-composable, so Bayesian inference of differential equations needed to be handled by another package called [DiffEqBayes.jl](https://github.com/SciML/DiffEqBayes.jl) (note that DiffEqBayes works also with CmdStan.jl, Turing.jl, DynamicHMC.jl and ApproxBayes.jl - see the [DiffEqBayes docs](https://docs.sciml.ai/latest/analysis/parameter_estimation/#Bayesian-Methods-1) for more info).
+
+Nowadays, however, Turing and DifferentialEquations are completely composable and we can just simulate differential equations inside a Turing `@model`.
+Therefore, we write the Lotka-Volterra parameter estimation problem using the Turing `@model` macro as below:
+
+
+```{julia}
+@model function fitlv(data, prob)
+    # Prior distributions.
+    σ ~ InverseGamma(2, 3)
+    α ~ truncated(Normal(1.5, 0.5); lower=0.5, upper=2.5)
+    β ~ truncated(Normal(1.2, 0.5); lower=0, upper=2)
+    γ ~ truncated(Normal(3.0, 0.5); lower=1, upper=4)
+    δ ~ truncated(Normal(1.0, 0.5); lower=0, upper=2)
+
+    # Simulate Lotka-Volterra model. 
+    p = [α, β, γ, δ]
+    predicted = solve(prob, Tsit5(); p=p, saveat=0.1)
+
+    # Observations.
+    for i in 1:length(predicted)
+        data[:, i] ~ MvNormal(predicted[i], σ^2 * I)
+    end
+
+    return nothing
+end
+
+model = fitlv(odedata, prob)
+
+# Sample 3 independent chains with forward-mode automatic differentiation (the default).
+chain = sample(model, NUTS(), MCMCSerial(), 1000, 3; progress=false)
+```
+
+The estimated parameters are close to the parameter values the observations were generated with.
+We can also check visually that the chains have converged.
+
+```{julia}
+plot(chain)
+```
+
+### Data retrodiction
+
+In Bayesian analysis it is often useful to retrodict the data, i.e. generate simulated data using samples from the posterior distribution, and compare to the original data (see for instance section 3.3.2 - model checking of McElreath's book "Statistical Rethinking").
+Here, we solve the ODE for 300 randomly picked posterior samples in the `chain`.
+We plot the ensemble of solutions to check if the solution resembles the data.
+The 300 retrodicted time courses from the posterior are plotted in gray, the noisy observations are shown as blue and red dots, and the green and purple lines are the ODE solution that was used to generate the data.
+
+```{julia}
+plot(; legend=false)
+posterior_samples = sample(chain[[:α, :β, :γ, :δ]], 300; replace=false)
+for p in eachrow(Array(posterior_samples))
+    sol_p = solve(prob, Tsit5(); p=p, saveat=0.1)
+    plot!(sol_p; alpha=0.1, color="#BBBBBB")
+end
+
+# Plot simulation and noisy observations.
+plot!(sol; color=[1 2], linewidth=1)
+scatter!(sol.t, odedata'; color=[1 2])
+```
+
+We can see that, even though we added quite a bit of noise to the data the posterior distribution reproduces quite accurately the "true" ODE solution.
+
+## Lotka-Volterra model without data of prey
+
+One can also perform parameter inference for a Lotka-Volterra model with incomplete data.
+For instance, let us suppose we have only observations of the predators but not of the prey.
+I.e., we fit the model only to the $y$ variable of the system without providing any data for $x$:
+
+```{julia}
+@model function fitlv2(data::AbstractVector, prob)
+    # Prior distributions.
+    σ ~ InverseGamma(2, 3)
+    α ~ truncated(Normal(1.5, 0.5); lower=0.5, upper=2.5)
+    β ~ truncated(Normal(1.2, 0.5); lower=0, upper=2)
+    γ ~ truncated(Normal(3.0, 0.5); lower=1, upper=4)
+    δ ~ truncated(Normal(1.0, 0.5); lower=0, upper=2)
+
+    # Simulate Lotka-Volterra model but save only the second state of the system (predators).
+    p = [α, β, γ, δ]
+    predicted = solve(prob, Tsit5(); p=p, saveat=0.1, save_idxs=2)
+
+    # Observations of the predators.
+    data ~ MvNormal(predicted.u, σ^2 * I)
+
+    return nothing
+end
+
+model2 = fitlv2(odedata[2, :], prob)
+
+# Sample 3 independent chains.
+chain2 = sample(model2, NUTS(0.45), MCMCSerial(), 5000, 3; progress=false)
+```
+
+Again we inspect the trajectories of 300 randomly selected posterior samples.
+
+```{julia}
+plot(; legend=false)
+posterior_samples = sample(chain2[[:α, :β, :γ, :δ]], 300; replace=false)
+for p in eachrow(Array(posterior_samples))
+    sol_p = solve(prob, Tsit5(); p=p, saveat=0.1)
+    plot!(sol_p; alpha=0.1, color="#BBBBBB")
+end
+
+# Plot simulation and noisy observations.
+plot!(sol; color=[1 2], linewidth=1)
+scatter!(sol.t, odedata'; color=[1 2])
+```
+
+Note that here the observations of the prey (blue dots) were not used in the parameter estimation!
+Yet, the model can predict the values of $x$ relatively accurately, albeit with a wider distribution of solutions, reflecting the greater uncertainty in the prediction of the $x$ values.
+
+## Inference of Delay Differential Equations
+
+Here we show an example of inference with another type of differential equation: a Delay Differential Equation (DDE).
+DDEs are differential equations where derivatives are function of values at an earlier point in time.
+This is useful to model a delayed effect, like incubation time of a virus for instance.
+
+Here is a delayed version of the Lokta-Voltera system:
+
+$$
+\begin{aligned}
+\frac{\mathrm{d}x}{\mathrm{d}t} &= \alpha x(t-\tau) - \beta y(t) x(t),\\
+\frac{\mathrm{d}y}{\mathrm{d}t} &= - \gamma y(t) + \delta x(t) y(t),
+\end{aligned}
+$$
+
+where $\tau$ is a (positive) delay and $x(t-\tau)$ is the variable $x$ at an earlier time point $t - \tau$.
+
+The initial-value problem of the delayed system can be implemented as a [`DDEProblem`](https://diffeq.sciml.ai/stable/tutorials/dde_example/).
+As described in the [DDE example](https://diffeq.sciml.ai/stable/tutorials/dde_example/), here the function `h` is the history function that can be used to obtain a state at an earlier time point.
+Again we use parameters $\alpha = 1.5$, $\beta = 1$, $\gamma = 3$, and $\delta = 1$ and initial conditions $x(0) = y(0) = 1$.
+Moreover, we assume $x(t) = 1$ for $t < 0$.
+
+```{julia}
+function delay_lotka_volterra(du, u, h, p, t)
+    # Model parameters.
+    α, β, γ, δ = p
+
+    # Current state.
+    x, y = u
+    # Evaluate differential equations
+    du[1] = α * h(p, t - 1; idxs=1) - β * x * y
+    du[2] = -γ * y + δ * x * y
+
+    return nothing
+end
+
+# Define initial-value problem.
+p = (1.5, 1.0, 3.0, 1.0)
+u0 = [1.0; 1.0]
+tspan = (0.0, 10.0)
+h(p, t; idxs::Int) = 1.0
+prob_dde = DDEProblem(delay_lotka_volterra, u0, h, tspan, p);
+```
+
+We generate observations by adding normally distributed noise to the results of our simulations.
+
+```{julia}
+sol_dde = solve(prob_dde; saveat=0.1)
+ddedata = Array(sol_dde) + 0.5 * randn(size(sol_dde))
+
+# Plot simulation and noisy observations.
+plot(sol_dde)
+scatter!(sol_dde.t, ddedata'; color=[1 2], label="")
+```
+
+Now we define the Turing model for the Lotka-Volterra model with delay and sample 3 independent chains.
+
+```{julia}
+@model function fitlv_dde(data, prob)
+    # Prior distributions.
+    σ ~ InverseGamma(2, 3)
+    α ~ truncated(Normal(1.5, 0.5); lower=0.5, upper=2.5)
+    β ~ truncated(Normal(1.2, 0.5); lower=0, upper=2)
+    γ ~ truncated(Normal(3.0, 0.5); lower=1, upper=4)
+    δ ~ truncated(Normal(1.0, 0.5); lower=0, upper=2)
+
+    # Simulate Lotka-Volterra model.
+    p = [α, β, γ, δ]
+    predicted = solve(prob, MethodOfSteps(Tsit5()); p=p, saveat=0.1)
+
+    # Observations.
+    for i in 1:length(predicted)
+        data[:, i] ~ MvNormal(predicted[i], σ^2 * I)
+    end
+end
+
+model_dde = fitlv_dde(ddedata, prob_dde)
+
+# Sample 3 independent chains.
+chain_dde = sample(model_dde, NUTS(), MCMCSerial(), 300, 3; progress=false)
+```
+
+```{julia}
+plot(chain_dde)
+```
+
+Finally, plot trajectories of 300 randomly selected samples from the posterior.
+Again, the dots indicate our observations, the colored lines are the "true" simulations without noise, and the gray lines are trajectories from the posterior samples.
+
+```{julia}
+plot(; legend=false)
+posterior_samples = sample(chain_dde[[:α, :β, :γ, :δ]], 300; replace=false)
+for p in eachrow(Array(posterior_samples))
+    sol_p = solve(prob_dde, MethodOfSteps(Tsit5()); p=p, saveat=0.1)
+    plot!(sol_p; alpha=0.1, color="#BBBBBB")
+end
+
+# Plot simulation and noisy observations.
+plot!(sol_dde; color=[1 2], linewidth=1)
+scatter!(sol_dde.t, ddedata'; color=[1 2])
+```
+
+The fit is pretty good even though the data was quite noisy to start.
+
+## Scaling to Large Models: Adjoint Sensitivities
+
+DifferentialEquations.jl's efficiency for large stiff models has been shown in multiple [benchmarks](https://github.com/SciML/DiffEqBenchmarks.jl).
+To learn more about how to optimize solving performance for stiff problems you can take a look at the [docs](https://docs.sciml.ai/latest/tutorials/advanced_ode_example/).
+
+[Sensitivity analysis](https://docs.sciml.ai/latest/analysis/sensitivity/), or automatic differentiation (AD) of the solver, is provided by the DiffEq suite.
+The model sensitivities are the derivatives of the solution with respect to the parameters.
+Specifically, the local sensitivity of the solution to a parameter is defined by how much the solution would change by changes in the parameter.
+Sensitivity analysis provides a cheap way to calculate the gradient of the solution which can be used in parameter estimation and other optimization tasks.
+
+The AD ecosystem in Julia allows you to switch between forward mode, reverse mode, source to source and other choices of AD and have it work with any Julia code.
+For a user to make use of this within [SciML](https://sciml.ai), [high level interactions in `solve`](https://sensitivity.sciml.ai/dev/ad_examples/differentiating_ode/) automatically plug into those AD systems to allow for choosing advanced sensitivity analysis (derivative calculation) [methods](https://sensitivity.sciml.ai/dev/manual/differential_equation_sensitivities/).
+
+More theoretical details on these methods can be found at: https://docs.sciml.ai/latest/extras/sensitivity_math/.
+
+While these sensitivity analysis methods may seem complicated, using them is dead simple.
+Here is a version of the Lotka-Volterra model using adjoint sensitivities.
+
+All we have to do is switch the AD backend to one of the adjoint-compatible backends (ReverseDiff, Tracker, or Zygote)!
+Notice that on this model adjoints are slower.
+This is because adjoints have a higher overhead on small parameter models and therefore we suggest using these methods only for models with around 100 parameters or more.
+For more details, see https://arxiv.org/abs/1812.01892.
+
+```{julia}
+using Zygote, SciMLSensitivity
+
+# Sample a single chain with 1000 samples using Zygote.
+sample(model, NUTS(;adtype=AutoZygote()), 1000; progress=false)
+```
+
+If desired, we can control the sensitivity analysis method that is used by providing the `sensealg` keyword argument to `solve`.
+Here we will not choose a `sensealg` and let it use the default choice:
+
+```{julia}
+@model function fitlv_sensealg(data, prob)
+    # Prior distributions.
+    σ ~ InverseGamma(2, 3)
+    α ~ truncated(Normal(1.5, 0.5); lower=0.5, upper=2.5)
+    β ~ truncated(Normal(1.2, 0.5); lower=0, upper=2)
+    γ ~ truncated(Normal(3.0, 0.5); lower=1, upper=4)
+    δ ~ truncated(Normal(1.0, 0.5); lower=0, upper=2)
+
+    # Simulate Lotka-Volterra model and use a specific algorithm for computing sensitivities.
+    p = [α, β, γ, δ]
+    predicted = solve(prob; p=p, saveat=0.1)
+
+    # Observations.
+    for i in 1:length(predicted)
+        data[:, i] ~ MvNormal(predicted[i], σ^2 * I)
+    end
+
+    return nothing
+end;
+
+model_sensealg = fitlv_sensealg(odedata, prob)
+
+# Sample a single chain with 1000 samples using Zygote.
+sample(model_sensealg, NUTS(;adtype=AutoZygote()), 1000; progress=false)
+```
+
+For more examples of adjoint usage on large parameter models, consult the [DiffEqFlux documentation](https://diffeqflux.sciml.ai/dev/).

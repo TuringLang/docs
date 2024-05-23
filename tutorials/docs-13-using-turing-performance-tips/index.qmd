@@ -1,0 +1,149 @@
+---
+title: Performance Tips
+engine: julia
+---
+
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate();
+```
+
+This section briefly summarises a few common techniques to ensure good performance when using Turing.
+We refer to [the Julia documentation](https://docs.julialang.org/en/v1/manual/performance-tips/index.html) for general techniques to ensure good performance of Julia programs.
+
+## Use multivariate distributions
+
+It is generally preferable to use multivariate distributions if possible.
+
+The following example:
+
+```{julia}
+using Turing
+@model function gmodel(x)
+    m ~ Normal()
+    for i in 1:length(x)
+        x[i] ~ Normal(m, 0.2)
+    end
+end
+```
+
+can be directly expressed more efficiently using a simple transformation:
+
+```{julia}
+using FillArrays
+
+@model function gmodel(x)
+    m ~ Normal()
+    return x ~ MvNormal(Fill(m, length(x)), 0.04 * I)
+end
+```
+
+## Choose your AD backend
+
+Automatic differentiation (AD) makes it possible to use modern, efficient gradient-based samplers like NUTS and HMC, and that means a good AD system is incredibly important. Turing currently
+supports several AD backends, including [ForwardDiff](https://github.com/JuliaDiff/ForwardDiff.jl) (the default), [Zygote](https://github.com/FluxML/Zygote.jl), 
+[ReverseDiff](https://github.com/JuliaDiff/ReverseDiff.jl), and [Tracker](https://github.com/FluxML/Tracker.jl). Experimental support is also available for 
+[Tapir](https://github.com/withbayes/Tapir.jl). 
+
+For many common types of models, the default ForwardDiff backend performs great, and there is no need to worry about changing it. However, if you need more speed, you can try 
+different backends via the standard [ADTypes](https://github.com/SciML/ADTypes.jl) interface by passing an `AbstractADType` to the sampler with the optional `adtype` argument, e.g.
+`NUTS(adtype = AutoZygote())`. See [Automatic Differentiation](autodiff) for details. Generally, `adtype = AutoForwardDiff()` is likely to be the fastest and most reliable for models with 
+few parameters (say, less than 20 or so), while reverse-mode backends such as `AutoZygote()` or `AutoReverseDiff()` will perform better for models with many parameters or linear algebra
+operations. If in doubt, it's easy to try a few different backends to see how they compare.
+
+### Special care for Zygote and Tracker
+
+Note that Zygote and Tracker will not perform well if your model contains `for`-loops, due to the way reverse-mode AD is implemented in these packages. Zygote also cannot differentiate code
+that contains mutating operations. If you can't implement your model without `for`-loops or mutation, `ReverseDiff` will be a better, more performant option. In general, though, 
+vectorized operations are still likely to perform best.
+
+Avoiding loops can be done using `filldist(dist, N)` and `arraydist(dists)`. `filldist(dist, N)` creates a multivariate distribution that is composed of `N` identical and independent 
+copies of the univariate distribution `dist` if `dist` is univariate, or it creates a matrix-variate distribution composed of `N` identical and independent copies of the multivariate 
+distribution `dist` if `dist` is multivariate. `filldist(dist, N, M)` can also be used to create a matrix-variate distribution from a univariate distribution `dist`.  `arraydist(dists)` 
+is similar to `filldist` but it takes an array of distributions `dists` as input. Writing a [custom distribution](advanced) with a custom adjoint is another option to avoid loops.
+
+### Special care for ReverseDiff with a compiled tape
+
+For large models, the fastest option is often ReverseDiff with a compiled tape, specified as `adtype=AutoReverseDiff(true)`. However, it is important to note that if your model contains any
+branching code, such as `if`-`else` statements, **the gradients from a compiled tape may be inaccurate, leading to erroneous results**. If you use this option for the (considerable) speedup it
+can provide, make sure to check your code. It's also a good idea to verify your gradients with another backend.
+
+## Ensure that types in your model can be inferred
+
+For efficient gradient-based inference, e.g. using HMC, NUTS or ADVI, it is important to ensure the types in your model can be inferred.
+
+The following example with abstract types
+
+```{julia}
+@model function tmodel(x, y)
+    p, n = size(x)
+    params = Vector{Real}(undef, n)
+    for i in 1:n
+        params[i] ~ truncated(Normal(), 0, Inf)
+    end
+
+    a = x * params
+    return y ~ MvNormal(a, I)
+end
+```
+
+can be transformed into the following representation with concrete types:
+
+```{julia}
+@model function tmodel(x, y, ::Type{T}=Float64) where {T}
+    p, n = size(x)
+    params = Vector{T}(undef, n)
+    for i in 1:n
+        params[i] ~ truncated(Normal(), 0, Inf)
+    end
+
+    a = x * params
+    return y ~ MvNormal(a, I)
+end
+```
+
+Alternatively, you could use `filldist` in this example:
+
+```{julia}
+@model function tmodel(x, y)
+    params ~ filldist(truncated(Normal(), 0, Inf), size(x, 2))
+    a = x * params
+    return y ~ MvNormal(a, I)
+end
+```
+
+Note that you can use `@code_warntype` to find types in your model definition that the compiler cannot infer.
+They are marked in red in the Julia REPL.
+
+For example, consider the following simple program:
+
+```{julia}
+@model function tmodel(x)
+    p = Vector{Real}(undef, 1)
+    p[1] ~ Normal()
+    p = p .+ 1
+    return x ~ Normal(p[1])
+end
+```
+
+We can use
+
+```{julia}
+#| eval: false
+using Random
+
+model = tmodel(1.0)
+
+@code_warntype model.f(
+    model,
+    Turing.VarInfo(model),
+    Turing.SamplingContext(
+        Random.default_rng(), Turing.SampleFromPrior(), Turing.DefaultContext()
+    ),
+    model.args...,
+)
+```
+
+to inspect type inference in the model.

@@ -2,11 +2,11 @@
 
 This repository contains the quarto documents for the Turing.jl docs and tutorials.
 
-To get started with the docs website locally, you'll need to have the following prerequisites installed:
+To get started with the docs website locally, you'll need to have the following prerequisite installed:
 
 - [Quarto Pre-release](https://quarto.org/docs/download/)
 
-Once you have these prerequisites installed, you can follow these steps:
+Once you have prerequisite installed, you can follow these steps:
 
 1. Clone this repository:
 

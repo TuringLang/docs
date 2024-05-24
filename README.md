@@ -1,6 +1,6 @@
-# Turing.jl: Docs and Tutorials
+# Documentation and Tutorials for Turing.jl
 
-This repository contains the quarto documents for the Turing.jl docs and tutorials.
+This repository's `master` branch contains the quarto source for the Turing.jl documentation and tutorials. The `gh-pages` branch contains the compiled `html` version of these documents. 
 
 To get started with the docs website locally, you'll need to have the following prerequisite installed:
 
@@ -35,7 +35,7 @@ Note: Avoid clicking links in navbar while previewing locally because they will 
     ```
 This will render the full website in `_site` folder.
 
-This repository is another part of [Turing.jl's](https://turinglang.org/) Website, you can see the main website's repo here.
+his repository is part of [Turing.jl's](https://turinglang.org/) Website, i.e. `https://turinglang.org/docs/`. You can see the main website's repo [here](https://github.com/TuringLang/turinglang.github.io).
 
 ## License
 

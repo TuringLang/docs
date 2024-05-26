@@ -1,0 +1,85 @@
+name: PR Docs Workflow
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - closed
+
+jobs:
+  build-and-preview:
+    if: github.event.action == 'opened' || github.event.action == 'synchronize'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Julia
+        uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.10'
+
+      - name: Set up Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: pre-release
+
+      - name: Restore cached _freeze folder
+        id: cache-primes-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            _freeze/
+          key: ${{ runner.os }}-primes-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-primes
+
+      - name: Render Quarto site
+        run: quarto render
+
+      - name: Save _freeze folder
+        id: cache-primes-save
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            _freeze/
+          key: ${{ runner.os }}-primes-${{ github.run_id }}
+
+      - name: Deploy Preview to GitHub Pages
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          PREVIEW_DIR="pr-previews/${PR_NUMBER}"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git clone --depth 1 --branch gh-pages https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} gh-pages
+          mkdir -p gh-pages/${PREVIEW_DIR}
+          cp -r _site/* gh-pages/${PREVIEW_DIR}
+          cd gh-pages
+          git add .
+          git commit -m "Deploy preview for PR #${PR_NUMBER}"
+          git push
+
+  delete-preview-branch:
+    if: github.event.action == 'closed' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Delete PR Preview Branch
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          BRANCH_NAME="pr-previews/${PR_NUMBER}"
+          git push origin --delete $BRANCH_NAME
+          # Remove preview directory from gh-pages
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git clone --depth 1 --branch gh-pages https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} gh-pages
+          cd gh-pages
+          rm -rf pr-previews/${PR_NUMBER}
+          git add .
+          git commit -m "Remove preview for merged PR #${PR_NUMBER}"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

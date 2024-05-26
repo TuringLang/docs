@@ -60,10 +60,6 @@ jobs:
           git commit -m "Deploy preview for PR #${PR_NUMBER}"
           git push
 
-      - name: Get PR number
-        id: get_pr_number
-        run: echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
-
   delete-preview-directory:
     if: github.event.action == 'closed' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
@@ -87,20 +83,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   comment-preview-url:
-    needs: build-and-preview
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Get PR number
-        run: echo "PR_NUMBER=${{ needs.build-and-preview.outputs.PR_NUMBER }}" >> $GITHUB_ENV
-
-      - name: Comment Preview URL
-        uses: actions/github-script@v4
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const prNumber = process.env.PR_NUMBER;
-            const repoOwner = context.repo.owner;
-            const repoName = context.repo.repo;
-            const commentBody = `Preview the changes: https://turinglang.org/${repoName}/pr-previews/${prNumber}`;
-            github.issues.createComment({owner: repoOwner, repo: repoName, issue_number: prNumber, body: commentBody});
+      - name: Print Preview URL
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          REPO_NAME=${{ github.repository }}
+          echo "Preview URL: https://turinglang.org/$REPO_NAME/pr-previews/$PR_NUMBER"

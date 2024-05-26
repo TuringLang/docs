@@ -1,4 +1,4 @@
-name: PR Docs Workflow
+name: PR Preview Workflow
 
 on:
   pull_request:
@@ -60,27 +60,22 @@ jobs:
           git commit -m "Deploy preview for PR #${PR_NUMBER}"
           git push
 
-  delete-preview-branch:
+  delete-preview-directory:
     if: github.event.action == 'closed' && github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout gh-pages branch
         uses: actions/checkout@v4
+        with:
+          ref: gh-pages
 
-      - name: Delete PR Preview Branch and Directory
+      - name: Remove PR Preview Directory
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
-          BRANCH_NAME="pr-previews/${PR_NUMBER}"
-
-          # Delete the preview branch if it exists
-          git ls-remote --exit-code --heads origin $BRANCH_NAME && git push origin --delete $BRANCH_NAME || echo "Branch $BRANCH_NAME does not exist"
-
-          # Remove preview directory from gh-pages
+          PREVIEW_DIR="pr-previews/${PR_NUMBER}"
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git clone --depth 1 --branch gh-pages https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} gh-pages
-          cd gh-pages
-          rm -rf pr-previews/${PR_NUMBER}
+          rm -rf ${PREVIEW_DIR}
           git add .
           git commit -m "Remove preview for merged PR #${PR_NUMBER}"
           git push

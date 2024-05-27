@@ -5,18 +5,18 @@ engine: julia
 
 # Overview
 
-In this post we'll have a look at what's known as **variational inference (VI)**, a family of _approximate_ Bayesian inference methods. In particular, we will focus on one of the more standard VI methods called **Automatic Differentiation Variational Inference (ADVI)**.
+In this post, we'll examine variational inference (VI), a family of approximate Bayesian inference methods. We will focus on one of the more standard VI methods, Automatic Differentiation Variational Inference (ADVI).
 
-Here we'll have a look at the theory behind VI, but if you're interested in how to use ADVI in Turing.jl, [check out this tutorial](../../tutorials/09-variational-inference).
+Here, we'll examine the theory behind VI, but if you're interested in using ADVI in Turing, [check out this tutorial](../../docs/tutorials/09-variational-inference).
 
 # Motivation
 
-In Bayesian inference one usually specifies a model as follows: given data $\\{x_i\\}_{i = 1}^n$,
+In Bayesian inference, one usually specifies a model as follows: given data $\\{x_i\\}_{i = 1}^n$,
 
 ::: {.column-page}
 $$
 \begin{align*}
-  \text{prior:} \quad z &\sim p(z)   \\\\
+  \text{prior:} \quad z &\sim p(z)   \\
   \text{likelihood:} \quad x_i &\overset{\text{i.i.d.}}{\sim} p(x \mid z) \quad  \text{where} \quad i = 1, \dots, n
 \end{align*}
 $$
@@ -30,13 +30,13 @@ p(z \mid \\{ x\_i \\}\_{i = 1}^n) \propto p(z) \prod\_{i=1}^{n} p(x\_i \mid z).
 $$
 :::
 
-In general one cannot obtain a closed form expression for $p(z \mid \\{ x\_i \\}\_{i = 1}^n)$, but one might still be able to _sample_ from $p(z \mid \\{ x\_i \\}\_{i = 1}^n)$ with guarantees of converging to the target posterior $p(z \mid \\{ x\_i \\}\_{i = 1}^n)$ as the number of samples go to $\infty$, e.g. MCMC.
+In general, one cannot obtain a closed form expression for $p(z \mid \\{ x\_i \\}\_{i = 1}^n)$, but one might still be able to _sample_ from $p(z \mid \\{ x\_i \\}\_{i = 1}^n)$ with guarantees of converging to the target posterior $p(z \mid \\{ x\_i \\}\_{i = 1}^n)$ as the number of samples go to $\infty$, e.g. MCMC.
 
-As you are hopefully already aware, Turing.jl provides a lot of different methods with asymptotic exactness guarantees that we can apply to such a problem!
+As you are hopefully already aware, Turing.jl provides many methods with asymptotic exactness guarantees that we can apply to such a problem!
 
 Unfortunately, these unbiased samplers can be prohibitively expensive to run. As the model $p$ increases in complexity, the convergence of these unbiased samplers can slow down dramatically. Still, in the _infinite_ limit, these methods should converge to the true posterior! But infinity is fairly large, like, _at least_ more than 12, so this might take a while.
 
-In such a case it might be desirable to sacrifice some of these asymptotic guarantees, and instead _approximate_ the posterior $p(z \mid \\{ x_i \\}_{i = 1}^n)$ using some other model which we'll denote $q(z)$.
+In such a case, it might be desirable to sacrifice some of these asymptotic guarantees and instead _approximate_ the posterior $p(z \mid \\{ x_i \\}_{i = 1}^n)$ using some other model which we'll denote $q(z)$.
 
 There are multiple approaches to take in this case, one of which is **variational inference (VI)**.
 
@@ -93,8 +93,8 @@ so we can write
 ::: {.column-page}
 $$
 \begin{align*}
-\mathrm{D\_{KL}} \left( q(z), p(z \mid \\{ x\_i \\}\_{i = 1}^n) \right) &= \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) \right] - \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) - \log p(x\_i) \right] \\\\
-    &= \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) \right] - \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) \right] + \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x_i) \right] \\\\
+\mathrm{D\_{KL}} \left( q(z), p(z \mid \\{ x\_i \\}\_{i = 1}^n) \right) &= \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) \right] - \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) - \log p(x\_i) \right] \\
+    &= \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) \right] - \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) \right] + \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x_i) \right] \\
     &= \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) \right] - \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) \right] + \sum\_{i = 1}^n \log p(x\_i),
 \end{align*}
 $$
@@ -123,7 +123,7 @@ where
 ::: {.column-page}
 $$
 \begin{align*}
-\mathrm{ELBO}(q) &:= \left( \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) \right]  \right) - \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) \right] \\\\
+\mathrm{ELBO}(q) &:= \left( \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) \right]  \right) - \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) \right] \\
     &= \left( \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) \right] \right) + \mathbb{H}\left( q(z) \right)
 \end{align*}
 $$
@@ -227,7 +227,7 @@ As a (trivial) example we could apply the approach described above to is the fol
 ::: {.column-page}
 $$
 \begin{align*}
-    m &\sim \mathcal{N}(0, 1) \\\\
+    m &\sim \mathcal{N}(0, 1) \\
     x\_i &\overset{\text{i.i.d.}}{=} \mathcal{N}(m, 1), \quad i = 1, \dots, n.
 \end{align*}
 $$
@@ -248,8 +248,8 @@ But what about this generative model for $p(z \mid \\{ x_i \\}_{i = 1}^n)$:
 ::: {.column-page}
 $$
 \begin{align*}
-    s &\sim \mathrm{InverseGamma}(2, 3), \\\\
-    m &\sim \mathcal{N}(0, s), \\\\
+    s &\sim \mathrm{InverseGamma}(2, 3), \\
+    m &\sim \mathcal{N}(0, s), \\
     x\_i &\overset{\text{i.i.d.}}{=} \mathcal{N}(m, s), \quad i = 1, \dots, n,
 \end{align*}
 $$
@@ -359,7 +359,7 @@ If we want to write the ELBO explicitly in terms of $\eta$ rather than $z$, the 
 ::: {.column-page}
 $$
 \begin{align*}
-  \mathbb{E}\_{z \sim q_{\mu, \Sigma}(z)} \left[ \log p(x\_i, z) \right] &= \mathbb{E}\_{\eta \sim \mathcal{N}(\mu, \Sigma)} \Bigg[ \log \frac{p\left(x\_i, f^{-1}(\eta) \right)}{\big| \det \mathcal{J}_{f^{-1}}(\eta) \big|} \Bigg] \\\\
+  \mathbb{E}\_{z \sim q_{\mu, \Sigma}(z)} \left[ \log p(x\_i, z) \right] &= \mathbb{E}\_{\eta \sim \mathcal{N}(\mu, \Sigma)} \Bigg[ \log \frac{p\left(x\_i, f^{-1}(\eta) \right)}{\big| \det \mathcal{J}_{f^{-1}}(\eta) \big|} \Bigg] \\
   &= \mathbb{E}\_{\eta \sim \mathcal{N}(\mu, \Sigma)} \left[ \log p\left(x\_i, f^{-1}(\eta) \right) \right] - \mathbb{E}\_{\eta \sim \mathcal{N}(\mu, \Sigma)} \left[ \left| \det \mathcal{J}\_{f^{-1}}(\eta) \right| \right].
 \end{align*}
 $$
@@ -372,7 +372,7 @@ Hence, the resulting empirical estimate of the ELBO is
 ::: {.column-page}
 $$
 \begin{align*}
-\widehat{\mathrm{ELBO}}(q\_{\mu, \Sigma}) &= \frac{1}{m} \left( \sum\_{k = 1}^m \sum\_{i = 1}^n \left(\log p\left(x\_i, f^{-1}(\eta_k)\right) - \log \big| \det \mathcal{J}\_{f^{-1}}(\eta\_k) \big| \right) \right) + \mathbb{H} \left(p\_{\mathcal{N}(\mu, \Sigma)}(z)\right) \\\\
+\widehat{\mathrm{ELBO}}(q\_{\mu, \Sigma}) &= \frac{1}{m} \left( \sum\_{k = 1}^m \sum\_{i = 1}^n \left(\log p\left(x\_i, f^{-1}(\eta_k)\right) - \log \big| \det \mathcal{J}\_{f^{-1}}(\eta\_k) \big| \right) \right) + \mathbb{H} \left(p\_{\mathcal{N}(\mu, \Sigma)}(z)\right) \\
 & \text{where} \quad z\_k  \sim \mathcal{N}(\mu, \Sigma) \quad \forall k = 1, \dots, m
 \end{align*}.
 $$
@@ -380,4 +380,4 @@ $$
 
 And maximizing this wrt. $\mu$ and $\Sigma$ is what's referred to as **Automatic Differentiation Variational Inference (ADVI)**!
 
-Now if you want to try it out, [check out the tutorial on how to use ADVI in Turing.jl](../../tutorials/09-variational-inference)!
+Now if you want to try it out, [check out the tutorial on how to use ADVI in Turing.jl](../../docs/tutorials/09-variational-inference/)!

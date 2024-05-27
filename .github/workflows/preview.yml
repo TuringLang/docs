@@ -1,0 +1,105 @@
+name: PR Preview Workflow
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - closed
+
+jobs:
+  build-and-preview:
+    if: github.event.action == 'opened' || github.event.action == 'synchronize'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Julia
+        uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.10'
+
+      - name: Set up Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: pre-release
+
+      - name: Restore cached _freeze folder
+        id: cache-primes-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            _freeze/
+          key: ${{ runner.os }}-primes-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-primes
+
+      - name: Render Quarto site
+        run: quarto render
+
+      - name: Save _freeze folder
+        id: cache-primes-save
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            _freeze/
+          key: ${{ runner.os }}-primes-${{ github.run_id }}
+
+      - name: Deploy Preview to GitHub Pages
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          PREVIEW_DIR="pr-previews/${PR_NUMBER}"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git clone --depth 1 --branch gh-pages https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} gh-pages
+          mkdir -p gh-pages/${PREVIEW_DIR}
+          cp -r _site/* gh-pages/${PREVIEW_DIR}
+          cd gh-pages
+          git add .
+          git commit -m "Deploy preview for PR #${PR_NUMBER}"
+          git push
+
+  delete-preview-directory:
+    if: github.event.action == 'closed' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+
+      - name: Remove PR Preview Directory
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          PREVIEW_DIR="pr-previews/${PR_NUMBER}"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          rm -rf ${PREVIEW_DIR}
+          git add .
+          git commit -m "Remove preview for merged PR #${PR_NUMBER}"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  comment-preview-url:
+    needs: build-and-preview
+    if: needs.build-and-preview.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment Preview URL
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const repoName = context.repo.repo;
+            const previewUrl = `https://turinglang.org/${repoName}/pr-previews/${prNumber}`;
+            const commentBody = `Preview the changes: ${previewUrl}`;
+  
+            github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: commentBody
+            });

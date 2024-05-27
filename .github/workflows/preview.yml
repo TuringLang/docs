@@ -57,7 +57,7 @@ jobs:
           cp -r _site/* gh-pages/${PREVIEW_DIR}
           cd gh-pages
           git add .
-          git commit -m "Deploy preview for PR #${PR_NUMBER}"
+          git commit -m "Deploy preview for PR ${PR_NUMBER}"
           git push
 
   delete-preview-directory:
@@ -96,10 +96,33 @@ jobs:
             const repoName = context.repo.repo;
             const previewUrl = `https://turinglang.org/${repoName}/pr-previews/${prNumber}`;
             const commentBody = `Preview the changes: ${previewUrl}`;
+            const botUsername = 'github-actions[bot]';
   
-            github.rest.issues.createComment({
-              issue_number: prNumber,
+            // Check for existing comments by the bot
+            const existingComments = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: commentBody
+              issue_number: prNumber,
             });
+  
+            const botComment = existingComments.data.find(
+              (comment) => comment.user.login === botUsername
+            );
+  
+            if (botComment) {
+              // Update the existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody,
+              });
+            } else {
+              // Create a new comment
+              await github.rest.issues.createComment({
+                issue_number: prNumber,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: commentBody,
+              });
+            }

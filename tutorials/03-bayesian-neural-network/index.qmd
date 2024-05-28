@@ -17,9 +17,10 @@ We will begin with importing the relevant libraries.
 ```{julia}
 using Turing
 using FillArrays
-using Flux
+using Lux
 using Plots
 using ReverseDiff
+using Functors
 
 using LinearAlgebra
 using Random
@@ -29,33 +30,30 @@ Our goal here is to use a Bayesian neural network to classify points in an artif
 The code below generates data points arranged in a box-like pattern and displays a graph of the dataset we will be working with.
 
 ```{julia}
-# Number of points to generate.
+# Number of points to generate
 N = 80
 M = round(Int, N / 4)
-Random.seed!(1234)
+rng = Random.default_rng()
+Random.seed!(rng, 1234)
 
-# Generate artificial data.
-x1s = rand(M) * 4.5;
-x2s = rand(M) * 4.5;
-xt1s = Array([[x1s[i] + 0.5; x2s[i] + 0.5] for i in 1:M])
-x1s = rand(M) * 4.5;
-x2s = rand(M) * 4.5;
-append!(xt1s, Array([[x1s[i] - 5; x2s[i] - 5] for i in 1:M]))
+# Generate artificial data
+x1s = rand(rng, Float32, M) * 4.5f0;
+x2s = rand(rng, Float32, M) * 4.5f0;
+xt1s = Array([[x1s[i] + 0.5f0; x2s[i] + 0.5f0] for i in 1:M])
+x1s = rand(rng, Float32, M) * 4.5f0;
+x2s = rand(rng, Float32, M) * 4.5f0;
+append!(xt1s, Array([[x1s[i] - 5.0f0; x2s[i] - 5.0f0] for i in 1:M]))
 
-x1s = rand(M) * 4.5;
-x2s = rand(M) * 4.5;
-xt0s = Array([[x1s[i] + 0.5; x2s[i] - 5] for i in 1:M])
-x1s = rand(M) * 4.5;
-x2s = rand(M) * 4.5;
-append!(xt0s, Array([[x1s[i] - 5; x2s[i] + 0.5] for i in 1:M]))
+x1s = rand(rng, Float32, M) * 4.5f0;
+x2s = rand(rng, Float32, M) * 4.5f0;
+xt0s = Array([[x1s[i] + 0.5f0; x2s[i] - 5.0f0] for i in 1:M])
+x1s = rand(rng, Float32, M) * 4.5f0;
+x2s = rand(rng, Float32, M) * 4.5f0;
+append!(xt0s, Array([[x1s[i] - 5.0f0; x2s[i] + 0.5f0] for i in 1:M]))
 
-# Store all the data for later.
+# Store all the data for later
 xs = [xt1s; xt0s]
 ts = [ones(2 * M); zeros(2 * M)]
-
-# Convert xs to Float32
-xs = hcat(xs...)
-xs = convert(Array{Float32}, xs)
 
 # Plot data points.
 function plot_data()
@@ -74,7 +72,7 @@ plot_data()
 ## Building a Neural Network
 
 The next step is to define a [feedforward neural network](https://en.wikipedia.org/wiki/Feedforward_neural_network) where we express our parameters as distributions, and not single points as with traditional neural networks.
-For this we will use `Dense` to define liner layers and compose them via `Chain`, both are neural network primitives from Flux.
+For this we will use `Dense` to define liner layers and compose them via `Chain`, both are neural network primitives from Lux.
 The network `nn_initial` we created has two hidden layers with `tanh` activations and one output layer with sigmoid (`σ`) activation, as shown below.
 
 ```{dot}
@@ -143,36 +141,62 @@ graph G {
 ```
 
 The `nn_initial` is an instance that acts as a function and can take data as inputs and output predictions.
-We will define distributions on the neural network parameters and use `destructure` from Flux to extract the parameters as `parameters_initial`.
-The function `destructure` also returns another function `reconstruct` that can take (new) parameters in and return us a neural network instance whose architecture is the same as `nn_initial` but with updated parameters.
+We will define distributions on the neural network parameters. 
+<!-- and use `destructure` from Flux to extract the parameters as `parameters_initial`.
+The function `destructure` also returns another function `reconstruct` that can take (new) parameters in and return us a neural network instance whose architecture is the same as `nn_initial` but with updated parameters. -->
 
 ```{julia}
-# Construct a neural network using Flux
-nn_initial = Chain(Dense(2, 3, tanh), Dense(3, 2, tanh), Dense(2, 1, σ)) |> f32
+# Construct a neural network using Lux
+nn_initial = Chain(Dense(2 => 3, tanh), Dense(3 => 2, tanh), Dense(2 => 1, σ))
 
-# Extract weights and a helper function to reconstruct NN from weights
-parameters_initial, reconstruct = Flux.destructure(nn_initial)
+# Initialize the model weights and state
+ps, st = Lux.setup(rng, nn_initial)
 
-length(parameters_initial) # number of paraemters in NN
+Lux.parameterlength(nn_initial) # number of paraemters in NN
 ```
 
 The probabilistic model specification below creates a `parameters` variable, which has IID normal variables. The `parameters` vector represents all parameters of our neural net (weights and biases).
 
 ```{julia}
-@model function bayes_nn(xs, ts, nparameters, reconstruct; alpha=0.09)
-    # Create the weight and bias vector.
-    parameters ~ MvNormal(Zeros(nparameters), I / alpha)
+# Create a regularization term and a Gaussian prior variance term.
+alpha = 0.09
+sig = sqrt(1.0 / alpha)
+```
 
-    # Construct NN from parameters
-    nn = reconstruct(parameters)
+Construct named tuple from a sampled parameter vector. We could also use ComponentArrays here and simply broadcast to avoid doing this. But let's do it this way to avoid dependencies.
+
+```{julia}
+function vector_to_parameters(ps_new::AbstractVector, ps::NamedTuple)
+    @assert length(ps_new) == Lux.parameterlength(ps)
+    i = 1
+    function get_ps(x)
+        z = reshape(view(ps_new, i:(i + length(x) - 1)), size(x))
+        i += length(x)
+        return z
+    end
+    return fmap(get_ps, ps)
+end
+```
+
+To interface with external libraries it is often desirable to use the [`StatefulLuxLayer`](https://lux.csail.mit.edu/stable/api/Lux/contrib#StatefulLuxLayer) to automatically handle the neural network states.
+
+```{julia}
+const model = StatefulLuxLayer(nn_initial, st)
+
+# Specify the probabilistic model.
+@model function bayes_nn(xs, ts)
+    # Sample the parameters
+    nparameters = Lux.parameterlength(nn_initial)
+    parameters ~ MvNormal(zeros(nparameters), Diagonal(abs2.(sig .* ones(nparameters))))
+
     # Forward NN to make predictions
-    preds = nn(xs)
+    preds = Lux.apply(model, xs, vector_to_parameters(parameters, ps))
 
     # Observe each prediction.
-    for i in 1:length(ts)
+    for i in eachindex(ts)
         ts[i] ~ Bernoulli(preds[i])
     end
-end;
+end
 ```
 
 Inference can now be performed by calling `sample`. We use the `NUTS` Hamiltonian Monte Carlo sampler here.
@@ -185,15 +209,15 @@ setprogress!(false)
 ```{julia}
 # Perform inference.
 N = 5000
-ch = sample(bayes_nn(xs, ts, length(parameters_initial), reconstruct), NUTS(;adtype=AutoReverseDiff()), N);
+ch = sample(bayes_nn(reduce(hcat, xs), ts), NUTS(; adtype=AutoReverseDiff()), N);
 ```
 
-Now we extract the parameter samples from the sampled chain as `theta` (this is of size `5000 x 20` where `5000` is the number of iterations and `20` is the number of parameters).
+Now we extract the parameter samples from the sampled chain as `θ` (this is of size `5000 x 20` where `5000` is the number of iterations and `20` is the number of parameters).
 We'll use these primarily to determine how good our model's classifier is.
 
 ```{julia}
 # Extract all weight and bias parameters.
-theta = convert(Array{Float32}, MCMCChains.group(ch, :parameters).value)
+θ = MCMCChains.group(ch, :parameters).value;
 ```
 
 ## Prediction Visualization
@@ -201,11 +225,11 @@ theta = convert(Array{Float32}, MCMCChains.group(ch, :parameters).value)
 We can use [MAP estimation](https://en.wikipedia.org/wiki/Maximum_a_posteriori_estimation) to classify our population by using the set of weights that provided the highest log posterior.
 
 ```{julia}
-# A helper to create NN from weights `theta` and run it through data `x`
-nn_forward(x, theta) = reconstruct(theta)(x)
+# A helper to run the nn through data `x` using parameters `θ`
+nn_forward(x, θ) = model(x, vector_to_parameters(θ, ps))
 
 # Plot the data we have.
-plot_data()
+fig = plot_data()
 
 # Find the index that provided the highest log posterior in the chain.
 _, i = findmax(ch[:lp])
@@ -216,8 +240,9 @@ i = i.I[1]
 # Plot the posterior distribution with a contour plot
 x1_range = collect(range(-6; stop=6, length=25))
 x2_range = collect(range(-6; stop=6, length=25))
-Z = [nn_forward(Float32[x1, x2], theta[i, :])[1] for x1 in x1_range, x2 in x2_range]
-contour!(x1_range, x2_range, Z)
+Z = [nn_forward([x1, x2], θ[i, :])[1] for x1 in x1_range, x2 in x2_range]
+contour!(x1_range, x2_range, Z; linewidth=3, colormap=:seaborn_bright)
+fig
 ```
 
 The contour plot above shows that the MAP method is not too bad at classifying our data.
@@ -233,9 +258,8 @@ The `nn_predict` function takes the average predicted value from a network param
 ```{julia}
 # Return the average predicted value across
 # multiple weights.
-function nn_predict(x, theta, num)
-    x = convert(Vector{Float32}, x) # Ensure x is Float32
-    return mean([nn_forward(x, theta[i, :])[1] for i in 1:10:num])
+function nn_predict(x, θ, num)
+    return mean([first(nn_forward(x, view(θ, i, :))) for i in 1:10:num])
 end
 
 ```
@@ -244,19 +268,17 @@ Next, we use the `nn_predict` function to predict the value at a sample of point
 
 ```{julia}
 # Plot the average prediction.
-plot_data()
+fig = plot_data()
 
 n_end = 1500
-x1_range = collect(range(-6, stop=6, length=25))
-x2_range = collect(range(-6, stop=6, length=25))
-
-# Ensure x1, x2 are Float32 within the comprehension
-Z = [nn_predict(Float32[x1, x2], theta, n_end)[1] for x1 in x1_range, x2 in x2_range]
-contour!(x1_range, x2_range, Z)
+x1_range = collect(range(-6; stop=6, length=25))
+x2_range = collect(range(-6; stop=6, length=25))
+Z = [nn_predict([x1, x2], θ, n_end)[1] for x1 in x1_range, x2 in x2_range]
+contour!(x1_range, x2_range, Z; linewidth=3, colormap=:seaborn_bright)
+fig
 ```
 
 Suppose we are interested in how the predictive power of our Bayesian neural network evolved between samples. In that case, the following graph displays an animation of the contour plot generated from the network weights in samples 1 to 1,000.
-
 
 ```{julia}
 # Number of iterations to plot.
@@ -264,7 +286,7 @@ n_end = 500
 
 anim = @gif for i in 1:n_end
     plot_data()
-    Z = [nn_forward(Float32[x1, x2], theta[i, :])[1] for x1 in x1_range, x2 in x2_range]
+    Z = [nn_forward([x1, x2], θ[i, :])[1] for x1 in x1_range, x2 in x2_range]
     contour!(x1_range, x2_range, Z; title="Iteration $i", clim=(0, 1))
 end every 5
 ```

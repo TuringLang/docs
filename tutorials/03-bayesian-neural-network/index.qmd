@@ -160,7 +160,7 @@ The probabilistic model specification below creates a `parameters` variable, whi
 ```{julia}
 # Create a regularization term and a Gaussian prior variance term.
 alpha = 0.09
-sig = sqrt(1.0 / alpha)
+sigma = sqrt(1.0 / alpha)
 ```
 
 Construct named tuple from a sampled parameter vector. We could also use ComponentArrays here and simply broadcast to avoid doing this. But let's do it this way to avoid dependencies.
@@ -181,16 +181,16 @@ end
 To interface with external libraries it is often desirable to use the [`StatefulLuxLayer`](https://lux.csail.mit.edu/stable/api/Lux/contrib#StatefulLuxLayer) to automatically handle the neural network states.
 
 ```{julia}
-const model = StatefulLuxLayer(nn_initial, st)
+const nn = StatefulLuxLayer(nn_initial, st)
 
 # Specify the probabilistic model.
-@model function bayes_nn(xs, ts)
+@model function bayes_nn(xs, ts; sigma = sigma, ps = ps, nn = nn)
     # Sample the parameters
     nparameters = Lux.parameterlength(nn_initial)
-    parameters ~ MvNormal(zeros(nparameters), Diagonal(abs2.(sig .* ones(nparameters))))
+    parameters ~ MvNormal(zeros(nparameters), Diagonal(abs2.(sigma .* ones(nparameters))))
 
     # Forward NN to make predictions
-    preds = Lux.apply(model, xs, vector_to_parameters(parameters, ps))
+    preds = Lux.apply(nn, xs, vector_to_parameters(parameters, ps))
 
     # Observe each prediction.
     for i in eachindex(ts)
@@ -226,7 +226,7 @@ We can use [MAP estimation](https://en.wikipedia.org/wiki/Maximum_a_posteriori_e
 
 ```{julia}
 # A helper to run the nn through data `x` using parameters `θ`
-nn_forward(x, θ) = model(x, vector_to_parameters(θ, ps))
+nn_forward(x, θ) = nn(x, vector_to_parameters(θ, ps))
 
 # Plot the data we have.
 fig = plot_data()

@@ -6,6 +6,10 @@ on:
       - opened
       - synchronize
       - closed
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
 
 jobs:
   build-and-preview:
@@ -13,7 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Setup Julia
         uses: julia-actions/setup-julia@v2
@@ -47,14 +53,12 @@ jobs:
           key: ${{ runner.os }}-primes-${{ github.run_id }}
 
       - name: Deploy Preview to GitHub Pages
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           PREVIEW_DIR="pr-previews/${PR_NUMBER}"
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git clone --depth 1 --branch gh-pages https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }} gh-pages
+          git clone --depth 1 --branch gh-pages https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} gh-pages
           mkdir -p gh-pages/${PREVIEW_DIR}
           cp -r _site/* gh-pages/${PREVIEW_DIR}
           cd gh-pages
@@ -67,13 +71,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout gh-pages branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           ref: gh-pages
+          fetch-depth: 0
 
       - name: Remove PR Preview Directory
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           PREVIEW_DIR="pr-previews/${PR_NUMBER}"
@@ -83,6 +86,8 @@ jobs:
           git add .
           git commit -m "Remove preview for merged PR #${PR_NUMBER}"
           git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   comment-preview-url:
     needs: build-and-preview
@@ -92,7 +97,7 @@ jobs:
       - name: Comment Preview URL
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GH_PAT }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const prNumber = context.payload.pull_request.number;
             const repoName = context.repo.repo;

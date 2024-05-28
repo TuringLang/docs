@@ -12,7 +12,7 @@ jobs:
     if: github.event.action == 'opened' || github.event.action == 'synchronize'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout the repository
         uses: actions/checkout@v4
 
       - name: Setup Julia
@@ -46,19 +46,26 @@ jobs:
             _freeze/
           key: ${{ runner.os }}-primes-${{ github.run_id }}
 
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+
       - name: Deploy Preview to GitHub Pages
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           PREVIEW_DIR="pr-previews/${PR_NUMBER}"
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git clone --depth 1 --branch gh-pages https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} gh-pages
           mkdir -p gh-pages/${PREVIEW_DIR}
           cp -r _site/* gh-pages/${PREVIEW_DIR}
           cd gh-pages
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add .
           git commit -m "Deploy preview for PR ${PR_NUMBER}"
           git push
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
 
   delete-preview-directory:
     if: github.event.action == 'closed' || github.event.pull_request.merged == true
@@ -80,7 +87,7 @@ jobs:
           git commit -m "Remove preview for merged PR #${PR_NUMBER}"
           git push
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_PAT: ${{ secrets.GH_PAT }}
 
   comment-preview-url:
     needs: build-and-preview
@@ -90,7 +97,7 @@ jobs:
       - name: Comment Preview URL
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GH_PAT }}
           script: |
             const prNumber = context.payload.pull_request.number;
             const repoName = context.repo.repo;

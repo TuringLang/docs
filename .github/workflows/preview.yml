@@ -12,7 +12,7 @@ jobs:
     if: github.event.action == 'opened' || github.event.action == 'synchronize'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout the repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Julia
@@ -46,26 +46,21 @@ jobs:
             _freeze/
           key: ${{ runner.os }}-primes-${{ github.run_id }}
 
-      - name: Checkout gh-pages branch
-        uses: actions/checkout@v4
-        with:
-          ref: gh-pages
-          path: gh-pages
-
       - name: Deploy Preview to GitHub Pages
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           PREVIEW_DIR="pr-previews/${PR_NUMBER}"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git clone --depth 1 --branch gh-pages https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }} gh-pages
           mkdir -p gh-pages/${PREVIEW_DIR}
           cp -r _site/* gh-pages/${PREVIEW_DIR}
           cd gh-pages
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add .
           git commit -m "Deploy preview for PR ${PR_NUMBER}"
           git push
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
 
   delete-preview-directory:
     if: github.event.action == 'closed' || github.event.pull_request.merged == true
@@ -77,6 +72,8 @@ jobs:
           ref: gh-pages
 
       - name: Remove PR Preview Directory
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           PREVIEW_DIR="pr-previews/${PR_NUMBER}"
@@ -86,8 +83,6 @@ jobs:
           git add .
           git commit -m "Remove preview for merged PR #${PR_NUMBER}"
           git push
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
 
   comment-preview-url:
     needs: build-and-preview

@@ -1,7 +1,7 @@
 name: PR Preview Workflow
 
 on:
-  pull_request:
+  pull_request_target:
     types:
       - opened
       - synchronize
@@ -13,7 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup Julia
         uses: julia-actions/setup-julia@v2
@@ -46,26 +48,33 @@ jobs:
             _freeze/
           key: ${{ runner.os }}-primes-${{ github.run_id }}
 
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v3
+        with:
+          ref: gh-pages
+          path: gh-pages
+
       - name: Deploy Preview to GitHub Pages
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           PREVIEW_DIR="pr-previews/${PR_NUMBER}"
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git clone --depth 1 --branch gh-pages https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} gh-pages
           mkdir -p gh-pages/${PREVIEW_DIR}
           cp -r _site/* gh-pages/${PREVIEW_DIR}
           cd gh-pages
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "Deploy preview for PR #${PR_NUMBER}"
+          git commit -m "Deploy preview for PR ${PR_NUMBER}"
           git push
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
 
   delete-preview-directory:
     if: github.event.action == 'closed' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout gh-pages branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           ref: gh-pages
 
@@ -96,10 +105,34 @@ jobs:
             const repoName = context.repo.repo;
             const previewUrl = `https://turinglang.org/${repoName}/pr-previews/${prNumber}`;
             const commentBody = `Preview the changes: ${previewUrl}`;
+            const botUsername = 'github-actions[bot]';
   
-            github.rest.issues.createComment({
-              issue_number: prNumber,
+            // Check for existing comments by the bot
+            const existingComments = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: commentBody
+              issue_number: prNumber,
             });
+  
+            const botComment = existingComments.data.find(
+              (comment) => comment.user.login === botUsername
+            );
+  
+            if (botComment) {
+              // Update the existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody,
+              });
+            } else {
+              // Create a new comment
+              await github.rest.issues.createComment({
+                issue_number: prNumber,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: commentBody,
+              });
+            }
+        

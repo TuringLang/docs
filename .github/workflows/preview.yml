@@ -1,7 +1,7 @@
 name: PR Preview Workflow
 
 on:
-  pull_request_target:
+  pull_request:
     types:
       - opened
       - synchronize
@@ -14,6 +14,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history for all branches and tags
+          ref: ${{ github.event.pull_request.head.ref }}  # Checkout the PR branch
 
       - name: Setup Julia
         uses: julia-actions/setup-julia@v2
@@ -46,19 +49,26 @@ jobs:
             _freeze/
           key: ${{ runner.os }}-primes-${{ github.run_id }}
 
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v3
+        with:
+          ref: gh-pages
+          path: gh-pages
+
       - name: Deploy Preview to GitHub Pages
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           PREVIEW_DIR="pr-previews/${PR_NUMBER}"
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git clone --depth 1 --branch gh-pages https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} gh-pages
           mkdir -p gh-pages/${PREVIEW_DIR}
           cp -r _site/* gh-pages/${PREVIEW_DIR}
           cd gh-pages
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add .
           git commit -m "Deploy preview for PR ${PR_NUMBER}"
           git push
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
 
   delete-preview-directory:
     if: github.event.action == 'closed' || github.event.pull_request.merged == true

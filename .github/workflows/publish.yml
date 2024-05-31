@@ -36,6 +36,9 @@ jobs:
       - name: Render Quarto site
         run: quarto render
 
+      - name: Rename original search index
+        run: mv _site/search.json _site/search_original.json
+
       - name: Save _freeze folder
         id: cache-primes-save
         uses: actions/cache/save@v4
@@ -43,6 +46,22 @@ jobs:
           path: |
             _freeze/
           key: ${{ runner.os }}-primes-${{ github.run_id }}
+
+      - name: Install jq
+        run: sudo apt-get install jq
+
+      - name: Fetch search_original.json from main site
+        run: curl -O https://raw.githubusercontent.com/TuringLang/turinglang.github.io/gh-pages/search_original.json
+
+      - name: Convert main site search index URLs to relative URLs
+        run: |
+          jq 'map(
+                if .href then .href = "../" + .href else . end |
+                if .objectID then .objectID = "../" + .objectID else . end)' search_original.json > fixed_main_search.json
+
+      - name: Merge both search index
+        run: |
+          jq -s '.[0] + .[1]' _site/search_original.json fixed_main_search.json > _site/search.json
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4

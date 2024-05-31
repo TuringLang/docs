@@ -1,5 +1,5 @@
 ---
-title: Using External Sampler
+title: Implementing samplers
 engine: julia
 ---
 
@@ -10,170 +10,469 @@ using Pkg;
 Pkg.instantiate();
 ```
 
-## Using External Samplers on Turing Models
+In this tutorial, we'll go through step-by-step how to implement a "simple" sampler in [AbstractMCMC.jl](https://github.com/TuringLang/AbstractMCMC.jl) in such a way that it can be easily applied to Turing.jl models.
 
-`Turing` provides several wrapped samplers from external sampling libraries, e.g., HMC samplers from `AdvancedHMC`.
-These wrappers allow new users to seamlessly sample statistical models without leaving `Turing`
-However, these wrappers might only sometimes be complete, missing some functionality from the wrapped sampling library.
-Moreover, users might want to use samplers currently not wrapped within `Turing`.
+In particular, we're going to implement a version of **Metropolis-adjusted Langevin (MALA)**.
 
-For these reasons, `Turing` also makes running external samplers on Turing models easy without any necessary modifications or wrapping!
-Throughout, we will use a 10-dimensional Neal's funnel as a running example::
+Note that we will implement this sampler in the [AbstractMCMC.jl](https://github.com/TuringLang/AbstractMCMC.jl) framework, completely "ignoring" Turing.jl until the very end of the tutorial, at which point we'll use a single line of code to make the resulting sampler available to Turing.jl. This is to really drive home the point that one can implement samplers in a way that is accessible to all of Turing.jl's users without having to use Turing.jl yourself.
+
+
+## Quick overview of MALA
+
+We can view MALA as a single step of the leapfrog intergrator with resampling of momentum $p$ at every step. To make that statement a bit more concrete, we first define the *extended* target $\bar{\gamma}(x, p)$ as
+
+\begin{equation*}
+\log \bar{\gamma}(x, p) \propto \log \gamma(x) + \log \gamma_{\mathcal{N}(0, M)}(p)
+\end{equation*}
+
+where $\gamma_{\mathcal{N}(0, M)}$ denotes the density for a zero-centered Gaussian with covariance matrix $M$.
+We then consider targeting this joint distribution over both $x$ and $p$ as follows.
+First we define the map
+
+\begin{equation*}
+\begin{split}
+  L_{\epsilon}: \quad & \mathbb{R}^d \times \mathbb{R}^d \to \mathbb{R}^d \times \mathbb{R}^d \\
+  & (x, p) \mapsto (\tilde{x}, \tilde{p}) := L_{\epsilon}(x, p)
+\end{split}
+\end{equation*}
+
+as
+
+\begin{equation*}
+\begin{split}
+  p_{1 / 2} &:= p + \frac{\epsilon}{2} \nabla \log \gamma(x) \\
+  \tilde{x} &:= x + \epsilon M^{-1} p_{1 /2 } \\
+  p_1 &:= p_{1 / 2} + \frac{\epsilon}{2} \nabla \log \gamma(\tilde{x}) \\
+  \tilde{p} &:= - p_1
+\end{split}
+\end{equation*}
+
+This might be familiar for some readers as a single step of the Leapfrog integrator.
+We then define the MALA kernel as follows: given the current iterate $x_i$, we sample the next iterate $x_{i + 1}$ as
+
+\begin{equation*}
+\begin{split}
+  p &\sim \mathcal{N}(0, M) \\
+  (\tilde{x}, \tilde{p}) &:= L_{\epsilon}(x_i, p) \\
+  \alpha &:= \min \left\{ 1, \frac{\bar{\gamma}(\tilde{x}, \tilde{p})}{\bar{\gamma}(x_i, p)} \right\} \\
+  x_{i + 1} &:=
+  \begin{cases}
+    \tilde{x} \quad & \text{ with prob. } \alpha \\
+    x_i       \quad & \text{ with prob. } 1 - \alpha
+  \end{cases}
+\end{split}
+\end{equation*}
+
+i.e. we accept the proposal $\tilde{x}$ with probability $\alpha$ and reject it, thus sticking with our current iterate, with probability $1 - \alpha$.
+
+## What we need from a model: [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl)
+
+There are a few things we need from the "target" / "model" / density that we want to sample from:
+
+1.  We need access to log-density *evaluations* $\log \gamma(x)$ so we can compute the acceptance ratio involving $\log \bar{\gamma}(x, p)$.
+2.  We need access to log-density *gradients* $\nabla \log \gamma(x)$ so we can compute the Leapfrog steps $L_{\epsilon}(x, p)$.
+3.  We also need access to the "size" of the model so we can determine the size of $M$.
+
+Luckily for us, there is a package called [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) which provides an interface for *exactly* this!
+
+To demonstrate how one can implement the "[LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) interface"[^1] we will use a simple Gaussian model as an example:
 
 ```{julia}
-# Import libraries.
-using Turing, Random, LinearAlgebra
+using LogDensityProblems: LogDensityProblems;
 
-d = 10
-@model function funnel()
-    θ ~ Truncated(Normal(0, 3), -3, 3)
-    z ~ MvNormal(zeros(d - 1), exp(θ) * I)
-    return x ~ MvNormal(z, I)
+# Let's define some type that represents the model.
+struct NormalLogDensity{M<:AbstractVector{<:Real}}
+    "mean of the isotropic Gaussian"
+    mean::M
+end
+
+# Specifies what input length the model expects.
+LogDensityProblems.dimension(model::NormalLogDensity) = length(model.mean)
+# Implementation of the log-density evaluation of the model.
+function LogDensityProblems.logdensity(model::NormalLogDensity, x::AbstractVector{<:Real})
+    return - sum(abs2, x .- model.mean) / 2
 end
 ```
 
-Now we sample the model to generate some observations, which we can then condition on.
+This gives us all of the properties we want for our MALA sampler with the exception of the computation of the *gradient* $\nabla \log \gamma(x)$. There is the method `LogDensityProblems.logdensity_and_gradient` which should return a 2-tuple where the first entry is the evaluation of the logdensity $\log \gamma(x)$ and the second entry is the gradient $\nabla \log \gamma(x)$. 
+
+There are two ways to "implement" this method: 1) we implement it by hand, which is feasible in the case of our `NormalLogDensity`, or b) we defer the implementation of this to a automatic differentiation backend.
+
+To implement it by hand we can simply do
 
 ```{julia}
-(; x) = rand(funnel() | (θ=0,))
-model = funnel() | (; x);
+# Tell LogDensityProblems.jl that first-order, i.e. gradient information, is available.
+LogDensityProblems.capabilities(model::NormalLogDensity) = LogDensityProblems.LogDensityOrder{1}()
+
+# Implement `logdensity_and_gradient`.
+function LogDensityProblems.logdensity_and_gradient(model::NormalLogDensity, x)
+    logγ_x = LogDensityProblems.logdensity(model, x)
+    ∇logγ_x = -x .* (x - model.mean)
+    return logγ_x, ∇logγ_x
+end
 ```
 
-Users can use any sampler algorithm to sample this model if it follows the `AbstractMCMC` API.
-Before discussing how this is done in practice, giving a high-level description of the process is interesting.
-Imagine that we created an instance of an external sampler that we will call `spl` such that `typeof(spl)<:AbstractMCMC.AbstractSampler`.
-In order to avoid type ambiguity within Turing, at the moment it is necessary to declare `spl` as an external sampler to Turing `espl = externalsampler(spl)`, where `externalsampler(s::AbstractMCMC.AbstractSampler)` is a Turing function that types our external sampler adequately.
-
-An excellent point to start to show how this is done in practice is by looking at the sampling library `AdvancedMH` ([`AdvancedMH`'s GitHub](https://github.com/TuringLang/AdvancedMH.jl)) for Metropolis-Hastings (MH) methods.
-Let's say we want to use a random walk Metropolis-Hastings sampler without specifying the proposal distributions.
-The code below constructs an MH sampler using a multivariate Gaussian distribution with zero mean and unit variance in `d` dimensions as a random walk proposal.
+Let's just try it out:
 
 ```{julia}
-# Importing the sampling library
-using AdvancedMH
-rwmh = AdvancedMH.RWMH(d)
+# Instantiate the problem.
+model = NormalLogDensity([-5., 0., 5.])
+# Create some example input that we can test on.
+x_example = randn(LogDensityProblems.dimension(model))
+# Evaluate!
+LogDensityProblems.logdensity(model, x_example)
 ```
+
+To defer it to an automatic differentiation backend, we can do
 
 ```{julia}
-#| output: false
-setprogress!(false)
+# Tell LogDensityProblems.jl we only have access to 0-th order information.
+LogDensityProblems.capabilities(model::NormalLogDensity) = LogDensityProblems.LogDensityOrder{0}()
+
+# Use `LogDensityProblemsAD`'s `ADgradient` in combination with some AD backend to implement `logdensity_and_gradient`.
+using LogDensityProblemsAD, ADTypes, ForwardDiff
+model_with_grad = ADgradient(AutoForwardDiff(), model)
+LogDensityProblems.logdensity(model_with_grad, x_example)
 ```
 
-Sampling is then as easy as:
+We'll continue with the second approach in this tutorial since this is typically what one does in practice, because there are better hobbies to spend time on than deriving gradients by hand.
 
+At this point, one might wonder how we're going to tie this back to Turing.jl in the end. Effectively, when working with inference methods that only require log-density evaluations and / or higher-order information of the log-density, Turing.jl actually converts the user-provided `Model` into an object implementing the above methods for [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl). As a result, most samplers provided by Turing.jl are actually implemented to work with [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl), enabling their use both *within* Turing.jl and *outside* of Turing.jl! Morever, there exists similar conversions for Stan through BridgeStan and Stan[LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl), which means that a sampler supporting the [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) interface can easily be used on both Turing.jl *and* Stan models (in addition to user-provided models, as our `NormalLogDensity` above)!
+
+Anyways, let's move on to actually implementing the sampler.
+
+## Implementing MALA in [AbstractMCMC.jl](https://github.com/TuringLang/AbstractMCMC.jl)
+
+Now that we've established that a model implementing the [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) interface provides us with all the information we need from $\log \gamma(x)$, we can address the question: given an object that implements the [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) interface, how can we define a sampler for it?
+
+We're going to do this by making our sampler a sub-type of `AbstractMCMC.AbstractSampler` in addition to implementing a few methods from [AbstractMCMC.jl](https://github.com/TuringLang/AbstractMCMC.jl). Why? Because it gets us *a lot* of functionality for free, as we will see later.
+
+Moreover, [AbstractMCMC.jl](https://github.com/TuringLang/AbstractMCMC.jl) provides a very natural interface for MCMC algorithms.
+
+First, we'll define our `MALA` type
 
 ```{julia}
-chain = sample(model, externalsampler(rwmh), 10_000)
+using AbstractMCMC
+
+struct MALA{T,A} <: AbstractMCMC.AbstractSampler
+    "stepsize used in the leapfrog step"
+    ϵ_init::T
+    "covariance matrix used for the momentum"
+    M_init::A
+end
 ```
 
-## Going beyond the Turing API
+Notice how we've added the suffix `_init` to both the stepsize and the covariance matrix. We've done this because a `AbstractMCMC.AbstractSampler` should be *immutable*. Of course there might be many scenarios where we want to allow something like the stepsize and / or the covariance matrix to vary between iterations, e.g. during the burn-in / adaptation phase of the sampling process we might want to adjust the parameters using statistics computed from these initial iterations. But information which can change between iterations <span class="underline">should not go in the sampler itself</span>! Instead, this information should go in the sampler *state*.
 
-As previously mentioned, the Turing wrappers can often limit the capabilities of the sampling libraries they wrap.
-`AdvancedHMC`[^1] ([`AdvancedHMC`'s GitHub](https://github.com/TuringLang/AdvancedHMC.jl)) is a clear example of this. A common practice when performing HMC is to provide an initial guess for the mass matrix.
-However, the native HMC sampler within Turing only allows the user to specify the type of the mass matrix despite the two options being possible within `AdvancedHMC`.
-Thankfully, we can use Turing's support for external samplers to define an HMC sampler with a custom mass matrix in `AdvancedHMC` and then use it to sample our Turing model.
+The sampler state should at the very least contain all the necessary information to perform the next MCMC iteration, but usually contains further information, e.g. quantities and statistics useful for evaluating whether the sampler has converged.
 
-We will use the library `Pathfinder`[^2] ((`Pathfinder`'s GitHub)[https://github.com/mlcolab/Pathfinder.jl]) to construct our estimate of mass matrix.
-`Pathfinder` is a variational inference algorithm that first finds the maximum a posteriori (MAP) estimate of a target posterior distribution and then uses the trace of the optimization to construct a sequence of multivariate normal approximations to the target distribution.
-In this process, `Pathfinder` computes an estimate of the mass matrix the user can access.
-
-The code below shows this can be done in practice.
+We will use the following sampler state for our `MALA` sampler:
 
 ```{julia}
-using AdvancedHMC, Pathfinder
-# Running pathfinder
-draws = 1_000
-result_multi = multipathfinder(model, draws; nruns=8)
-
-# Estimating the metric
-inv_metric = result_multi.pathfinder_results[1].fit_distribution.Σ
-metric = DenseEuclideanMetric(Matrix(inv_metric))
-
-# Creating an AdvancedHMC NUTS sampler with the custom metric.
-n_adapts = 1000 # Number of adaptation steps
-tap = 0.9 # Large target acceptance probability to deal with the funnel structure of the posterior
-nuts = AdvancedHMC.NUTS(tap; metric=metric)
-
-# Sample
-chain = sample(model, externalsampler(nuts), 10_000; n_adapts=1_000)
+struct MALAState{A<:AbstractVector{<:Real}}
+    "current position"
+    x::A
+end
 ```
 
-## Using new inference methods
+This might seem overly redundant: we're defining a type `MALAState` and it only contains a simple vector of reals.
+In this particular case we indeed could have dropped this and simply used a `AbstractVector{<:Real}` as our sampler state, but typically, as we will see later, one wants to include other quantities in the sampler state.
+For example, if we also wanted to adapt the parameters of our `MALA`, e.g. alter the stepsize depending on acceptance rates, in which case we should also put `ϵ` in the state, but for now we'll keep things simple.
 
-So far we have used Turing's support for external samplers to go beyond the capabilities of the wrappers.
-We want to use this support to employ a sampler not supported within Turing's ecosystem yet.
-We will use the recently developed Micro-Cannoncial Hamiltonian Monte Carlo (MCHMC) sampler to showcase this.
-MCHMC[[^3],[^4]] ((MCHMC's GitHub)[https://github.com/JaimeRZP/MicroCanonicalHMC.jl]) is HMC sampler that uses one single Hamiltonian energy level to explore the whole parameter space.
-This is achieved by simulating the dynamics of a microcanonical Hamiltonian with an additional noise term to ensure ergodicity.
+We currently have two things:
 
-Using this as well as other inference methods outside the Turing ecosystem is as simple as executing the code shown below:
+1.  A `AbstractMCMC.AbstractSampler` implementation called `MALA`.
+2.  A state `MALAState` for our sampler `MALA`.
 
-```{julia}
-using MicroCanonicalHMC
-# Create MCHMC sampler
-n_adapts = 1_000 # adaptation steps
-tev = 0.01 # target energy variance
-mchmc = MCHMC(n_adapts, tev; adaptive=true)
+That means that we're ready to implement the only thing that really matters: `AbstractMCMC.step`.
 
-# Sample
-chain = sample(model, externalsampler(mchmc), 10_000)
-```
-
-The only requirement to work with `externalsampler` is that the provided `sampler` must implement the AbstractMCMC.jl-interface [INSERT LINK] for a `model` of type `AbstractMCMC.LogDensityModel` [INSERT LINK].
-
-As previously stated, in order to use external sampling libraries within `Turing` they must follow the `AbstractMCMC` API.
-In this section, we will briefly dwell on what this entails.
-First and foremost, the sampler should be a subtype of `AbstractMCMC.AbstractSampler`.
-Second, the stepping function of the MCMC algorithm must be made defined using `AbstractMCMC.step` and follow the structure below:
+`AbstractMCMC.step` defines the MCMC iteration of our `MALA` given the current `MALAState`. Specifically, the signature of the function is as follows:
 
 ```{julia}
 #| eval: false
-# First step
-function AbstractMCMC.step{T<:AbstractMCMC.AbstractSampler}(
+function AbstractMCMC.step(
+    # The RNG to ensure reprodicibility.
     rng::Random.AbstractRNG,
-    model::AbstractMCMC.LogDensityModel,
-    spl::T;
-    kwargs...,
-)
-    [...]
-    return transition, sample
-end
-
-# N+1 step
-function AbstractMCMC.step{T<:AbstractMCMC.AbstractSampler}(
-    rng::Random.AbstractRNG,
-    model::AbstractMCMC.LogDensityModel,
-    sampler::T,
+    # The model that defines our target.
+    model::AbstractMCMC.AbstractModel,
+    # The sampler for which we're taking a `step`.
+    sampler::AbstractMCMC.AbstractSampler,
+    # The current sampler `state`.
     state;
-    kwargs...,
-) 
-    [...]
-    return transition, sample
+    # Additional keyword arguments that we may or may not need.
+    kwargs...
+)
+```
+
+Moreover, there is a specific `AbstractMCMC.AbstractModel` which is used to indicate that the model that is provided implements the [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) interface: `AbstractMCMC.LogDensityModel`.
+
+Since, as we discussed earlier, in our case we're indeed going to work with types that support the [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) interface, we'll define `AbstractMCMC.step` for such a `AbstractMCMC.LogDensityModel`.
+
+Note that `AbstractMCMC.LogDensityModel` has no other purpose; it has a single field called `logdensity`, and it does nothing else. But by wrapping the model in `AbstractMCMC.LogDensityModel`, it allows samplers which wants to work with [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) to define their `AbstractMCMC.step` on this type without running into method ambiguities.
+
+All in all, that means that the signature for our `AbstractMCMC.step` is going to be the following:
+
+```{julia}
+#| eval: false
+function AbstractMCMC.step(
+    rng::Random.AbstractRNG,
+    # `LogDensityModel` so we know we're working with LogDensityProblems.jl model.
+    model::AbstractMCMC.LogDensityModel,
+    # Our sampler.
+    sampler::MALA,
+    # Our sampler state.
+    state::MALAState;
+    kwargs...
+)
+```
+
+Great! Now let's actually implement the full `AbstractMCMC.step` for our `MALA`.
+
+Let's remind ourselves what we're going to do:
+
+1.  Sample a new momentum $p$.
+2.  Compute the log-density of the extended target $\log \bar{\gamma}(x, p)$.
+3.  Take a single leapfrog step $(\tilde{x}, \tilde{p}) = L_{\epsilon}(x, p)$.
+4.  Accept or reject the proposed $(\tilde{x}, \tilde{p})$.
+
+All in all, this results in the following:
+
+```{julia}
+using Random: Random
+using Distributions  # so we get the `MvNormal`
+
+function AbstractMCMC.step(
+    rng::Random.AbstractRNG,
+    model_wrapper::AbstractMCMC.LogDensityModel,
+    sampler::MALA,
+    state::MALAState;
+    kwargs...
+)
+    # Extract the wrapped model which implements LogDensityProblems.jl.
+    model = model_wrapper.logdensity
+    # Let's just extract the sampler parameters to make our lives easier.
+    ϵ = sampler.ϵ_init
+    M = sampler.M_init
+    # Extract the current parameters.
+    x = state.x
+    # Sample the momentum.
+    p_dist = MvNormal(zeros(LogDensityProblems.dimension(model)), M)
+    p = rand(rng, p_dist)
+    # Propose using a single leapfrog step.
+    x̃, p̃ = leapfrog_step(model, x, p, ϵ, M)
+    # Accept or reject proposal.
+    logp = LogDensityProblems.logdensity(model, x) + logpdf(p_dist, p)
+    logp̃ = LogDensityProblems.logdensity(model, x̃) + logpdf(p_dist, p̃)
+    logα = logp̃ - logp
+    state_new = if log(rand(rng)) < logα
+        # Accept.
+        MALAState(x̃)
+    else
+        # Reject.
+        MALAState(x)
+    end
+    # Return the "sample" and the sampler state.
+    return state_new.x, state_new
 end
 ```
 
-There are several characteristics to note in these functions:
+Fairly straight-forward.
 
-  - There must be two `step` functions:
-    
-      + A function that performs the first step and initializes the sampler.
-      + A function that performs the following steps and takes an extra input, `state`, which carries the initialization information.
+Of course, we haven't defined the `leapfrog_step` method yet, so let's do that:
 
-  - The functions must follow the displayed signatures.
-  - The output of the functions must be a transition, the current state of the sampler, and a sample, what is saved to the MCMC chain.
+```{julia}
+function leapfrog_step(model, x, p, ϵ, M)
+    # Update momentum `p` using "position" `x`.
+    ∇logγ_x = last(LogDensityProblems.logdensity_and_gradient(model, x))
+    p1 = p + (ϵ / 2) .* ∇logγ_x
+    # Update the "position" `x` using momentum `p1`.
+    x̃ = x + ϵ .* (M \ p1)
+    # Update momentum `p1` using position `x̃`
+    ∇logγ_x̃ = last(LogDensityProblems.logdensity_and_gradient(model, x̃))
+    p2 = p + (ϵ / 2) .* ∇logγ_x̃
+    # Flip momentum `p2`.
+    p̃ = -p2
+    # Return.
+    return x̃, p̃
+end
+```
 
-The last requirement is that the transition must be structured with a field `θ`, which contains the values of the parameters of the model for said transition.
-This allows `Turing` to seamlessly extract the parameter values at each step of the chain when bundling the chains.
-Note that if the external sampler produces transitions that Turing cannot parse, the bundling of the samples will be different or fail.
+With all of this, we're technically ready to sample!
 
-For practical examples of how to adapt a sampling library to the `AbstractMCMC` interface, the readers can consult the following libraries:
+```{julia}
+using Random, LinearAlgebra
 
-  - [AdvancedMH](https://github.com/TuringLang/AdvancedMH.jl/blob/458a602ac32a8514a117d4c671396a9ba8acbdab/src/mh-core.jl#L73-L115)
-  - [AdvancedHMC](https://github.com/TuringLang/AdvancedHMC.jl/blob/762e55f894d142495a41a6eba0eed9201da0a600/src/abstractmcmc.jl#L102-L170)
-  - [MicroCanonicalHMC](https://github.com/JaimeRZP/MicroCanonicalHMC.jl/blob/master/src/abstractmcmc.jl)
+rng = Random.default_rng()
+sampler = MALA(1, I)
+state = MALAState(zeros(LogDensityProblems.dimension(model)))
+
+x_next, state_next = AbstractMCMC.step(
+    rng,
+    AbstractMCMC.LogDensityModel(model),
+    sampler,
+    state
+)
+```
+
+Great, it works!
+
+And I promised we would get quite some functionality for free if we implemented `AbstractMCMC.step`, and so we can now simply call `sample` to perform standard MCMC sampling:
+
+```{julia}
+# Perform 1000 iterations with our `MALA` sampler.
+samples = sample(model_with_grad, sampler, 10_000; initial_state=state, progress=false)
+# Concatenate into a matrix.
+samples_matrix = stack(samples)
+```
+
+```{julia}
+# Compute the marginal means and standard deviations.
+hcat(mean(samples_matrix; dims=2), std(samples_matrix; dims=2))
+```
+
+Let's visualize the samples
+
+```{julia}
+using StatsPlots
+plot(transpose(samples_matrix[:, 1:10:end]), alpha=0.5, legend=false)
+```
+
+Look at that! Things are working; amazin'.
+
+We can also exploit [AbstractMCMC.jl](https://github.com/TuringLang/AbstractMCMC.jl)'s parallel sampling capabilities:
+
+```{julia}
+# Run separate 4 chains for 10 000 iterations using threads to parallelize.
+num_chains = 4
+samples = sample(
+    model_with_grad,
+    sampler,
+    MCMCThreads(),
+    10_000,
+    num_chains;
+    # Note we need to provide an initial state for every chain.
+    initial_state=fill(state, num_chains),
+    progress=false
+)
+samples_array = stack(map(stack, samples))
+```
+
+But the fact that we have to provide the `AbstractMCMC.sample` call, etc. with an `initial_state` to get started is a bit annoying. We can avoid this by also defining a `AbstractMCMC.step` *without* the `state` argument:
+
+```{julia}
+function AbstractMCMC.step(
+    rng::Random.AbstractRNG,
+    model_wrapper::AbstractMCMC.LogDensityModel,
+    sampler::MALA;
+    # NOTE: No state provided!
+    kwargs...
+)
+    model = model_wrapper.logdensity
+    # Let's just create the initial state by sampling using  a Gaussian.
+    x = randn(rng, LogDensityProblems.dimension(model))
+
+    return x, MALAState(x)
+end
+```
+
+Equipped with this, we no longer need to provide the `initial_state` everywhere:
+
+```{julia}
+samples = sample(model_with_grad, sampler, 10_000; progress=false)
+samples_matrix = stack(samples)
+hcat(mean(samples_matrix; dims=2), std(samples_matrix; dims=2))
+```
+
+## Using our sampler with Turing.jl
+
+```{julia}
+#| echo: false
+using Turing
+Turing.Inference.getparams(::DynamicPPL.Model, x::AbstractVector{<:Real}) = x
+```
 
 
-[^1]: Xu et al., [AdvancedHMC.jl: A robust, modular and efficient implementation of advanced HMC algorithms](http://proceedings.mlr.press/v118/xu20a/xu20a.pdf), 2019
-[^2]: Zhang et al., [Pathfinder: Parallel quasi-Newton variational inference](https://arxiv.org/abs/2108.03782), 2021
-[^3]: Robnik et al, [Microcanonical Hamiltonian Monte Carlo](https://arxiv.org/abs/2212.08549), 2022
-[^4]: Robnik and Seljak, [Langevine Hamiltonian Monte Carlo](https://arxiv.org/abs/2303.18221), 2023
+As we promised, all of this hassle of implementing our `MALA` sampler in a way that uses [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) and [AbstractMCMC.jl](https://github.com/TuringLang/AbstractMCMC.jl) gets us something more than *just* an "automatic" implementation of `AbstractMCMC.sample`.
+
+It also enables use with Turing.jl through the `externalsampler`.
+
+```{julia}
+using Turing
+
+# Our previous model defined as a Turing.jl model.
+@model mvnormal_model() = x ~ MvNormal([-5., 0., 5.], I)
+# Instantiate our model.
+turing_model = mvnormal_model()
+# Call `sample` but now we're passing in a Turing.jl `model` and wrapping
+# our `MALA` sampler in the `externalsampler` to tell Turing.jl that the sampler
+# expects something that implements LogDensityProblems.jl.
+chain = sample(turing_model, externalsampler(sampler), 10_000; progress=false)
+```
+
+Pretty neat, eh?
+
+### Models with constrained parameters
+
+One thing we've sort of glossed over in all of the above is that MALA, at least how we've implemented, requires $x$ to live in $\mathbb{R}^d$ for some $d > 0$. If some of the parameters were in fact constrained, e.g. we were working with a `Beta` distribution which has support on the interval $(0, 1)$, *not* on $\mathbb{R}^d$, we could easily end up outside of the valid range $(0, 1)$.
+
+```{julia}
+@model beta_model() = x ~ Beta(3, 3)
+turing_model = beta_model()
+chain = sample(turing_model, externalsampler(sampler), 10_000; progress=false)
+```
+
+Yep, that still works, but only because Turing.jl actually *transforms* the `turing_model` from constrained to unconstrained, so that the `sampler` provided to `externalsampler` is actually always working in unconstrained space! This is not always desirable, so we can turn this off:
+
+```{julia}
+chain = sample(turing_model, externalsampler(sampler; unconstrained=false), 10_000; progress=false)
+```
+
+The fun thing is that this still sort of works because
+
+```{julia}
+logpdf(Beta(3, 3), 10.0)
+```
+
+and so the samples that fall outside of the range are always rejected. But do notice how much worse all the diagnostics are, e.g. `ess_tail` is very poor compared to when we use `unconstrained=true`. Moreover, in more complex cases this won't just result in a "nice" `-Inf` log-density value, but instead will error:
+
+```{julia}
+@model function demo()
+    σ² ~ truncated(Normal(), lower=0)
+    # If we end up with negative values for `σ²`, the `Normal` will error.
+    x ~ Normal(0, σ²)
+end
+sample(demo(), externalsampler(sampler; unconstrained=false), 10_000; progress=false)
+```
+
+As expected, we run into a `DomainError` at some point, while if we set `unconstrained=true`, letting Turing.jl transform the model to a unconstrained form behind the scenes, everything works as expected:
+
+```{julia}
+sample(demo(), externalsampler(sampler; unconstrained=true), 10_000; progress=false)
+```
+
+Neat!
+
+Similarly, which automatic differentiation backend one should use can be specified through the `adtype` keyword argument too. For example, if we want to use [ReverseDiff.jl](https://github.com/JuliaDiff/ReverseDiff.jl) instead of the default [ReverseDiff.jl](https://github.com/JuliaDiff/ForwardDiff.jl):
+
+```{julia}
+using ReverseDiff: ReverseDiff
+# Specify that we want to use `AutoReverseDiff`.
+sample(
+    demo(),
+    externalsampler(sampler; unconstrained=true, adtype=AutoReverseDiff()),
+    10_000;
+    progress=false
+)
+```
+
+Double-neat.
+
+## Summary
+
+At this point it's worth maybe reminding ourselves what we did and also *why* we did it:
+
+1.  We define our models in the [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) interface because it makes the sampler agnostic to how the underlying model is implemented.
+2.  We implement our sampler in the [AbstractMCMC.jl](https://github.com/TuringLang/AbstractMCMC.jl) interface, which just means that our sampler is a subtype of `AbstractMCMC.AbstractSampler` and we implement the MCMC transition in `AbstractMCMC.step`.
+3.  (1) and (2) makes it so our sampler can be used with a wide range of model implementations, amongst them being models implemented in both Turing.jl and Stan. This gives you, the inference implementer, a large collection of models to test your inference method on, in addition to allowing users of Turing.jl and Stan to try out your inference method with minimal effort.
+
+[^1]: There is no such thing as a proper interface in Julia (at least not officially), and so we use the word "interface" here to mean a few minimal methods that needs to be implemented by any type that we treat as a target model.

@@ -385,20 +385,21 @@ hcat(mean(samples_matrix; dims=2), std(samples_matrix; dims=2))
 
 ## Using our sampler with Turing.jl
 
-```{julia}
-#| echo: false
-using Turing
-Turing.Inference.getparams(::DynamicPPL.Model, x::AbstractVector{<:Real}) = x
-```
-
-
 As we promised, all of this hassle of implementing our `MALA` sampler in a way that uses [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) and [AbstractMCMC.jl](https://github.com/TuringLang/AbstractMCMC.jl) gets us something more than *just* an "automatic" implementation of `AbstractMCMC.sample`.
 
-It also enables use with Turing.jl through the `externalsampler`.
+It also enables use with Turing.jl through the `externalsampler`, but we need to do one final thing first: we need to tell Turing.jl how to extract a vector of parameters from the "sample" returned in our implementation of `AbstractMCMC.step`. In our case, the "sample" is just a `Vector{<:Real}`, so we just need the following line:
 
 ```{julia}
+# Load Turing.jl.
 using Turing
 
+# Overload the `getparams` method for our "sample" type, which is just a vector.
+Turing.Inference.getparams(::Turing.Model, x::AbstractVector{<:Real}) = x
+```
+
+And with that, we're good to go!
+
+```{julia}
 # Our previous model defined as a Turing.jl model.
 @model mvnormal_model() = x ~ MvNormal([-5., 0., 5.], I)
 # Instantiate our model.

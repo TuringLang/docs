@@ -10,7 +10,7 @@ using Pkg;
 Pkg.instantiate();
 ```
 
-In addition to sampling from the distributions of a statistical model, one may be interested in finding the most likely parameter values that maximise for instance the posterior distribution density function or the likelihood. This is called mode estimation. Turing provides support for two mode estimation techniques, [maximum likelihood estimation](https://en.wikipedia.org/wiki/Maximum_likelihood_estimation) (MLE) and [maximum a posterior](https://en.wikipedia.org/wiki/Maximum_a_posteriori_estimation) (MAP) estimation.
+After defining a statistical model, in addition to sampling from its distributions, one may be interested in finding the parameter values that maximise for instance the posterior distribution density function or the likelihood. This is called mode estimation. Turing provides support for two mode estimation techniques, [maximum likelihood estimation](https://en.wikipedia.org/wiki/Maximum_likelihood_estimation) (MLE) and [maximum a posterior](https://en.wikipedia.org/wiki/Maximum_a_posteriori_estimation) (MAP) estimation.
 
 To demonstrate mode estimation, let us load Turing and declare a model:
 
@@ -45,23 +45,23 @@ mle_estimate = maximum_likelihood(model)
 map_estimate = maximum_a_posteriori(model)
 ```
 
-The estimates are returned as instances of the `ModeResult` type. It has the fields `values` for the parameter values found and `lp` for the log probability at the optimum, as well as `f` for the objective function and `optim_result` for more detailed results of the optimisation procedure, such as convergence information.
+The estimates are returned as instances of the `ModeResult` type. It has the fields `values` for the parameter values found and `lp` for the log probability at the optimum, as well as `f` for the objective function and `optim_result` for more detailed results of the optimisation procedure.
 
 ```{julia}
 @show mle_estimate.values
-@show mle_estimate.lp
+@show mle_estimate.lp;
 ```
 
 ## Controlling the optimisation process
 
-Under the hood `maximum_likelihood` and `maximum_a_posteriori` use the [Optimization.jl](https://github.com/SciML/Optimization.jl) package, which provides a unified interface to many other optimisation packages. By default Turing typically uses the [LBFGS](https://en.wikipedia.org/wiki/Limited-memory_BFGS) method from [Optim.jl](https://github.com/JuliaNLSolvers/Optim.jl), but we can easily change that,
+Under the hood `maximum_likelihood` and `maximum_a_posteriori` use the [Optimization.jl](https://github.com/SciML/Optimization.jl) package, which provides a unified interface to many other optimisation packages. By default Turing typically uses the [LBFGS](https://en.wikipedia.org/wiki/Limited-memory_BFGS) method from [Optim.jl](https://github.com/JuliaNLSolvers/Optim.jl) to find the mode estimate, but we can easily change that:
 
 ```{julia}
 using OptimizationOptimJL: NelderMead
-maximum_likelihood(model, NelderMead())
+@show maximum_likelihood(model, NelderMead())
 
 using OptimizationNLopt: NLopt.LD_TNEWTON_PRECOND_RESTART
-maximum_likelihood(model, NLopt.LD_TNEWTON_PRECOND_RESTART())
+@show maximum_likelihood(model, LD_TNEWTON_PRECOND_RESTART());
 ```
 
 The above are just two examples, Optimization.jl supports [many more](https://docs.sciml.ai/Optimization/stable/).
@@ -71,7 +71,9 @@ We can also help the optimisation by giving it a starting point we know is close
 ```{julia}
 using ADTypes: AutoReverseDiff
 import ReverseDiff
-maximum_likelihood(model, NelderMead(); initial_params=[0.1, 2], adtype=AutoReverseDiff())
+maximum_likelihood(
+    model, NelderMead(); initial_params=[0.1, 2], adtype=AutoReverseDiff()
+)
 ```
 
 When providing values to arguments like `initial_params` the parameters are typically specified in the order in which they appear in the code of the model, so in this case first `s²` then `m`. More precisely it's the order returned by `Turing.Inference.getparams(model, Turing.VarInfo(model))`.
@@ -82,16 +84,18 @@ We can also do constrained optimisation, by providing either intervals within wh
 maximum_likelihood(model; lb=[0.0, -1.0], ub=[0.01, 1.0])
 ```
 
-The arguments for lower (`lb`) and upper (`ub`) bounds follow the arguments of `Optimization.OptimizationProblem`, as do other parameters for providing bounds such as `cons`. Any extraneous keyword arguments given to `maximum_likelihood` or `maximum_a_posteriori` are passed to `Optimization.solve`. Some often useful ones are `maxiters` for controlling the maximum number of iterations and `abstol` and `reltol` for the absolute and relative convergence tolerances:
+The arguments for lower (`lb`) and upper (`ub`) bounds follow the arguments of `Optimization.OptimizationProblem`, as do other parameters for providing [constraints](https://docs.sciml.ai/Optimization/stable/tutorials/constraints/), such as `cons`. Any extraneous keyword arguments given to `maximum_likelihood` or `maximum_a_posteriori` are passed to `Optimization.solve`. Some often useful ones are `maxiters` for controlling the maximum number of iterations and `abstol` and `reltol` for the absolute and relative convergence tolerances:
 
 ```{julia}
-badly_converged_mle = maximum_likelihood(model, NelderMead(); maxiters=10, reltol=1e-9)
+badly_converged_mle = maximum_likelihood(
+    model, NelderMead(); maxiters=10, reltol=1e-9
+)
 ```
 
 We can check whether the optimisation converged using the `optim_result` field of the result:
 
 ```{julia}
-@show badly_converged_mle.optim_result
+@show badly_converged_mle.optim_result;
 ```
 
 For more details, such as a full list of possible arguments, we encourage the reader to read the docstring of the function `Turing.Optimisation.estimate_mode`, which is what `maximum_likelihood` and `maximum_a_posteriori` call, and the documentation of [Optimization.jl](https://docs.sciml.ai/Optimization/stable/).

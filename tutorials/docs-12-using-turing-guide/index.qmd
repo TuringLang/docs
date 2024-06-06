@@ -418,120 +418,14 @@ loglikelihood(model, chn)
 
 ### Maximum likelihood and maximum a posterior estimates
 
-Turing provides support for two mode estimation techniques, [maximum likelihood estimation](https://en.wikipedia.org/wiki/Maximum_likelihood_estimation) (MLE) and [maximum a posterior](https://en.wikipedia.org/wiki/Maximum_a_posteriori_estimation) (MAP) estimation. Optimization is performed by the [Optim.jl](https://github.com/JuliaNLSolvers/Optim.jl) package. Mode estimation is currently a optional tool, and will not be available to you unless you have manually installed Optim and loaded the package with a `using` statement. To install Optim, run `import Pkg; Pkg.add("Optim")`.
-
-Mode estimation only works when all model parameters are continuous -- discrete parameters cannot be estimated with MLE/MAP as of yet.
-
-To understand how mode estimation works, let us first load Turing and Optim to enable mode estimation, and then declare a model:
+Turing also has functions for estimating the maximum aposteriori and maximum likelihood parameters of a model. This can be done with
 
 ```{julia}
-# Note that loading Optim explicitly is required for mode estimation to function,
-# as Turing does not load the opimization suite unless Optim is loaded as well.
-using Turing
-using Optim
-
-@model function gdemo(x)
-    s² ~ InverseGamma(2, 3)
-    m ~ Normal(0, sqrt(s²))
-
-    for i in eachindex(x)
-        x[i] ~ Normal(m, sqrt(s²))
-    end
-end
+mle_estimate = maximum_likelihood(model)
+map_estimate = maximum_a_posteriori(model)
 ```
 
-Once the model is defined, we can construct a model instance as we normally would:
-
-```{julia}
-# Create some data to pass to the model.
-data = [1.5, 2.0]
-
-# Instantiate the gdemo model with our data.
-model = gdemo(data)
-```
-
-Mode estimation is typically quick and easy at this point. Turing extends the function `Optim.optimize` and accepts the structs `MLE()` or `MAP()`, which inform Turing whether to provide an MLE or MAP estimate, respectively. By default, the [LBFGS optimizer](https://julianlsolvers.github.io/Optim.jl/stable/#algo/lbfgs/) is used, though this can be changed. Basic usage is:
-
-```{julia}
-# Generate a MLE estimate.
-mle_estimate = optimize(model, MLE())
-
-# Generate a MAP estimate.
-map_estimate = optimize(model, MAP())
-```
-
-If you wish to change to a different optimizer, such as `NelderMead`, simply place your optimizer in the third argument slot:
-
-```{julia}
-#| eval: false
-# Use NelderMead
-mle_estimate = optimize(model, MLE(), NelderMead())
-
-# Use SimulatedAnnealing
-mle_estimate = optimize(model, MLE(), SimulatedAnnealing())
-
-# Use ParticleSwarm
-mle_estimate = optimize(model, MLE(), ParticleSwarm())
-
-# Use Newton
-mle_estimate = optimize(model, MLE(), Newton())
-
-# Use AcceleratedGradientDescent
-mle_estimate = optimize(model, MLE(), AcceleratedGradientDescent())
-```
-
-Some methods may have trouble calculating the mode because not enough iterations were allowed, or the target function moved upwards between function calls. Turing will warn you if Optim fails to converge by running `Optim.converge`. A typical solution to this might be to add more iterations, or allow the optimizer to increase between function iterations:
-
-```{julia}
-#| eval: false
-# Increase the iterations and allow function eval to increase between calls.
-mle_estimate = optimize(
-    model, MLE(), Newton(), Optim.Options(; iterations=10_000, allow_f_increases=true)
-)
-```
-
-More options for Optim are available [here](https://julianlsolvers.github.io/Optim.jl/stable/#user/config/).
-
-#### Analyzing your mode estimate
-
-Turing extends several methods from `StatsBase` that can be used to analyze your mode estimation results. Methods implemented include `vcov`, `informationmatrix`, `coeftable`, `params`, and `coef`, among others.
-
-For example, let's examine our ML estimate from above using `coeftable`:
-
-```{julia}
-#| eval: false
-# Import StatsBase to use it's statistical methods.
-using StatsBase
-
-# Print out the coefficient table.
-coeftable(mle_estimate)
-```
-
-
-<!-- table -->
-```{.cell-bg}
-─────────────────────────────
-   estimate  stderror   tstat
-─────────────────────────────
-s    0.0625  0.0625    1.0
-m    1.75    0.176777  9.8995
-─────────────────────────────
-```
-
-Standard errors are calculated from the Fisher information matrix (inverse Hessian of the log likelihood or log joint). t-statistics will be familiar to frequentist statisticians. Warning -- standard errors calculated in this way may not always be appropriate for MAP estimates, so please be cautious in interpreting them.
-
-#### Sampling with the MAP/MLE as initial states
-
-You can begin sampling your chain from an MLE/MAP estimate by extracting the vector of parameter values and providing it to the `sample` function with the keyword `initial_params`. For example, here is how to sample from the full posterior using the MAP estimate as the starting point:
-
-```{julia}
-#| eval: false
-# Generate an MAP estimate.
-map_estimate = optimize(model, MAP())
-
-# Sample with the MAP estimate as the starting point.
-chain = sample(model, NUTS(), 1_000; initial_params=map_estimate.values.array)
-```
+For more details see the [mode estimation page](../docs-17-mode-estimation/index.qmd).
 
 ## Beyond the Basics
 

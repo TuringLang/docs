@@ -1,35 +1,16 @@
-name: Render and Deploy Docs with Versioning
-
 on:
   push:
     branches:
       - master
-  workflow_dispatch: # Manually triggered for testing or specific actions
+
+name: Render Docs Website
 
 jobs:
-  fetch-version:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Docs Repository
-        uses: actions/checkout@v4
-        
-      - name: Install jq
-        run: sudo apt-get install jq
-
-      - name: Fetch latest Turing.jl release tag
-        id: get-tag
-        run: |
-          response=$(curl -s https://api.github.com/repos/TuringLang/Turing.jl/releases/latest)
-          tag_name=$(echo "$response" | jq -r '.tag_name')
-          echo "TURING_TAG=$tag_name" >> $GITHUB_ENV
-
-  render:
-    needs: fetch-version
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Docs Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Julia
@@ -56,7 +37,7 @@ jobs:
         run: quarto render
 
       - name: Rename original search index
-        run: mv _site/search.json _site/search_original.json
+        run: mv site/search.json site/search_original.json
 
       - name: Save _freeze folder
         id: cache-primes-save
@@ -80,44 +61,25 @@ jobs:
 
       - name: Merge both search index
         run: |
-          jq -s '.[0] + .[1]' _site/search_original.json fixed_main_search.json > _site/search.json
+          jq -s '.[0] + .[1]' site/search_original.json fixed_main_search.json > _site/search.json
 
-      - name: Cache rendered site
-        uses: actions/cache@v4
-        with:
-          path: _site
-          key: ${{ runner.os }}-site-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-site
+      - name: Fetch latest release tag
+        id: get_latest_tag
+        run: |
+          latest_tag=$(curl --silent "https://api.github.com/repos/TuringLang/Turing.jl/releases/latest" | jq -r .tag_name)
+          echo "latest_tag=$latest_tag" >> $GITHUB_ENV
 
-  deploy:
-    needs: render
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Docs Repository
-        uses: actions/checkout@v4
-
-      - name: Restore cached site
-        uses: actions/cache@v4
-        with:
-          path: _site
-          key: ${{ runner.os }}-site-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-site
-
-      - name: Deploy to GitHub Pages (Latest)
-        if: github.event_name == 'push'
+      - name: Deploy versioned docs
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages
           folder: _site
+          target-folder: versions/${{ env.latest_tag }}
+          clean: false
 
-      - name: Deploy to GitHub Pages (Versioned)
-        if: github.event_name == 'push'
+      - name: Deploy latest docs to root
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages
           folder: _site
-          target-folder: versions/${{ env.TURING_TAG }}
           clean: false

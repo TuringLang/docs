@@ -1,16 +1,32 @@
+name: Render and Deploy Docs with Versioning
+
 on:
   push:
     branches:
       - master
-
-name: Render Docs Website
+  workflow_dispatch: # Manually triggered for testing or specific actions
 
 jobs:
-  build-and-deploy:
+  fetch-version:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout Docs Repository
+        uses: actions/checkout@v4
+
+      - name: Fetch latest Turing.jl release tag
+        id: get-tag
+        run: |
+          response=$(curl -s https://api.github.com/repos/TuringLang/Turing.jl/releases/latest)
+          tag_name=$(echo "$response" | jq -r '.tag_name')
+          echo "TURING_TAG=$tag_name" >> $GITHUB_ENV
+
+  render:
+    needs: fetch-version
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Docs Repository
         uses: actions/checkout@v4
 
       - name: Setup Julia
@@ -63,8 +79,42 @@ jobs:
         run: |
           jq -s '.[0] + .[1]' _site/search_original.json fixed_main_search.json > _site/search.json
 
-      - name: Deploy to GitHub Pages
+      - name: Cache rendered site
+        uses: actions/cache@v4
+        with:
+          path: _site
+          key: ${{ runner.os }}-site-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-site
+
+  deploy:
+    needs: render
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Docs Repository
+        uses: actions/checkout@v4
+
+      - name: Restore cached site
+        uses: actions/cache@v4
+        with:
+          path: _site
+          key: ${{ runner.os }}-site-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-site
+
+      - name: Deploy to GitHub Pages (Latest)
+        if: github.event_name == 'push'
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages
           folder: _site
+
+      - name: Deploy to GitHub Pages (Versioned)
+        if: github.event_name == 'push'
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: _site
+          target-folder: versions/${{ env.TURING_TAG }}
+          clean: false

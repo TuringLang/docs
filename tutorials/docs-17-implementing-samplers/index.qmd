@@ -81,31 +81,31 @@ To demonstrate how one can implement the "[LogDensityProblems.jl](https://github
 using LogDensityProblems: LogDensityProblems;
 
 # Let's define some type that represents the model.
-struct NormalLogDensity{M<:AbstractVector{<:Real}}
+struct IsotropicNormalModel{M<:AbstractVector{<:Real}}
     "mean of the isotropic Gaussian"
     mean::M
 end
 
 # Specifies what input length the model expects.
-LogDensityProblems.dimension(model::NormalLogDensity) = length(model.mean)
+LogDensityProblems.dimension(model::IsotropicNormalModel) = length(model.mean)
 # Implementation of the log-density evaluation of the model.
-function LogDensityProblems.logdensity(model::NormalLogDensity, x::AbstractVector{<:Real})
+function LogDensityProblems.logdensity(model::IsotropicNormalModel, x::AbstractVector{<:Real})
     return - sum(abs2, x .- model.mean) / 2
 end
 ```
 
 This gives us all of the properties we want for our MALA sampler with the exception of the computation of the *gradient* $\nabla \log \gamma(x)$. There is the method `LogDensityProblems.logdensity_and_gradient` which should return a 2-tuple where the first entry is the evaluation of the logdensity $\log \gamma(x)$ and the second entry is the gradient $\nabla \log \gamma(x)$. 
 
-There are two ways to "implement" this method: 1) we implement it by hand, which is feasible in the case of our `NormalLogDensity`, or b) we defer the implementation of this to a automatic differentiation backend.
+There are two ways to "implement" this method: 1) we implement it by hand, which is feasible in the case of our `IsotropicNormalModel`, or b) we defer the implementation of this to a automatic differentiation backend.
 
 To implement it by hand we can simply do
 
 ```{julia}
 # Tell LogDensityProblems.jl that first-order, i.e. gradient information, is available.
-LogDensityProblems.capabilities(model::NormalLogDensity) = LogDensityProblems.LogDensityOrder{1}()
+LogDensityProblems.capabilities(model::IsotropicNormalModel) = LogDensityProblems.LogDensityOrder{1}()
 
 # Implement `logdensity_and_gradient`.
-function LogDensityProblems.logdensity_and_gradient(model::NormalLogDensity, x)
+function LogDensityProblems.logdensity_and_gradient(model::IsotropicNormalModel, x)
     logγ_x = LogDensityProblems.logdensity(model, x)
     ∇logγ_x = -x .* (x - model.mean)
     return logγ_x, ∇logγ_x
@@ -116,7 +116,7 @@ Let's just try it out:
 
 ```{julia}
 # Instantiate the problem.
-model = NormalLogDensity([-5., 0., 5.])
+model = IsotropicNormalModel([-5., 0., 5.])
 # Create some example input that we can test on.
 x_example = randn(LogDensityProblems.dimension(model))
 # Evaluate!
@@ -127,7 +127,7 @@ To defer it to an automatic differentiation backend, we can do
 
 ```{julia}
 # Tell LogDensityProblems.jl we only have access to 0-th order information.
-LogDensityProblems.capabilities(model::NormalLogDensity) = LogDensityProblems.LogDensityOrder{0}()
+LogDensityProblems.capabilities(model::IsotropicNormalModel) = LogDensityProblems.LogDensityOrder{0}()
 
 # Use `LogDensityProblemsAD`'s `ADgradient` in combination with some AD backend to implement `logdensity_and_gradient`.
 using LogDensityProblemsAD, ADTypes, ForwardDiff
@@ -137,7 +137,7 @@ LogDensityProblems.logdensity(model_with_grad, x_example)
 
 We'll continue with the second approach in this tutorial since this is typically what one does in practice, because there are better hobbies to spend time on than deriving gradients by hand.
 
-At this point, one might wonder how we're going to tie this back to Turing.jl in the end. Effectively, when working with inference methods that only require log-density evaluations and / or higher-order information of the log-density, Turing.jl actually converts the user-provided `Model` into an object implementing the above methods for [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl). As a result, most samplers provided by Turing.jl are actually implemented to work with [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl), enabling their use both *within* Turing.jl and *outside* of Turing.jl! Morever, there exists similar conversions for Stan through BridgeStan and Stan[LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl), which means that a sampler supporting the [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) interface can easily be used on both Turing.jl *and* Stan models (in addition to user-provided models, as our `NormalLogDensity` above)!
+At this point, one might wonder how we're going to tie this back to Turing.jl in the end. Effectively, when working with inference methods that only require log-density evaluations and / or higher-order information of the log-density, Turing.jl actually converts the user-provided `Model` into an object implementing the above methods for [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl). As a result, most samplers provided by Turing.jl are actually implemented to work with [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl), enabling their use both *within* Turing.jl and *outside* of Turing.jl! Morever, there exists similar conversions for Stan through BridgeStan and Stan[LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl), which means that a sampler supporting the [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) interface can easily be used on both Turing.jl *and* Stan models (in addition to user-provided models, as our `IsotropicNormalModel` above)!
 
 Anyways, let's move on to actually implementing the sampler.
 

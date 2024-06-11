@@ -1,6 +1,8 @@
 ---
 title: Implementing samplers
 engine: julia
+julia:
+    exeflags: ["--project=@.", "-t 4"]
 ---
 
 ```{julia}
@@ -19,7 +21,7 @@ Note that we will implement this sampler in the [AbstractMCMC.jl](https://github
 
 ## Quick overview of MALA
 
-We can view MALA as a single step of the leapfrog intergrator with resampling of momentum $p$ at every step. To make that statement a bit more concrete, we first define the *extended* target $\bar{\gamma}(x, p)$ as
+We can view MALA as a single step of the leapfrog intergrator with resampling of momentum $p$ at every step.[^2] To make that statement a bit more concrete, we first define the *extended* target $\bar{\gamma}(x, p)$ as
 
 \begin{equation*}
 \log \bar{\gamma}(x, p) \propto \log \gamma(x) + \log \gamma_{\mathcal{N}(0, M)}(p)
@@ -179,10 +181,20 @@ This might seem overly redundant: we're defining a type `MALAState` and it only 
 In this particular case we indeed could have dropped this and simply used a `AbstractVector{<:Real}` as our sampler state, but typically, as we will see later, one wants to include other quantities in the sampler state.
 For example, if we also wanted to adapt the parameters of our `MALA`, e.g. alter the stepsize depending on acceptance rates, in which case we should also put `ϵ` in the state, but for now we'll keep things simple.
 
-We currently have two things:
+Moreover, we also want a _sample_ type, which is a type meant for "public consumption", i.e. the end-user. This is generally going to contain a subset of the information present in the state. But in such a simple scenario as this, we similarly only have a `AbstractVector{<:Real}`:
 
-1.  A `AbstractMCMC.AbstractSampler` implementation called `MALA`.
-2.  A state `MALAState` for our sampler `MALA`.
+```{julia}
+struct MALASample{A<:AbstractVector{<:Real}}
+    "current position"
+    x::A
+end
+```
+
+We currently have three things:
+
+1. A `AbstractMCMC.AbstractSampler` implementation called `MALA`.
+2. A state `MALAState` for our sampler `MALA`.
+3. A sample `MALASample` for our sampler `MALA`.
 
 That means that we're ready to implement the only thing that really matters: `AbstractMCMC.step`.
 
@@ -272,7 +284,7 @@ function AbstractMCMC.step(
         MALAState(x)
     end
     # Return the "sample" and the sampler state.
-    return state_new.x, state_new
+    return MALASample(state_new.x), state_new
 end
 ```
 
@@ -321,7 +333,7 @@ And I promised we would get quite some functionality for free if we implemented 
 # Perform 1000 iterations with our `MALA` sampler.
 samples = sample(model_with_grad, sampler, 10_000; initial_state=state, progress=false)
 # Concatenate into a matrix.
-samples_matrix = stack(samples)
+samples_matrix = stack(sample -> sample.x, samples)
 ```
 
 ```{julia}
@@ -353,7 +365,7 @@ samples = sample(
     initial_state=fill(state, num_chains),
     progress=false
 )
-samples_array = stack(map(stack, samples))
+samples_array = stack(map(Base.Fix1(stack, sample -> sample.x), samples))
 ```
 
 But the fact that we have to provide the `AbstractMCMC.sample` call, etc. with an `initial_state` to get started is a bit annoying. We can avoid this by also defining a `AbstractMCMC.step` *without* the `state` argument:
@@ -370,7 +382,7 @@ function AbstractMCMC.step(
     # Let's just create the initial state by sampling using  a Gaussian.
     x = randn(rng, LogDensityProblems.dimension(model))
 
-    return x, MALAState(x)
+    return MALASample(x), MALAState(x)
 end
 ```
 
@@ -378,7 +390,7 @@ Equipped with this, we no longer need to provide the `initial_state` everywhere:
 
 ```{julia}
 samples = sample(model_with_grad, sampler, 10_000; progress=false)
-samples_matrix = stack(samples)
+samples_matrix = stack(sample -> sample.x, samples)
 hcat(mean(samples_matrix; dims=2), std(samples_matrix; dims=2))
 ```
 
@@ -386,14 +398,14 @@ hcat(mean(samples_matrix; dims=2), std(samples_matrix; dims=2))
 
 As we promised, all of this hassle of implementing our `MALA` sampler in a way that uses [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) and [AbstractMCMC.jl](https://github.com/TuringLang/AbstractMCMC.jl) gets us something more than *just* an "automatic" implementation of `AbstractMCMC.sample`.
 
-It also enables use with Turing.jl through the `externalsampler`, but we need to do one final thing first: we need to tell Turing.jl how to extract a vector of parameters from the "sample" returned in our implementation of `AbstractMCMC.step`. In our case, the "sample" is just a `Vector{<:Real}`, so we just need the following line:
+It also enables use with Turing.jl through the `externalsampler`, but we need to do one final thing first: we need to tell Turing.jl how to extract a vector of parameters from the "sample" returned in our implementation of `AbstractMCMC.step`. In our case, the "sample" is a `MALASample`, so we just need the following line:
 
 ```{julia}
 # Load Turing.jl.
 using Turing
 
 # Overload the `getparams` method for our "sample" type, which is just a vector.
-Turing.Inference.getparams(::Turing.Model, x::AbstractVector{<:Real}) = x
+Turing.Inference.getparams(::Turing.Model, sample::MALASample) = sample.x
 ```
 
 And with that, we're good to go!
@@ -476,3 +488,5 @@ At this point it's worth maybe reminding ourselves what we did and also *why* we
 3.  Points 1 and 2 makes it so our sampler can be used with a wide range of model implementations, amongst them being models implemented in both Turing.jl and Stan. This gives you, the inference implementer, a large collection of models to test your inference method on, in addition to allowing users of Turing.jl and Stan to try out your inference method with minimal effort.
 
 [^1]: There is no such thing as a proper interface in Julia (at least not officially), and so we use the word "interface" here to mean a few minimal methods that needs to be implemented by any type that we treat as a target model.
+
+[^2]: We're going with the leapfrog formulation because in a future version of this tutorial we'll add a section extending this simple "baseline" MALA sampler to more complex versions. See [issue #479](https://github.com/TuringLang/docs/issues/479) for progress on this.

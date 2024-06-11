@@ -191,7 +191,7 @@ That means that we're ready to implement the only thing that really matters: `Ab
 ```{julia}
 #| eval: false
 function AbstractMCMC.step(
-    # The RNG to ensure reprodicibility.
+    # The RNG to ensure reproducibility.
     rng::Random.AbstractRNG,
     # The model that defines our target.
     model::AbstractMCMC.AbstractModel,
@@ -208,7 +208,7 @@ Moreover, there is a specific `AbstractMCMC.AbstractModel` which is used to indi
 
 Since, as we discussed earlier, in our case we're indeed going to work with types that support the [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) interface, we'll define `AbstractMCMC.step` for such a `AbstractMCMC.LogDensityModel`.
 
-Note that `AbstractMCMC.LogDensityModel` has no other purpose; it has a single field called `logdensity`, and it does nothing else. But by wrapping the model in `AbstractMCMC.LogDensityModel`, it allows samplers which wants to work with [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) to define their `AbstractMCMC.step` on this type without running into method ambiguities.
+Note that `AbstractMCMC.LogDensityModel` has no other purpose; it has a single field called `logdensity`, and it does nothing else. But by wrapping the model in `AbstractMCMC.LogDensityModel`, it allows samplers that want to work with [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) to define their `AbstractMCMC.step` on this type without running into method ambiguities.
 
 All in all, that means that the signature for our `AbstractMCMC.step` is going to be the following:
 
@@ -289,10 +289,9 @@ function leapfrog_step(model, x, p, ϵ, M)
     x̃ = x + ϵ .* (M \ p1)
     # Update momentum `p1` using position `x̃`
     ∇logγ_x̃ = last(LogDensityProblems.logdensity_and_gradient(model, x̃))
-    p2 = p + (ϵ / 2) .* ∇logγ_x̃
+    p2 = p1 + (ϵ / 2) .* ∇logγ_x̃
     # Flip momentum `p2`.
     p̃ = -p2
-    # Return.
     return x̃, p̃
 end
 ```
@@ -363,7 +362,7 @@ But the fact that we have to provide the `AbstractMCMC.sample` call, etc. with a
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model_wrapper::AbstractMCMC.LogDensityModel,
-    sampler::MALA;
+    ::MALA;
     # NOTE: No state provided!
     kwargs...
 )
@@ -414,7 +413,7 @@ Pretty neat, eh?
 
 ### Models with constrained parameters
 
-One thing we've sort of glossed over in all of the above is that MALA, at least how we've implemented, requires $x$ to live in $\mathbb{R}^d$ for some $d > 0$. If some of the parameters were in fact constrained, e.g. we were working with a `Beta` distribution which has support on the interval $(0, 1)$, *not* on $\mathbb{R}^d$, we could easily end up outside of the valid range $(0, 1)$.
+One thing we've sort of glossed over in all of the above is that MALA, at least how we've implemented it, requires $x$ to live in $\mathbb{R}^d$ for some $d > 0$. If some of the parameters were in fact constrained, e.g. we were working with a `Beta` distribution which has support on the interval $(0, 1)$, *not* on $\mathbb{R}^d$, we could easily end up outside of the valid range $(0, 1)$.
 
 ```{julia}
 @model beta_model() = x ~ Beta(3, 3)
@@ -453,7 +452,7 @@ sample(demo(), externalsampler(sampler; unconstrained=true), 10_000; progress=fa
 
 Neat!
 
-Similarly, which automatic differentiation backend one should use can be specified through the `adtype` keyword argument too. For example, if we want to use [ReverseDiff.jl](https://github.com/JuliaDiff/ReverseDiff.jl) instead of the default [ReverseDiff.jl](https://github.com/JuliaDiff/ForwardDiff.jl):
+Similarly, which automatic differentiation backend one should use can be specified through the `adtype` keyword argument too. For example, if we want to use [ReverseDiff.jl](https://github.com/JuliaDiff/ReverseDiff.jl) instead of the default [ForwardDiff.jl](https://github.com/JuliaDiff/ForwardDiff.jl):
 
 ```{julia}
 using ReverseDiff: ReverseDiff

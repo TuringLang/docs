@@ -6,6 +6,16 @@ cat << EOF > changelog.qmd
 ---
 title: Changelog
 repo-actions: false
+include-in-header:
+  - text: |
+      <style>
+        a {
+          text-decoration: none;
+        }
+        a:hover {
+          text-decoration: underline;
+        }
+      </style>
 ---
 
 $changelog_content

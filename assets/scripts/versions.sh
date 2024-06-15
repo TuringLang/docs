@@ -1,36 +1,81 @@
 #!/bin/bash
 
-# Define the repository URL
 REPO_URL="https://api.github.com/repos/TuringLang/Turing.jl/tags"
 
-# Fetch the tags from the repository
-TAGS=$(curl -s $REPO_URL | grep 'name' | sed 's/.*: "\(.*\)",/\1/' | sort -r)
+# Fetch the tags
+TAGS=$(curl -s $REPO_URL | grep 'name' | sed 's/.*: "\(.*\)",/\1/')
 
-# Filter out bug fix versions (e.g., 0.33.1) and keep only minor versions (e.g., 0.33)
-MINOR_TAGS=$(echo "$TAGS" | grep -Eo 'v[0-9]+\.[0-9]+(\.0)?$' | sort -r | uniq)
+# Filter out pre-release version tags (e.g., 0.33.0-rc.1) and keep only stable version tags
+STABLE_TAGS=$(echo "$TAGS" | grep -Eo 'v[0-9]+\.[0-9]+\.[0-9]+$')
 
-# Start building the new versions section
-VERSIONS_SECTION=""
-for TAG in $MINOR_TAGS; do
-  VERSIONS_SECTION=$(cat << EOF
-$VERSIONS_SECTION
-              - text: $TAG
-                href: versions/$TAG/
-EOF
-  )
+# Find the latest version (including bug fix versions)
+LATEST_VERSION=$(echo "$STABLE_TAGS" | head -n 1)
+
+# Find the latest minor version (without bug fix)
+STABLE_VERSION=$(echo "$STABLE_TAGS" | grep -Eo 'v[0-9]+\.[0-9]+(\.0)?$' | head -n 1)
+
+# Filter out bug fix version tags from STABLE_TAGS to get only minor version tags
+MINOR_TAGS=$(echo "$STABLE_TAGS" | grep -Eo 'v[0-9]+\.[0-9]+(\.0)?$')
+
+# Set the minimum version to include in the "Previous Versions" section
+MIN_VERSION="v0.31.0"
+
+# versions.qmd file will be generated from this content
+VERSIONS_CONTENT="---
+pagetitle: Versions
+repo-actions: false
+include-in-header:
+  - text: |
+      <style>
+        a {
+          text-decoration: none;
+        }
+        a:hover {
+          text-decoration: underline;
+        }
+      </style>
+---
+
+# Latest Version
+| | | |
+| --- | --- | --- |
+| ${LATEST_VERSION} | [Documention](versions/${LATEST_VERSION}/) | [Changelog](changelog.qmd) |
+
+# Stable Version
+| | |
+| --- | --- |
+| ${STABLE_VERSION} | [Documention](versions/${STABLE_VERSION}/) |
+
+# Previous Versions
+| | |
+| --- | --- |
+"
+# Add previous versions, excluding the latest and stable versions
+for MINOR_TAG in $MINOR_TAGS; do
+  if [ "$MINOR_TAG" != "$LATEST_VERSION" ] && [ "$MINOR_TAG" != "$STABLE_VERSION" ] && [ "$MINOR_TAG" \> "$MIN_VERSION" ]; then
+    # Find the latest bug fix version for the current minor version
+    LATEST_BUG_FIX=$(echo "$STABLE_TAGS" | grep "^${MINOR_TAG%.*}" | sort -r | head -n 1)
+    VERSIONS_CONTENT="${VERSIONS_CONTENT}| ${MINOR_TAG} | [Documention](versions/${LATEST_BUG_FIX}/) |
+"
+  fi
 done
 
-# Use awk to replace the existing versions section between the comments
-awk -v versions="$VERSIONS_SECTION" '
-  BEGIN { in_versions = 0 }
-  /# Auto-generated versions section, do not remove these comments/ {
-    print $0
-    print versions
-    in_versions = 1
-    next
-  }
-  /# The versions list ends here/ {
-    in_versions = 0
-  }
-  !in_versions { print $0 }
-' _quarto.yml > _quarto.yml.tmp && mv _quarto.yml.tmp _quarto.yml
+# Add the Archived Versions section manually
+VERSIONS_CONTENT="${VERSIONS_CONTENT}
+# Archived Versions
+Documentation for archived versions is available on our deprecated documentation site.
+
+| | |
+| --- | --- |
+| v0.31.0 | [Documention](versions/v0.31.4/) |
+| v0.30.0 | [Documention](versions/v0.30.9/) |
+| v0.29.0 | [Documention](versions/v0.29.3/) |
+| v0.28.0 | [Documention](versions/v0.28.3/) |
+| v0.27.0 | [Documention](versions/v0.27.0/) |
+| v0.26.0 | [Documention](versions/v0.26.6/) |
+| v0.25.0 | [Documention](versions/v0.25.3/) |
+| v0.24.0 | [Documention](versions/v0.29.4/) |
+"
+
+# Write the content to the versions.qmd file
+echo "$VERSIONS_CONTENT" > versions.qmd

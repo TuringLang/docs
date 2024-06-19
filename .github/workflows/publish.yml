@@ -66,16 +66,40 @@ jobs:
 
       - name: Read VERSION file
         id: read_version
+        run: echo "version=$(cat VERSION)" >> $GITHUB_ENV
+
+      - name: Get latest release tag
+        id: get_latest_release
         run: |
-          version=$(cat VERSION)
-          if [ "$version" = "latest" ]; then
-            latest_tag=$(curl --silent "https://api.github.com/repos/TuringLang/Turing.jl/releases/latest" | jq -r .tag_name)
-            echo "version=$latest_tag" >> $GITHUB_ENV
+          latest_tag=$(curl --silent "https://api.github.com/repos/TuringLang/Turing.jl/releases/latest" | jq -r .tag_name)
+          echo "latest_tag=$latest_tag" >> $GITHUB_ENV
+
+      - name: Check version
+        id: check_version
+        run: |
+          if [ "${{ env.version }}" != "${{ env.latest_tag }}" ]; then
+            echo "Version mismatch. Update the VERSION file to match the latest release: ${{ env.latest_tag }}."
+            echo "::set-output name=version_mismatch::true"
           else
-            echo "version=$version" >> $GITHUB_ENV
+            echo "::set-output name=version_mismatch::false"
           fi
 
+      - name: Comment on PR if version mismatch
+        if: steps.check_version.outputs.version_mismatch == 'true'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { context, github } = require('@actions/github');
+            const issue_number = context.issue.number;
+            const comment = "Please update the VERSION file to match the latest release: ${{ env.latest_tag }}.";
+            await github.issues.createComment({
+              ...context.repo,
+              issue_number,
+              body: comment,
+            });
+
       - name: Deploy versioned docs
+        if: steps.check_version.outputs.version_mismatch == 'false'
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages
@@ -84,6 +108,7 @@ jobs:
           clean: false
 
       - name: Deploy latest docs to root
+        if: steps.check_version.outputs.version_mismatch == 'false'
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages

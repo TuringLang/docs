@@ -6,6 +6,10 @@ on:
       - master
   workflow_dispatch: # manual trigger for testing
 
+permissions:
+  contents: read
+  pull-requests: write
+  
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -65,32 +69,30 @@ jobs:
           jq -s '.[0] + .[1]' _site/search_original.json fixed_main_search.json > _site/search.json
 
 
-      - name: Read VERSION file
-        id: read_version
-        run: |
-          version=$(cat VERSION)
-          if [ "$version" = "latest" ]; then
-            latest_tag=$(curl --silent "https://api.github.com/repos/TuringLang/Turing.jl/releases/latest" | jq -r .tag_name)
-            echo "version=$latest_tag" >> $GITHUB_ENV
-          else
-            echo "version=$version" >> $GITHUB_ENV
-          fi
-
-      - name: Check version
+  
+      - name: Check VERSION file
         id: check_version
         run: |
-          if [ "${{ env.version }}" != "${{ env.latest_tag }}" ]; then
-            echo "Version mismatch. Update the VERSION file to match the latest release: ${{ env.latest_tag }}." >> $GITHUB_STATE/version_check
-            echo "true" >> $GITHUB_OUTPUT/version_mismatch
+          # Get the current version from the VERSION file
+          current_version=$(cat VERSION)
+
+          # Fetch the latest Turing.jl release tag
+          latest_tag=$(curl --silent "https://api.github.com/repos/TuringLang/Turing.jl/releases/latest" | jq -r .tag_name)
+
+          # Compare the current version with the latest tag
+          if [ "$current_version" != "$latest_tag" ]; then
+            echo "Version mismatch. Please update the VERSION file to $latest_tag."
+            echo "version_mismatch=true" >> $GITHUB_OUTPUT
           else
-            echo "false" >> $GITHUB_OUTPUT/version_mismatch
+            echo "Version is up-to-date."
+            echo "version_mismatch=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Suggest changes if version mismatch
         if: steps.check_version.outputs.version_mismatch == 'true'
         uses: parkerbxyz/suggest-changes@v1
         with:
-          comment: 'Please update the VERSION file to match the latest release: ${{ env.latest_tag }}.'
+          comment: 'Please update the VERSION file to match the latest Turing.jl release: ${{ env.latest_tag }}.'
           files: 'VERSION'
 
       - name: Deploy versioned docs

@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Contexts – Turing.jl</title>
+<title>A Mini Turing Implementation II: Contexts – Turing.jl</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -456,7 +456,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../tutorials/docs-00-getting-started/index.html">Documentation</a></li><li class="breadcrumb-item"><a href="../../tutorials/docs-01-contributing-guide/index.html">For Developers (PPL)</a></li><li class="breadcrumb-item"><a href="../../tutorials/16-contexts/index.html">A Mini Turing Implementation II: Contexts</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">Contexts</h1>
+<h1 class="title">A Mini Turing Implementation II: Contexts</h1>
 </div>
 
 
@@ -478,20 +478,23 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h1>Mini Turing expanded, now with more contexts</h1>
 <p>If you haven’t read <a href="../14-minituring">Mini Turing</a> yet, you should do that first. We start by repeating verbatim much of the code from there. Define the type for holding values for variables:</p>
 <div id="4" class="cell" data-execution_count="1">
-<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">MacroTools</span>, <span class="bu">Distributions</span>, <span class="bu">Random</span>, <span class="bu">AbstractMCMC</span>, <span class="bu">MCMCChains</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> VarInfo{V,L}</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    values<span class="op">::</span><span class="dt">V</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    logps<span class="op">::</span><span class="dt">L</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="fu">VarInfo</span>() <span class="op">=</span> <span class="fu">VarInfo</span>(<span class="fu">Dict</span><span class="dt">{Symbol,Float64}</span>(), <span class="fu">Dict</span><span class="dt">{Symbol,Float64}</span>())</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="bu">Base</span>.<span class="fu">setindex!</span>(varinfo<span class="op">::</span><span class="dt">VarInfo</span>, (value, logp), var_id)</span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    varinfo.values[var_id] <span class="op">=</span> value</span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    varinfo.logps[var_id] <span class="op">=</span> logp</span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> varinfo</span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> <span class="bu">MacroTools</span>, <span class="bu">Random</span>, <span class="bu">AbstractMCMC</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Distributions</span>: Normal, logpdf</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">MCMCChains</span>: Chains</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">AbstractMCMC</span>: sample</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> VarInfo{V,L}</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    values<span class="op">::</span><span class="dt">V</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    logps<span class="op">::</span><span class="dt">L</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="fu">VarInfo</span>() <span class="op">=</span> <span class="fu">VarInfo</span>(<span class="fu">Dict</span><span class="dt">{Symbol,Float64}</span>(), <span class="fu">Dict</span><span class="dt">{Symbol,Float64}</span>())</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="bu">Base</span>.<span class="fu">setindex!</span>(varinfo<span class="op">::</span><span class="dt">VarInfo</span>, (value, logp), var_id)</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    varinfo.values[var_id] <span class="op">=</span> value</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    varinfo.logps[var_id] <span class="op">=</span> logp</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> varinfo</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Define the macro that expands <code>~</code> expressions to calls to <code>assume</code> and <code>observe</code>:</p>
 <div id="6" class="cell" data-execution_count="1">
@@ -550,7 +553,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 <p>Previously in the mini Turing case, at this point we defined <code>SamplingContext</code>, a structure that holds a random number generator and a sampler, and gets passed to <code>observe</code> and <code>assume</code>. We then used it to implement a simple Metropolis-Hastings sampler.</p>
-<p>The notion of a context may have seemed overly complicated just to implement the sampler, but there are other things we may want to do with a model other than sample from the posterior. Having the context passing in place let’s us do that without having to touch the above macro at all. For instance, let’s say we want to evaluate the log joint probability of the model for given a set of parameters. Using a new context type we can use the previously defined <code>model</code> function, but change its behavior by changing what the <code>observe</code> and <code>assume</code> functions do.</p>
+<p>The notion of a context may have seemed overly complicated just to implement the sampler, but there are other things we may want to do with a model other than sample from the posterior. Having the context passing in place lets us do that without having to touch the above macro at all. For instance, let’s say we want to evaluate the log joint probability of the model for a given set of parameters. Using a new context type we can use the previously defined <code>model</code> function, but change its behavior by changing what the <code>observe</code> and <code>assume</code> functions do.</p>
 <div id="10" class="cell" data-execution_count="1">
 <div class="sourceCode cell-code" id="cb5"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> JointContext <span class="kw">end</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
@@ -652,72 +655,74 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="fu">assume</span>(context.subcontext, varinfo, dist, var_id)</span>
 <span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span>;</span>
 <span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> MHSampler{D, T<span class="op">&lt;:</span><span class="dt">Real</span>} <span class="op">&lt;:</span><span class="dt"> AbstractMCMC.AbstractSampler</span></span>
-<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>    sigma<span class="op">::</span><span class="dt">T</span></span>
-<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>    subcontext<span class="op">::</span><span class="dt">D</span></span>
-<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
-<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a><span class="fu">MHSampler</span>(subcontext) <span class="op">=</span> <span class="fu">MHSampler</span>(<span class="fl">1</span>, subcontext)</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a><span class="co"># The subcontext field of the MHSampler determines which distribution this sampler</span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a><span class="co"># samples from.</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> MHSampler{D, T<span class="op">&lt;:</span><span class="dt">Real</span>} <span class="op">&lt;:</span><span class="dt"> AbstractMCMC.AbstractSampler</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>    sigma<span class="op">::</span><span class="dt">T</span></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>    subcontext<span class="op">::</span><span class="dt">D</span></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
 <span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">assume</span>(context<span class="op">::</span><span class="dt">SamplingContext{&lt;:MHSampler}</span>, varinfo, dist, var_id)</span>
-<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>    sampler <span class="op">=</span> context.sampler</span>
-<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>    old_value <span class="op">=</span> varinfo.values[var_id]</span>
-<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>    <span class="co"># propose a random-walk step, i.e, add the current value to a random </span></span>
-<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>    <span class="co"># value sampled from a Normal distribution centered at 0</span></span>
-<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>    value <span class="op">=</span> <span class="fu">rand</span>(context.rng, <span class="fu">Normal</span>(old_value, sampler.sigma))</span>
-<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>    varinfo[var_id] <span class="op">=</span> (value, <span class="cn">NaN</span>)</span>
-<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Once the value has been sampled, let the subcontext handle evaluating the log</span></span>
-<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>    <span class="co"># probability.</span></span>
-<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="fu">assume</span>(context.subcontext, varinfo, dist, var_id)</span>
-<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span>;</span>
-<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a><span class="co"># The following three methods are identical to before, except for passing</span></span>
-<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a><span class="co"># `samples.subcontext` to the context.</span></span>
-<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> AbstractMCMC.<span class="fu">step</span>(</span>
-<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a>    rng<span class="op">::</span><span class="dt">Random.AbstractRNG</span>, model<span class="op">::</span><span class="dt">MiniModel</span>, sampler<span class="op">::</span><span class="dt">MHSampler</span>; kwargs<span class="op">...</span></span>
-<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a>    vi <span class="op">=</span> <span class="fu">VarInfo</span>()</span>
-<span id="cb10-43"><a href="#cb10-43" aria-hidden="true" tabindex="-1"></a>    ctx <span class="op">=</span> <span class="fu">SamplingContext</span>(rng, <span class="fu">PriorSampler</span>(), sampler.subcontext)</span>
-<span id="cb10-44"><a href="#cb10-44" aria-hidden="true" tabindex="-1"></a>    model.<span class="fu">f</span>(vi, ctx, <span class="fu">values</span>(model.data)<span class="op">...</span>)</span>
-<span id="cb10-45"><a href="#cb10-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> vi, vi</span>
-<span id="cb10-46"><a href="#cb10-46" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
-<span id="cb10-47"><a href="#cb10-47" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-48"><a href="#cb10-48" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> AbstractMCMC.<span class="fu">step</span>(</span>
-<span id="cb10-49"><a href="#cb10-49" aria-hidden="true" tabindex="-1"></a>    rng<span class="op">::</span><span class="dt">Random.AbstractRNG</span>,</span>
-<span id="cb10-50"><a href="#cb10-50" aria-hidden="true" tabindex="-1"></a>    model<span class="op">::</span><span class="dt">MiniModel</span>,</span>
-<span id="cb10-51"><a href="#cb10-51" aria-hidden="true" tabindex="-1"></a>    sampler<span class="op">::</span><span class="dt">MHSampler</span>,</span>
-<span id="cb10-52"><a href="#cb10-52" aria-hidden="true" tabindex="-1"></a>    prev_state<span class="op">::</span><span class="dt">VarInfo</span>; <span class="co"># is just the old trace</span></span>
-<span id="cb10-53"><a href="#cb10-53" aria-hidden="true" tabindex="-1"></a>    kwargs<span class="op">...</span>,</span>
-<span id="cb10-54"><a href="#cb10-54" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb10-55"><a href="#cb10-55" aria-hidden="true" tabindex="-1"></a>    vi <span class="op">=</span> prev_state</span>
-<span id="cb10-56"><a href="#cb10-56" aria-hidden="true" tabindex="-1"></a>    new_vi <span class="op">=</span> <span class="fu">deepcopy</span>(vi)</span>
-<span id="cb10-57"><a href="#cb10-57" aria-hidden="true" tabindex="-1"></a>    ctx <span class="op">=</span> <span class="fu">SamplingContext</span>(rng, sampler, sampler.subcontext)</span>
-<span id="cb10-58"><a href="#cb10-58" aria-hidden="true" tabindex="-1"></a>    model.<span class="fu">f</span>(new_vi, ctx, <span class="fu">values</span>(model.data)<span class="op">...</span>)</span>
-<span id="cb10-59"><a href="#cb10-59" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-60"><a href="#cb10-60" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Compute log acceptance probability</span></span>
-<span id="cb10-61"><a href="#cb10-61" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Since the proposal is symmetric the computation can be simplified</span></span>
-<span id="cb10-62"><a href="#cb10-62" aria-hidden="true" tabindex="-1"></a>    logα <span class="op">=</span> <span class="fu">sum</span>(<span class="fu">values</span>(new_vi.logps)) <span class="op">-</span> <span class="fu">sum</span>(<span class="fu">values</span>(vi.logps))</span>
-<span id="cb10-63"><a href="#cb10-63" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-64"><a href="#cb10-64" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Accept proposal with computed acceptance probability</span></span>
-<span id="cb10-65"><a href="#cb10-65" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="fu">-randexp</span>(rng) <span class="op">&lt;</span> logα</span>
-<span id="cb10-66"><a href="#cb10-66" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> new_vi, new_vi</span>
-<span id="cb10-67"><a href="#cb10-67" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span></span>
-<span id="cb10-68"><a href="#cb10-68" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> prev_state, prev_state</span>
-<span id="cb10-69"><a href="#cb10-69" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
-<span id="cb10-70"><a href="#cb10-70" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span>;</span>
-<span id="cb10-71"><a href="#cb10-71" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-72"><a href="#cb10-72" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> AbstractMCMC.<span class="fu">bundle_samples</span>(</span>
-<span id="cb10-73"><a href="#cb10-73" aria-hidden="true" tabindex="-1"></a>    samples, model<span class="op">::</span><span class="dt">MiniModel</span>, <span class="op">::</span><span class="dt">MHSampler</span>, <span class="op">::</span><span class="dt">Any</span>, <span class="op">::</span><span class="dt">Type{Chains}</span>; kwargs<span class="op">...</span></span>
-<span id="cb10-74"><a href="#cb10-74" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb10-75"><a href="#cb10-75" aria-hidden="true" tabindex="-1"></a>    <span class="co"># We get a vector of traces</span></span>
-<span id="cb10-76"><a href="#cb10-76" aria-hidden="true" tabindex="-1"></a>    values <span class="op">=</span> [sample.values for sample <span class="kw">in</span> samples]</span>
-<span id="cb10-77"><a href="#cb10-77" aria-hidden="true" tabindex="-1"></a>    params <span class="op">=</span> [key for key <span class="kw">in</span> <span class="fu">keys</span>(values[<span class="fl">1</span>]) if key <span class="op">∉</span> <span class="fu">keys</span>(model.data)]</span>
-<span id="cb10-78"><a href="#cb10-78" aria-hidden="true" tabindex="-1"></a>    vals <span class="op">=</span> <span class="fu">reduce</span>(hcat, [value[p] for value <span class="kw">in</span> values] <span class="cf">for</span> p <span class="kw">in</span> params)</span>
-<span id="cb10-79"><a href="#cb10-79" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Composing the `Chains` data-structure, of which analyzing infrastructure is provided</span></span>
-<span id="cb10-80"><a href="#cb10-80" aria-hidden="true" tabindex="-1"></a>    chains <span class="op">=</span> <span class="fu">Chains</span>(vals, params)</span>
-<span id="cb10-81"><a href="#cb10-81" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> chains</span>
-<span id="cb10-82"><a href="#cb10-82" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span>;</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a><span class="fu">MHSampler</span>(subcontext) <span class="op">=</span> <span class="fu">MHSampler</span>(<span class="fl">1</span>, subcontext)</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">assume</span>(context<span class="op">::</span><span class="dt">SamplingContext{&lt;:MHSampler}</span>, varinfo, dist, var_id)</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>    sampler <span class="op">=</span> context.sampler</span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>    old_value <span class="op">=</span> varinfo.values[var_id]</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>    <span class="co"># propose a random-walk step, i.e, add the current value to a random </span></span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>    <span class="co"># value sampled from a Normal distribution centered at 0</span></span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>    value <span class="op">=</span> <span class="fu">rand</span>(context.rng, <span class="fu">Normal</span>(old_value, sampler.sigma))</span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>    varinfo[var_id] <span class="op">=</span> (value, <span class="cn">NaN</span>)</span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Once the value has been sampled, let the subcontext handle evaluating the log</span></span>
+<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a>    <span class="co"># probability.</span></span>
+<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="fu">assume</span>(context.subcontext, varinfo, dist, var_id)</span>
+<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span>;</span>
+<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a><span class="co"># The following three methods are identical to before, except for passing</span></span>
+<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a><span class="co"># `sampler.subcontext` to the context SamplingContext.</span></span>
+<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> AbstractMCMC.<span class="fu">step</span>(</span>
+<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a>    rng<span class="op">::</span><span class="dt">Random.AbstractRNG</span>, model<span class="op">::</span><span class="dt">MiniModel</span>, sampler<span class="op">::</span><span class="dt">MHSampler</span>; kwargs<span class="op">...</span></span>
+<span id="cb10-43"><a href="#cb10-43" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-44"><a href="#cb10-44" aria-hidden="true" tabindex="-1"></a>    vi <span class="op">=</span> <span class="fu">VarInfo</span>()</span>
+<span id="cb10-45"><a href="#cb10-45" aria-hidden="true" tabindex="-1"></a>    ctx <span class="op">=</span> <span class="fu">SamplingContext</span>(rng, <span class="fu">PriorSampler</span>(), sampler.subcontext)</span>
+<span id="cb10-46"><a href="#cb10-46" aria-hidden="true" tabindex="-1"></a>    model.<span class="fu">f</span>(vi, ctx, <span class="fu">values</span>(model.data)<span class="op">...</span>)</span>
+<span id="cb10-47"><a href="#cb10-47" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> vi, vi</span>
+<span id="cb10-48"><a href="#cb10-48" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb10-49"><a href="#cb10-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-50"><a href="#cb10-50" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> AbstractMCMC.<span class="fu">step</span>(</span>
+<span id="cb10-51"><a href="#cb10-51" aria-hidden="true" tabindex="-1"></a>    rng<span class="op">::</span><span class="dt">Random.AbstractRNG</span>,</span>
+<span id="cb10-52"><a href="#cb10-52" aria-hidden="true" tabindex="-1"></a>    model<span class="op">::</span><span class="dt">MiniModel</span>,</span>
+<span id="cb10-53"><a href="#cb10-53" aria-hidden="true" tabindex="-1"></a>    sampler<span class="op">::</span><span class="dt">MHSampler</span>,</span>
+<span id="cb10-54"><a href="#cb10-54" aria-hidden="true" tabindex="-1"></a>    prev_state<span class="op">::</span><span class="dt">VarInfo</span>; <span class="co"># is just the old trace</span></span>
+<span id="cb10-55"><a href="#cb10-55" aria-hidden="true" tabindex="-1"></a>    kwargs<span class="op">...</span>,</span>
+<span id="cb10-56"><a href="#cb10-56" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-57"><a href="#cb10-57" aria-hidden="true" tabindex="-1"></a>    vi <span class="op">=</span> prev_state</span>
+<span id="cb10-58"><a href="#cb10-58" aria-hidden="true" tabindex="-1"></a>    new_vi <span class="op">=</span> <span class="fu">deepcopy</span>(vi)</span>
+<span id="cb10-59"><a href="#cb10-59" aria-hidden="true" tabindex="-1"></a>    ctx <span class="op">=</span> <span class="fu">SamplingContext</span>(rng, sampler, sampler.subcontext)</span>
+<span id="cb10-60"><a href="#cb10-60" aria-hidden="true" tabindex="-1"></a>    model.<span class="fu">f</span>(new_vi, ctx, <span class="fu">values</span>(model.data)<span class="op">...</span>)</span>
+<span id="cb10-61"><a href="#cb10-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-62"><a href="#cb10-62" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Compute log acceptance probability</span></span>
+<span id="cb10-63"><a href="#cb10-63" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Since the proposal is symmetric the computation can be simplified</span></span>
+<span id="cb10-64"><a href="#cb10-64" aria-hidden="true" tabindex="-1"></a>    logα <span class="op">=</span> <span class="fu">sum</span>(<span class="fu">values</span>(new_vi.logps)) <span class="op">-</span> <span class="fu">sum</span>(<span class="fu">values</span>(vi.logps))</span>
+<span id="cb10-65"><a href="#cb10-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-66"><a href="#cb10-66" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Accept proposal with computed acceptance probability</span></span>
+<span id="cb10-67"><a href="#cb10-67" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">-</span><span class="bu">Random</span>.<span class="fu">randexp</span>(rng) <span class="op">&lt;</span> logα</span>
+<span id="cb10-68"><a href="#cb10-68" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> new_vi, new_vi</span>
+<span id="cb10-69"><a href="#cb10-69" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span></span>
+<span id="cb10-70"><a href="#cb10-70" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> prev_state, prev_state</span>
+<span id="cb10-71"><a href="#cb10-71" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb10-72"><a href="#cb10-72" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span>;</span>
+<span id="cb10-73"><a href="#cb10-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-74"><a href="#cb10-74" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> AbstractMCMC.<span class="fu">bundle_samples</span>(</span>
+<span id="cb10-75"><a href="#cb10-75" aria-hidden="true" tabindex="-1"></a>    samples, model<span class="op">::</span><span class="dt">MiniModel</span>, <span class="op">::</span><span class="dt">MHSampler</span>, <span class="op">::</span><span class="dt">Any</span>, <span class="op">::</span><span class="dt">Type{Chains}</span>; kwargs<span class="op">...</span></span>
+<span id="cb10-76"><a href="#cb10-76" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-77"><a href="#cb10-77" aria-hidden="true" tabindex="-1"></a>    <span class="co"># We get a vector of traces</span></span>
+<span id="cb10-78"><a href="#cb10-78" aria-hidden="true" tabindex="-1"></a>    values <span class="op">=</span> [sample.values for sample <span class="kw">in</span> samples]</span>
+<span id="cb10-79"><a href="#cb10-79" aria-hidden="true" tabindex="-1"></a>    params <span class="op">=</span> [key for key <span class="kw">in</span> <span class="fu">keys</span>(values[<span class="fl">1</span>]) if key <span class="op">∉</span> <span class="fu">keys</span>(model.data)]</span>
+<span id="cb10-80"><a href="#cb10-80" aria-hidden="true" tabindex="-1"></a>    vals <span class="op">=</span> <span class="fu">reduce</span>(hcat, [value[p] for value <span class="kw">in</span> values] <span class="cf">for</span> p <span class="kw">in</span> params)</span>
+<span id="cb10-81"><a href="#cb10-81" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Composing the `Chains` data-structure, of which analyzing infrastructure is provided</span></span>
+<span id="cb10-82"><a href="#cb10-82" aria-hidden="true" tabindex="-1"></a>    chains <span class="op">=</span> <span class="fu">Chains</span>(vals, params)</span>
+<span id="cb10-83"><a href="#cb10-83" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> chains</span>
+<span id="cb10-84"><a href="#cb10-84" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span>;</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>We can use this to sample from the joint distribution just like before:</p>
 <div id="18" class="cell" data-execution_count="1">
@@ -735,16 +740,16 @@ Summary Statistics
  <span class="ansi-bold"> parameters </span> <span class="ansi-bold">    mean </span> <span class="ansi-bold">     std </span> <span class="ansi-bold">    mcse </span> <span class="ansi-bold">    ess_bulk </span> <span class="ansi-bold">    ess_tail </span> <span class="ansi-bold">    rh</span> ⋯
  <span class="ansi-bright-black-fg">     Symbol </span> <span class="ansi-bright-black-fg"> Float64 </span> <span class="ansi-bright-black-fg"> Float64 </span> <span class="ansi-bright-black-fg"> Float64 </span> <span class="ansi-bright-black-fg">     Float64 </span> <span class="ansi-bright-black-fg">     Float64 </span> <span class="ansi-bright-black-fg"> Float</span> ⋯
 
-           a    0.9716    0.9009    0.0032    80464.7416   120882.3971    1.00 ⋯
-           b    2.8791    0.4882    0.0012   171707.5602   209930.1350    1.00 ⋯
+           a    0.9803    0.9031    0.0032    79716.3124   118195.2489    1.00 ⋯
+           b    2.8802    0.4897    0.0012   171521.6891   211833.7931    1.00 ⋯
 <span class="ansi-cyan-fg">                                                               2 columns omitted</span>
 
 Quantiles
  <span class="ansi-bold"> parameters </span> <span class="ansi-bold">    2.5% </span> <span class="ansi-bold">   25.0% </span> <span class="ansi-bold">   50.0% </span> <span class="ansi-bold">   75.0% </span> <span class="ansi-bold">   97.5% </span>
  <span class="ansi-bright-black-fg">     Symbol </span> <span class="ansi-bright-black-fg"> Float64 </span> <span class="ansi-bright-black-fg"> Float64 </span> <span class="ansi-bright-black-fg"> Float64 </span> <span class="ansi-bright-black-fg"> Float64 </span> <span class="ansi-bright-black-fg"> Float64 </span>
 
-           a   -0.7925    0.3636    0.9719    1.5782    2.7423
-           b    1.9215    2.5496    2.8793    3.2093    3.8344
+           a   -0.7886    0.3730    0.9791    1.5878    2.7573
+           b    1.9194    2.5504    2.8795    3.2099    3.8418
 </pre>
 </div>
 </div>
@@ -765,16 +770,16 @@ Summary Statistics
  <span class="ansi-bold"> parameters </span> <span class="ansi-bold">    mean </span> <span class="ansi-bold">     std </span> <span class="ansi-bold">    mcse </span> <span class="ansi-bold">   ess_bulk </span> <span class="ansi-bold">    ess_tail </span> <span class="ansi-bold">    rha</span> ⋯
  <span class="ansi-bright-black-fg">     Symbol </span> <span class="ansi-bright-black-fg"> Float64 </span> <span class="ansi-bright-black-fg"> Float64 </span> <span class="ansi-bright-black-fg"> Float64 </span> <span class="ansi-bright-black-fg">    Float64 </span> <span class="ansi-bright-black-fg">     Float64 </span> <span class="ansi-bright-black-fg"> Float6</span> ⋯
 
-           a    0.4922    0.9994    0.0039   65068.1087   127056.8746    1.000 ⋯
-           b    0.4813    2.2318    0.0134   27688.9605    52275.4070    1.000 ⋯
+           a    0.4981    1.0022    0.0041   60734.3072   124408.4410    1.000 ⋯
+           b    0.4860    2.2418    0.0138   26316.1826    49719.2394    1.000 ⋯
 <span class="ansi-cyan-fg">                                                               2 columns omitted</span>
 
 Quantiles
  <span class="ansi-bold"> parameters </span> <span class="ansi-bold">    2.5% </span> <span class="ansi-bold">   25.0% </span> <span class="ansi-bold">   50.0% </span> <span class="ansi-bold">   75.0% </span> <span class="ansi-bold">   97.5% </span>
  <span class="ansi-bright-black-fg">     Symbol </span> <span class="ansi-bright-black-fg"> Float64 </span> <span class="ansi-bright-black-fg"> Float64 </span> <span class="ansi-bright-black-fg"> Float64 </span> <span class="ansi-bright-black-fg"> Float64 </span> <span class="ansi-bright-black-fg"> Float64 </span>
 
-           a   -1.4696   -0.1825    0.4929    1.1675    2.4463
-           b   -3.8737   -1.0276    0.4755    1.9864    4.8622
+           a   -1.4647   -0.1789    0.4973    1.1722    2.4703
+           b   -3.9218   -1.0223    0.4934    2.0010    4.8743
 </pre>
 </div>
 </div>
@@ -789,7 +794,7 @@ Quantiles
 <li><p><code>PointwiseLikelihoodContext</code> records the log likelihood of each individual variable.</p></li>
 <li><p><code>DebugContext</code> collects useful debugging information while executing the model.</p></li>
 </ul>
-<p>All of the above are what Turing calls parent contexts, which is to say that they all keep a subcontext just like our above <code>SamplingContext</code> did, and their implementions of <code>assume</code> and <code>observe</code> call the implementation of the subcontext once they are done doing their own work of fixing/conditioning/prefixing/etc. Contexts are often chained, so that e.g.&nbsp;a <code>DebugContext</code> may wrap within it a <code>PrefixContext</code> which may in turn wrap a <code>ConditionContext</code>, etc. The only contexts that <em>don’t</em> have a subcontext in the Turing are the ones for evaluating the prior, likelihood, and joint distributions. These are called leaf contexts.</p>
+<p>All of the above are what Turing calls <em>parent contexts</em>, which is to say that they all keep a subcontext just like our above <code>SamplingContext</code> did. Their implementations of <code>assume</code> and <code>observe</code> call the implementation of the subcontext once they are done doing their own work of fixing/conditioning/prefixing/etc. Contexts are often chained, so that e.g.&nbsp;a <code>DebugContext</code> may wrap within it a <code>PrefixContext</code>, which may in turn wrap a <code>ConditionContext</code>, etc. The only contexts that <em>don’t</em> have a subcontext in the Turing are the ones for evaluating the prior, likelihood, and joint distributions. These are called <em>leaf contexts</em>.</p>
 <p>The above version of mini Turing is still much simpler than the full Turing language, but the principles of how contexts are used are the same.</p>
 
 

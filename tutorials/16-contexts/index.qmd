@@ -95,7 +95,7 @@ mini_m = MiniModel(m, (x=3.0,))
 
 Previously in the mini Turing case, at this point we defined `SamplingContext`, a structure that holds a random number generator and a sampler, and gets passed to `observe` and `assume`. We then used it to implement a simple Metropolis-Hastings sampler.
 
-The notion of a context may have seemed overly complicated just to implement the sampler, but there are other things we may want to do with a model other than sample from the posterior. Having the context passing in place let's us do that without having to touch the above macro at all. For instance, let's say we want to evaluate the log joint probability of the model for given a set of parameters. Using a new context type we can use the previously defined `model` function, but change its behavior by changing what the `observe` and `assume` functions do.
+The notion of a context may have seemed overly complicated just to implement the sampler, but there are other things we may want to do with a model other than sample from the posterior. Having the context passing in place lets us do that without having to touch the above macro at all. For instance, let's say we want to evaluate the log joint probability of the model for a given set of parameters. Using a new context type we can use the previously defined `model` function, but change its behavior by changing what the `observe` and `assume` functions do.
 
 
 ```{julia}
@@ -202,6 +202,8 @@ function assume(context::SamplingContext{PriorSampler}, varinfo, dist, var_id)
     return assume(context.subcontext, varinfo, dist, var_id)
 end;
 
+# The subcontext field of the MHSampler determines which distribution this sampler
+# samples from.
 struct MHSampler{D, T<:Real} <: AbstractMCMC.AbstractSampler
     sigma::T
     subcontext::D
@@ -223,7 +225,7 @@ function assume(context::SamplingContext{<:MHSampler}, varinfo, dist, var_id)
 end;
 
 # The following three methods are identical to before, except for passing
-# `samples.subcontext` to the context.
+# `sampler.subcontext` to the context SamplingContext.
 function AbstractMCMC.step(
     rng::Random.AbstractRNG, model::MiniModel, sampler::MHSampler; kwargs...
 )
@@ -298,4 +300,3 @@ The use of contexts also goes far beyond just evaluating log probabilities and s
 All of the above are what Turing calls _parent contexts_, which is to say that they all keep a subcontext just like our above `SamplingContext` did. Their implementations of `assume` and `observe` call the implementation of the subcontext once they are done doing their own work of fixing/conditioning/prefixing/etc. Contexts are often chained, so that e.g. a `DebugContext` may wrap within it a `PrefixContext`, which may in turn wrap a `ConditionContext`, etc. The only contexts that _don't_ have a subcontext in the Turing are the ones for evaluating the prior, likelihood, and joint distributions. These are called _leaf contexts_.
 
 The above version of mini Turing is still much simpler than the full Turing language, but the principles of how contexts are used are the same.
-

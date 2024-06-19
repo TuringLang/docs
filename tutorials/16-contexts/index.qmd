@@ -68,7 +68,8 @@ function mini_model(expr)
 
     # Reassemble the function definition from its name, arguments, body etc.
     return MacroTools.combinedef(def)
-end;
+end
+
 
 struct MiniModel{F,D} <: AbstractMCMC.AbstractModel
     f::F
@@ -278,12 +279,14 @@ or we can choose to sample from the prior instead
 sample(MiniModel(m, (x=3.0,)), MHSampler(PriorContext()), 1_000_000; chain_type=Chains, progress=false)
 ```
 
-Using an MCMC algorithm to sample from the prior is of course overly complicated and silly (`PriorSampler` exists, after all), but the point is to illustrate the flexibility of the context system. We could for instance use the same setup to sample only from the likelihood, ignoring the prior.
+Of course, using an MCMC algorithm to sample from the prior is unnecessary and silly (`PriorSampler` exists, after all), but the point is to illustrate the flexibility of the context system. We could, for instance, use the same setup to implement an _Approximate Bayesian Computation_ (ABC) algorithm. 
+
 
 The use of contexts also goes far beyond just evaluating log probabilities and sampling. Some examples from Turing are
 
 * `FixedContext`, which fixes some variables to given values and removes them completely from the evaluation of any log probabilities. They power the `Turing.fix` and `Turing.unfix` functions.
-* `ConditionContext` conditions the model on fixed values for some parameters. They are used by `Turing.condition` and `Turing.uncondition`, i.e. the `model | (parameter=value,)` syntax.
+* `ConditionContext` conditions the model on fixed values for some parameters. They are used by `Turing.condition` and `Turing.uncondition`, i.e. the `model | (parameter=value,)` syntax. The difference between `fix` and `condition` is whether the log probability for the corresponding variable is included in the overall log density. 
+
 * `PriorExtractorContext` collects information about what the prior distribution of each variable is.
 * `PrefixContext` adds prefixes to variable names, allowing models to be used within other models without variable name collisions.
 * `PointwiseLikelihoodContext` records the log likelihood of each individual variable.
@@ -291,4 +294,5 @@ The use of contexts also goes far beyond just evaluating log probabilities and s
 
 All of the above are what Turing calls parent contexts, which is to say that they all keep a subcontext just like our above `SamplingContext` did, and their implementions of `assume` and `observe` call the implementation of the subcontext once they are done doing their own work of fixing/conditioning/prefixing/etc. Contexts are often chained, so that e.g. a `DebugContext` may wrap within it a `PrefixContext` which may in turn wrap a `ConditionContext`, etc. The only contexts that _don't_ have a subcontext in the Turing are the ones for evaluating the prior, likelihood, and joint distributions. These are called leaf contexts.
 
-The above version of mini Turing is still much simpler than the full Turing language, but the principles of how contexts are used are the same in both.
+The above version of mini Turing is still much simpler than the full Turing language, but the principles of how contexts are used are the same.
+

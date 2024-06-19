@@ -64,18 +64,35 @@ jobs:
         run: |
           jq -s '.[0] + .[1]' _site/search_original.json fixed_main_search.json > _site/search.json
 
-      - name: Fetch latest release tag
-        id: get_latest_tag
+      - name: Read VERSION file
+        id: read_version
         run: |
-          latest_tag=$(curl --silent "https://api.github.com/repos/TuringLang/Turing.jl/releases/latest" | jq -r .tag_name)
-          echo "latest_tag=$latest_tag" >> $GITHUB_ENV
+          version=$(cat VERSION)
+          if [ "$version" = "latest" ]; then
+            latest_tag=$(curl --silent "https://api.github.com/repos/TuringLang/Turing.jl/releases/latest" | jq -r .tag_name)
+            echo "version=$latest_tag" >> $GITHUB_ENV
+          else
+            echo "version=$version" >> $GITHUB_ENV
+
+      - name: Set VERSION file to latest if it was a previous version update
+        if: env.version != 'latest'
+        run: echo "latest" > VERSION
+
+      - name: Commit and push VERSION file update
+        if: env.version != 'latest'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add VERSION
+          git commit -m "Set VERSION file to latest"
+          git push origin master
 
       - name: Deploy versioned docs
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages
           folder: _site
-          target-folder: versions/${{ env.latest_tag }}
+          target-folder: versions/${{ env.version }}
           clean: false
 
       - name: Deploy latest docs to root

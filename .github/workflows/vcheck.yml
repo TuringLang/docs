@@ -1,71 +1,38 @@
 name: Check Turing.jl Version
-
 on:
-  pull_request_target:
-    branches:
-      - master
+  pull_request:
+    paths:
+      - 'VERSION'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   check-version:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get current version
+        id: current_version
+        run: echo "VERSION=$(cat VERSION)" >> $GITHUB_OUTPUT
 
       - name: Get latest Turing.jl version
         id: latest_version
         run: |
-          LATEST_VERSION=$(curl --silent "https://api.github.com/repos/TuringLang/Turing.jl/releases/latest" | jq -r .tag_name)
-          echo "LATEST_VERSION=$LATEST_VERSION" >> $GITHUB_OUTPUT
+          latest=$(curl --silent "https://api.github.com/repos/TuringLang/Turing.jl/releases/latest" | jq -r .tag_name)
+          echo "LATEST=$latest" >> $GITHUB_OUTPUT
 
-      - name: Check VERSION file
-        id: check_version
+      - name: Update VERSION file if outdated
         run: |
-          DOCS_VERSION=$(cat VERSION)
-          if [ "$DOCS_VERSION" != "${{ steps.latest_version.outputs.LATEST_VERSION }}" ]; then
-            echo "UPDATE_NEEDED=true" >> $GITHUB_OUTPUT
-          else
-            echo "UPDATE_NEEDED=false" >> $GITHUB_OUTPUT
+          if [ "${{ steps.current_version.outputs.VERSION }}" != "${{ steps.latest_version.outputs.LATEST }}" ]; then
+            echo "${{ steps.latest_version.outputs.LATEST }}" > VERSION
           fi
 
-      - name: Comment on PR
-        if: steps.check_version.outputs.UPDATE_NEEDED == 'true'
-        uses: actions/github-script@v7
+      - name: Suggest changes
+        uses: parkerbxyz/suggest-changes@v1
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const prNumber = context.payload.pull_request.number;
-            const latestVersion = '${{ steps.latest_version.outputs.LATEST_VERSION }}';
-            const commentBody = `The VERSION file needs to be updated to the latest Turing.jl release: ${latestVersion}`;
-            const botUsername = 'github-actions[bot]';
-
-            // Check for existing comments by the bot
-            const existingComments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-            });
-
-            const botComment = existingComments.data.find(
-              (comment) => comment.user.login === botUsername && comment.body.includes('VERSION file needs to be updated')
-            );
-
-            if (botComment) {
-              // Update the existing comment
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: commentBody,
-              });
-            } else {
-              // Create a new comment
-              await github.rest.issues.createComment({
-                issue_number: prNumber,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: commentBody,
-              });
-            }
+          comment: 'This PR suggests updating the Turing.jl version to the latest release: ${{ steps.latest_version.outputs.LATEST }}'

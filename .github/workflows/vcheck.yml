@@ -1,0 +1,44 @@
+name: Check VERSION File in PRs
+
+on:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get install jq
+
+      - name: Check VERSION file
+        id: check_version
+        run: |
+          # Get the current version from the VERSION file
+          current_version=$(cat VERSION)
+          # Fetch the latest Turing.jl release tag
+          latest_tag=$(curl --silent "https://api.github.com/repos/TuringLang/Turing.jl/releases/latest" | jq -r .tag_name)
+          # Compare the current version with the latest tag
+          if [ "$current_version" != "$latest_tag" ]; then
+            echo "Version mismatch. Please update the VERSION file to $latest_tag."
+            echo "latest_tag=$latest_tag" >> $GITHUB_ENV
+            echo "version_mismatch=true" >> $GITHUB_OUTPUT
+          else:
+            echo "Version is up-to-date."
+            echo "version_mismatch=false" >> $GITHUB_OUTPUT
+
+      - name: Suggest changes if version mismatch
+        if: steps.check_version.outputs.version_mismatch == 'true'
+        uses: parkerbxyz/suggest-changes@v1
+        with:
+          comment: 'Please update the VERSION file to match the latest Turing.jl release: ${{ env.latest_tag }}.'
+          token: ${{ secrets.GITHUB_TOKEN }}

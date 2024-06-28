@@ -67,14 +67,14 @@ Documentation for archived versions is available on our deprecated documentation
 
 | | |
 | --- | --- |
-| v0.31.0 | [Documention](versions/v0.31.4/) |
-| v0.30.0 | [Documention](versions/v0.30.9/) |
-| v0.29.0 | [Documention](versions/v0.29.3/) |
-| v0.28.0 | [Documention](versions/v0.28.3/) |
-| v0.27.0 | [Documention](versions/v0.27.0/) |
-| v0.26.0 | [Documention](versions/v0.26.6/) |
-| v0.25.0 | [Documention](versions/v0.25.3/) |
-| v0.24.0 | [Documention](versions/v0.29.4/) |
+| v0.31.0 | [Documention](../v0.31.4/) |
+| v0.30.0 | [Documention](../v0.30.9/) |
+| v0.29.0 | [Documention](../v0.29.3/) |
+| v0.28.0 | [Documention](../v0.28.3/) |
+| v0.27.0 | [Documention](../v0.27.0/) |
+| v0.26.0 | [Documention](../v0.26.6/) |
+| v0.25.0 | [Documention](../v0.25.3/) |
+| v0.24.0 | [Documention](../v0.29.4/) |
 "
 
 # Write the content to the versions.qmd file

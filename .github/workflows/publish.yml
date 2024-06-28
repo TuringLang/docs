@@ -1,9 +1,10 @@
+name: Render Docs Website
+
 on:
   push:
     branches:
       - master
-
-name: Render Docs Website
+  workflow_dispatch: # manual trigger for testing
 
 jobs:
   build-and-deploy:
@@ -63,8 +64,28 @@ jobs:
         run: |
           jq -s '.[0] + .[1]' _site/search_original.json fixed_main_search.json > _site/search.json
 
-      - name: Deploy to GitHub Pages
+      - name: Read VERSION file
+        id: read_version
+        run: echo "version=$(cat VERSION)" >> $GITHUB_ENV
+
+      - name: Fetch latest version from GitHub
+        id: fetch_latest_version
+        run: |
+          latest_version=$(curl --silent "https://api.github.com/repos/TuringLang/Turing.jl/releases/latest" | jq -r .tag_name)
+          echo "latest_version=$latest_version" >> $GITHUB_ENV
+
+      - name: Deploy versioned docs
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages
           folder: _site
+          target-folder: versions/${{ env.version }}
+          clean: false
+
+      - name: Deploy latest docs to root
+        if: env.version == env.latest_version
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: _site
+          clean: false

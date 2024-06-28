@@ -1,0 +1,37 @@
+name: Check Turing.jl Version
+on:
+  pull_request:
+    paths: ['VERSION']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get current version
+        id: current_version
+        run: echo "VERSION=$(cat VERSION)" >> $GITHUB_OUTPUT
+
+      - name: Get latest Turing.jl version
+        id: latest_version
+        run: |
+          latest=$(curl --silent "https://api.github.com/repos/TuringLang/Turing.jl/releases/latest" | jq -r .tag_name)
+          echo "LATEST=$latest" >> $GITHUB_OUTPUT
+
+      - name: Update VERSION file if outdated
+        run: |
+          if [ "${{ steps.current_version.outputs.VERSION }}" != "${{ steps.latest_version.outputs.LATEST }}" ]; then
+            echo "${{ steps.latest_version.outputs.LATEST }}" > VERSION
+          fi
+
+      - name: Suggest changes
+        uses: parkerbxyz/suggest-changes@v1
+        with:
+          comment: 'If this PR is not intended to update any previous release, please update the VERSION file to the latest version.'

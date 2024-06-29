@@ -58,30 +58,6 @@ jobs:
           commit-message: Deploy preview for PR ${{ github.event.pull_request.number }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  delete-preview-directory:
-    if: github.event.action == 'closed' || github.event.pull_request.merged == true
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout gh-pages branch
-        uses: actions/checkout@v4
-        with:
-          ref: gh-pages
-
-      - name: Remove PR Preview Directory
-        run: |
-          PR_NUMBER=${{ github.event.pull_request.number }}
-          PREVIEW_DIR="pr-previews/${PR_NUMBER}"
-          rm -rf ${PREVIEW_DIR}
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .
-          if ! git diff --cached --quiet; then
-            git commit -m "Remove preview for merged PR #${PR_NUMBER}"
-            git push
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   comment-preview-url:
     needs: build-and-preview
     if: needs.build-and-preview.result == 'success'
@@ -95,5 +71,28 @@ jobs:
             Preview the changes: https://turinglang.org/docs/pr-previews/${{ github.event.pull_request.number }}
             Please avoid using the search feature and navigation bar in PR previews!
           comment_tag: preview-url-comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  delete-preview-directory:
+    if: github.event.action == 'closed' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+    
+      - name: Remove PR Preview Directory
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          PREVIEW_DIR="pr-previews/${PR_NUMBER}"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git pull origin gh-pages
+          rm -rf ${PREVIEW_DIR}
+          git add .
+          git commit -m "Remove preview for merged PR #${PR_NUMBER}"
+          git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

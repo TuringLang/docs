@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout gh-pages branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: gh-pages
 
@@ -73,9 +73,10 @@ jobs:
           PREVIEW_DIR="pr-previews/${PR_NUMBER}"
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git pull origin gh-pages
           rm -rf ${PREVIEW_DIR}
           git add .
-          git commit -m "Remove preview for merged PR #${PR_NUMBER}"
+          git commit -m "Remove preview for PR #${PR_NUMBER}"
           git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -86,41 +87,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Comment Preview URL
-        uses: actions/github-script@v7
+        uses: unsplash/comment-on-pr@v1.3.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const prNumber = context.payload.pull_request.number;
-            const repoName = context.repo.repo;
-            const previewUrl = `https://turinglang.org/${repoName}/pr-previews/${prNumber}`;
-            const commentBody = `Preview the changes: ${previewUrl}, Please avoid using the search feature and navigation bar in PR previews!`;
-            const botUsername = 'github-actions[bot]';
-  
-            // Check for existing comments by the bot
-            const existingComments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-            });
-  
-            const botComment = existingComments.data.find(
-              (comment) => comment.user.login === botUsername
-            );
-  
-            if (botComment) {
-              // Update the existing comment
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: commentBody,
-              });
-            } else {
-              // Create a new comment
-              await github.rest.issues.createComment({
-                issue_number: prNumber,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: commentBody,
-              });
-            }
+          msg: |
+            Preview the changes: https://turinglang.org/${{ github.repository }}/pr-previews/${{ github.event.pull_request.number }}
+            Please avoid using the search feature and navigation bar in PR previews!
+          check_for_duplicate_msg: false  # OPTIONAL
+          delete_prev_regex_msg: "[0-9]"  # OPTIONAL
+          duplicate_msg_pattern: "[A-Z]"  # OPTIONAL

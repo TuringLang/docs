@@ -3,23 +3,23 @@
 # Read the current version from the VERSION file
 CURRENT_VERSION=$(cat VERSION)
 
-# Define the versions section to be inserted
+# Define the current version to be inserted
 VERSIONS_SECTION=$(cat << EOF
-# The versions will be inserted here by the script
+# The current version will be inserted here by the script
       - text: "$CURRENT_VERSION"
-# The versions list ends here
+# The current version ends here
 EOF
 )
 
 # Use awk to replace the existing versions section between the comments
 awk -v versions="$VERSIONS_SECTION" '
   BEGIN { in_versions = 0 }
-  /# The versions will be inserted here by the script/ {
+  /# The current version will be inserted here by the script/ {
     print versions
     in_versions = 1
     next
   }
-  /# The versions list ends here/ {
+  /# The current version ends here/ {
     in_versions = 0
     next
   }

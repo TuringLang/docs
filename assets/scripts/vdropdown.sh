@@ -6,13 +6,7 @@ CURRENT_VERSION=$(cat VERSION)
 # Define the versions section to be inserted
 VERSIONS_SECTION=$(cat << EOF
 # The versions will be inserted here by the script
-    right:
       - text: "$CURRENT_VERSION"
-        menu:
-          - text: Changelog
-            href: changelog.qmd
-          - text: All Versions
-            href: https://turinglang.org/docs/versions.html
 # The versions list ends here
 EOF
 )

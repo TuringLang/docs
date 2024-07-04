@@ -1,7 +1,7 @@
 name: Check Turing.jl Version
 on:
   pull_request:
-    paths: ['VERSION']
+    paths: ['_quarto.yml']
   workflow_dispatch:
 
 permissions:
@@ -15,23 +15,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Get current version
-        id: current_version
-        run: echo "VERSION=$(cat VERSION)" >> $GITHUB_OUTPUT
+      - name: Extract minor version from _quarto.yml
+        id: extract_minor_version
+        run: |
+          minor_version=$(grep -oP 'text:\s+"v\K\d+\.\d+' _quarto.yml)
+          echo "MINOR_VERSION=$minor_version" >> $GITHUB_OUTPUT
 
-      - name: Get latest Turing.jl version
-        id: latest_version
+      - name: Fetch latest Turing.jl version
+        id: fetch_latest_bugfix
         run: |
           latest=$(curl --silent "https://api.github.com/repos/TuringLang/Turing.jl/releases/latest" | jq -r .tag_name)
+          latest_minor=$(echo $latest | grep -oP '\d+\.\d+')
           echo "LATEST=$latest" >> $GITHUB_OUTPUT
+          echo "LATEST_MINOR=$latest_minor" >> $GITHUB_OUTPUT
 
-      - name: Update VERSION file if outdated
+      - name: Compare and suggest update
+        id: compare_versions
         run: |
-          if [ "${{ steps.current_version.outputs.VERSION }}" != "${{ steps.latest_version.outputs.LATEST }}" ]; then
-            echo "${{ steps.latest_version.outputs.LATEST }}" > VERSION
+          minor_version=${{ steps.extract_minor_version.outputs.MINOR_VERSION }}
+          latest_minor=${{ steps.fetch_latest_bugfix.outputs.LATEST_MINOR }}
+
+          if [ "$minor_version" != "$latest_minor" ]; then
+            echo "QUARTO_OUTDATED=true" >> $GITHUB_ENV
+          else
+            echo "QUARTO_OUTDATED=false" >> $GITHUB_ENV
           fi
 
-      - name: Suggest changes
+      - name: Suggest changes if _quarto.yml is outdated
+        if: env.QUARTO_OUTDATED == 'true'
         uses: parkerbxyz/suggest-changes@v1
         with:
-          comment: 'If this PR is not intended to update any previous release, please update the VERSION file to the latest version.'
+          comment: 'The version in _quarto.yml is outdated. Please update it to the latest minor version: v${{ steps.fetch_latest_bugfix.outputs.LATEST_MINOR }}.'

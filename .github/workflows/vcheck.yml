@@ -1,4 +1,5 @@
 name: Check Turing.jl Version
+
 on:
   pull_request:
     paths: ['_quarto.yml']
@@ -11,6 +12,7 @@ permissions:
 jobs:
   check-version:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,20 +31,18 @@ jobs:
           echo "LATEST=$latest" >> $GITHUB_OUTPUT
           echo "LATEST_MINOR=$latest_minor" >> $GITHUB_OUTPUT
 
-      - name: Compare and suggest update
-        id: compare_versions
+      - name: Update _quarto.yml if outdated
         run: |
           minor_version=${{ steps.extract_minor_version.outputs.MINOR_VERSION }}
           latest_minor=${{ steps.fetch_latest_bugfix.outputs.LATEST_MINOR }}
-
+          latest_version=${{ steps.fetch_latest_bugfix.outputs.LATEST }}
           if [ "$minor_version" != "$latest_minor" ]; then
-            echo "QUARTO_OUTDATED=true" >> $GITHUB_ENV
-          else
-            echo "QUARTO_OUTDATED=false" >> $GITHUB_ENV
+            sed -i "s/text: \"v$minor_version/text: \"v$latest_minor/" _quarto.yml
+            echo "Updated _quarto.yml to latest minor version: v$latest_minor"
           fi
 
       - name: Suggest changes if _quarto.yml is outdated
-        if: env.QUARTO_OUTDATED == 'true'
+        if: ${{ steps.extract_minor_version.outputs.MINOR_VERSION }} != ${{ steps.fetch_latest_bugfix.outputs.LATEST_MINOR }}
         uses: parkerbxyz/suggest-changes@v1
         with:
-          comment: 'The version in _quarto.yml is outdated. Please update it to the latest minor version: v${{ steps.fetch_latest_bugfix.outputs.LATEST_MINOR }}.'
+          comment: 'The version in _quarto.yml was outdated and has been updated to the latest minor version: v${{ steps.fetch_latest_bugfix.outputs.LATEST_MINOR }}.'

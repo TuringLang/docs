@@ -27,7 +27,6 @@ jobs:
           echo "LATEST=$latest" >> $GITHUB_OUTPUT
 
       - name: Update _quarto.yml if outdated
-        id: update_quarto
         run: |
           minor_version=${{ steps.extract_minor_version.outputs.MINOR_VERSION }}
           latest_minor=${{ steps.fetch_latest_minor.outputs.LATEST_MINOR }}
@@ -36,24 +35,9 @@ jobs:
             echo "Updated _quarto.yml to latest minor version: $latest_minor"
           fi
 
-      - name: Generate diff and post comment
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-          
-          # Commit the changes
-          git add _quarto.yml
-          git diff --cached > changes.diff
-          
-          if [ -s changes.diff ]; then
-            pr_number=$(jq --raw-output .pull_request.number "$GITHUB_EVENT_PATH")
-            comment_body=$(<changes.diff)
-            
-            curl -s -X POST \
-              -H "Authorization: token $GITHUB_TOKEN" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -n --arg body "The version in _quarto.yml has been updated to the latest minor version.\n\n\`\`\`diff\n$comment_body\n\`\`\`" '{"body": $body}')" \
-              "https://api.github.com/repos/${{ github.repository }}/issues/${pr_number}/comments"
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Suggest Changes
+        uses: getsentry/action-git-diff-suggestions@main
+        with:
+          message: 'The version in _quarto.yml has been updated to the latest minor version.'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true

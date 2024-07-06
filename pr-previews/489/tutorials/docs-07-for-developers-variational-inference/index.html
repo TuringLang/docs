@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.6.1">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Variational Inference – Turing.jl</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<link href="../../tutorials/docs-17-implementing-samplers/index.html" rel="next">
+<link href="../../tutorials/docs-04-for-developers-abstractmcmc-turing/index.html" rel="prev">
+<link href="../../assets/favicon.ico" rel="icon">
+<script src="../../site_libs/quarto-html/quarto.js"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<style>html{ scroll-behavior: smooth; }</style>
+<style>
+  a {
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+</style>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="../../theming/styles.css">
+</head>
+
+<body class="nav-sidebar floating nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="https://turinglang.org/" class="navbar-brand navbar-brand-logo">
+    <img src="../../assets/images/turing-logo.svg" alt="" class="navbar-logo">
+    </a>
+    <a class="navbar-brand" href="https://turinglang.org/">
+    <span class="navbar-title">Turing.jl</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../tutorials/docs-00-getting-started/"> 
+<span class="menu-text">Get Started</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../tutorials/00-introduction/"> 
+<span class="menu-text">Tutorials</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://turinglang.org/library/"> 
+<span class="menu-text">Library API</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://turinglang.org/news/"> 
+<span class="menu-text">News</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://turinglang.org/team/"> 
+<span class="menu-text">Team</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-v0.33" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">v0.33</span>
+    </a>
+    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="nav-menu-v0.33">    
+        <li>
+    <a class="dropdown-item" href="https://turinglang.org/docs/changelog.html">
+ <span class="dropdown-text">Changelog</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="https://turinglang.org/docs/versions.html">
+ <span class="dropdown-text">All Versions</span></a>
+  </li>  
+    </ul>
+  </li>
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+    <a href="https://x.com/TuringLang" title="Turing Twitter" class="quarto-navigation-tool px-1" aria-label="Turing Twitter"><i class="bi bi-twitter"></i></a>
+    <a href="https://github.com/TuringLang/Turing.jl" title="Turing GitHub" class="quarto-navigation-tool px-1" aria-label="Turing GitHub"><i class="bi bi-github"></i></a>
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Documentation</li><li class="breadcrumb-item"><a href="../../tutorials/docs-04-for-developers-abstractmcmc-turing/index.html">For Developers (Inference)</a></li><li class="breadcrumb-item"><a href="../../tutorials/docs-07-for-developers-variational-inference/index.html">Variational Inference</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">Documentation</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
+ <span class="menu-text">Using Turing - Modelling Syntax and Interface</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-00-getting-started/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Getting Started</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-14-using-turing-quick-start/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quick Start</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-12-using-turing-guide/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Guide</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-17-mode-estimation/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Mode Estimation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-09-using-turing-advanced/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Advanced Usage</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-10-using-turing-autodiff/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Automatic Differentiation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-13-using-turing-performance-tips/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Performance Tips</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-11-using-turing-dynamichmc/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Using DynamicHMC</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-15-using-turing-sampler-viz/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sampler Visualization</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-16-using-turing-external-samplers/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">External Samplers</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
+ <span class="menu-text">Using Turing - Tutorials</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/00-introduction/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduction to Turing</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/01-gaussian-mixture-model/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Gaussian Mixture Models</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/02-logistic-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Logistic Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/03-bayesian-neural-network/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Neural Networks</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/04-hidden-markov-model/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Hidden Markov Models</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/05-linear-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Linear Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/06-infinite-mixture-model/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Infinite Mixture Model</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/07-poisson-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Poisson Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/08-multinomial-logistic-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multinomial Logistic Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/09-variational-inference/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variational Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/10-bayesian-differential-equations/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Differential Equations</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/11-probabilistic-pca/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Probabilistic PCA</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/13-seasonal-time-series/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Time Series Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/15-gaussian-processes/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduction to Gaussian Processes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/12-gplvm/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Gaussian Process Latent Variable Models</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">For Developers (PPL)</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-01-contributing-guide/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">How to Contribute</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-05-for-developers-compiler/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Turing Compiler Design</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/14-minituring/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A Mini Turing Implementation I: Compiler</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/16-contexts/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A Mini Turing Implementation II: Contexts</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-06-for-developers-interface/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Interface Guide</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true">
+ <span class="menu-text">For Developers (Inference)</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth2 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-04-for-developers-abstractmcmc-turing/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">How Turing implements AbstractMCMC</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-07-for-developers-variational-inference/index.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Variational Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-17-implementing-samplers/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Implementing Samplers</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of Contents</h2>
+   
+  <ul>
+  <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
+  <li><a href="#motivation" id="toc-motivation" class="nav-link" data-scroll-target="#motivation">Motivation</a></li>
+  <li><a href="#variational-inference-vi" id="toc-variational-inference-vi" class="nav-link" data-scroll-target="#variational-inference-vi">Variational Inference (VI)</a>
+  <ul class="collapse">
+  <li><a href="#computing-kl-divergence-without-knowing-the-posterior" id="toc-computing-kl-divergence-without-knowing-the-posterior" class="nav-link" data-scroll-target="#computing-kl-divergence-without-knowing-the-posterior">Computing KL-divergence without knowing the posterior</a></li>
+  <li><a href="#maximizing-the-elbo" id="toc-maximizing-the-elbo" class="nav-link" data-scroll-target="#maximizing-the-elbo">Maximizing the ELBO</a></li>
+  <li><a href="#automatic-differentiation-variational-inference-advi" id="toc-automatic-differentiation-variational-inference-advi" class="nav-link" data-scroll-target="#automatic-differentiation-variational-inference-advi">Automatic Differentiation Variational Inference (ADVI)</a>
+  <ul class="collapse">
+  <li><a href="#examples" id="toc-examples" class="nav-link" data-scroll-target="#examples">Examples</a></li>
+  <li><a href="#automatic-how" id="toc-automatic-how" class="nav-link" data-scroll-target="#automatic-how">“Automatic”? How?</a></li>
+  </ul></li>
+  </ul></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/TuringLang/docs/edit/master/tutorials/docs-07-for-developers-variational-inference/index.qmd" target="_blank" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/TuringLang/docs/issues/new" target="_blank" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content page-columns page-full" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Documentation</li><li class="breadcrumb-item"><a href="../../tutorials/docs-04-for-developers-abstractmcmc-turing/index.html">For Developers (Inference)</a></li><li class="breadcrumb-item"><a href="../../tutorials/docs-07-for-developers-variational-inference/index.html">Variational Inference</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">Variational Inference</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="overview" class="level1">
+<h1>Overview</h1>
+<p>In this post, we’ll examine variational inference (VI), a family of approximate Bayesian inference methods. We will focus on one of the more standard VI methods, Automatic Differentiation Variational Inference (ADVI).</p>
+<p>Here, we’ll examine the theory behind VI, but if you’re interested in using ADVI in Turing, <a href="../../tutorials/09-variational-inference">check out this tutorial</a>.</p>
+</section>
+<section id="motivation" class="level1 page-columns page-full">
+<h1>Motivation</h1>
+<p>In Bayesian inference, one usually specifies a model as follows: given data <span class="math inline">\(\\{x_i\\}_{i = 1}^n\)</span>,</p>
+<div class="column-page">
+<p><span class="math display">\[
+\begin{align*}
+  \text{prior:} \quad z &amp;\sim p(z)   \\
+  \text{likelihood:} \quad x_i &amp;\overset{\text{i.i.d.}}{\sim} p(x \mid z) \quad  \text{where} \quad i = 1, \dots, n
+\end{align*}
+\]</span></p>
+</div>
+<p>where <span class="math inline">\(\overset{\text{i.i.d.}}{\sim}\)</span> denotes that the samples are identically independently distributed. Our goal in Bayesian inference is then to find the <em>posterior</em></p>
+<div class="column-page">
+<p><span class="math display">\[
+p(z \mid \\{ x\_i \\}\_{i = 1}^n) \propto p(z) \prod\_{i=1}^{n} p(x\_i \mid z).
+\]</span></p>
+</div>
+<p>In general, one cannot obtain a closed form expression for <span class="math inline">\(p(z \mid \\{ x\_i \\}\_{i = 1}^n)\)</span>, but one might still be able to <em>sample</em> from <span class="math inline">\(p(z \mid \\{ x\_i \\}\_{i = 1}^n)\)</span> with guarantees of converging to the target posterior <span class="math inline">\(p(z \mid \\{ x\_i \\}\_{i = 1}^n)\)</span> as the number of samples go to <span class="math inline">\(\infty\)</span>, e.g.&nbsp;MCMC.</p>
+<p>As you are hopefully already aware, Turing.jl provides many methods with asymptotic exactness guarantees that we can apply to such a problem!</p>
+<p>Unfortunately, these unbiased samplers can be prohibitively expensive to run. As the model <span class="math inline">\(p\)</span> increases in complexity, the convergence of these unbiased samplers can slow down dramatically. Still, in the <em>infinite</em> limit, these methods should converge to the true posterior! But infinity is fairly large, like, <em>at least</em> more than 12, so this might take a while.</p>
+<p>In such a case, it might be desirable to sacrifice some of these asymptotic guarantees and instead <em>approximate</em> the posterior <span class="math inline">\(p(z \mid \\{ x_i \\}_{i = 1}^n)\)</span> using some other model which we’ll denote <span class="math inline">\(q(z)\)</span>.</p>
+<p>There are multiple approaches to take in this case, one of which is <strong>variational inference (VI)</strong>.</p>
+</section>
+<section id="variational-inference-vi" class="level1 page-columns page-full">
+<h1>Variational Inference (VI)</h1>
+<p>In VI, we’re looking to approximate <span class="math inline">\(p(z \mid \\{ x_i \\}_{i = 1}^n )\)</span> using some <em>approximate</em> or <em>variational</em> posterior <span class="math inline">\(q(z)\)</span>.</p>
+<p>To approximate something you need a notion of what “close” means. In the context of probability densities a standard such “measure” of closeness is the <em>Kullback-Leibler (KL) divergence</em> , though this is far from the only one. The KL-divergence is defined between two densities <span class="math inline">\(q(z)\)</span> and <span class="math inline">\(p(z \mid \\{ x_i \\}_{i = 1}^n)\)</span> as</p>
+<div class="column-page">
+<p><span class="math display">\[
+\begin{align*}
+  \mathrm{D\_{KL}} \left( q(z), p(z \mid \\{ x\_i \\}\_{i = 1}^n) \right) &amp;= \int \log \left( \frac{q(z)}{\prod\_{i = 1}^n p(z \mid x\_i)} \right) q(z) \mathrm{d}{z} \\\\
+  &amp;= \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) - \sum\_{i = 1}^n \log p(z \mid x\_i) \right] \\\\
+  &amp;= \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) \right] - \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(z \mid x\_i) \right].
+\end{align*}
+\]</span></p>
+</div>
+<p>It’s worth noting that unfortunately the KL-divergence is <em>not</em> a metric/distance in the analysis-sense due to its lack of symmetry. On the other hand, it turns out that minimizing the KL-divergence that it’s actually equivalent to maximizing the log-likelihood! Also, under reasonable restrictions on the densities at hand,</p>
+<div class="column-page">
+<p><span class="math display">\[
+\mathrm{D\_{KL}}\left(q(z), p(z \mid \\{ x\_i \\}\_{i = 1}^n) \right) = 0 \quad \iff \quad q(z) = p(z \mid \\{ x\_i \\}\_{i = 1}^n), \quad \forall z.
+\]</span></p>
+</div>
+<p>Therefore one could (and we will) attempt to approximate <span class="math inline">\(p(z \mid \\{ x_i \\}_{i = 1}^n)\)</span> using a density <span class="math inline">\(q(z)\)</span> by minimizing the KL-divergence between these two!</p>
+<p>One can also show that <span class="math inline">\(\mathrm{D_{KL}} \ge 0\)</span>, which we’ll need later. Finally notice that the KL-divergence is only well-defined when in fact <span class="math inline">\(q(z)\)</span> is zero everywhere <span class="math inline">\(p(z \mid \\{ x_i \\}_{i = 1}^n)\)</span> is zero, i.e.</p>
+<div class="column-page">
+<p><span class="math display">\[
+\mathrm{supp}\left(q(z)\right) \subseteq \mathrm{supp}\left(p(z \mid x)\right).
+\]</span></p>
+</div>
+<p>Otherwise, there might be a point <span class="math inline">\(z_0 \sim q(z)\)</span> such that <span class="math inline">\(p(z_0 \mid \\{ x_i \\}_{i = 1}^n) = 0\)</span>, resulting in <span class="math inline">\(\log\left(\frac{q(z)}{0}\right)\)</span> which doesn’t make sense!</p>
+<p>One major problem: as we can see in the definition of the KL-divergence, we need <span class="math inline">\(p(z \mid \\{ x_i \\}_{i = 1}^n)\)</span> for any <span class="math inline">\(z\)</span> if we want to compute the KL-divergence between this and <span class="math inline">\(q(z)\)</span>. We don’t have that. The entire reason we even do Bayesian inference is that we don’t know the posterior! Cleary this isn’t going to work. <em>Or is it?!</em></p>
+<section id="computing-kl-divergence-without-knowing-the-posterior" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="computing-kl-divergence-without-knowing-the-posterior">Computing KL-divergence without knowing the posterior</h2>
+<p>First off, recall that</p>
+<div class="column-page">
+<p><span class="math display">\[
+p(z \mid x\_i) = \frac{p(x\_i, z)}{p(x\_i)}
+\]</span></p>
+</div>
+<p>so we can write</p>
+<div class="column-page">
+<p><span class="math display">\[
+\begin{align*}
+\mathrm{D\_{KL}} \left( q(z), p(z \mid \\{ x\_i \\}\_{i = 1}^n) \right) &amp;= \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) \right] - \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) - \log p(x\_i) \right] \\
+    &amp;= \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) \right] - \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) \right] + \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x_i) \right] \\
+    &amp;= \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) \right] - \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) \right] + \sum\_{i = 1}^n \log p(x\_i),
+\end{align*}
+\]</span></p>
+</div>
+<p>where in the last equality we used the fact that <span class="math inline">\(p(x_i)\)</span> is independent of <span class="math inline">\(z\)</span>.</p>
+<p>Now you’re probably thinking “Oh great! Now you’ve introduced <span class="math inline">\(p(x_i)\)</span> which we <em>also</em> can’t compute (in general)!”. Woah. Calm down human. Let’s do some more algebra. The above expression can be rearranged to</p>
+<div class="column-page">
+<p><span class="math display">\[
+\mathrm{D\_{KL}} \left( q(z), p(z \mid \\{ x\_i \\}\_{i = 1}^n) \right) + \underbrace{\sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) \right] - \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) \right]}\_{=: \mathrm{ELBO}(q)} = \underbrace{\sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i) \right]}\_{\text{constant}}.
+\]</span></p>
+</div>
+<p>See? The left-hand side is <em>constant</em> and, as we mentioned before, <span class="math inline">\(\mathrm{D_{KL}} \ge 0\)</span>. What happens if we try to <em>maximize</em> the term we just gave the completely arbitrary name <span class="math inline">\(\mathrm{ELBO}\)</span>? Well, if <span class="math inline">\(\mathrm{ELBO}\)</span> goes up while <span class="math inline">\(p(x_i)\)</span> stays constant then <span class="math inline">\(\mathrm{D_{KL}}\)</span> <em>has to</em> go down! That is, the <span class="math inline">\(q(z)\)</span> which <em>minimizes</em> the KL-divergence is the same <span class="math inline">\(q(z)\)</span> which <em>maximizes</em> <span class="math inline">\(\mathrm{ELBO}(q)\)</span>:</p>
+<div class="column-page">
+<p><span class="math display">\[
+\underset{q}{\mathrm{argmin}} \  \mathrm{D\_{KL}} \left( q(z), p(z \mid \\{ x\_i \\}\_{i = 1}^n) \right) = \underset{q}{\mathrm{argmax}} \ \mathrm{ELBO}(q)
+\]</span></p>
+</div>
+<p>where</p>
+<div class="column-page">
+<p><span class="math display">\[
+\begin{align*}
+\mathrm{ELBO}(q) &amp;:= \left( \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) \right]  \right) - \mathbb{E}\_{z \sim q(z)} \left[ \log q(z) \right] \\
+    &amp;= \left( \sum\_{i = 1}^n \mathbb{E}\_{z \sim q(z)} \left[ \log p(x\_i, z) \right] \right) + \mathbb{H}\left( q(z) \right)
+\end{align*}
+\]</span></p>
+</div>
+<p>and <span class="math inline">\(\mathbb{H} \left(q(z) \right)\)</span> denotes the <a href="https://www.wikiwand.com/en/Differential_entropy">(differential) entropy</a> of <span class="math inline">\(q(z)\)</span>.</p>
+<p>Assuming joint <span class="math inline">\(p(x_i, z)\)</span> and the entropy <span class="math inline">\(\mathbb{H}\left(q(z)\right)\)</span> are both tractable, we can use a Monte-Carlo for the remaining expectation. This leaves us with the following tractable expression</p>
+<div class="column-page">
+<p><span class="math display">\[
+\underset{q}{\mathrm{argmin}} \ \mathrm{D\_{KL}} \left( q(z), p(z \mid \\{ x\_i \\}\_{i = 1}^n) \right) \approx \underset{q}{\mathrm{argmax}} \ \widehat{\mathrm{ELBO}}(q)
+\]</span></p>
+</div>
+<p>where</p>
+<div class="column-page">
+<p><span class="math display">\[
+\widehat{\mathrm{ELBO}}(q) = \frac{1}{m} \left( \sum\_{k = 1}^m \sum\_{i = 1}^n \log p(x\_i, z\_k) \right) + \mathbb{H} \left(q(z)\right) \quad \text{where} \quad z\_k \sim q(z) \quad \forall k = 1, \dots, m.
+\]</span></p>
+</div>
+<p>Hence, as long as we can sample from <span class="math inline">\(q(z)\)</span> somewhat efficiently, we can indeed minimize the KL-divergence! Neat, eh?</p>
+<p>Sidenote: in the case where <span class="math inline">\(q(z)\)</span> is tractable but <span class="math inline">\(\mathbb{H} \left(q(z) \right)\)</span> is <em>not</em> , we can use an Monte-Carlo estimate for this term too but this generally results in a higher-variance estimate.</p>
+<p>Also, I fooled you real good: the ELBO <em>isn’t</em> an arbitrary name, hah! In fact it’s an abbreviation for the <strong>expected lower bound (ELBO)</strong> because it, uhmm, well, it’s the <em>expected</em> lower bound (remember <span class="math inline">\(\mathrm{D_{KL}} \ge 0\)</span>). Yup.</p>
+</section>
+<section id="maximizing-the-elbo" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="maximizing-the-elbo">Maximizing the ELBO</h2>
+<p>Finding the optimal <span class="math inline">\(q\)</span> over <em>all</em> possible densities of course isn’t feasible. Instead we consider a family of <em>parameterized</em> densities <span class="math inline">\(\mathscr{D}\_{\Theta}\)</span> where <span class="math inline">\(\Theta\)</span> denotes the space of possible parameters. Each density in this family <span class="math inline">\(q\_{\theta} \in \mathscr{D}\_{\Theta}\)</span> is parameterized by a unique <span class="math inline">\(\theta \in \Theta\)</span>. Moreover, we’ll assume</p>
+<ol type="1">
+<li><span class="math inline">\(q\_{\theta}(z)\)</span>, i.e.&nbsp;evaluating the probability density <span class="math inline">\(q\)</span> at any point <span class="math inline">\(z\)</span>, is differentiable</li>
+<li><span class="math inline">\(z \sim q\_{\theta}(z)\)</span>, i.e.&nbsp;the process of sampling from <span class="math inline">\(q\_{\theta}(z)\)</span>, is differentiable</li>
+</ol>
+<ol type="1">
+<li>is fairly straight-forward, but (2) is a bit tricky. What does it even mean for a <em>sampling process</em> to be differentiable? This is quite an interesting problem in its own right and would require something like a <a href="https://arxiv.org/abs/1906.10652">50-page paper to properly review the different approaches (highly recommended read)</a>.</li>
+</ol>
+<p>We’re going to make use of a particular such approach which goes under a bunch of different names: <em>reparametrization trick</em>, <em>path derivative</em>, etc. This refers to making the assumption that all elements <span class="math inline">\(q\_{\theta} \in \mathscr{Q}\_{\Theta}\)</span> can be considered as reparameterizations of some base density, say <span class="math inline">\(\bar{q}(z)\)</span>. That is, if <span class="math inline">\(q\_{\theta} \in \mathscr{Q}\_{\Theta}\)</span> then</p>
+<div class="column-page">
+<p><span class="math display">\[
+z \sim q\_{\theta}(z) \quad \iff \quad z := g\_{\theta}(\tilde{z}) \quad \text{where} \quad \bar{z} \sim \bar{q}(z)
+\]</span></p>
+</div>
+<p>for some function <span class="math inline">\(g\_{\theta}\)</span> differentiable wrt. <span class="math inline">\(\theta\)</span>. So all <span class="math inline">\(q_{\theta} \in \mathscr{Q}\_{\Theta}\)</span> are using the <em>same</em> reparameterization-function <span class="math inline">\(g\)</span> but each <span class="math inline">\(q\_{\theta}\)</span> correspond to different choices of <span class="math inline">\(\theta\)</span> for <span class="math inline">\(f\_{\theta}\)</span>.</p>
+<p>Under this assumption we can differentiate the sampling process by taking the derivative of <span class="math inline">\(g\_{\theta}\)</span> wrt. <span class="math inline">\(\theta\)</span>, and thus we can differentiate the entire <span class="math inline">\(\widehat{\mathrm{ELBO}}(q\_{\theta})\)</span> wrt. <span class="math inline">\(\theta\)</span>! With the gradient available we can either try to solve for optimality either by setting the gradient equal to zero or maximize <span class="math inline">\(\widehat{\mathrm{ELBO}}(q\_{\theta})\)</span> stepwise by traversing <span class="math inline">\(\mathscr{Q}\_{\Theta}\)</span> in the direction of steepest ascent. For the sake of generality, we’re going to go with the stepwise approach.</p>
+<p>With all this nailed down, we eventually reach the section on <strong>Automatic Differentiation Variational Inference (ADVI)</strong>.</p>
+</section>
+<section id="automatic-differentiation-variational-inference-advi" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="automatic-differentiation-variational-inference-advi">Automatic Differentiation Variational Inference (ADVI)</h2>
+<p>So let’s revisit the assumptions we’ve made at this point:</p>
+<ol type="1">
+<li><p>The variational posterior <span class="math inline">\(q\_{\theta}\)</span> is in a parameterized family of densities denoted <span class="math inline">\(\mathscr{Q}\_{\Theta}\)</span>, with <span class="math inline">\(\theta \in \Theta\)</span>.</p></li>
+<li><p><span class="math inline">\(\mathscr{Q}\_{\Theta}\)</span> is a space of <em>reparameterizable</em> densities with <span class="math inline">\(\bar{q}(z)\)</span> as the base-density.</p></li>
+<li><p>The parameterization function <span class="math inline">\(g\_{\theta}\)</span> is differentiable wrt. <span class="math inline">\(\theta\)</span>.</p></li>
+<li><p>Evaluation of the probability density <span class="math inline">\(q\_{\theta}(z)\)</span> is differentiable wrt. <span class="math inline">\(\theta\)</span>.</p></li>
+<li><p><span class="math inline">\(\mathbb{H}\left(q\_{\theta}(z)\right)\)</span> is tractable.</p></li>
+<li><p>Evaluation of the joint density <span class="math inline">\(p(x, z)\)</span> is tractable and differentiable wrt. <span class="math inline">\(z\)</span></p></li>
+<li><p>The support of <span class="math inline">\(q(z)\)</span> is a subspace of the support of <span class="math inline">\(p(z \mid x)\)</span> : <span class="math inline">\(\mathrm{supp}\left(q(z)\right) \subseteq \mathrm{supp}\left(p(z \mid x)\right)\)</span>.</p></li>
+</ol>
+<p>All of these are not <em>necessary</em> to do VI, but they are very convenient and results in a fairly flexible approach. One distribution which has a density satisfying all of the above assumptions <em>except</em> (7) (we’ll get back to this in second) for any tractable and differentiable <span class="math inline">\(p(z \mid \\{ x\_i \\}\_{i = 1}^n)\)</span> is the good ole’ Gaussian/normal distribution:</p>
+<div class="column-page">
+<p><span class="math display">\[
+z \sim \mathcal{N}(\mu, \Sigma) \quad \iff \quad z = g\_{\mu, L}(\bar{z}) := \mu + L^T \tilde{z} \quad \text{where} \quad \bar{z} \sim \bar{q}(z) := \mathcal{N}(1\_d, I\_{d \times d})
+\]</span></p>
+</div>
+<p>where <span class="math inline">\(\Sigma = L L^T,\)</span> with <span class="math inline">\(L\)</span> obtained from the Cholesky-decomposition. Abusing notation a bit, we’re going to write</p>
+<div class="column-page">
+<p><span class="math display">\[
+\theta = (\mu, \Sigma) := (\mu\_1, \dots, \mu\_d, L\_{11}, \dots, L\_{1, d}, L\_{2, 1}, \dots, L\_{2, d}, \dots, L\_{d, 1}, \dots, L\_{d, d}).
+\]</span></p>
+</div>
+<p>With this assumption we finally have a tractable expression for <span class="math inline">\(\widehat{\mathrm{ELBO}}(q_{\mu, \Sigma})\)</span>! Well, assuming (7) is holds. Since a Gaussian has non-zero probability on the entirety of <span class="math inline">\(\mathbb{R}^d\)</span>, we also require <span class="math inline">\(p(z \mid \\{ x_i \\}_{i = 1}^n)\)</span> to have non-zero probability on all of <span class="math inline">\(\mathbb{R}^d\)</span>.</p>
+<p>Though not necessary, we’ll often make a <em>mean-field</em> assumption for the variational posterior <span class="math inline">\(q(z)\)</span>, i.e.&nbsp;assume independence between the latent variables. In this case, we’ll write</p>
+<div class="column-page">
+<p><span class="math display">\[
+\theta = (\mu, \sigma^2) := (\mu\_1, \dots, \mu\_d, \sigma\_1^2, \dots, \sigma\_d^2).
+\]</span></p>
+</div>
+<section id="examples" class="level3 page-columns page-full">
+<h3 class="anchored" data-anchor-id="examples">Examples</h3>
+<p>As a (trivial) example we could apply the approach described above to is the following generative model for <span class="math inline">\(p(z \mid \\{ x_i \\}\_{i = 1}^n)\)</span>:</p>
+<div class="column-page">
+<p><span class="math display">\[
+\begin{align*}
+    m &amp;\sim \mathcal{N}(0, 1) \\
+    x\_i &amp;\overset{\text{i.i.d.}}{=} \mathcal{N}(m, 1), \quad i = 1, \dots, n.
+\end{align*}
+\]</span></p>
+</div>
+<p>In this case <span class="math inline">\(z = m\)</span> and we have the posterior defined <span class="math inline">\(p(m \mid \\{ x\_i \\}\_{i = 1}^n) = p(m) \prod\_{i = 1}^n p(x\_i \mid m)\)</span>. Then the variational posterior would be</p>
+<div class="column-page">
+<p><span class="math display">\[
+q\_{\mu, \sigma} = \mathcal{N}(\mu, \sigma^2), \quad \text{where} \quad \mu \in \mathbb{R}, \ \sigma^2 \in \mathbb{R}^{ + }.
+\]</span></p>
+</div>
+<p>And since prior of <span class="math inline">\(m\)</span>, <span class="math inline">\(\mathcal{N}(0, 1)\)</span>, has non-zero probability on the entirety of <span class="math inline">\(\mathbb{R}\)</span>, same as <span class="math inline">\(q(m)\)</span>, i.e.&nbsp;assumption (7) above holds, everything is fine and life is good.</p>
+<p>But what about this generative model for <span class="math inline">\(p(z \mid \\{ x_i \\}_{i = 1}^n)\)</span>:</p>
+<div class="column-page">
+<p><span class="math display">\[
+\begin{align*}
+    s &amp;\sim \mathrm{InverseGamma}(2, 3), \\
+    m &amp;\sim \mathcal{N}(0, s), \\
+    x\_i &amp;\overset{\text{i.i.d.}}{=} \mathcal{N}(m, s), \quad i = 1, \dots, n,
+\end{align*}
+\]</span></p>
+</div>
+<p>with posterior <span class="math inline">\(p(s, m \mid \\{ x\_i \\}\_{i = 1}^n) = p(s) p(m \mid s) \prod\_{i = 1}^n p(x\_i \mid s, m)\)</span> and the mean-field variational posterior <span class="math inline">\(q(s, m)\)</span> will be</p>
+<div class="column-page">
+<p><span class="math display">\[
+q\_{\mu\_1, \mu\_2, \sigma\_1^2, \sigma\_2^2}(s, m) = p\_{\mathcal{N}(\mu\_1, \sigma\_1^2)}(s)\ p\_{\mathcal{N}(\mu\_2, \sigma\_2^2)}(m),
+\]</span></p>
+</div>
+<p>where we’ve denoted the evaluation of the probability density of a Gaussian as <span class="math inline">\(p_{\mathcal{N}(\mu, \sigma^2)}(x)\)</span>.</p>
+<p>Observe that <span class="math inline">\(\mathrm{InverseGamma}(2, 3)\)</span> has non-zero probability only on <span class="math inline">\(\mathbb{R}^{ + } := (0, \infty)\)</span> which is clearly not all of <span class="math inline">\(\mathbb{R}\)</span> like <span class="math inline">\(q(s, m)\)</span> has, i.e.</p>
+<div class="column-page">
+<p><span class="math display">\[
+\mathrm{supp} \left( q(s, m) \right) \not\subseteq \mathrm{supp} \left( p(z \mid \\{ x\_i \\}\_{i = 1}^n) \right).
+\]</span></p>
+</div>
+<p>Recall from the definition of the KL-divergence that when this is the case, the KL-divergence isn’t well defined. This gets us to the <em>automatic</em> part of ADVI.</p>
+</section>
+<section id="automatic-how" class="level3 page-columns page-full">
+<h3 class="anchored" data-anchor-id="automatic-how">“Automatic”? How?</h3>
+<p>For a lot of the standard (continuous) densities <span class="math inline">\(p\)</span> we can actually construct a probability density <span class="math inline">\(\tilde{p}\)</span> with non-zero probability on all of <span class="math inline">\(\mathbb{R}\)</span> by <em>transforming</em> the “constrained” probability density <span class="math inline">\(p\)</span> to <span class="math inline">\(\tilde{p}\)</span>. In fact, in these cases this is a one-to-one relationship. As we’ll see, this helps solve the support-issue we’ve been going on and on about.</p>
+<section id="transforming-densities-using-change-of-variables" class="level4 page-columns page-full">
+<h4 class="anchored" data-anchor-id="transforming-densities-using-change-of-variables">Transforming densities using change of variables</h4>
+<p>If we want to compute the probability of <span class="math inline">\(x\)</span> taking a value in some set <span class="math inline">\(A \subseteq \mathrm{supp} \left( p(x) \right)\)</span>, we have to integrate <span class="math inline">\(p(x)\)</span> over <span class="math inline">\(A\)</span>, i.e.</p>
+<div class="column-page">
+<p><span class="math display">\[
+\mathbb{P}_p(x \in A) = \int_A p(x) \mathrm{d}x.
+\]</span></p>
+</div>
+<p>This means that if we have a differentiable bijection <span class="math inline">\(f: \mathrm{supp} \left( q(x) \right) \to \mathbb{R}^d\)</span> with differentiable inverse <span class="math inline">\(f^{-1}: \mathbb{R}^d \to \mathrm{supp} \left( p(x) \right)\)</span>, we can perform a change of variables</p>
+<div class="column-page">
+<p><span class="math display">\[
+\mathbb{P}\_p(x \in A) = \int\_{f^{-1}(A)} p \left(f^{-1}(y) \right) \ \left| \det \mathcal{J}\_{f^{-1}}(y) \right| \mathrm{d}y,
+\]</span></p>
+</div>
+<p>where <span class="math inline">\(\mathcal{J}_{f^{-1}}(x)\)</span> denotes the jacobian of <span class="math inline">\(f^{-1}\)</span> evaluated at <span class="math inline">\(x\)</span>. Observe that this defines a probability distribution</p>
+<div class="column-page">
+<p><span class="math display">\[
+\mathbb{P}\_{\tilde{p}}\left(y \in f^{-1}(A) \right) = \int\_{f^{-1}(A)} \tilde{p}(y) \mathrm{d}y,
+\]</span></p>
+</div>
+<p>since <span class="math inline">\(f^{-1}\left(\mathrm{supp} (p(x)) \right) = \mathbb{R}^d\)</span> which has probability 1. This probability distribution has <em>density</em> <span class="math inline">\(\tilde{p}(y)\)</span> with <span class="math inline">\(\mathrm{supp} \left( \tilde{p}(y) \right) = \mathbb{R}^d\)</span>, defined</p>
+<div class="column-page">
+<p><span class="math display">\[
+\tilde{p}(y) = p \left( f^{-1}(y) \right) \ \left| \det \mathcal{J}\_{f^{-1}}(y) \right|
+\]</span></p>
+</div>
+<p>or equivalently</p>
+<div class="column-page">
+<p><span class="math display">\[
+\tilde{p} \left( f(x) \right) = \frac{p(x)}{\big| \det \mathcal{J}\_{f}(x) \big|}
+\]</span></p>
+</div>
+<p>due to the fact that</p>
+<div class="column-page">
+<p><span class="math display">\[
+\big| \det \mathcal{J}\_{f^{-1}}(y) \big| = \big| \det \mathcal{J}\_{f}(x) \big|^{-1}
+\]</span></p>
+</div>
+<p><em>Note: it’s also necessary that the log-abs-det-jacobian term is non-vanishing. This can for example be accomplished by assuming <span class="math inline">\(f\)</span> to also be elementwise monotonic.</em></p>
+</section>
+<section id="back-to-vi" class="level4 page-columns page-full">
+<h4 class="anchored" data-anchor-id="back-to-vi">Back to VI</h4>
+<p>So why is this is useful? Well, we’re looking to generalize our approach using a normal distribution to cases where the supports don’t match up. How about defining <span class="math inline">\(q(z)\)</span> by</p>
+<div class="column-page">
+<p><span class="math display">\[
+\begin{align*}
+  \eta &amp;\sim \mathcal{N}(\mu, \Sigma), \\\\
+  z &amp;= f^{-1}(\eta),
+\end{align*}
+\]</span></p>
+</div>
+<p>where <span class="math inline">\(f^{-1}: \mathbb{R}^d \to \mathrm{supp} \left( p(z \mid x) \right)\)</span> is a differentiable bijection with differentiable inverse. Then <span class="math inline">\(z \sim q_{\mu, \Sigma}(z) \implies z \in \mathrm{supp} \left( p(z \mid x) \right)\)</span> as we wanted. The resulting variational density is</p>
+<div class="column-page">
+<p><span class="math display">\[
+q\_{\mu, \Sigma}(z) = p\_{\mathcal{N}(\mu, \Sigma)}\left( f(z) \right) \ \big| \det \mathcal{J}\_{f}(z) \big|.
+\]</span></p>
+</div>
+<p>Note that the way we’ve constructed <span class="math inline">\(q(z)\)</span> here is basically a reverse of the approach we described above. Here we sample from a distribution with support on <span class="math inline">\(\mathbb{R}\)</span> and transform <em>to</em> <span class="math inline">\(\mathrm{supp} \left( p(z \mid x) \right)\)</span>.</p>
+<p>If we want to write the ELBO explicitly in terms of <span class="math inline">\(\eta\)</span> rather than <span class="math inline">\(z\)</span>, the first term in the ELBO becomes</p>
+<div class="column-page">
+<p><span class="math display">\[
+\begin{align*}
+  \mathbb{E}\_{z \sim q_{\mu, \Sigma}(z)} \left[ \log p(x\_i, z) \right] &amp;= \mathbb{E}\_{\eta \sim \mathcal{N}(\mu, \Sigma)} \Bigg[ \log \frac{p\left(x\_i, f^{-1}(\eta) \right)}{\big| \det \mathcal{J}_{f^{-1}}(\eta) \big|} \Bigg] \\
+  &amp;= \mathbb{E}\_{\eta \sim \mathcal{N}(\mu, \Sigma)} \left[ \log p\left(x\_i, f^{-1}(\eta) \right) \right] - \mathbb{E}\_{\eta \sim \mathcal{N}(\mu, \Sigma)} \left[ \left| \det \mathcal{J}\_{f^{-1}}(\eta) \right| \right].
+\end{align*}
+\]</span></p>
+</div>
+<p>The entropy is invariant under change of variables, thus <span class="math inline">\(\mathbb{H} \left(q\_{\mu, \Sigma}(z)\right)\)</span> is simply the entropy of the normal distribution which is known analytically.</p>
+<p>Hence, the resulting empirical estimate of the ELBO is</p>
+<div class="column-page">
+<p><span class="math display">\[
+\begin{align*}
+\widehat{\mathrm{ELBO}}(q\_{\mu, \Sigma}) &amp;= \frac{1}{m} \left( \sum\_{k = 1}^m \sum\_{i = 1}^n \left(\log p\left(x\_i, f^{-1}(\eta_k)\right) - \log \big| \det \mathcal{J}\_{f^{-1}}(\eta\_k) \big| \right) \right) + \mathbb{H} \left(p\_{\mathcal{N}(\mu, \Sigma)}(z)\right) \\
+&amp; \text{where} \quad z\_k  \sim \mathcal{N}(\mu, \Sigma) \quad \forall k = 1, \dots, m
+\end{align*}.
+\]</span></p>
+</div>
+<p>And maximizing this wrt. <span class="math inline">\(\mu\)</span> and <span class="math inline">\(\Sigma\)</span> is what’s referred to as <strong>Automatic Differentiation Variational Inference (ADVI)</strong>!</p>
+<p>Now if you want to try it out, <a href="../../tutorials/09-variational-inference/">check out the tutorial on how to use ADVI in Turing.jl</a>!</p>
+
+
+</section>
+</section>
+</section>
+</section>
+
+<a onclick="window.scrollTo(0, 0); return false;" role="button" id="quarto-back-to-top"><i class="bi bi-arrow-up"></i> Back to top</a></main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp("https:\/\/turinglang\.org\/");
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../../tutorials/docs-04-for-developers-abstractmcmc-turing/index.html" class="pagination-link" aria-label="How Turing implements AbstractMCMC">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">How Turing implements AbstractMCMC</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../../tutorials/docs-17-implementing-samplers/index.html" class="pagination-link" aria-label="Implementing Samplers">
+        <span class="nav-page-text">Implementing Samplers</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+<p>Turing is created by <a href="http://mlg.eng.cam.ac.uk/hong/" target="_blank">Hong Ge</a>, and lovingly maintained by the <a href="https://github.com/TuringLang/Turing.jl/graphs/contributors" target="_blank">core team</a> of volunteers. <br> The contents of this website are © 2024 under the terms of the <a href="https://github.com/TuringLang/Turing.jl/blob/master/LICENCE" target="_blank">MIT License</a>.</p>
+</div>   
+    <div class="nav-footer-center">
+      &nbsp;
+    <div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/TuringLang/docs/edit/master/tutorials/docs-07-for-developers-variational-inference/index.qmd" target="_blank" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/TuringLang/docs/issues/new" target="_blank" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div>
+    <div class="nav-footer-right">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://x.com/TuringLang">
+      <i class="bi bi-twitter" role="img" aria-label="Turing Twitter">
+</i> 
+    </a>
+  </li>  
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/TuringLang/Turing.jl">
+      <i class="bi bi-github" role="img" aria-label="Turing GitHub">
+</i> 
+    </a>
+  </li>  
+</ul>
+    </div>
+  </div>
+</footer>
+
+
+
+
+<script src="../../site_libs/quarto-html/zenscroll-min.js"></script>
+</body></html>

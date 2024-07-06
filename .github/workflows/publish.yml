@@ -64,15 +64,26 @@ jobs:
         run: |
           jq -s '.[0] + .[1]' _site/search_original.json fixed_main_search.json > _site/search.json
 
-      - name: Read VERSION file
-        id: read_version
-        run: echo "version=$(cat VERSION)" >> $GITHUB_ENV
-
-      - name: Fetch latest version from GitHub
-        id: fetch_latest_version
+      - name: Extract version from _quarto.yml
+        id: extract_version
         run: |
-          latest_version=$(curl --silent "https://api.github.com/repos/TuringLang/Turing.jl/releases/latest" | jq -r .tag_name)
-          echo "latest_version=$latest_version" >> $GITHUB_ENV
+          minor_version=$(grep -oP 'text:\s+"v\K\d+\.\d+' _quarto.yml)
+          echo "minor_version=$minor_version" >> $GITHUB_ENV
+
+      - name: Fetch latest bugfix version for the extracted minor version
+        id: fetch_latest_bugfix
+        run: |
+          repo_url="https://api.github.com/repos/TuringLang/Turing.jl/tags"
+          tags=$(curl -s $repo_url | jq -r '.[].name')
+          stable_tags=$(echo "$tags" | grep -Eo 'v[0-9]+\.[0-9]+\.[0-9]+$')
+          latest_bugfix=$(echo "$stable_tags" | grep "^v${{ env.minor_version }}" | sort -rV | head -n 1)
+          echo "version=$latest_bugfix" >> $GITHUB_ENV
+
+      - name: Fetch the actual latest bugfix version
+        id: fetch_latest_bugfix_actual
+        run: |
+          latest=$(curl --silent "https://api.github.com/repos/TuringLang/Turing.jl/releases/latest" | jq -r .tag_name)
+          echo "LATEST=$latest" >> $GITHUB_ENV
 
       - name: Deploy versioned docs
         uses: JamesIves/github-pages-deploy-action@v4
@@ -83,7 +94,7 @@ jobs:
           clean: false
 
       - name: Deploy latest docs to root
-        if: env.version == env.latest_version
+        if: env.version == env.LATEST
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages

@@ -25,6 +25,9 @@ jobs:
         with:
           version: pre-release
 
+      - name: Install jq
+        run: sudo apt-get install jq
+
       - name: Restore cached _freeze folder
         id: cache-primes-restore
         uses: actions/cache/restore@v4
@@ -34,36 +37,6 @@ jobs:
           key: ${{ runner.os }}-primes-${{ github.run_id }}
           restore-keys: |
             ${{ runner.os }}-primes
-
-      - name: Render Quarto site
-        run: quarto render
-
-      - name: Rename original search index
-        run: mv _site/search.json _site/search_original.json
-
-      - name: Save _freeze folder
-        id: cache-primes-save
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            _freeze/
-          key: ${{ runner.os }}-primes-${{ github.run_id }}
-
-      - name: Install jq
-        run: sudo apt-get install jq
-
-      - name: Fetch search_original.json from main site
-        run: curl -O https://raw.githubusercontent.com/TuringLang/turinglang.github.io/gh-pages/search_original.json
-
-      - name: Convert main site search index URLs to relative URLs
-        run: |
-          jq 'map(
-                if .href then .href = "../" + .href else . end |
-                if .objectID then .objectID = "../" + .objectID else . end)' search_original.json > fixed_main_search.json
-
-      - name: Merge both search index
-        run: |
-          jq -s '.[0] + .[1]' _site/search_original.json fixed_main_search.json > _site/search.json
 
       - name: Extract version from _quarto.yml
         id: extract_version
@@ -85,6 +58,39 @@ jobs:
         run: |
           latest=$(curl --silent "https://api.github.com/repos/TuringLang/Turing.jl/releases/latest" | jq -r .tag_name)
           echo "LATEST=$latest" >> $GITHUB_ENV
+
+      - name: Run Changelog and Versions Scripts
+        if: env.version == env.LATEST
+        run: |
+          sh assets/scripts/changelog.sh
+          sh assets/scripts/versions.sh
+
+      - name: Render Quarto site
+        run: quarto render
+
+      - name: Rename original search index
+        run: mv _site/search.json _site/search_original.json
+
+      - name: Save _freeze folder
+        id: cache-primes-save
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            _freeze/
+          key: ${{ runner.os }}-primes-${{ github.run_id }}
+
+      - name: Fetch search_original.json from main site
+        run: curl -O https://raw.githubusercontent.com/TuringLang/turinglang.github.io/gh-pages/search_original.json
+
+      - name: Convert main site search index URLs to relative URLs
+        run: |
+          jq 'map(
+                if .href then .href = "../" + .href else . end |
+                if .objectID then .objectID = "../" + .objectID else . end)' search_original.json > fixed_main_search.json
+
+      - name: Merge both search index
+        run: |
+          jq -s '.[0] + .[1]' _site/search_original.json fixed_main_search.json > _site/search.json
 
       - name: Deploy versioned docs
         uses: JamesIves/github-pages-deploy-action@v4

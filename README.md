@@ -7,7 +7,7 @@ This repository is part of [Turing.jl's](https://turinglang.org/) website (i.e. 
 
 To get started with the docs website locally, you'll need to have the following prerequisite installed:
 
-- [Quarto Pre-release](https://quarto.org/docs/download/)
+- [Quarto](https://quarto.org/docs/download/)
 
 Once you have the prerequisite installed, you can follow these steps:
 

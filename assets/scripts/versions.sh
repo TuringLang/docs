@@ -20,6 +20,11 @@ MINOR_TAGS=$(echo "$STABLE_TAGS" | grep -Eo 'v[0-9]+\.[0-9]+(\.0)?$')
 # Set the minimum version to include in the "Previous Versions" section
 MIN_VERSION="v0.31.0"
 
+# Remove bug-fix version number from the display of a version
+remove_trailing_zero() {
+  echo "$1" | sed -E 's/\.[0-9]$//'
+}
+
 # versions.qmd file will be generated from this content
 VERSIONS_CONTENT="---
 pagetitle: Versions
@@ -39,12 +44,7 @@ include-in-header:
 # Latest Version
 | | | |
 | --- | --- | --- |
-| ${LATEST_VERSION} | [Documention](versions/${LATEST_VERSION}/) | [Changelog](changelog.qmd) |
-
-# Stable Version
-| | |
-| --- | --- |
-| ${STABLE_VERSION} | [Documention](versions/${STABLE_VERSION}/) |
+| $(remove_trailing_zero "$LATEST_VERSION") | [Documention](versions/${LATEST_VERSION}/) | [Changelog](changelog.qmd) |
 
 # Previous Versions
 | | |
@@ -55,7 +55,9 @@ for MINOR_TAG in $MINOR_TAGS; do
   if [ "$MINOR_TAG" != "$LATEST_VERSION" ] && [ "$MINOR_TAG" != "$STABLE_VERSION" ] && [ "$MINOR_TAG" \> "$MIN_VERSION" ]; then
     # Find the latest bug fix version for the current minor version
     LATEST_BUG_FIX=$(echo "$STABLE_TAGS" | grep "^${MINOR_TAG%.*}" | sort -r | head -n 1)
-    VERSIONS_CONTENT="${VERSIONS_CONTENT}| ${MINOR_TAG} | [Documention](versions/${LATEST_BUG_FIX}/) |
+    # Remove trailing .0 from display version
+    DISPLAY_MINOR_TAG=$(remove_trailing_zero "$MINOR_TAG")
+    VERSIONS_CONTENT="${VERSIONS_CONTENT}| ${DISPLAY_MINOR_TAG} | [Documention](versions/${LATEST_BUG_FIX}/) |
 "
   fi
 done

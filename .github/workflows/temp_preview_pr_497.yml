@@ -1,0 +1,54 @@
+name: Render Docs Website
+
+on:
+  push:
+    branches:
+      - pysm/building-docs
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Julia
+        uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.10'
+
+      - name: Instantiate Julia environment
+        run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
+
+      - name: Set up Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+
+      - name: Restore cached _freeze folder
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            _freeze/
+          key: ${{ runner.os }}-${{ hashFiles('**/Manifest.toml') }}
+
+      - name: Render Quarto site
+        run: quarto render
+
+      - name: Save _freeze folder
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            _freeze/
+          key: ${{ runner.os }}-${{ hashFiles('**/Manifest.toml') }}
+
+      - name: Deploy to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: _site
+          target-folder: pr-previews/497
+          clean: false
+          commit-message: Manual deploy preview for PR 497
+          token: ${{ secrets.GITHUB_TOKEN }}

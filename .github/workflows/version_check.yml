@@ -1,0 +1,101 @@
+name: Check Turing.jl version
+on:
+  push:
+    branches:
+      - master
+      - backport-*
+  pull_request:
+    branches:
+      - master
+      - backport-*
+  workflow_dispatch:
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+
+    # Determine whether the target branch is master. If so, also make sure to check that the
+    # version matches the latest release of Turing.jl.
+    env:
+      TARGET_IS_MASTER: ${{ (github.event_name == 'push' && github.ref_name == 'master') || (github.event_name == 'pull_request' && github.base_ref == 'master') }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Julia
+        uses: julia-actions/setup-julia@v2
+        
+      - name: Log GitHub context variables
+        run: |
+          echo github.event_name: ${{ github.event_name }}
+          echo github.ref_name: ${{ github.ref_name }}
+          echo github.base_ref: ${{ github.base_ref }}
+          echo TARGET_IS_MASTER: ${{ env.TARGET_IS_MASTER }}
+
+      - name: Check version consistency between Project.toml / _quarto.yml ${{ env.TARGET_IS_MASTER && ' / latest release' || '' }}
+        shell: julia --color=yes --project=. {0}
+        run: |
+          using Pkg
+          Pkg.activate(temp=true)
+          Pkg.add(["YAML", "TOML", "JSON", "HTTP"])
+          import YAML
+          import TOML
+          import JSON
+          import HTTP
+
+          function major_minor_match(vs...)
+              for v in vs
+                  if v.:major != vs[1].:major || v.:minor != vs[1].:minor
+                      return false
+                  end
+              end
+              return true
+          end
+
+          function major_minor_patch_match(vs...)
+              for v in vs
+                  if v.:major != vs[1].:major || v.:minor != vs[1].:minor || v.:patch != vs[1].:patch
+                      return false
+                  end
+              end
+              return true
+          end
+
+          quarto_yaml = YAML.load_file("_quarto.yml")
+          quarto_version = VersionNumber(quarto_yaml["website"]["navbar"]["right"][1]["text"])
+          println("_quarto.yml version: ", quarto_version)
+
+          project_toml = TOML.parsefile("Project.toml")
+          project_version = VersionNumber(project_toml["compat"]["Turing"])
+          println("Project.toml version: ", project_version)
+
+          manifest_toml = TOML.parsefile("Manifest.toml")
+          manifest_version = VersionNumber(manifest_toml["deps"]["Turing"][1]["version"])
+          println("Manifest.toml version: ", manifest_version)
+
+          if "--check-latest-version" in ARGS
+              # Fetch latest GitHub release
+              resp = HTTP.get("https://api.github.com/repos/TuringLang/Turing.jl/releases/latest")
+              latest_version = VersionNumber(JSON.parse(String(resp.body))["tag_name"])
+              println("Latest Turing.jl version: ", latest_version)
+
+              # Latest release; check that everything inside matches
+              if !major_minor_match(latest_version, project_version, quarto_version)
+                  error("The latest version of Turing.jl (as determined from GitHub releases) is $latest_version.
+                        * Please update Project.toml and/or _quarto.yml to match this version.")
+              end
+              if !major_minor_patch_match(latest_version, manifest_version)
+                  error("The latest version of Turing.jl (as determined from GitHub releases) is $latest_version.
+                        * Please update Manifest.toml to match this version.")
+              end
+          else
+              # Not the latest release; just check for consistency
+              if !major_minor_match(quarto_version, project_version, manifest_version)
+                  error("The minor versions of Turing.jl in _quarto.yml, Project.toml, and Manifest.toml are inconsistent:
+                          - _quarto.yml: $quarto_version
+                          - Project.toml: $project_version
+                          - Manifest.toml: $manifest_version
+                        ")
+              end
+          end

@@ -44,8 +44,22 @@ jobs:
           import JSON
           import HTTP
 
-          function major_minor_match(v1::VersionNumber, v2::VersionNumber)
-              return v1.:major == v2.:major && v1.:minor == v2.:minor
+          function major_minor_match(vs...)
+              for v in vs
+                  if v.:major != vs[1].:major || v.:minor != vs[1].:minor
+                      return false
+                  end
+              end
+              return true
+          end
+
+          function major_minor_patch_match(vs...)
+              for v in vs
+                  if v.:major != vs[1].:major || v.:minor != vs[1].:minor || v.:patch != vs[1].:patch
+                      return false
+                  end
+              end
+              return true
           end
 
           quarto_yaml = YAML.load_file("_quarto.yml")
@@ -56,16 +70,32 @@ jobs:
           project_version = VersionNumber(project_toml["compat"]["Turing"])
           println("Project.toml version: ", project_version)
 
-          if ENV["TARGET_IS_MASTER"] == "true"
+          manifest_toml = TOML.parsefile("Manifest.toml")
+          manifest_version = VersionNumber(manifest_toml["deps"]["Turing"][1]["version"])
+          println("Manifest.toml version: ", manifest_version)
+
+          if "--check-latest-version" in ARGS
+              # Fetch latest GitHub release
               resp = HTTP.get("https://api.github.com/repos/TuringLang/Turing.jl/releases/latest")
               latest_version = VersionNumber(JSON.parse(String(resp.body))["tag_name"])
               println("Latest Turing.jl version: ", latest_version)
-              if !major_minor_match(latest_version, project_version) || !major_minor_match(latest_version, quarto_version)
+
+              # Latest release; check that everything inside matches
+              if !major_minor_match(latest_version, project_version, quarto_version)
                   error("The latest version of Turing.jl (as determined from GitHub releases) is $latest_version.
                         * Please update Project.toml and/or _quarto.yml to match this version.")
               end
+              if !major_minor_patch_match(latest_version, manifest_version)
+                  error("The latest version of Turing.jl (as determined from GitHub releases) is $latest_version.
+                        * Please update Manifest.toml to match this version.")
+              end
           else
-              if !major_minor_match(quarto_version, project_version)
-                  error("The versions of Turing.jl in _quarto.yml and Project.toml do not match.")
+              # Not the latest release; just check for consistency
+              if !major_minor_match(quarto_version, project_version, manifest_version)
+                  error("The minor versions of Turing.jl in _quarto.yml, Project.toml, and Manifest.toml are inconsistent:
+                          - _quarto.yml: $quarto_version
+                          - Project.toml: $project_version
+                          - Manifest.toml: $manifest_version
+                        ")
               end
           end

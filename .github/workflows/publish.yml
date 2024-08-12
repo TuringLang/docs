@@ -1,9 +1,11 @@
+name: Render Docs Website
+
 on:
   push:
     branches:
       - master
-
-name: Render Docs Website
+      - backport-v0.*
+  workflow_dispatch: # manual trigger for testing
 
 jobs:
   build-and-deploy:
@@ -20,8 +22,9 @@ jobs:
 
       - name: Set up Quarto
         uses: quarto-dev/quarto-actions/setup@v2
-        with:
-          version: pre-release
+
+      - name: Install jq
+        run: sudo apt-get install jq
 
       - name: Restore cached _freeze folder
         id: cache-primes-restore
@@ -33,8 +36,38 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-primes
 
+      - name: Extract version from _quarto.yml
+        id: extract_version
+        run: |
+          minor_version=$(grep -oP 'text:\s+"v\K\d+\.\d+' _quarto.yml)
+          echo "minor_version=$minor_version" >> $GITHUB_ENV
+
+      - name: Fetch latest bugfix version for the extracted minor version
+        id: fetch_latest_bugfix
+        run: |
+          repo_url="https://api.github.com/repos/TuringLang/Turing.jl/tags"
+          tags=$(curl -s $repo_url | jq -r '.[].name')
+          stable_tags=$(echo "$tags" | grep -Eo 'v[0-9]+\.[0-9]+\.[0-9]+$')
+          latest_bugfix=$(echo "$stable_tags" | grep "^v${{ env.minor_version }}" | sort -rV | head -n 1)
+          echo "version=$latest_bugfix" >> $GITHUB_ENV
+
+      - name: Fetch the actual latest bugfix version
+        id: fetch_latest_bugfix_actual
+        run: |
+          latest=$(curl --silent "https://api.github.com/repos/TuringLang/Turing.jl/releases/latest" | jq -r .tag_name)
+          echo "LATEST=$latest" >> $GITHUB_ENV
+
+      - name: Run Changelog and Versions Scripts
+        if: env.version == env.LATEST
+        run: |
+          sh assets/scripts/changelog.sh
+          sh assets/scripts/versions.sh
+
       - name: Render Quarto site
         run: quarto render
+
+      - name: Rename original search index
+        run: mv _site/search.json _site/search_original.json
 
       - name: Save _freeze folder
         id: cache-primes-save
@@ -44,8 +77,31 @@ jobs:
             _freeze/
           key: ${{ runner.os }}-primes-${{ github.run_id }}
 
-      - name: Deploy to GitHub Pages
+      - name: Fetch search_original.json from main site
+        run: curl -O https://raw.githubusercontent.com/TuringLang/turinglang.github.io/gh-pages/search_original.json
+
+      - name: Convert main site search index URLs to relative URLs
+        run: |
+          jq 'map(
+                if .href then .href = "../" + .href else . end |
+                if .objectID then .objectID = "../" + .objectID else . end)' search_original.json > fixed_main_search.json
+
+      - name: Merge both search index
+        run: |
+          jq -s '.[0] + .[1]' _site/search_original.json fixed_main_search.json > _site/search.json
+
+      - name: Deploy versioned docs
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages
           folder: _site
+          target-folder: versions/${{ env.version }}
+          clean: false
+
+      - name: Deploy latest docs to root
+        if: env.version == env.LATEST
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: _site
+          clean: false

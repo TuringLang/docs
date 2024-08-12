@@ -1,5 +1,5 @@
 ---
-title: Introduction to Gaussian Processes using JuliaGPs and Turing.jl
+title: Gaussian Processes
 engine: julia
 ---
 
@@ -18,7 +18,7 @@ For a more in-depth understanding of the
 used here, please consult the
 [JuliaGPs](https://github.com/JuliaGaussianProcesses/#welcome-to-juliagps) docs.
 
-In this tutorial, we will model the putting dataset discussed in chapter 21 of
+In this tutorial, we will model the putting dataset discussed in Chapter 21 of
 [Bayesian Data Analysis](http://www.stat.columbia.edu/%7Egelman/book/).
 The dataset comprises the result of measuring how often a golfer successfully gets the ball
 in the hole, depending on how far away from it they are.
@@ -55,9 +55,11 @@ Observe it has three columns:
 We will use a Binomial model for the data, whose success probability is parametrised by a
 transformation of a GP. Something along the lines of:
 $$
-f \sim \operatorname{GP}(0, k) \\
-y_j \mid f(d_j) \sim \operatorname{Binomial}(n_j, g(f(d_j))) \\
-g(x) := \frac{1}{1 + e^{-x}}
+\begin{aligned}
+f & \sim \operatorname{GP}(0, k) \\
+y_j \mid f(d_j) & \sim \operatorname{Binomial}(n_j, g(f(d_j))) \\
+g(x) & := \frac{1}{1 + e^{-x}}
+\end{aligned}
 $$
 
 To do this, let's define our Turing.jl model:
@@ -79,11 +81,11 @@ We first define an `AbstractGPs.GP`, which represents a distribution over functi
 is entirely separate from Turing.jl.
 We place a prior over its variance `v` and length-scale `l`.
 `f(d, jitter)` constructs the multivariate Gaussian comprising the random variables
-in `f` whose indices are in `d` (+ a bit of independent Gaussian noise with variance
+in `f` whose indices are in `d` (plus a bit of independent Gaussian noise with variance
 `jitter` -- see [the docs](https://juliagaussianprocesses.github.io/AbstractGPs.jl/dev/api/#FiniteGP-and-AbstractGP)
 for more details).
-`f(d, jitter) isa AbstractMvNormal`, and is the bit of AbstractGPs.jl that implements the
-Distributions.jl interface, so it's legal to put it on the right hand side
+`f(d, jitter)` has the type `AbstractMvNormal`, and is the bit of AbstractGPs.jl that implements the
+Distributions.jl interface, so it's legal to put it on the right-hand side
 of a `~`.
 From this you should deduce that `f_latent` is distributed according to a multivariate
 Gaussian.
@@ -91,7 +93,7 @@ The remaining lines comprise standard Turing.jl code that is encountered in othe
 and Turing documentation.
 
 Before performing inference, we might want to inspect the prior that our model places over
-the data, to see whether there is anything that is obviously wrong.
+the data, to see whether there is anything obviously wrong.
 These kinds of prior predictive checks are straightforward to perform using Turing.jl, since
 it is possible to sample from the prior easily by just calling the model:
 
@@ -126,11 +128,11 @@ plot(hists...; layout=(4, 5))
 
 In this case, the only prior knowledge I have is that the proportion of successful shots
 ought to decrease monotonically as the distance from the hole increases, which should show
-up in the data as the blue lines generally going down as we move from left to right on each
+up in the data as the blue lines generally go down as we move from left to right on each
 graph.
 Unfortunately, there is not a simple way to enforce monotonicity in the samples from a GP,
 and we can see this in some of the plots above, so we must hope that we have enough data to
-ensure that this relationship approximately holds under the posterior.
+ensure that this relationship holds approximately under the posterior.
 In any case, you can judge for yourself whether you think this is the most useful
 visualisation that we can perform -- if you think there is something better to look at,
 please let us know!
@@ -145,7 +147,7 @@ this example. See Turing.jl's docs on Automatic Differentiation for more info.
 using Random, ReverseDiff
 
 m_post = m | (y=df.y,)
-chn = sample(Xoshiro(123456), m_post, NUTS(;adtype=AutoReverseDiff()), 1_000, progress=false)
+chn = sample(Xoshiro(123456), m_post, NUTS(; adtype=AutoReverseDiff()), 1_000, progress=false)
 ```
 
 We can use these samples and the `posterior` function from `AbstractGPs` to sample from the

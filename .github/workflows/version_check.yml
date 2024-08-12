@@ -14,8 +14,8 @@ jobs:
   check-version:
     runs-on: ubuntu-latest
 
-    # Determine whether the target branch is master. If so, also make sure to check that the
-    # version matches the latest release of Turing.jl.
+    # Determine whether the target branch is master (i.e. this is a push to
+    # master or a PR to master).
     env:
       TARGET_IS_MASTER: ${{ (github.event_name == 'push' && github.ref_name == 'master') || (github.event_name == 'pull_request' && github.base_ref == 'master') }}
 
@@ -33,7 +33,7 @@ jobs:
           echo github.base_ref: ${{ github.base_ref }}
           echo TARGET_IS_MASTER: ${{ env.TARGET_IS_MASTER }}
 
-      - name: Check version consistency between Project.toml / _quarto.yml ${{ env.TARGET_IS_MASTER && ' / latest release' || '' }}
+      - name: Check version consistency
         shell: julia --color=yes --project=. {0}
         run: |
           using Pkg
@@ -43,6 +43,10 @@ jobs:
           import TOML
           import JSON
           import HTTP
+
+          PROJECT_TOML_PATH = "Project.toml"
+          QUARTO_YML_PATH = "_quarto.yml"
+          MANIFEST_TOML_PATH = "Manifest.toml"
 
           function major_minor_match(vs...)
               for v in vs
@@ -62,40 +66,97 @@ jobs:
               return true
           end
 
-          quarto_yaml = YAML.load_file("_quarto.yml")
-          quarto_version = VersionNumber(quarto_yaml["website"]["navbar"]["right"][1]["text"])
-          println("_quarto.yml version: ", quarto_version)
+          function update_project_toml(fname, target_version)
+              # Don't deserialise/serialise as this will scramble lines
+              lines = readlines(fname)
+              open(fname, "w") do io
+                  for line in lines
+                      if occursin(r"^Turing\s*=\s*\"\d+\.\d+\"\s*$", line)
+                          println(io, "Turing = \"$(target_version.:major).$(target_version.:minor)\"")
+                      else
+                          println(io, line)
+                      end
+                  end
+              end
+          end
 
-          project_toml = TOML.parsefile("Project.toml")
-          project_version = VersionNumber(project_toml["compat"]["Turing"])
-          println("Project.toml version: ", project_version)
+          function update_quarto_yml(fname, target_version)
+              # Don't deserialise/serialise as this will scramble lines
+              lines = readlines(fname)
+              open(fname, "w") do io
+                  for line in lines
+                      m = match(r"^(\s+)- text:\s*\"v\d+\.\d+\"\s*$", line)
+                      if m !== nothing
+                          println(io, "$(m[1])- text: \"v$(target_version.:major).$(target_version.:minor)\"")
+                      else
+                          println(io, line)
+                      end
+                  end
+              end
+          end
 
-          manifest_toml = TOML.parsefile("Manifest.toml")
+          # Retain the original version number string for error messages, as
+          # VersionNumber() will tack on a patch version of 0
+          quarto_yaml = YAML.load_file(QUARTO_YML_PATH)
+          quarto_version_str = quarto_yaml["website"]["navbar"]["right"][1]["text"]
+          quarto_version = VersionNumber(quarto_version_str)
+          println("_quarto.yml version: ", quarto_version_str)
+
+          project_toml = TOML.parsefile(PROJECT_TOML_PATH)
+          project_version_str = project_toml["compat"]["Turing"]
+          project_version = VersionNumber(project_version_str)
+          println("Project.toml version: ", project_version_str)
+
+          manifest_toml = TOML.parsefile(MANIFEST_TOML_PATH)
           manifest_version = VersionNumber(manifest_toml["deps"]["Turing"][1]["version"])
           println("Manifest.toml version: ", manifest_version)
 
           if "--check-latest-version" in ARGS
-              # Fetch latest GitHub release
+              # Fetch the latest version from GitHub and update files to match this version
+              # if necessary.
+
               resp = HTTP.get("https://api.github.com/repos/TuringLang/Turing.jl/releases/latest")
               latest_version = VersionNumber(JSON.parse(String(resp.body))["tag_name"])
               println("Latest Turing.jl version: ", latest_version)
 
-              # Latest release; check that everything inside matches
-              if !major_minor_match(latest_version, project_version, quarto_version)
-                  error("The latest version of Turing.jl (as determined from GitHub releases) is $latest_version.
-                        * Please update Project.toml and/or _quarto.yml to match this version.")
+              if !major_minor_match(latest_version, project_version)
+                  update_project_toml(PROJECT_TOML_PATH, latest_version)
               end
+
+              if !major_minor_match(latest_version, quarto_version)
+                  update_quarto_yml(QUARTO_YML_PATH, latest_version)
+              end
+
               if !major_minor_patch_match(latest_version, manifest_version)
-                  error("The latest version of Turing.jl (as determined from GitHub releases) is $latest_version.
-                        * Please update Manifest.toml to match this version.")
+                  # Attempt to automatically update Manifest
+                  old_env = Pkg.project().path
+                  Pkg.activate("/Users/pyong/ppl/docs")
+                  Pkg.update()
+                  # Check if versions match now, error if not
+                  Pkg.activate(old_env)
+                  manifest_toml = TOML.parsefile("/Users/pyong/ppl/docs/Manifest.toml")
+                  manifest_version = VersionNumber(manifest_toml["deps"]["Turing"][1]["version"])
+                  if !major_minor_patch_match(latest_version, manifest_version)
+                      error("Failed to update Manifest.toml to match latest Turing.jl version")
+                  end
               end
+
           else
-              # Not the latest release; just check for consistency
+              # Don't attempt to fetch the latest version; just check for consistency
+              # and error if versions don't match.
               if !major_minor_match(quarto_version, project_version, manifest_version)
                   error("The minor versions of Turing.jl in _quarto.yml, Project.toml, and Manifest.toml are inconsistent:
-                          - _quarto.yml: $quarto_version
-                          - Project.toml: $project_version
-                          - Manifest.toml: $manifest_version
+                 - _quarto.yml: $quarto_version_str
+                 - Project.toml: $project_version_str
+                 - Manifest.toml: $manifest_version
                         ")
               end
           end
+
+      - name: Suggest changes (for PRs only)
+        if: env.TARGET_IS_MASTER && github.event_name == 'pull_request'
+        uses: getsentry/action-git-diff-suggestions@main
+        with:
+          message: 'Suggested changes to update Turing.jl versions to latest release'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true

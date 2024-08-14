@@ -44,11 +44,10 @@ Once you have the prerequisite installed, you can follow these steps:
 
     This will render the full website in `_site` folder.
 
-    It is also possible to render a single tutorial or `qmd` file without compiling the entire site. This is often helpful to speed up compilation when editing a single docs page. To do this, first `cd` to the file's folder, and run `quarto preview` or `quarto render`: 
+    It is also possible to render a single tutorial or `qmd` file without compiling the entire site. This is often helpful to speed up compilation when editing a single docs page. To do this, pass the `qmd` file as an argument to `quarto render`:
 
     ```
-    cd somedocs # This is the folder containing a docs `qmd` file. 
-    quarto render index.qmd
+    quarto render path/to/index.qmd
     ```
 
 ## License

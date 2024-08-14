@@ -4,9 +4,8 @@ This repository is part of [Turing.jl's](https://turinglang.org/) website (i.e. 
 - The `master` branch contains the quarto source 
 - The `gh-pages` branch contains the `html` version of these documents compiled from the `master` branch.
 
-To get started with the docs website locally, you'll need to have the following prerequisite installed:
-
-- [Quarto](https://quarto.org/docs/download/)
+To get started with the docs website locally, you'll need to have [Quarto](https://quarto.org/docs/download/) installed.
+Make sure you have at least version 1.5 of Quarto installed, as this is required to correctly run [the native Julia engine](https://quarto.org/docs/computations/julia.html#using-the-julia-engine).
 
 Once you have the prerequisite installed, you can follow these steps:
 

@@ -44,7 +44,7 @@ include-in-header:
 # Latest Version
 | | | |
 | --- | --- | --- |
-| $(remove_bugfix "$LATEST_VERSION") | [Documention](versions/${LATEST_VERSION}/) | [Changelog](changelog.qmd) |
+| $(remove_bugfix "$LATEST_VERSION") | [Documentation](versions/${LATEST_VERSION}/) | [Changelog](changelog.qmd) |
 
 # Previous Versions
 | | |
@@ -57,7 +57,7 @@ for MINOR_TAG in $MINOR_TAGS; do
     LATEST_BUG_FIX=$(echo "$STABLE_TAGS" | grep "^${MINOR_TAG%.*}" | sort -r | head -n 1)
     # Remove trailing .0 from display version
     DISPLAY_MINOR_TAG=$(remove_bugfix "$MINOR_TAG")
-    VERSIONS_CONTENT="${VERSIONS_CONTENT}| ${DISPLAY_MINOR_TAG} | [Documention](versions/${LATEST_BUG_FIX}/) |
+    VERSIONS_CONTENT="${VERSIONS_CONTENT}| ${DISPLAY_MINOR_TAG} | [Documentation](versions/${LATEST_BUG_FIX}/) |
 "
   fi
 done
@@ -69,14 +69,14 @@ Documentation for archived versions is available on our deprecated documentation
 
 | | |
 | --- | --- |
-| v0.31 | [Documention](../v0.31.4/) |
-| v0.30 | [Documention](../v0.30.9/) |
-| v0.29 | [Documention](../v0.29.3/) |
-| v0.28 | [Documention](../v0.28.3/) |
-| v0.27 | [Documention](../v0.27.0/) |
-| v0.26 | [Documention](../v0.26.6/) |
-| v0.25 | [Documention](../v0.25.3/) |
-| v0.24 | [Documention](../v0.24.4/) |
+| v0.31 | [Documentation](../v0.31.4/) |
+| v0.30 | [Documentation](../v0.30.9/) |
+| v0.29 | [Documentation](../v0.29.3/) |
+| v0.28 | [Documentation](../v0.28.3/) |
+| v0.27 | [Documentation](../v0.27.0/) |
+| v0.26 | [Documentation](../v0.26.6/) |
+| v0.25 | [Documentation](../v0.25.3/) |
+| v0.24 | [Documentation](../v0.24.4/) |
 "
 
 # Write the content to the versions.qmd file

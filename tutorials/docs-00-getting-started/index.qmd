@@ -21,14 +21,13 @@ You will need to install Julia 1.7 or greater, which you can get from [the offic
 Turing is officially registered in the [Julia General package registry](https://github.com/JuliaRegistries/General), which means that you can install a stable version of Turing by running the following in the Julia REPL:
 
 ```{julia}
+#| eval: false
 #| output: false
 using Pkg
 Pkg.add("Turing")
 ```
 
 ### Example usage
-
-Here is a simple example showing Turing in action.
 
 First, we load the Turing and StatsPlots modules.
 The latter is required for visualising the results.
@@ -38,8 +37,18 @@ using Turing
 using StatsPlots
 ```
 
-Then, we define a simple Normal model with unknown mean and variance.
-Here, both `x` and `y` are observed values (since they are function parameters), whereas `m` and `s²` are the parameters to be inferred.
+We then specify our model, which is a simple Gaussian model with unknown mean and variance.
+In mathematical notation, the model is defined as follows:
+
+$$\begin{align}
+s^2  &\sim \text{InverseGamma}(2, 3) \\
+m    &\sim \mathcal{N}(0, \sqrt{s^2}) \\
+x, y &\sim \mathcal{N}(m, s^2)
+\end{align}$$
+
+This translates directly into the following Turing model.
+Here, both `x` and `y` are observed values, and should therefore be passed as function parameters.
+`m` and `s²` are the parameters to be inferred.
 
 ```{julia}
 @model function gdemo(x, y)
@@ -50,115 +59,22 @@ Here, both `x` and `y` are observed values (since they are function parameters),
 end
 ```
 
-Suppose we have some data `x` and `y` that we want to infer the mean and variance for.
+Suppose we observe `x = 1.5` and `y = 2`, and want to infer the mean and variance.
 We can pass these data as arguments to the `gdemo` function, and run a sampler to collect the results.
-In this specific example, we collect 1000 samples using the No U-Turn Sampler (NUTS) algorithm, which is a Hamiltonian Monte Carlo method.
+Here, we collect 1000 samples using the No U-Turn Sampler (NUTS) algorithm.
 
 ```{julia}
-chn = sample(gdemo(1.5, 2), NUTS(), 1000, progress=false)
+chain = sample(gdemo(1.5, 2), NUTS(), 1000, progress=false)
 ```
 
 We can plot the results:
 
 ```{julia}
-plot(chn)
+plot(chain)
 ```
 
 and obtain summary statistics by indexing the chain:
 
 ```{julia}
-mean(chn[:m]), mean(chn[:s²])
+mean(chain[:m]), mean(chain[:s²])
 ```
-
-
-### Verifying the results
-
-To verify the results of this example, we can analytically solve for the posterior distribution.
-Our prior is a normal-inverse gamma distribution:
-
-$$\begin{align}
-         P(s^2)    &= \Gamma^{-1}(s^2 | \alpha = 2, \beta = 3) \\
-         P(m)      &= \mathcal{N}(m | \mu = 0, \sigma^2 = s^2) \\
-\implies P(m, s^2) &= \text{N-}\Gamma^{-1}(m, s^2 | \mu = 0, \lambda = 1, \alpha = 2, \beta = 3).
-\end{align}$$
-
-This is a conjugate prior for a normal distribution with unknown mean and variance.
-So, the posterior distribution given some data $\mathbf{x}$ is also a normal-inverse gamma distribution, which we can compute analytically:
-
-$$P(m, s^2 | \mathbf{x}) = \text{N-}\Gamma^{-1}(m, s^2 | \mu', \lambda', \alpha', \beta').$$
-
-The four updated parameters are given respectively (see for example [Wikipedia](https://en.wikipedia.org/wiki/Normal-gamma_distribution#Posterior_distribution_of_the_parameters)) by
-
-$$\begin{align}
-\mu'     &= \frac{\lambda\mu + n\bar{x}}{\lambda + n}; &
-\lambda' &= \lambda + n; \\[0.3cm]
-\alpha'  &= \alpha + \frac{n}{2}; &
-\beta'   &= \beta + \frac{1}{2}\left(nv + \frac{\lambda n(\bar{x} - \mu)^2}{\lambda + n}\right),
-\end{align}$$
-
-where $n$ is the number of data points, $\bar{x}$ the mean of the data, and $v$ the uncorrected sample variance of the data.
-
-```{julia}
-s² = InverseGamma(2, 3)
-α, β = shape(s²), scale(s²)
-
-# We defined m ~ Normal(0, sqrt(s²)), and the normal-inverse gamma
-# distribution is defined by m ~ Normal(µ, sqrt(s²/λ)), which lets
-# us identify the following
-µ, λ = 0, 1
-
-data = [1.5, 2]
-x_bar = mean(data)
-n = length(data)
-v = var(data; corrected=false)
-
-µ´ = ((λ * µ) + (n * x_bar)) / (λ + n)
-λ´ = λ + n
-α´ = α + n / 2
-β´ = β + ((n * v) + ((λ * n * (x_bar - µ)^2) / (λ + n))) / 2
-
-(µ´, λ´, α´, β´)
-```
-
-We can use these to analytically calculate, for example, the expectation values of the mean and variance parameters in the posterior distribution: $E[m] = \mu'$, and $E[s^2] = \beta'/(\alpha
- - 1)$.
-
-```{julia}
-mean_exp = µ´
-variance_exp = β´ / (α´ - 1)
-
-(mean_exp, variance_exp)
-```
-
-Alternatively, we can compare the two distributions visually (one parameter at a time).
-To do so, we will directly sample from the analytical posterior distribution using the procedure described in [Wikipedia](https://en.wikipedia.org/wiki/Normal-inverse-gamma_distribution#Generating_normal-inverse-gamma_random_variates).
-
-```{julia}
-function sample_posterior_analytic(µ´, λ´, α´, β´, iterations)
-    samples = []
-    for i in 1:iterations
-        sampled_s² = rand(InverseGamma(α´, β'))
-        sampled_m = rand(Normal(µ´, sqrt(sampled_s² / λ´)))
-        samples = push!(samples, (sampled_m, sampled_s²))
-    end
-    return samples
-end
-
-analytical_samples = sample_posterior_analytic(µ´, λ´, α´, β´, 1000);
-```
-
-Comparing the distribution of the mean:
-
-```{julia}
-density([s[1] for s in analytical_samples]; label="Posterior (Analytical)")
-density!(chn[:m]; label="Posterior (HMC)")
-```
-
-and the distribution of the variance:
-
-```{julia}
-density([s[2] for s in analytical_samples]; label="Posterior (Analytical)")
-density!(chn[:s²]; label="Posterior (HMC)")
-```
-
-we see that our HMC sampler has given us a good representation of the posterior distribution.

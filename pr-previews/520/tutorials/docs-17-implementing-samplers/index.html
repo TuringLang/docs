@@ -1,0 +1,1692 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.57">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Implementing samplers – Turing.jl</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js" integrity="sha512-bLT0Qm9VnAYZDflyKcBaQ2gg0hSYNQrJ8RilYldYQ1FxQYoCLtUjuuRuZo+fjqhx/qtq/1itJ0C2ejDxltZVFg==" crossorigin="anonymous"></script><script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<link href="../../tutorials/docs-07-for-developers-variational-inference/index.html" rel="prev">
+<link href="../../assets/favicon.ico" rel="icon">
+<script src="../../site_libs/quarto-html/quarto.js"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<style>html{ scroll-behavior: smooth; }</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" integrity="sha512-c3Nl8+7g4LMSTdrm621y7kf9v3SDPnhxLNhcjFJbKECVnmZHTdo+IRO05sNLTH/D3vA6u1X32ehoLC7WFVdheg==" crossorigin="anonymous"></script>
+
+<script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
+<style>
+  a {
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+</style>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="../../theming/styles.css">
+</head>
+
+<body class="nav-sidebar floating nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="https://turinglang.org/" class="navbar-brand navbar-brand-logo">
+    <img src="../../assets/images/turing-logo.svg" alt="" class="navbar-logo">
+    </a>
+    <a class="navbar-brand" href="https://turinglang.org/">
+    <span class="navbar-title">Turing.jl</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../tutorials/docs-00-getting-started/"> 
+<span class="menu-text">Get Started</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../tutorials/00-introduction/"> 
+<span class="menu-text">Tutorials</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://turinglang.org/library/"> 
+<span class="menu-text">Libraries</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://turinglang.org/news/"> 
+<span class="menu-text">News</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://turinglang.org/team/"> 
+<span class="menu-text">Team</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-v0.34" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">v0.34</span>
+    </a>
+    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="nav-menu-v0.34">    
+        <li>
+    <a class="dropdown-item" href="https://turinglang.org/docs/changelog.html">
+ <span class="dropdown-text">Changelog</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="https://turinglang.org/docs/versions.html">
+ <span class="dropdown-text">All Versions</span></a>
+  </li>  
+    </ul>
+  </li>
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+    <a href="https://x.com/TuringLang" title="Turing Twitter" class="quarto-navigation-tool px-1" aria-label="Turing Twitter"><i class="bi bi-twitter"></i></a>
+    <a href="https://github.com/TuringLang/Turing.jl" title="Turing GitHub" class="quarto-navigation-tool px-1" aria-label="Turing GitHub"><i class="bi bi-github"></i></a>
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Developers</li><li class="breadcrumb-item"><a href="../../tutorials/docs-06-for-developers-interface/index.html">Inference (note: outdated)</a></li><li class="breadcrumb-item"><a href="../../tutorials/docs-17-implementing-samplers/index.html">Implementing Samplers</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false">
+ <span class="menu-text">Users</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-00-getting-started/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Getting Started</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-12-using-turing-guide/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Core Functionality</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
+ <span class="menu-text">Usage Tips</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-17-mode-estimation/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Mode Estimation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-09-using-turing-advanced/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Advanced Usage</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-10-using-turing-autodiff/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Automatic Differentiation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-13-using-turing-performance-tips/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Performance Tips</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-11-using-turing-dynamichmc/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Using DynamicHMC</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-15-using-turing-sampler-viz/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sampler Visualization</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-16-using-turing-external-samplers/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">External Samplers</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
+ <span class="menu-text">Worked Tutorials</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/00-introduction/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduction: Coin Flipping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/01-gaussian-mixture-model/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Gaussian Mixture Models</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/02-logistic-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Logistic Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/03-bayesian-neural-network/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Neural Networks</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/04-hidden-markov-model/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Hidden Markov Models</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/05-linear-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Linear Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/06-infinite-mixture-model/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Infinite Mixture Model</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/07-poisson-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Poisson Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/08-multinomial-logistic-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multinomial Logistic Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/09-variational-inference/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variational Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/10-bayesian-differential-equations/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Differential Equations</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/11-probabilistic-pca/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Probabilistic PCA</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/13-seasonal-time-series/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Time Series Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/15-gaussian-processes/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduction to Gaussian Processes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/12-gplvm/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Gaussian Process Latent Variable Models</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
+ <span class="menu-text">Developers</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
+ <span class="menu-text">Contributing</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-01-contributing-guide/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">How to Contribute</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">DynamicPPL in Depth</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-05-for-developers-compiler/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Turing Compiler Design</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/14-minituring/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A Mini Turing Implementation I: Compiler</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/16-contexts/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A Mini Turing Implementation II: Contexts</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="true">
+ <span class="menu-text">Inference (note: outdated)</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-06-for-developers-interface/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Interface Guide</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-04-for-developers-abstractmcmc-turing/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">How Turing implements AbstractMCMC</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-07-for-developers-variational-inference/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variational Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/docs-17-implementing-samplers/index.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Implementing Samplers</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of Contents</h2>
+   
+  <ul>
+  <li><a href="#quick-overview-of-mala" id="toc-quick-overview-of-mala" class="nav-link active" data-scroll-target="#quick-overview-of-mala">Quick overview of MALA</a></li>
+  <li><a href="#what-we-need-from-a-model-logdensityproblems.jl" id="toc-what-we-need-from-a-model-logdensityproblems.jl" class="nav-link" data-scroll-target="#what-we-need-from-a-model-logdensityproblems.jl">What we need from a model: LogDensityProblems.jl</a></li>
+  <li><a href="#implementing-mala-in-abstractmcmc.jl" id="toc-implementing-mala-in-abstractmcmc.jl" class="nav-link" data-scroll-target="#implementing-mala-in-abstractmcmc.jl">Implementing MALA in AbstractMCMC.jl</a></li>
+  <li><a href="#using-our-sampler-with-turing.jl" id="toc-using-our-sampler-with-turing.jl" class="nav-link" data-scroll-target="#using-our-sampler-with-turing.jl">Using our sampler with Turing.jl</a>
+  <ul class="collapse">
+  <li><a href="#models-with-constrained-parameters" id="toc-models-with-constrained-parameters" class="nav-link" data-scroll-target="#models-with-constrained-parameters">Models with constrained parameters</a></li>
+  </ul></li>
+  <li><a href="#summary" id="toc-summary" class="nav-link" data-scroll-target="#summary">Summary</a></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/TuringLang/docs/edit/master/tutorials/docs-17-implementing-samplers/index.qmd" target="_blank" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/TuringLang/docs/issues/new" target="_blank" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Developers</li><li class="breadcrumb-item"><a href="../../tutorials/docs-06-for-developers-interface/index.html">Inference (note: outdated)</a></li><li class="breadcrumb-item"><a href="../../tutorials/docs-17-implementing-samplers/index.html">Implementing Samplers</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">Implementing samplers</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>In this tutorial, we’ll go through step-by-step how to implement a “simple” sampler in <a href="https://github.com/TuringLang/AbstractMCMC.jl">AbstractMCMC.jl</a> in such a way that it can be easily applied to Turing.jl models.</p>
+<p>In particular, we’re going to implement a version of <strong>Metropolis-adjusted Langevin (MALA)</strong>.</p>
+<p>Note that we will implement this sampler in the <a href="https://github.com/TuringLang/AbstractMCMC.jl">AbstractMCMC.jl</a> framework, completely “ignoring” Turing.jl until the very end of the tutorial, at which point we’ll use a single line of code to make the resulting sampler available to Turing.jl. This is to really drive home the point that one can implement samplers in a way that is accessible to all of Turing.jl’s users without having to use Turing.jl yourself.</p>
+<section id="quick-overview-of-mala" class="level2">
+<h2 class="anchored" data-anchor-id="quick-overview-of-mala">Quick overview of MALA</h2>
+<p>We can view MALA as a single step of the leapfrog intergrator with resampling of momentum <span class="math inline">\(p\)</span> at every step.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> To make that statement a bit more concrete, we first define the <em>extended</em> target <span class="math inline">\(\bar{\gamma}(x, p)\)</span> as</p>
+<p><span class="math display">\[\begin{equation*}
+\log \bar{\gamma}(x, p) \propto \log \gamma(x) + \log \gamma_{\mathcal{N}(0, M)}(p)
+\end{equation*}\]</span></p>
+<p>where <span class="math inline">\(\gamma_{\mathcal{N}(0, M)}\)</span> denotes the density for a zero-centered Gaussian with covariance matrix <span class="math inline">\(M\)</span>. We then consider targeting this joint distribution over both <span class="math inline">\(x\)</span> and <span class="math inline">\(p\)</span> as follows. First we define the map</p>
+<p><span class="math display">\[\begin{equation*}
+\begin{split}
+  L_{\epsilon}: \quad &amp; \mathbb{R}^d \times \mathbb{R}^d \to \mathbb{R}^d \times \mathbb{R}^d \\
+  &amp; (x, p) \mapsto (\tilde{x}, \tilde{p}) := L_{\epsilon}(x, p)
+\end{split}
+\end{equation*}\]</span></p>
+<p>as</p>
+<p><span class="math display">\[\begin{equation*}
+\begin{split}
+  p_{1 / 2} &amp;:= p + \frac{\epsilon}{2} \nabla \log \gamma(x) \\
+  \tilde{x} &amp;:= x + \epsilon M^{-1} p_{1 /2 } \\
+  p_1 &amp;:= p_{1 / 2} + \frac{\epsilon}{2} \nabla \log \gamma(\tilde{x}) \\
+  \tilde{p} &amp;:= - p_1
+\end{split}
+\end{equation*}\]</span></p>
+<p>This might be familiar for some readers as a single step of the Leapfrog integrator. We then define the MALA kernel as follows: given the current iterate <span class="math inline">\(x_i\)</span>, we sample the next iterate <span class="math inline">\(x_{i + 1}\)</span> as</p>
+<p><span class="math display">\[\begin{equation*}
+\begin{split}
+  p &amp;\sim \mathcal{N}(0, M) \\
+  (\tilde{x}, \tilde{p}) &amp;:= L_{\epsilon}(x_i, p) \\
+  \alpha &amp;:= \min \left\{ 1, \frac{\bar{\gamma}(\tilde{x}, \tilde{p})}{\bar{\gamma}(x_i, p)} \right\} \\
+  x_{i + 1} &amp;:=
+  \begin{cases}
+    \tilde{x} \quad &amp; \text{ with prob. } \alpha \\
+    x_i       \quad &amp; \text{ with prob. } 1 - \alpha
+  \end{cases}
+\end{split}
+\end{equation*}\]</span></p>
+<p>i.e.&nbsp;we accept the proposal <span class="math inline">\(\tilde{x}\)</span> with probability <span class="math inline">\(\alpha\)</span> and reject it, thus sticking with our current iterate, with probability <span class="math inline">\(1 - \alpha\)</span>.</p>
+</section>
+<section id="what-we-need-from-a-model-logdensityproblems.jl" class="level2">
+<h2 class="anchored" data-anchor-id="what-we-need-from-a-model-logdensityproblems.jl">What we need from a model: <a href="https://github.com/tpapp/LogDensityProblems.jl">LogDensityProblems.jl</a></h2>
+<p>There are a few things we need from the “target” / “model” / density that we want to sample from:</p>
+<ol type="1">
+<li>We need access to log-density <em>evaluations</em> <span class="math inline">\(\log \gamma(x)\)</span> so we can compute the acceptance ratio involving <span class="math inline">\(\log \bar{\gamma}(x, p)\)</span>.</li>
+<li>We need access to log-density <em>gradients</em> <span class="math inline">\(\nabla \log \gamma(x)\)</span> so we can compute the Leapfrog steps <span class="math inline">\(L_{\epsilon}(x, p)\)</span>.</li>
+<li>We also need access to the “size” of the model so we can determine the size of <span class="math inline">\(M\)</span>.</li>
+</ol>
+<p>Luckily for us, there is a package called <a href="https://github.com/tpapp/LogDensityProblems.jl">LogDensityProblems.jl</a> which provides an interface for <em>exactly</em> this!</p>
+<p>To demonstrate how one can implement the “<a href="https://github.com/tpapp/LogDensityProblems.jl">LogDensityProblems.jl</a> interface”<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a> we will use a simple Gaussian model as an example:</p>
+<div id="4" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">LogDensityProblems</span>: LogDensityProblems;</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Let's define some type that represents the model.</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> IsotropicNormalModel{M<span class="op">&lt;:</span><span class="dt">AbstractVector{&lt;:Real}</span>}</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"mean of the isotropic Gaussian"</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    mean<span class="op">::</span><span class="dt">M</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Specifies what input length the model expects.</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>LogDensityProblems.<span class="fu">dimension</span>(model<span class="op">::</span><span class="dt">IsotropicNormalModel</span>) <span class="op">=</span> <span class="fu">length</span>(model.mean)</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Implementation of the log-density evaluation of the model.</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> LogDensityProblems.<span class="fu">logdensity</span>(model<span class="op">::</span><span class="dt">IsotropicNormalModel</span>, x<span class="op">::</span><span class="dt">AbstractVector{&lt;:Real}</span>)</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="op">-</span> <span class="fu">sum</span>(abs2, x <span class="op">.-</span> model.mean) <span class="op">/</span> <span class="fl">2</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>This gives us all of the properties we want for our MALA sampler with the exception of the computation of the <em>gradient</em> <span class="math inline">\(\nabla \log \gamma(x)\)</span>. There is the method <code>LogDensityProblems.logdensity_and_gradient</code> which should return a 2-tuple where the first entry is the evaluation of the logdensity <span class="math inline">\(\log \gamma(x)\)</span> and the second entry is the gradient <span class="math inline">\(\nabla \log \gamma(x)\)</span>.</p>
+<p>There are two ways to “implement” this method: 1) we implement it by hand, which is feasible in the case of our <code>IsotropicNormalModel</code>, or b) we defer the implementation of this to a automatic differentiation backend.</p>
+<p>To implement it by hand we can simply do</p>
+<div id="6" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Tell LogDensityProblems.jl that first-order, i.e. gradient information, is available.</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>LogDensityProblems.<span class="fu">capabilities</span>(model<span class="op">::</span><span class="dt">IsotropicNormalModel</span>) <span class="op">=</span> LogDensityProblems.<span class="fu">LogDensityOrder</span><span class="dt">{1}</span>()</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Implement `logdensity_and_gradient`.</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> LogDensityProblems.<span class="fu">logdensity_and_gradient</span>(model<span class="op">::</span><span class="dt">IsotropicNormalModel</span>, x)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    logγ_x <span class="op">=</span> LogDensityProblems.<span class="fu">logdensity</span>(model, x)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    ∇logγ_x <span class="op">=</span> <span class="op">-</span>x <span class="op">.*</span> (x <span class="op">-</span> model.mean)</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> logγ_x, ∇logγ_x</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Let’s just try it out:</p>
+<div id="8" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Instantiate the problem.</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> <span class="fu">IsotropicNormalModel</span>([<span class="op">-</span><span class="fl">5</span>., <span class="fl">0</span>., <span class="fl">5</span>.])</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Create some example input that we can test on.</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>x_example <span class="op">=</span> <span class="fu">randn</span>(LogDensityProblems.<span class="fu">dimension</span>(model))</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate!</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>LogDensityProblems.<span class="fu">logdensity</span>(model, x_example)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>-18.388794511311275</code></pre>
+</div>
+</div>
+<p>To defer it to an automatic differentiation backend, we can do</p>
+<div id="10" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Tell LogDensityProblems.jl we only have access to 0-th order information.</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>LogDensityProblems.<span class="fu">capabilities</span>(model<span class="op">::</span><span class="dt">IsotropicNormalModel</span>) <span class="op">=</span> LogDensityProblems.<span class="fu">LogDensityOrder</span><span class="dt">{0}</span>()</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Use `LogDensityProblemsAD`'s `ADgradient` in combination with some AD backend to implement `logdensity_and_gradient`.</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">LogDensityProblemsAD</span>, <span class="bu">ADTypes</span>, <span class="bu">ForwardDiff</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>model_with_grad <span class="op">=</span> <span class="fu">ADgradient</span>(<span class="fu">AutoForwardDiff</span>(), model)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>LogDensityProblems.<span class="fu">logdensity</span>(model_with_grad, x_example)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>-18.388794511311275</code></pre>
+</div>
+</div>
+<p>We’ll continue with the second approach in this tutorial since this is typically what one does in practice, because there are better hobbies to spend time on than deriving gradients by hand.</p>
+<p>At this point, one might wonder how we’re going to tie this back to Turing.jl in the end. Effectively, when working with inference methods that only require log-density evaluations and / or higher-order information of the log-density, Turing.jl actually converts the user-provided <code>Model</code> into an object implementing the above methods for <a href="https://github.com/tpapp/LogDensityProblems.jl">LogDensityProblems.jl</a>. As a result, most samplers provided by Turing.jl are actually implemented to work with <a href="https://github.com/tpapp/LogDensityProblems.jl">LogDensityProblems.jl</a>, enabling their use both <em>within</em> Turing.jl and <em>outside</em> of Turing.jl! Morever, there exists similar conversions for Stan through BridgeStan and Stan<a href="https://github.com/tpapp/LogDensityProblems.jl">LogDensityProblems.jl</a>, which means that a sampler supporting the <a href="https://github.com/tpapp/LogDensityProblems.jl">LogDensityProblems.jl</a> interface can easily be used on both Turing.jl <em>and</em> Stan models (in addition to user-provided models, as our <code>IsotropicNormalModel</code> above)!</p>
+<p>Anyways, let’s move on to actually implementing the sampler.</p>
+</section>
+<section id="implementing-mala-in-abstractmcmc.jl" class="level2">
+<h2 class="anchored" data-anchor-id="implementing-mala-in-abstractmcmc.jl">Implementing MALA in <a href="https://github.com/TuringLang/AbstractMCMC.jl">AbstractMCMC.jl</a></h2>
+<p>Now that we’ve established that a model implementing the <a href="https://github.com/tpapp/LogDensityProblems.jl">LogDensityProblems.jl</a> interface provides us with all the information we need from <span class="math inline">\(\log \gamma(x)\)</span>, we can address the question: given an object that implements the <a href="https://github.com/tpapp/LogDensityProblems.jl">LogDensityProblems.jl</a> interface, how can we define a sampler for it?</p>
+<p>We’re going to do this by making our sampler a sub-type of <code>AbstractMCMC.AbstractSampler</code> in addition to implementing a few methods from <a href="https://github.com/TuringLang/AbstractMCMC.jl">AbstractMCMC.jl</a>. Why? Because it gets us <em>a lot</em> of functionality for free, as we will see later.</p>
+<p>Moreover, <a href="https://github.com/TuringLang/AbstractMCMC.jl">AbstractMCMC.jl</a> provides a very natural interface for MCMC algorithms.</p>
+<p>First, we’ll define our <code>MALA</code> type</p>
+<div id="12" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">AbstractMCMC</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> MALA{T,A} <span class="op">&lt;:</span><span class="dt"> AbstractMCMC.AbstractSampler</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"stepsize used in the leapfrog step"</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    ϵ_init<span class="op">::</span><span class="dt">T</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"covariance matrix used for the momentum"</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    M_init<span class="op">::</span><span class="dt">A</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Notice how we’ve added the suffix <code>_init</code> to both the stepsize and the covariance matrix. We’ve done this because a <code>AbstractMCMC.AbstractSampler</code> should be <em>immutable</em>. Of course there might be many scenarios where we want to allow something like the stepsize and / or the covariance matrix to vary between iterations, e.g.&nbsp;during the burn-in / adaptation phase of the sampling process we might want to adjust the parameters using statistics computed from these initial iterations. But information which can change between iterations <em>should not go in the sampler itself</em>! Instead, this information should go in the sampler <em>state</em>.</p>
+<p>The sampler state should at the very least contain all the necessary information to perform the next MCMC iteration, but usually contains further information, e.g.&nbsp;quantities and statistics useful for evaluating whether the sampler has converged.</p>
+<p>We will use the following sampler state for our <code>MALA</code> sampler:</p>
+<div id="14" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> MALAState{A<span class="op">&lt;:</span><span class="dt">AbstractVector{&lt;:Real}</span>}</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"current position"</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    x<span class="op">::</span><span class="dt">A</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>This might seem overly redundant: we’re defining a type <code>MALAState</code> and it only contains a simple vector of reals. In this particular case we indeed could have dropped this and simply used a <code>AbstractVector{&lt;:Real}</code> as our sampler state, but typically, as we will see later, one wants to include other quantities in the sampler state. For example, if we also wanted to adapt the parameters of our <code>MALA</code>, e.g.&nbsp;alter the stepsize depending on acceptance rates, in which case we should also put <code>ϵ</code> in the state, but for now we’ll keep things simple.</p>
+<p>Moreover, we also want a <em>sample</em> type, which is a type meant for “public consumption”, i.e.&nbsp;the end-user. This is generally going to contain a subset of the information present in the state. But in such a simple scenario as this, we similarly only have a <code>AbstractVector{&lt;:Real}</code>:</p>
+<div id="16" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> MALASample{A<span class="op">&lt;:</span><span class="dt">AbstractVector{&lt;:Real}</span>}</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"current position"</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    x<span class="op">::</span><span class="dt">A</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>We currently have three things:</p>
+<ol type="1">
+<li>A <code>AbstractMCMC.AbstractSampler</code> implementation called <code>MALA</code>.</li>
+<li>A state <code>MALAState</code> for our sampler <code>MALA</code>.</li>
+<li>A sample <code>MALASample</code> for our sampler <code>MALA</code>.</li>
+</ol>
+<p>That means that we’re ready to implement the only thing that really matters: <code>AbstractMCMC.step</code>.</p>
+<p><code>AbstractMCMC.step</code> defines the MCMC iteration of our <code>MALA</code> given the current <code>MALAState</code>. Specifically, the signature of the function is as follows:</p>
+<div id="18" class="cell" data-execution_count="0">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> AbstractMCMC.<span class="fu">step</span>(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># The RNG to ensure reproducibility.</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    rng<span class="op">::</span><span class="dt">Random.AbstractRNG</span>,</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># The model that defines our target.</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    model<span class="op">::</span><span class="dt">AbstractMCMC.AbstractModel</span>,</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># The sampler for which we're taking a `step`.</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    sampler<span class="op">::</span><span class="dt">AbstractMCMC.AbstractSampler</span>,</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># The current sampler `state`.</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>    state;</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Additional keyword arguments that we may or may not need.</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    kwargs<span class="op">...</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Moreover, there is a specific <code>AbstractMCMC.AbstractModel</code> which is used to indicate that the model that is provided implements the <a href="https://github.com/tpapp/LogDensityProblems.jl">LogDensityProblems.jl</a> interface: <code>AbstractMCMC.LogDensityModel</code>.</p>
+<p>Since, as we discussed earlier, in our case we’re indeed going to work with types that support the <a href="https://github.com/tpapp/LogDensityProblems.jl">LogDensityProblems.jl</a> interface, we’ll define <code>AbstractMCMC.step</code> for such a <code>AbstractMCMC.LogDensityModel</code>.</p>
+<p>Note that <code>AbstractMCMC.LogDensityModel</code> has no other purpose; it has a single field called <code>logdensity</code>, and it does nothing else. But by wrapping the model in <code>AbstractMCMC.LogDensityModel</code>, it allows samplers that want to work with <a href="https://github.com/tpapp/LogDensityProblems.jl">LogDensityProblems.jl</a> to define their <code>AbstractMCMC.step</code> on this type without running into method ambiguities.</p>
+<p>All in all, that means that the signature for our <code>AbstractMCMC.step</code> is going to be the following:</p>
+<div id="20" class="cell" data-execution_count="0">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> AbstractMCMC.<span class="fu">step</span>(</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    rng<span class="op">::</span><span class="dt">Random.AbstractRNG</span>,</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># `LogDensityModel` so we know we're working with LogDensityProblems.jl model.</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    model<span class="op">::</span><span class="dt">AbstractMCMC.LogDensityModel</span>,</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Our sampler.</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    sampler<span class="op">::</span><span class="dt">MALA</span>,</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Our sampler state.</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    state<span class="op">::</span><span class="dt">MALAState</span>;</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>    kwargs<span class="op">...</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Great! Now let’s actually implement the full <code>AbstractMCMC.step</code> for our <code>MALA</code>.</p>
+<p>Let’s remind ourselves what we’re going to do:</p>
+<ol type="1">
+<li>Sample a new momentum <span class="math inline">\(p\)</span>.</li>
+<li>Compute the log-density of the extended target <span class="math inline">\(\log \bar{\gamma}(x, p)\)</span>.</li>
+<li>Take a single leapfrog step <span class="math inline">\((\tilde{x}, \tilde{p}) = L_{\epsilon}(x, p)\)</span>.</li>
+<li>Accept or reject the proposed <span class="math inline">\((\tilde{x}, \tilde{p})\)</span>.</li>
+</ol>
+<p>All in all, this results in the following:</p>
+<div id="22" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Random</span>: Random</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Distributions</span>  <span class="co"># so we get the `MvNormal`</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> AbstractMCMC.<span class="fu">step</span>(</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    rng<span class="op">::</span><span class="dt">Random.AbstractRNG</span>,</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    model_wrapper<span class="op">::</span><span class="dt">AbstractMCMC.LogDensityModel</span>,</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    sampler<span class="op">::</span><span class="dt">MALA</span>,</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    state<span class="op">::</span><span class="dt">MALAState</span>;</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    kwargs<span class="op">...</span></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Extract the wrapped model which implements LogDensityProblems.jl.</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> model_wrapper.logdensity</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Let's just extract the sampler parameters to make our lives easier.</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>    ϵ <span class="op">=</span> sampler.ϵ_init</span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>    M <span class="op">=</span> sampler.M_init</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Extract the current parameters.</span></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> state.x</span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Sample the momentum.</span></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>    p_dist <span class="op">=</span> <span class="fu">MvNormal</span>(<span class="fu">zeros</span>(LogDensityProblems.<span class="fu">dimension</span>(model)), M)</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>    p <span class="op">=</span> <span class="fu">rand</span>(rng, p_dist)</span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Propose using a single leapfrog step.</span></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>    x̃, p̃ <span class="op">=</span> <span class="fu">leapfrog_step</span>(model, x, p, ϵ, M)</span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Accept or reject proposal.</span></span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>    logp <span class="op">=</span> LogDensityProblems.<span class="fu">logdensity</span>(model, x) <span class="op">+</span> <span class="fu">logpdf</span>(p_dist, p)</span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>    logp̃ <span class="op">=</span> LogDensityProblems.<span class="fu">logdensity</span>(model, x̃) <span class="op">+</span> <span class="fu">logpdf</span>(p_dist, p̃)</span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>    logα <span class="op">=</span> logp̃ <span class="op">-</span> logp</span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>    state_new <span class="op">=</span> <span class="cf">if</span> <span class="fu">log</span>(<span class="fu">rand</span>(rng)) <span class="op">&lt;</span> logα</span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Accept.</span></span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a>        <span class="fu">MALAState</span>(x̃)</span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span></span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Reject.</span></span>
+<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a>        <span class="fu">MALAState</span>(x)</span>
+<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Return the "sample" and the sampler state.</span></span>
+<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="fu">MALASample</span>(state_new.x), state_new</span>
+<span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Fairly straight-forward.</p>
+<p>Of course, we haven’t defined the <code>leapfrog_step</code> method yet, so let’s do that:</p>
+<div id="24" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">leapfrog_step</span>(model, x, p, ϵ, M)</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Update momentum `p` using "position" `x`.</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    ∇logγ_x <span class="op">=</span> <span class="fu">last</span>(LogDensityProblems.<span class="fu">logdensity_and_gradient</span>(model, x))</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    p1 <span class="op">=</span> p <span class="op">+</span> (ϵ <span class="op">/</span> <span class="fl">2</span>) <span class="op">.*</span> ∇logγ_x</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Update the "position" `x` using momentum `p1`.</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    x̃ <span class="op">=</span> x <span class="op">+</span> ϵ <span class="op">.*</span> (M <span class="op">\</span> p1)</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Update momentum `p1` using position `x̃`</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    ∇logγ_x̃ <span class="op">=</span> <span class="fu">last</span>(LogDensityProblems.<span class="fu">logdensity_and_gradient</span>(model, x̃))</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    p2 <span class="op">=</span> p1 <span class="op">+</span> (ϵ <span class="op">/</span> <span class="fl">2</span>) <span class="op">.*</span> ∇logγ_x̃</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Flip momentum `p2`.</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    p̃ <span class="op">=</span> <span class="op">-</span>p2</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> x̃, p̃</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>leapfrog_step (generic function with 1 method)</code></pre>
+</div>
+</div>
+<p>With all of this, we’re technically ready to sample!</p>
+<div id="26" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Random</span>, <span class="bu">LinearAlgebra</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> <span class="bu">Random</span>.<span class="fu">default_rng</span>()</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>sampler <span class="op">=</span> <span class="fu">MALA</span>(<span class="fl">1</span>, I)</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>state <span class="op">=</span> <span class="fu">MALAState</span>(<span class="fu">zeros</span>(LogDensityProblems.<span class="fu">dimension</span>(model)))</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>x_next, state_next <span class="op">=</span> AbstractMCMC.<span class="fu">step</span>(</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    rng,</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>    AbstractMCMC.<span class="fu">LogDensityModel</span>(model),</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>    sampler,</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>    state</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>(MALASample{Vector{Float64}}([-2.0475025115898906, 0.26072980882183744, 2.085157238543355]), MALAState{Vector{Float64}}([-2.0475025115898906, 0.26072980882183744, 2.085157238543355]))</code></pre>
+</div>
+</div>
+<p>Great, it works!</p>
+<p>And I promised we would get quite some functionality for free if we implemented <code>AbstractMCMC.step</code>, and so we can now simply call <code>sample</code> to perform standard MCMC sampling:</p>
+<div id="28" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Perform 1000 iterations with our `MALA` sampler.</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>samples <span class="op">=</span> <span class="fu">sample</span>(model_with_grad, sampler, <span class="fl">10_000</span>; initial_state<span class="op">=</span>state, progress<span class="op">=</span><span class="cn">false</span>)</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Concatenate into a matrix.</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>samples_matrix <span class="op">=</span> <span class="fu">stack</span>(sample <span class="op">-&gt;</span> sample.x, samples)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>3×10000 Matrix{Float64}:
+ -1.65738   -2.25134  -3.27041  -3.76134    …  -6.17553  -4.65137  -5.72745
+ -0.485676   1.6337    1.65742   0.0876717      2.77205   1.54998   0.450326
+  0.421609   3.24773   4.92571   6.84384        4.26677   3.83789   3.12516</code></pre>
+</div>
+</div>
+<div id="30" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute the marginal means and standard deviations.</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="fu">hcat</span>(<span class="fu">mean</span>(samples_matrix; dims<span class="op">=</span><span class="fl">2</span>), <span class="fu">std</span>(samples_matrix; dims<span class="op">=</span><span class="fl">2</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>3×2 Matrix{Float64}:
+ -4.98695     1.00117
+ -0.00696079  1.00298
+  4.95825     1.00427</code></pre>
+</div>
+</div>
+<p>Let’s visualize the samples</p>
+<div id="32" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">StatsPlots</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(<span class="fu">transpose</span>(samples_matrix[<span class="op">:</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">10</span><span class="op">:</span><span class="kw">end</span>]), alpha<span class="op">=</span><span class="fl">0.5</span>, legend<span class="op">=</span><span class="cn">false</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<!--?xml version="1.0" encoding="utf-8"?-->
+<svg xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="672" height="480" viewbox="0 0 2688 1920">
+<defs>
+  <clippath id="clip690">
+    <rect x="0" y="0" width="2688" height="1920"></rect>
+  </clippath>
+</defs>
+<path clip-path="url(#clip690)" d="M0 1920 L2688 1920 L2688 0 L0 0  Z" fill="#ffffff" fill-rule="evenodd" fill-opacity="1"></path>
+<defs>
+  <clippath id="clip691">
+    <rect x="537" y="0" width="1883" height="1883"></rect>
+  </clippath>
+</defs>
+<path clip-path="url(#clip690)" d="M151.747 1800.78 L2640.76 1800.78 L2640.76 47.2441 L151.747 47.2441  Z" fill="#ffffff" fill-rule="evenodd" fill-opacity="1"></path>
+<defs>
+  <clippath id="clip692">
+    <rect x="151" y="47" width="2490" height="1755"></rect>
+  </clippath>
+</defs>
+<polyline clip-path="url(#clip692)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:2; stroke-opacity:0.1; fill:none" points="219.84,1800.78 219.84,47.2441 "></polyline>
+<polyline clip-path="url(#clip692)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:2; stroke-opacity:0.1; fill:none" points="807.458,1800.78 807.458,47.2441 "></polyline>
+<polyline clip-path="url(#clip692)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:2; stroke-opacity:0.1; fill:none" points="1395.08,1800.78 1395.08,47.2441 "></polyline>
+<polyline clip-path="url(#clip692)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:2; stroke-opacity:0.1; fill:none" points="1982.69,1800.78 1982.69,47.2441 "></polyline>
+<polyline clip-path="url(#clip692)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:2; stroke-opacity:0.1; fill:none" points="2570.31,1800.78 2570.31,47.2441 "></polyline>
+<polyline clip-path="url(#clip692)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:2; stroke-opacity:0.1; fill:none" points="151.747,1548.21 2640.76,1548.21 "></polyline>
+<polyline clip-path="url(#clip692)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:2; stroke-opacity:0.1; fill:none" points="151.747,1236.77 2640.76,1236.77 "></polyline>
+<polyline clip-path="url(#clip692)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:2; stroke-opacity:0.1; fill:none" points="151.747,925.327 2640.76,925.327 "></polyline>
+<polyline clip-path="url(#clip692)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:2; stroke-opacity:0.1; fill:none" points="151.747,613.886 2640.76,613.886 "></polyline>
+<polyline clip-path="url(#clip692)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:2; stroke-opacity:0.1; fill:none" points="151.747,302.446 2640.76,302.446 "></polyline>
+<polyline clip-path="url(#clip690)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:4; stroke-opacity:1; fill:none" points="151.747,1800.78 2640.76,1800.78 "></polyline>
+<polyline clip-path="url(#clip690)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:4; stroke-opacity:1; fill:none" points="219.84,1800.78 219.84,1781.88 "></polyline>
+<polyline clip-path="url(#clip690)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:4; stroke-opacity:1; fill:none" points="807.458,1800.78 807.458,1781.88 "></polyline>
+<polyline clip-path="url(#clip690)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:4; stroke-opacity:1; fill:none" points="1395.08,1800.78 1395.08,1781.88 "></polyline>
+<polyline clip-path="url(#clip690)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:4; stroke-opacity:1; fill:none" points="1982.69,1800.78 1982.69,1781.88 "></polyline>
+<polyline clip-path="url(#clip690)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:4; stroke-opacity:1; fill:none" points="2570.31,1800.78 2570.31,1781.88 "></polyline>
+<path clip-path="url(#clip690)" d="M219.84 1834 Q216.229 1834 214.4 1837.57 Q212.595 1841.11 212.595 1848.24 Q212.595 1855.34 214.4 1858.91 Q216.229 1862.45 219.84 1862.45 Q223.474 1862.45 225.28 1858.91 Q227.108 1855.34 227.108 1848.24 Q227.108 1841.11 225.28 1837.57 Q223.474 1834 219.84 1834 M219.84 1830.3 Q225.65 1830.3 228.706 1834.9 Q231.784 1839.49 231.784 1848.24 Q231.784 1856.96 228.706 1861.57 Q225.65 1866.15 219.84 1866.15 Q214.03 1866.15 210.951 1861.57 Q207.896 1856.96 207.896 1848.24 Q207.896 1839.49 210.951 1834.9 Q214.03 1830.3 219.84 1830.3 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M771.15 1861.55 L787.47 1861.55 L787.47 1865.48 L765.525 1865.48 L765.525 1861.55 Q768.187 1858.79 772.771 1854.16 Q777.377 1849.51 778.558 1848.17 Q780.803 1845.65 781.683 1843.91 Q782.585 1842.15 782.585 1840.46 Q782.585 1837.71 780.641 1835.97 Q778.72 1834.23 775.618 1834.23 Q773.419 1834.23 770.965 1835 Q768.535 1835.76 765.757 1837.31 L765.757 1832.59 Q768.581 1831.46 771.035 1830.88 Q773.488 1830.3 775.525 1830.3 Q780.896 1830.3 784.09 1832.98 Q787.285 1835.67 787.285 1840.16 Q787.285 1842.29 786.474 1844.21 Q785.687 1846.11 783.581 1848.7 Q783.002 1849.37 779.9 1852.59 Q776.798 1855.78 771.15 1861.55 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M797.331 1830.92 L815.687 1830.92 L815.687 1834.86 L801.613 1834.86 L801.613 1843.33 Q802.632 1842.98 803.65 1842.82 Q804.669 1842.64 805.687 1842.64 Q811.474 1842.64 814.854 1845.81 Q818.233 1848.98 818.233 1854.4 Q818.233 1859.97 814.761 1863.08 Q811.289 1866.15 804.97 1866.15 Q802.794 1866.15 800.525 1865.78 Q798.28 1865.41 795.872 1864.67 L795.872 1859.97 Q797.956 1861.11 800.178 1861.66 Q802.4 1862.22 804.877 1862.22 Q808.882 1862.22 811.22 1860.11 Q813.558 1858.01 813.558 1854.4 Q813.558 1850.78 811.22 1848.68 Q808.882 1846.57 804.877 1846.57 Q803.002 1846.57 801.127 1846.99 Q799.275 1847.4 797.331 1848.28 L797.331 1830.92 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M837.446 1834 Q833.835 1834 832.007 1837.57 Q830.201 1841.11 830.201 1848.24 Q830.201 1855.34 832.007 1858.91 Q833.835 1862.45 837.446 1862.45 Q841.081 1862.45 842.886 1858.91 Q844.715 1855.34 844.715 1848.24 Q844.715 1841.11 842.886 1837.57 Q841.081 1834 837.446 1834 M837.446 1830.3 Q843.256 1830.3 846.312 1834.9 Q849.391 1839.49 849.391 1848.24 Q849.391 1856.96 846.312 1861.57 Q843.256 1866.15 837.446 1866.15 Q831.636 1866.15 828.557 1861.57 Q825.502 1856.96 825.502 1848.24 Q825.502 1839.49 828.557 1834.9 Q831.636 1830.3 837.446 1830.3 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M1354.69 1830.92 L1373.05 1830.92 L1373.05 1834.86 L1358.98 1834.86 L1358.98 1843.33 Q1360 1842.98 1361.01 1842.82 Q1362.03 1842.64 1363.05 1842.64 Q1368.84 1842.64 1372.22 1845.81 Q1375.6 1848.98 1375.6 1854.4 Q1375.6 1859.97 1372.12 1863.08 Q1368.65 1866.15 1362.33 1866.15 Q1360.16 1866.15 1357.89 1865.78 Q1355.64 1865.41 1353.24 1864.67 L1353.24 1859.97 Q1355.32 1861.11 1357.54 1861.66 Q1359.76 1862.22 1362.24 1862.22 Q1366.25 1862.22 1368.58 1860.11 Q1370.92 1858.01 1370.92 1854.4 Q1370.92 1850.78 1368.58 1848.68 Q1366.25 1846.57 1362.24 1846.57 Q1360.37 1846.57 1358.49 1846.99 Q1356.64 1847.4 1354.69 1848.28 L1354.69 1830.92 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M1394.81 1834 Q1391.2 1834 1389.37 1837.57 Q1387.56 1841.11 1387.56 1848.24 Q1387.56 1855.34 1389.37 1858.91 Q1391.2 1862.45 1394.81 1862.45 Q1398.44 1862.45 1400.25 1858.91 Q1402.08 1855.34 1402.08 1848.24 Q1402.08 1841.11 1400.25 1837.57 Q1398.44 1834 1394.81 1834 M1394.81 1830.3 Q1400.62 1830.3 1403.68 1834.9 Q1406.75 1839.49 1406.75 1848.24 Q1406.75 1856.96 1403.68 1861.57 Q1400.62 1866.15 1394.81 1866.15 Q1389 1866.15 1385.92 1861.57 Q1382.87 1856.96 1382.87 1848.24 Q1382.87 1839.49 1385.92 1834.9 Q1389 1830.3 1394.81 1830.3 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M1424.97 1834 Q1421.36 1834 1419.53 1837.57 Q1417.73 1841.11 1417.73 1848.24 Q1417.73 1855.34 1419.53 1858.91 Q1421.36 1862.45 1424.97 1862.45 Q1428.61 1862.45 1430.41 1858.91 Q1432.24 1855.34 1432.24 1848.24 Q1432.24 1841.11 1430.41 1837.57 Q1428.61 1834 1424.97 1834 M1424.97 1830.3 Q1430.78 1830.3 1433.84 1834.9 Q1436.92 1839.49 1436.92 1848.24 Q1436.92 1856.96 1433.84 1861.57 Q1430.78 1866.15 1424.97 1866.15 Q1419.16 1866.15 1416.08 1861.57 Q1413.03 1856.96 1413.03 1848.24 Q1413.03 1839.49 1416.08 1834.9 Q1419.16 1830.3 1424.97 1830.3 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M1940.97 1830.92 L1963.19 1830.92 L1963.19 1832.91 L1950.65 1865.48 L1945.76 1865.48 L1957.57 1834.86 L1940.97 1834.86 L1940.97 1830.92 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M1972.36 1830.92 L1990.71 1830.92 L1990.71 1834.86 L1976.64 1834.86 L1976.64 1843.33 Q1977.66 1842.98 1978.68 1842.82 Q1979.7 1842.64 1980.72 1842.64 Q1986.5 1842.64 1989.88 1845.81 Q1993.26 1848.98 1993.26 1854.4 Q1993.26 1859.97 1989.79 1863.08 Q1986.32 1866.15 1980 1866.15 Q1977.82 1866.15 1975.55 1865.78 Q1973.31 1865.41 1970.9 1864.67 L1970.9 1859.97 Q1972.98 1861.11 1975.21 1861.66 Q1977.43 1862.22 1979.9 1862.22 Q1983.91 1862.22 1986.25 1860.11 Q1988.59 1858.01 1988.59 1854.4 Q1988.59 1850.78 1986.25 1848.68 Q1983.91 1846.57 1979.9 1846.57 Q1978.03 1846.57 1976.15 1846.99 Q1974.3 1847.4 1972.36 1848.28 L1972.36 1830.92 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M2012.47 1834 Q2008.86 1834 2007.03 1837.57 Q2005.23 1841.11 2005.23 1848.24 Q2005.23 1855.34 2007.03 1858.91 Q2008.86 1862.45 2012.47 1862.45 Q2016.11 1862.45 2017.91 1858.91 Q2019.74 1855.34 2019.74 1848.24 Q2019.74 1841.11 2017.91 1837.57 Q2016.11 1834 2012.47 1834 M2012.47 1830.3 Q2018.28 1830.3 2021.34 1834.9 Q2024.42 1839.49 2024.42 1848.24 Q2024.42 1856.96 2021.34 1861.57 Q2018.28 1866.15 2012.47 1866.15 Q2006.66 1866.15 2003.59 1861.57 Q2000.53 1856.96 2000.53 1848.24 Q2000.53 1839.49 2003.59 1834.9 Q2006.66 1830.3 2012.47 1830.3 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M2514.84 1861.55 L2522.48 1861.55 L2522.48 1835.18 L2514.17 1836.85 L2514.17 1832.59 L2522.43 1830.92 L2527.11 1830.92 L2527.11 1861.55 L2534.75 1861.55 L2534.75 1865.48 L2514.84 1865.48 L2514.84 1861.55 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M2554.19 1834 Q2550.58 1834 2548.75 1837.57 Q2546.94 1841.11 2546.94 1848.24 Q2546.94 1855.34 2548.75 1858.91 Q2550.58 1862.45 2554.19 1862.45 Q2557.82 1862.45 2559.63 1858.91 Q2561.46 1855.34 2561.46 1848.24 Q2561.46 1841.11 2559.63 1837.57 Q2557.82 1834 2554.19 1834 M2554.19 1830.3 Q2560 1830.3 2563.06 1834.9 Q2566.13 1839.49 2566.13 1848.24 Q2566.13 1856.96 2563.06 1861.57 Q2560 1866.15 2554.19 1866.15 Q2548.38 1866.15 2545.3 1861.57 Q2542.25 1856.96 2542.25 1848.24 Q2542.25 1839.49 2545.3 1834.9 Q2548.38 1830.3 2554.19 1830.3 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M2584.35 1834 Q2580.74 1834 2578.91 1837.57 Q2577.11 1841.11 2577.11 1848.24 Q2577.11 1855.34 2578.91 1858.91 Q2580.74 1862.45 2584.35 1862.45 Q2587.99 1862.45 2589.79 1858.91 Q2591.62 1855.34 2591.62 1848.24 Q2591.62 1841.11 2589.79 1837.57 Q2587.99 1834 2584.35 1834 M2584.35 1830.3 Q2590.16 1830.3 2593.22 1834.9 Q2596.3 1839.49 2596.3 1848.24 Q2596.3 1856.96 2593.22 1861.57 Q2590.16 1866.15 2584.35 1866.15 Q2578.54 1866.15 2575.46 1861.57 Q2572.41 1856.96 2572.41 1848.24 Q2572.41 1839.49 2575.46 1834.9 Q2578.54 1830.3 2584.35 1830.3 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M2614.51 1834 Q2610.9 1834 2609.07 1837.57 Q2607.27 1841.11 2607.27 1848.24 Q2607.27 1855.34 2609.07 1858.91 Q2610.9 1862.45 2614.51 1862.45 Q2618.15 1862.45 2619.95 1858.91 Q2621.78 1855.34 2621.78 1848.24 Q2621.78 1841.11 2619.95 1837.57 Q2618.15 1834 2614.51 1834 M2614.51 1830.3 Q2620.32 1830.3 2623.38 1834.9 Q2626.46 1839.49 2626.46 1848.24 Q2626.46 1856.96 2623.38 1861.57 Q2620.32 1866.15 2614.51 1866.15 Q2608.7 1866.15 2605.62 1861.57 Q2602.57 1856.96 2602.57 1848.24 Q2602.57 1839.49 2605.62 1834.9 Q2608.7 1830.3 2614.51 1830.3 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><polyline clip-path="url(#clip690)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:4; stroke-opacity:1; fill:none" points="151.747,1800.78 151.747,47.2441 "></polyline>
+<polyline clip-path="url(#clip690)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:4; stroke-opacity:1; fill:none" points="151.747,1548.21 170.644,1548.21 "></polyline>
+<polyline clip-path="url(#clip690)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:4; stroke-opacity:1; fill:none" points="151.747,1236.77 170.644,1236.77 "></polyline>
+<polyline clip-path="url(#clip690)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:4; stroke-opacity:1; fill:none" points="151.747,925.327 170.644,925.327 "></polyline>
+<polyline clip-path="url(#clip690)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:4; stroke-opacity:1; fill:none" points="151.747,613.886 170.644,613.886 "></polyline>
+<polyline clip-path="url(#clip690)" style="stroke:#000000; stroke-linecap:round; stroke-linejoin:round; stroke-width:4; stroke-opacity:1; fill:none" points="151.747,302.446 170.644,302.446 "></polyline>
+<path clip-path="url(#clip690)" d="M49.5521 1548.66 L79.2279 1548.66 L79.2279 1552.6 L49.5521 1552.6 L49.5521 1548.66 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M99.8991 1546.35 Q96.7509 1546.35 94.8991 1548.5 Q93.0704 1550.65 93.0704 1554.4 Q93.0704 1558.13 94.8991 1560.3 Q96.7509 1562.46 99.8991 1562.46 Q103.047 1562.46 104.876 1560.3 Q106.728 1558.13 106.728 1554.4 Q106.728 1550.65 104.876 1548.5 Q103.047 1546.35 99.8991 1546.35 M109.181 1531.69 L109.181 1535.95 Q107.422 1535.12 105.617 1534.68 Q103.834 1534.24 102.075 1534.24 Q97.4454 1534.24 94.9917 1537.36 Q92.5612 1540.49 92.2139 1546.81 Q93.5797 1544.79 95.6398 1543.73 Q97.7 1542.64 100.177 1542.64 Q105.385 1542.64 108.394 1545.81 Q111.427 1548.96 111.427 1554.4 Q111.427 1559.72 108.279 1562.94 Q105.131 1566.16 99.8991 1566.16 Q93.9037 1566.16 90.7325 1561.58 Q87.5612 1556.97 87.5612 1548.24 Q87.5612 1540.05 91.45 1535.19 Q95.3389 1530.3 101.89 1530.3 Q103.649 1530.3 105.431 1530.65 Q107.237 1531 109.181 1531.69 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M50.3623 1237.22 L80.0381 1237.22 L80.0381 1241.15 L50.3623 1241.15 L50.3623 1237.22 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M104.297 1235.41 Q107.654 1236.13 109.529 1238.4 Q111.427 1240.67 111.427 1244 Q111.427 1249.12 107.908 1251.92 Q104.39 1254.72 97.9083 1254.72 Q95.7324 1254.72 93.4176 1254.28 Q91.126 1253.86 88.6723 1253.01 L88.6723 1248.49 Q90.6167 1249.63 92.9315 1250.21 Q95.2463 1250.78 97.7695 1250.78 Q102.168 1250.78 104.459 1249.05 Q106.774 1247.31 106.774 1244 Q106.774 1240.95 104.621 1239.23 Q102.492 1237.5 98.6722 1237.5 L94.6445 1237.5 L94.6445 1233.65 L98.8574 1233.65 Q102.306 1233.65 104.135 1232.29 Q105.964 1230.9 105.964 1228.31 Q105.964 1225.65 104.066 1224.23 Q102.191 1222.8 98.6722 1222.8 Q96.7509 1222.8 94.5519 1223.21 Q92.3528 1223.63 89.7139 1224.51 L89.7139 1220.34 Q92.376 1219.6 94.6908 1219.23 Q97.0287 1218.86 99.0889 1218.86 Q104.413 1218.86 107.515 1221.29 Q110.617 1223.7 110.617 1227.82 Q110.617 1230.69 108.973 1232.68 Q107.33 1234.65 104.297 1235.41 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M99.4824 911.126 Q95.8713 911.126 94.0426 914.691 Q92.2371 918.232 92.2371 925.362 Q92.2371 932.468 94.0426 936.033 Q95.8713 939.575 99.4824 939.575 Q103.117 939.575 104.922 936.033 Q106.751 932.468 106.751 925.362 Q106.751 918.232 104.922 914.691 Q103.117 911.126 99.4824 911.126 M99.4824 907.422 Q105.293 907.422 108.348 912.029 Q111.427 916.612 111.427 925.362 Q111.427 934.089 108.348 938.695 Q105.293 943.278 99.4824 943.278 Q93.6723 943.278 90.5936 938.695 Q87.538 934.089 87.538 925.362 Q87.538 916.612 90.5936 912.029 Q93.6723 907.422 99.4824 907.422 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M104.297 612.532 Q107.654 613.25 109.529 615.518 Q111.427 617.787 111.427 621.12 Q111.427 626.236 107.908 629.037 Q104.39 631.838 97.9083 631.838 Q95.7324 631.838 93.4176 631.398 Q91.126 630.981 88.6723 630.125 L88.6723 625.611 Q90.6167 626.745 92.9315 627.324 Q95.2463 627.902 97.7695 627.902 Q102.168 627.902 104.459 626.166 Q106.774 624.43 106.774 621.12 Q106.774 618.065 104.621 616.352 Q102.492 614.615 98.6722 614.615 L94.6445 614.615 L94.6445 610.773 L98.8574 610.773 Q102.306 610.773 104.135 609.407 Q105.964 608.018 105.964 605.426 Q105.964 602.764 104.066 601.352 Q102.191 599.916 98.6722 599.916 Q96.7509 599.916 94.5519 600.333 Q92.3528 600.75 89.7139 601.629 L89.7139 597.463 Q92.376 596.722 94.6908 596.352 Q97.0287 595.981 99.0889 595.981 Q104.413 595.981 107.515 598.412 Q110.617 600.819 110.617 604.94 Q110.617 607.81 108.973 609.801 Q107.33 611.768 104.297 612.532 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><path clip-path="url(#clip690)" d="M99.8991 300.582 Q96.7509 300.582 94.8991 302.735 Q93.0704 304.888 93.0704 308.638 Q93.0704 312.364 94.8991 314.54 Q96.7509 316.693 99.8991 316.693 Q103.047 316.693 104.876 314.54 Q106.728 312.364 106.728 308.638 Q106.728 304.888 104.876 302.735 Q103.047 300.582 99.8991 300.582 M109.181 285.929 L109.181 290.189 Q107.422 289.355 105.617 288.916 Q103.834 288.476 102.075 288.476 Q97.4454 288.476 94.9917 291.601 Q92.5612 294.726 92.2139 301.045 Q93.5797 299.031 95.6398 297.966 Q97.7 296.878 100.177 296.878 Q105.385 296.878 108.394 300.05 Q111.427 303.198 111.427 308.638 Q111.427 313.962 108.279 317.179 Q105.131 320.397 99.8991 320.397 Q93.9037 320.397 90.7325 315.814 Q87.5612 311.207 87.5612 302.48 Q87.5612 294.286 91.45 289.425 Q95.3389 284.541 101.89 284.541 Q103.649 284.541 105.431 284.888 Q107.237 285.235 109.181 285.929 Z" fill="#000000" fill-rule="nonzero" fill-opacity="1"></path><polyline clip-path="url(#clip692)" style="stroke:#009af9; stroke-linecap:round; stroke-linejoin:round; stroke-width:4; stroke-opacity:0.5; fill:none" points="222.19,1097.39 224.541,1677.55 226.891,1284.17 229.242,1367.82 231.592,1317.7 233.943,1442.11 236.293,1449.3 238.644,1590.11 240.994,1644.14 243.345,1413.13 245.695,1399.63 248.046,1276.42 250.396,1381.53 252.747,1567.86 255.097,1483.11 257.448,1471.06 259.798,1356.83 262.148,1415.56 264.499,1371.69 266.849,1335.03 269.2,1398.61 271.55,1377.51 273.901,1413.23 276.251,1317.67 278.602,1491.7 280.952,1507.41 283.303,1315.45 285.653,1506.47 288.004,1388.29 290.354,1407.25 292.705,1352.53 295.055,1748.33 297.406,1324.5 299.756,1417.3 302.107,1494.38 304.457,1522.08 306.807,1633.09 309.158,1478.02 311.508,1405.59 313.859,1238.92 316.209,1605.01 318.56,1527.94 320.91,1463.79 323.261,1595.06 325.611,1485.92 327.962,1566.95 330.312,1564.31 332.663,1353.23 335.013,1521.18 337.364,1629.74 339.714,1292.15 342.065,1601.17 344.415,1414.75 346.765,1525.42 349.116,1352.21 351.466,1411.32 353.817,1599.93 356.167,1284.87 358.518,1594.34 360.868,1467.26 363.219,1348.44 365.569,1584.94 367.92,1290.78 370.27,1651.1 372.621,1329.98 374.971,1520.33 377.322,1322.82 379.672,1506.58 382.023,1545.72 384.373,1591.28 386.724,1468.9 389.074,1485.14 391.424,1325.91 393.775,1499.71 396.125,1118.1 398.476,1515.21 400.826,1486.09 403.177,1543.19 405.527,1322.81 407.878,1454.71 410.228,1339.65 412.579,1608.54 414.929,1415.26 417.28,1441.95 419.63,1606.29 421.981,1343.56 424.331,1404.78 426.682,1448.91 429.032,1433.33 431.382,1479.84 433.733,1312.99 436.083,1538.06 438.434,1411.4 440.784,1417.87 443.135,1451.2 445.485,1529.58 447.836,1516.96 450.186,1396.51 452.537,1493.4 454.887,1444.38 457.238,1430.18 459.588,1479.19 461.939,1376.84 464.289,1282.76 466.64,1509.43 468.99,1401.04 471.341,1456.19 473.691,1522.08 476.041,1431.98 478.392,1445.5 480.742,1693.67 483.093,1499.03 485.443,1334.49 487.794,1593.96 490.144,1392.6 492.495,1541 494.845,1304.75 497.196,1535.43 499.546,1482.48 501.897,1486.77 504.247,1444.54 506.598,1469.76 508.948,1602.2 511.299,1589.45 513.649,1621 515.999,1449.82 518.35,1384.89 520.7,1529.85 523.051,1359.83 525.401,1358.3 527.752,1426.95 530.102,1417.11 532.453,1314.82 534.803,1407.43 537.154,1311.87 539.504,1320.46 541.855,1535.1 544.205,1530.4 546.556,1539.28 548.906,1375.54 551.257,1514.02 553.607,1436 555.958,1506.12 558.308,1289.1 560.658,1358.95 563.009,1486.41 565.359,1440.8 567.71,1298.77 570.06,1484.39 572.411,1365.16 574.761,1474.17 577.112,1529.48 579.462,1449.46 581.813,1464.47 584.163,1350.13 586.514,1411.13 588.864,1278.37 591.215,1383.07 593.565,1400.33 595.916,1548.94 598.266,1401.36 600.616,1238.48 602.967,1625.28 605.317,1373.56 607.668,1365.36 610.018,1513.57 612.369,1342.05 614.719,1318.11 617.07,1358.91 619.42,1523.59 621.771,1429.34 624.121,1316.85 626.472,1307.2 628.822,1505.43 631.173,1307.86 633.523,1596.92 635.874,1512.39 638.224,1295.51 640.575,1456.24 642.925,1694.94 645.275,1473.59 647.626,1451.61 649.976,1327.96 652.327,1527.98 654.677,1573.44 657.028,1378.83 659.378,1444.6 661.729,1448.5 664.079,1565.77 666.43,1235.51 668.78,1421.35 671.131,1523.08 673.481,1175.41 675.832,1471.38 678.182,1491.15 680.533,1227.36 682.883,1536.27 685.233,1478.28 687.584,1473.08 689.934,1414.16 692.285,1467.84 694.635,1426.97 696.986,1485.5 699.336,1438.34 701.687,1437.92 704.037,1340.82 706.388,1318.16 708.738,1416.96 711.089,1344.31 713.439,1429.84 715.79,1467.22 718.14,1507.49 720.491,1365.21 722.841,1342.52 725.192,1419.14 727.542,1477.59 729.892,1511.49 732.243,1230.56 734.593,1613.86 736.944,1337.4 739.294,1483.79 741.645,1447.3 743.995,1325.31 746.346,1477.22 748.696,1361.76 751.047,1505.59 753.397,1411.18 755.748,1379.19 758.098,1432.39 760.449,1243.83 762.799,1491.02 765.15,1411.83 767.5,1229.1 769.85,1447.36 772.201,1485.91 774.551,1572.96 776.902,1331.36 779.252,1682.38 781.603,1542.2 783.953,1491.22 786.304,1408.62 788.654,1647.84 791.005,1445.69 793.355,1415.63 795.706,1532.4 798.056,1577.18 800.407,1621.73 802.757,1447.75 805.108,1396.54 807.458,1430.56 809.809,1489.99 812.159,1412.31 814.509,1386.96 816.86,1590.64 819.21,1293.33 821.561,1422.37 823.911,1474.78 826.262,1351.14 828.612,1421.61 830.963,1381.67 833.313,1529.27 835.664,1364.12 838.014,1525.27 840.365,1291.78 842.715,1160.98 845.066,1375.01 847.416,1540.39 849.767,1336.2 852.117,1429.31 854.467,1468.88 856.818,1441.17 859.168,1468.61 861.519,1306.49 863.869,1512.64 866.22,1428.8 868.57,1542.27 870.921,1497.33 873.271,1588.87 875.622,1255.51 877.972,1375.64 880.323,1501.8 882.673,1549.67 885.024,1460.26 887.374,1751.15 889.725,1506.09 892.075,1349.7 894.426,1537.69 896.776,1546.09 899.126,1571.85 901.477,1340.39 903.827,1623.16 906.178,1332.42 908.528,1119.06 910.879,1473.79 913.229,1254.69 915.58,1404.02 917.93,1241.63 920.281,1590.44 922.631,1571.6 924.982,1435.5 927.332,1475.3 929.683,1466.96 932.033,1420.09 934.384,1303.83 936.734,1501.99 939.084,1411.71 941.435,1502.42 943.785,1535.6 946.136,1440.43 948.486,1501.71 950.837,1344.51 953.187,1307.94 955.538,1503.49 957.888,1372.33 960.239,1462.45 962.589,1506.89 964.94,1540.59 967.29,1324.32 969.641,1496.63 971.991,1464.61 974.342,1377.64 976.692,1336.5 979.043,1551.63 981.393,1520.33 983.743,1483.78 986.094,1451.83 988.444,1408.49 990.795,1505.02 993.145,1552.04 995.496,1513.51 997.846,1581.16 1000.2,1299.03 1002.55,1420.51 1004.9,1391.8 1007.25,1488.52 1009.6,1452.71 1011.95,1292.49 1014.3,1440.32 1016.65,1330.65 1019,1241.94 1021.35,1517.84 1023.7,1359.06 1026.05,1317.29 1028.4,1356.18 1030.75,1361.72 1033.1,1448.51 1035.45,1469.95 1037.8,1370.23 1040.15,1504.6 1042.51,1450.54 1044.86,1365.19 1047.21,1357.27 1049.56,1421.61 1051.91,1505.14 1054.26,1638 1056.61,1314.33 1058.96,1536.13 1061.31,1501.6 1063.66,1655.61 1066.01,1339.05 1068.36,1629.17 1070.71,1364.9 1073.06,1534.1 1075.41,1502.48 1077.76,1396.84 1080.11,1656.92 1082.46,1255.86 1084.81,1487.28 1087.16,1350.23 1089.51,1432.09 1091.87,1411.86 1094.22,1511.94 1096.57,1325.93 1098.92,1318.11 1101.27,1450.61 1103.62,1575.59 1105.97,1201.37 1108.32,1140.48 1110.67,1443.5 1113.02,1411.12 1115.37,1610.49 1117.72,1360.47 1120.07,1493.9 1122.42,1325.07 1124.77,1483.29 1127.12,1273.37 1129.47,1461.27 1131.82,1533.81 1134.17,1389.29 1136.52,1529.16 1138.87,1316.73 1141.23,1500.21 1143.58,1631.12 1145.93,1530.19 1148.28,1485.65 1150.63,1463.62 1152.98,1429.67 1155.33,1369.58 1157.68,1491.82 1160.03,1481.66 1162.38,1403.53 1164.73,1492.49 1167.08,1505.16 1169.43,1394.86 1171.78,1384.14 1174.13,1398.03 1176.48,1598.97 1178.83,1304.6 1181.18,1515.55 1183.53,1543.19 1185.88,1345.87 1188.23,1325.54 1190.59,1127.7 1192.94,1579.31 1195.29,1453.42 1197.64,1388.3 1199.99,1599.4 1202.34,1550.64 1204.69,1376.17 1207.04,1307.55 1209.39,1413.69 1211.74,1433.53 1214.09,1451.44 1216.44,1458.13 1218.79,1354.33 1221.14,1324.56 1223.49,1348.59 1225.84,1637.58 1228.19,1369.32 1230.54,1592.24 1232.89,1454.18 1235.24,1297.17 1237.59,1523.48 1239.94,1267.23 1242.3,1391.33 1244.65,1445.35 1247,1359.05 1249.35,1396.09 1251.7,1246.53 1254.05,1627.02 1256.4,1372.84 1258.75,1561.2 1261.1,1397.65 1263.45,1449.54 1265.8,1534.69 1268.15,1312.73 1270.5,1365.95 1272.85,1480.1 1275.2,1466.45 1277.55,1338.23 1279.9,1547.45 1282.25,1646.97 1284.6,1339.26 1286.95,1343.16 1289.3,1446.24 1291.66,1405.39 1294.01,1477.55 1296.36,1551.69 1298.71,1385.98 1301.06,1467.14 1303.41,1510.37 1305.76,1525.11 1308.11,1446.88 1310.46,1277.35 1312.81,1355.43 1315.16,1584.88 1317.51,1587.81 1319.86,1429.21 1322.21,1491.53 1324.56,1582.81 1326.91,1396.21 1329.26,1388.9 1331.61,1395.69 1333.96,1390.74 1336.31,1463.74 1338.66,1382.96 1341.02,1597.85 1343.37,1326.35 1345.72,1494.01 1348.07,1498.9 1350.42,1460.17 1352.77,1585.28 1355.12,1415.24 1357.47,1490.66 1359.82,1506.11 1362.17,1430.67 1364.52,1566.08 1366.87,1343.34 1369.22,1527.42 1371.57,1461.42 1373.92,1491.31 1376.27,1382.03 1378.62,1421.73 1380.97,1319.4 1383.32,1471.08 1385.67,1427.97 1388.02,1295.04 1390.38,1573.31 1392.73,1286.82 1395.08,1460.85 1397.43,1521.3 1399.78,1344.9 1402.13,1448.27 1404.48,1496.42 1406.83,1635.5 1409.18,1369.94 1411.53,1448.03 1413.88,1437.48 1416.23,1407.52 1418.58,1343.59 1420.93,1483.69 1423.28,1719.77 1425.63,1285.36 1427.98,1645.14 1430.33,1458.78 1432.68,1543.09 1435.03,1506.6 1437.38,1412.58 1439.74,1417.82 1442.09,1312.36 1444.44,1410.01 1446.79,1619.6 1449.14,1317.35 1451.49,1429.03 1453.84,1523.82 1456.19,1547.66 1458.54,1299.17 1460.89,1416.31 1463.24,1353.98 1465.59,1465.21 1467.94,1340.17 1470.29,1353.36 1472.64,1542.09 1474.99,1391.41 1477.34,1396.4 1479.69,1403.96 1482.04,1292.86 1484.39,1392.41 1486.74,1541.87 1489.1,1374.7 1491.45,1648.52 1493.8,1341.63 1496.15,1479.1 1498.5,1529.58 1500.85,1247.86 1503.2,1212.69 1505.55,1641.62 1507.9,1468.26 1510.25,1309.82 1512.6,1452.41 1514.95,1266.42 1517.3,1486.1 1519.65,1690.97 1522,1311.72 1524.35,1416.48 1526.7,1504.53 1529.05,1374.93 1531.4,1529 1533.75,1365.29 1536.1,1555.06 1538.45,1473.13 1540.81,1515.9 1543.16,1486.47 1545.51,1303.17 1547.86,1463.15 1550.21,1329.76 1552.56,1426.07 1554.91,1496.8 1557.26,1425.25 1559.61,1682.19 1561.96,1458.37 1564.31,1472.32 1566.66,1324.52 1569.01,1438.27 1571.36,1394.04 1573.71,1335.85 1576.06,1484.16 1578.41,1494.98 1580.76,1376.64 1583.11,1524.85 1585.46,1578.58 1587.81,1406.26 1590.17,1421.01 1592.52,1441.48 1594.87,1581.99 1597.22,1453.7 1599.57,1386.15 1601.92,1439.19 1604.27,1512.39 1606.62,1457.88 1608.97,1347.94 1611.32,1489.8 1613.67,1486.74 1616.02,1536.52 1618.37,1526.18 1620.72,1550.26 1623.07,1497 1625.42,1500.44 1627.77,1400.83 1630.12,1292.43 1632.47,1437.46 1634.82,1380.55 1637.17,1426.53 1639.53,1340.65 1641.88,1458.51 1644.23,1335.83 1646.58,1583.66 1648.93,1402.74 1651.28,1368.27 1653.63,1543.32 1655.98,1299.24 1658.33,1331.63 1660.68,1323.05 1663.03,1444.74 1665.38,1538.01 1667.73,1268.03 1670.08,1517.46 1672.43,1245.47 1674.78,1319.24 1677.13,1269.1 1679.48,1397.37 1681.83,1499.44 1684.18,1528.52 1686.53,1396.65 1688.89,1484.61 1691.24,1490.35 1693.59,1435.02 1695.94,1300.39 1698.29,1511.51 1700.64,1433.23 1702.99,1383.95 1705.34,1473.7 1707.69,1477.08 1710.04,1477.53 1712.39,1505.09 1714.74,1413.17 1717.09,1434.42 1719.44,1412.61 1721.79,1395.62 1724.14,1391.95 1726.49,1514.29 1728.84,1393.56 1731.19,1374.68 1733.54,1293.08 1735.89,1670.9 1738.25,1395.42 1740.6,1177.27 1742.95,1321.03 1745.3,1487.02 1747.65,1467.98 1750,1539.43 1752.35,1510.4 1754.7,1444.6 1757.05,1381.24 1759.4,1576.92 1761.75,1535.44 1764.1,1207.92 1766.45,1495.92 1768.8,1523.55 1771.15,1364.01 1773.5,1463.13 1775.85,1326.59 1778.2,1405.62 1780.55,1395.67 1782.9,1621.22 1785.25,1467.94 1787.6,1426.77 1789.96,1329.09 1792.31,1481.73 1794.66,1358.21 1797.01,1333.87 1799.36,1576.24 1801.71,1386.49 1804.06,1438.8 1806.41,1328.17 1808.76,1388.05 1811.11,1490.14 1813.46,1381.21 1815.81,1406.19 1818.16,1219.85 1820.51,1441.4 1822.86,1329.69 1825.21,1537.45 1827.56,1325.73 1829.91,1573.71 1832.26,1368.8 1834.61,1318.33 1836.96,1677.16 1839.32,1341.28 1841.67,1443.03 1844.02,1391.48 1846.37,1517.49 1848.72,1388.98 1851.07,1447.06 1853.42,1260.52 1855.77,1293.72 1858.12,1359.53 1860.47,1461.54 1862.82,1667.88 1865.17,1398.22 1867.52,1571.13 1869.87,1571.93 1872.22,1476.98 1874.57,1394.34 1876.92,1461.95 1879.27,1305.33 1881.62,1514.27 1883.97,1552 1886.32,1321.05 1888.68,1388.7 1891.03,1538.79 1893.38,1513.39 1895.73,1512.74 1898.08,1354.92 1900.43,1344.57 1902.78,1501.35 1905.13,1645.29 1907.48,1479.11 1909.83,1365.53 1912.18,1317.48 1914.53,1613.13 1916.88,1515.94 1919.23,1542.24 1921.58,1453.19 1923.93,1422.85 1926.28,1310.9 1928.63,1609.27 1930.98,1211.28 1933.33,1502.77 1935.68,1411.92 1938.04,1520.14 1940.39,1259.8 1942.74,1426.21 1945.09,1624.48 1947.44,1342.93 1949.79,1546.84 1952.14,1266.96 1954.49,1526.23 1956.84,1348.11 1959.19,1511.84 1961.54,1361.26 1963.89,1673.14 1966.24,1385.28 1968.59,1524.29 1970.94,1528.8 1973.29,1485.98 1975.64,1334.69 1977.99,1455.76 1980.34,1424.52 1982.69,1301.46 1985.04,1516.32 1987.4,1551.38 1989.75,1459.22 1992.1,1558.84 1994.45,1484.64 1996.8,1403.61 1999.15,1416.86 2001.5,1327.27 2003.85,1414.24 2006.2,1341.33 2008.55,1461.76 2010.9,1406.9 2013.25,1303.88 2015.6,1404.57 2017.95,1442.17 2020.3,1260.35 2022.65,1562.74 2025,1276.13 2027.35,1455.7 2029.7,1514.08 2032.05,1469.72 2034.4,1418.94 2036.76,1404.63 2039.11,1441.98 2041.46,1534.94 2043.81,1412.73 2046.16,1408.47 2048.51,1316.74 2050.86,1336.95 2053.21,1338.04 2055.56,1290.47 2057.91,1288.73 2060.26,1335.11 2062.61,1527.57 2064.96,1405.77 2067.31,1300.22 2069.66,1432.37 2072.01,1426.56 2074.36,1594.74 2076.71,1286.65 2079.06,1678.35 2081.41,1435.23 2083.76,1312.6 2086.11,1345.34 2088.47,1265.9 2090.82,1522.32 2093.17,1706.95 2095.52,1594.07 2097.87,1506.08 2100.22,1424.59 2102.57,1319.31 2104.92,1503.48 2107.27,1458.74 2109.62,1631.4 2111.97,1489.68 2114.32,1363.46 2116.67,1300.83 2119.02,1527.93 2121.37,1486.58 2123.72,1277.61 2126.07,1516.8 2128.42,1678.47 2130.77,1468.63 2133.12,1499.71 2135.47,1302.7 2137.83,1460.17 2140.18,1450.54 2142.53,1309.24 2144.88,1676.16 2147.23,1327.85 2149.58,1338.05 2151.93,1305.64 2154.28,1328.65 2156.63,1537.06 2158.98,1478.64 2161.33,1630.27 2163.68,1462.66 2166.03,1435.68 2168.38,1428.49 2170.73,1319.65 2173.08,1441.49 2175.43,1399.72 2177.78,1297.93 2180.13,1379.43 2182.48,1574.98 2184.83,1397.91 2187.19,1551.54 2189.54,1428.75 2191.89,1417.79 2194.24,1464.97 2196.59,1480.87 2198.94,1400.53 2201.29,1323.15 2203.64,1413.06 2205.99,1569.1 2208.34,1373.1 2210.69,1613.44 2213.04,1621.1 2215.39,1458.17 2217.74,1519.1 2220.09,1526.63 2222.44,1411.44 2224.79,1540.88 2227.14,1503.4 2229.49,1364.59 2231.84,1448.67 2234.19,1394.05 2236.55,1492.14 2238.9,1606.38 2241.25,1621.12 2243.6,1367.48 2245.95,1573.21 2248.3,1451.42 2250.65,1279.36 2253,1612 2255.35,1318.65 2257.7,1512.88 2260.05,1632.7 2262.4,1579.43 2264.75,1291.9 2267.1,1415.76 2269.45,1719.28 2271.8,1594.84 2274.15,1450.46 2276.5,1332.21 2278.85,1582.25 2281.2,1468.18 2283.55,1406.29 2285.91,1269.26 2288.26,1348.76 2290.61,1502.73 2292.96,1403.08 2295.31,1621.75 2297.66,1530.03 2300.01,1434.39 2302.36,1443.8 2304.71,1385.04 2307.06,1285.37 2309.41,1393.1 2311.76,1498.02 2314.11,1582.97 2316.46,1693.9 2318.81,1480.44 2321.16,1586.76 2323.51,1419.85 2325.86,1403.55 2328.21,1345.86 2330.56,1374.48 2332.91,1385.11 2335.27,1534.64 2337.62,1361.83 2339.97,1412.61 2342.32,1519.68 2344.67,1472.29 2347.02,1377.85 2349.37,1643.87 2351.72,1359.45 2354.07,1478.03 2356.42,1452.72 2358.77,1264.25 2361.12,1434.6 2363.47,1450.63 2365.82,1242.5 2368.17,1472.29 2370.52,1384.35 2372.87,1427.18 2375.22,1363.94 2377.57,1469.37 2379.92,1495.7 2382.27,1469.77 2384.62,1310.17 2386.98,1362.04 2389.33,1531.11 2391.68,1528.54 2394.03,1721.93 2396.38,1361.24 2398.73,1388.17 2401.08,1257.55 2403.43,1494.07 2405.78,1350.28 2408.13,1449.02 2410.48,1515.85 2412.83,1448.53 2415.18,1478.85 2417.53,1270.82 2419.88,1471.8 2422.23,1673.33 2424.58,1398.07 2426.93,1496.82 2429.28,1468.54 2431.63,1578.15 2433.98,1463.16 2436.34,1424.98 2438.69,1379.58 2441.04,1329.72 2443.39,1543.34 2445.74,1400.7 2448.09,1447.37 2450.44,1542.1 2452.79,1491.84 2455.14,1387.45 2457.49,1539.18 2459.84,1422.09 2462.19,1430.07 2464.54,1348.03 2466.89,1577.79 2469.24,1431.53 2471.59,1430 2473.94,1256.93 2476.29,1344.79 2478.64,1300.12 2480.99,1318.92 2483.34,1455.12 2485.7,1625.29 2488.05,1435.13 2490.4,1478.36 2492.75,1448.02 2495.1,1512.13 2497.45,1417.5 2499.8,1366.55 2502.15,1352.78 2504.5,1345.57 2506.85,1448.5 2509.2,1545.62 2511.55,1286.93 2513.9,1449.66 2516.25,1526.23 2518.6,1496.12 2520.95,1382.94 2523.3,1372.93 2525.65,1575.09 2528,1567.44 2530.35,1370.33 2532.7,1573.15 2535.06,1344.63 2537.41,1415.89 2539.76,1427.6 2542.11,1316.02 2544.46,1477.97 2546.81,1290.08 2549.16,1605.82 2551.51,1404.78 2553.86,1483.25 2556.21,1478.85 2558.56,1660.54 2560.91,1706.64 2563.26,1270.43 2565.61,1509 2567.96,1536.05 2570.31,1341.71 "></polyline>
+<polyline clip-path="url(#clip692)" style="stroke:#e26f46; stroke-linecap:round; stroke-linejoin:round; stroke-width:4; stroke-opacity:0.5; fill:none" points="222.19,975.747 224.541,979.988 226.891,810.845 229.242,965.359 231.592,873.19 233.943,939.358 236.293,772.498 238.644,725.09 240.994,982.909 243.345,860.798 245.695,945.546 248.046,965.477 250.396,853.531 252.747,871.472 255.097,937.37 257.448,868.783 259.798,732.243 262.148,1089.94 264.499,827.499 266.849,885.364 269.2,802.625 271.55,1020.12 273.901,751.503 276.251,939.335 278.602,980.494 280.952,983.914 283.303,764.923 285.653,914.666 288.004,1135.26 290.354,1061.28 292.705,952.271 295.055,893.949 297.406,973.929 299.756,1027.55 302.107,883.862 304.457,913.703 306.807,871.077 309.158,916.166 311.508,892.632 313.859,962.247 316.209,1169.06 318.56,1038.42 320.91,852.407 323.261,715.26 325.611,744.304 327.962,847.137 330.312,747.688 332.663,968.069 335.013,892.315 337.364,810.709 339.714,1035.06 342.065,840.428 344.415,1070.36 346.765,799.058 349.116,888.97 351.466,1062.76 353.817,886.267 356.167,895.199 358.518,905.669 360.868,1003.77 363.219,1080.92 365.569,1143.94 367.92,977.795 370.27,988.024 372.621,843.472 374.971,823.139 377.322,862.574 379.672,918.163 382.023,1096.49 384.373,830.329 386.724,882.255 389.074,954.555 391.424,928.277 393.775,923.878 396.125,952.966 398.476,1025.35 400.826,954.796 403.177,911.462 405.527,1000.53 407.878,773.378 410.228,865.2 412.579,967.641 414.929,887.785 417.28,967.71 419.63,1056.7 421.981,778.086 424.331,748.914 426.682,765.596 429.032,886.36 431.382,806.664 433.733,846.557 436.083,1174.69 438.434,907.687 440.784,951.396 443.135,958.827 445.485,1132.67 447.836,984.694 450.186,985.176 452.537,915.355 454.887,1031.47 457.238,1163.2 459.588,931.671 461.939,934.869 464.289,966.627 466.64,967.538 468.99,816.597 471.341,876.664 473.691,930.531 476.041,1070.21 478.392,1039.94 480.742,865.662 483.093,1116.75 485.443,1017.39 487.794,1032.23 490.144,1021.64 492.495,922.432 494.845,1007.99 497.196,892.842 499.546,823.964 501.897,722.099 504.247,1007.08 506.598,1059.38 508.948,1049.31 511.299,858.497 513.649,1050.82 515.999,996.567 518.35,842.108 520.7,1007.13 523.051,956.698 525.401,927.166 527.752,912.975 530.102,833.57 532.453,895.787 534.803,980.653 537.154,1105.65 539.504,1025.92 541.855,753.573 544.205,869.843 546.556,1151.09 548.906,1088.13 551.257,998.26 553.607,967.629 555.958,824.683 558.308,993.954 560.658,852.413 563.009,947.365 565.359,914.601 567.71,897.772 570.06,1113.97 572.411,942.244 574.761,867.683 577.112,974.282 579.462,832.711 581.813,924.438 584.163,930.658 586.514,681.31 588.864,825.736 591.215,726.445 593.565,980.071 595.916,962.681 598.266,893.424 600.616,865.93 602.967,872.869 605.317,1051.14 607.668,1090.85 610.018,1015.61 612.369,983.046 614.719,762.864 617.07,865.184 619.42,1112.43 621.771,1008.54 624.121,998.411 626.472,822.676 628.822,997.744 631.173,1082.6 633.523,1150.59 635.874,885.329 638.224,955.003 640.575,890.806 642.925,891.632 645.275,964.531 647.626,798.173 649.976,845.696 652.327,1048.13 654.677,904.047 657.028,1008.18 659.378,866.204 661.729,1114.27 664.079,960.712 666.43,852.98 668.78,844.409 671.131,841.353 673.481,915.361 675.832,985.186 678.182,842.877 680.533,993.623 682.883,908.168 685.233,1110.61 687.584,938.459 689.934,1124.08 692.285,933.124 694.635,811.789 696.986,1064.58 699.336,1065.76 701.687,1000.63 704.037,881.122 706.388,881.961 708.738,635.876 711.089,977.595 713.439,1042.39 715.79,786.596 718.14,975.545 720.491,1109.73 722.841,876.572 725.192,1041.16 727.542,883.058 729.892,1094.26 732.243,1111.94 734.593,960.257 736.944,1015.29 739.294,893.129 741.645,967.322 743.995,891.64 746.346,856.224 748.696,919.928 751.047,937.202 753.397,845.239 755.748,982.043 758.098,928.783 760.449,841.386 762.799,905.276 765.15,876.46 767.5,1113.74 769.85,949.796 772.201,994.775 774.551,830.501 776.902,996.388 779.252,973.241 781.603,776.372 783.953,901.863 786.304,1073.19 788.654,672.677 791.005,1035.48 793.355,1063.77 795.706,787.554 798.056,767.685 800.407,941.667 802.757,986.041 805.108,1005.12 807.458,897.958 809.809,978.615 812.159,980.048 814.509,977.102 816.86,1104.07 819.21,872.09 821.561,900.792 823.911,936.25 826.262,880.371 828.612,765.792 830.963,772.467 833.313,1013.22 835.664,754.978 838.014,831.096 840.365,999.113 842.715,1130.8 845.066,814.716 847.416,810.542 849.767,925.594 852.117,955.434 854.467,876.924 856.818,948.539 859.168,821.704 861.519,922.872 863.869,994.655 866.22,850.765 868.57,799.279 870.921,881.184 873.271,806.175 875.622,1104.5 877.972,995.429 880.323,1092.11 882.673,962.601 885.024,931.34 887.374,942.028 889.725,1037.1 892.075,875.885 894.426,926.23 896.776,690.092 899.126,862.238 901.477,942.153 903.827,926.383 906.178,1043.06 908.528,958.534 910.879,905.891 913.229,1005.8 915.58,944.379 917.93,796.811 920.281,919.961 922.631,901.573 924.982,796.38 927.332,874.533 929.683,829.598 932.033,1041.83 934.384,895.91 936.734,816.333 939.084,850.157 941.435,1042.2 943.785,944.997 946.136,785.964 948.486,920.145 950.837,954.158 953.187,1017.75 955.538,1030.22 957.888,943.112 960.239,947.004 962.589,842.987 964.94,883.726 967.29,946.093 969.641,960.889 971.991,1084.8 974.342,1019.85 976.692,1001.12 979.043,896.515 981.393,960.436 983.743,979.686 986.094,1043.67 988.444,845.341 990.795,774.527 993.145,929.813 995.496,1077.81 997.846,849.955 1000.2,1008.24 1002.55,964.508 1004.9,1018.75 1007.25,936.985 1009.6,953.893 1011.95,819.017 1014.3,776.045 1016.65,906.178 1019,790.353 1021.35,767.579 1023.7,948.91 1026.05,998.495 1028.4,875.679 1030.75,930.719 1033.1,1023.58 1035.45,863.643 1037.8,976.192 1040.15,850.747 1042.51,1154.34 1044.86,898.616 1047.21,718.793 1049.56,853.621 1051.91,973.473 1054.26,1051.17 1056.61,914.899 1058.96,994.75 1061.31,1086.64 1063.66,983.584 1066.01,929.076 1068.36,755.878 1070.71,1012.38 1073.06,1127.3 1075.41,903.532 1077.76,1022.25 1080.11,965.176 1082.46,1023.5 1084.81,716.546 1087.16,940.292 1089.51,1003.23 1091.87,973.888 1094.22,979.015 1096.57,989.324 1098.92,889.658 1101.27,1070.01 1103.62,901.687 1105.97,873.191 1108.32,914.318 1110.67,930.807 1113.02,806.578 1115.37,1104.84 1117.72,776.524 1120.07,880.164 1122.42,885.548 1124.77,893.108 1127.12,821.303 1129.47,940.274 1131.82,997.501 1134.17,853.732 1136.52,839.232 1138.87,761.373 1141.23,1131.99 1143.58,1096.95 1145.93,1032.9 1148.28,863.311 1150.63,850.234 1152.98,861.706 1155.33,824.983 1157.68,964.894 1160.03,950.642 1162.38,993.191 1164.73,707.415 1167.08,1084.24 1169.43,1003.47 1171.78,965.977 1174.13,869.333 1176.48,783.393 1178.83,1008.22 1181.18,961.819 1183.53,725.563 1185.88,775.717 1188.23,1054.21 1190.59,802.176 1192.94,1006.79 1195.29,1016.51 1197.64,873.041 1199.99,965.167 1202.34,718.468 1204.69,880.242 1207.04,816.093 1209.39,878.198 1211.74,845.42 1214.09,767.61 1216.44,983.281 1218.79,1109.89 1221.14,1052.21 1223.49,846.034 1225.84,964.613 1228.19,969.801 1230.54,780.296 1232.89,1067.25 1235.24,861.947 1237.59,827.892 1239.94,942.675 1242.3,914.244 1244.65,1089.26 1247,928.617 1249.35,927.89 1251.7,1026.83 1254.05,906.27 1256.4,809.972 1258.75,954.818 1261.1,937.727 1263.45,793.555 1265.8,853.228 1268.15,760.135 1270.5,807.202 1272.85,860.195 1275.2,886.142 1277.55,986.114 1279.9,1118.79 1282.25,972.396 1284.6,976.173 1286.95,874.678 1289.3,994.679 1291.66,1039.99 1294.01,940.108 1296.36,871.063 1298.71,854.103 1301.06,954.115 1303.41,874.736 1305.76,702.215 1308.11,1097.5 1310.46,961.401 1312.81,1059.03 1315.16,988.501 1317.51,1080.65 1319.86,895.777 1322.21,961.266 1324.56,872.482 1326.91,933.28 1329.26,1040.3 1331.61,1011.05 1333.96,1084.38 1336.31,932.021 1338.66,967.906 1341.02,857.648 1343.37,868.1 1345.72,897.784 1348.07,936.493 1350.42,930.073 1352.77,836.814 1355.12,837.908 1357.47,1066.29 1359.82,903.073 1362.17,729.208 1364.52,875.357 1366.87,784.717 1369.22,1089.81 1371.57,913.1 1373.92,906.543 1376.27,1026.88 1378.62,826.345 1380.97,868.773 1383.32,786.851 1385.67,943.661 1388.02,866.508 1390.38,936.752 1392.73,997.213 1395.08,763.436 1397.43,980.924 1399.78,704.188 1402.13,903.628 1404.48,916.959 1406.83,820.844 1409.18,923.182 1411.53,1001.32 1413.88,877.833 1416.23,921.196 1418.58,1133.39 1420.93,864.959 1423.28,1007.82 1425.63,939.767 1427.98,933.888 1430.33,915.235 1432.68,847.117 1435.03,999.057 1437.38,824.809 1439.74,892.78 1442.09,934.311 1444.44,814.098 1446.79,923.357 1449.14,904.185 1451.49,943.046 1453.84,855.869 1456.19,981.965 1458.54,991.947 1460.89,969.688 1463.24,1062.08 1465.59,956.133 1467.94,659.958 1470.29,1007.71 1472.64,752.422 1474.99,802.14 1477.34,920.846 1479.69,1087.01 1482.04,1001.87 1484.39,945.814 1486.74,881.237 1489.1,791.138 1491.45,949.042 1493.8,857.287 1496.15,978.504 1498.5,1154.57 1500.85,898.762 1503.2,896.066 1505.55,977.069 1507.9,1214.72 1510.25,910.45 1512.6,1164.43 1514.95,1070.6 1517.3,845.846 1519.65,882.468 1522,841.165 1524.35,977.313 1526.7,806.703 1529.05,945.125 1531.4,797.253 1533.75,834.796 1536.1,1096.32 1538.45,626.726 1540.81,952.433 1543.16,925.689 1545.51,973.052 1547.86,873.573 1550.21,675.733 1552.56,948.257 1554.91,1075.95 1557.26,921.208 1559.61,940.237 1561.96,1123.26 1564.31,892.547 1566.66,1008.41 1569.01,858.999 1571.36,844.521 1573.71,944.39 1576.06,992.023 1578.41,1006.48 1580.76,873.797 1583.11,1073.99 1585.46,907.34 1587.81,819.597 1590.17,888.168 1592.52,924.207 1594.87,923.672 1597.22,768.67 1599.57,1112.17 1601.92,992.352 1604.27,1041.48 1606.62,923.904 1608.97,848.393 1611.32,848.396 1613.67,949.535 1616.02,820.642 1618.37,1005.2 1620.72,882.088 1623.07,697.012 1625.42,800.556 1627.77,1074.85 1630.12,1061.03 1632.47,881.322 1634.82,940.316 1637.17,678.523 1639.53,1033.09 1641.88,835.445 1644.23,946.746 1646.58,816.164 1648.93,899.225 1651.28,823.031 1653.63,958.525 1655.98,896.639 1658.33,1017.22 1660.68,1050.17 1663.03,759.046 1665.38,898.767 1667.73,870.623 1670.08,1071.55 1672.43,1043.49 1674.78,1006.39 1677.13,1017.69 1679.48,832.204 1681.83,747.35 1684.18,901.555 1686.53,957.982 1688.89,790.66 1691.24,966.383 1693.59,1054.37 1695.94,1017.01 1698.29,1020.75 1700.64,765.584 1702.99,1065.43 1705.34,967.885 1707.69,976.897 1710.04,1051.85 1712.39,1075.2 1714.74,904.253 1717.09,960.523 1719.44,891.411 1721.79,840.702 1724.14,859.815 1726.49,932.835 1728.84,886.198 1731.19,1029.12 1733.54,880.519 1735.89,720.813 1738.25,947.875 1740.6,894.286 1742.95,895.142 1745.3,961.722 1747.65,1002.63 1750,973.533 1752.35,846.696 1754.7,829.98 1757.05,894.537 1759.4,1016.16 1761.75,936.06 1764.1,995.925 1766.45,860.728 1768.8,957.028 1771.15,970.083 1773.5,949.949 1775.85,859.671 1778.2,876.403 1780.55,996.81 1782.9,879.217 1785.25,920.917 1787.6,857.672 1789.96,796.13 1792.31,989.125 1794.66,894.938 1797.01,1151.54 1799.36,905.772 1801.71,888.873 1804.06,963.875 1806.41,863.187 1808.76,1046.29 1811.11,853.627 1813.46,795.127 1815.81,957.591 1818.16,880.361 1820.51,1041.75 1822.86,1061.69 1825.21,696.049 1827.56,896.328 1829.91,917.889 1832.26,844.537 1834.61,910.452 1836.96,986.127 1839.32,1053.55 1841.67,985.739 1844.02,898.363 1846.37,993.469 1848.72,1086.03 1851.07,844.123 1853.42,964.261 1855.77,1023.61 1858.12,806.855 1860.47,942.354 1862.82,830.582 1865.17,919.068 1867.52,1055.04 1869.87,1012.72 1872.22,1126.53 1874.57,984.467 1876.92,691.113 1879.27,925.858 1881.62,808.257 1883.97,988.163 1886.32,986.845 1888.68,923.248 1891.03,772.759 1893.38,953.602 1895.73,858.829 1898.08,948.654 1900.43,909.048 1902.78,1027.2 1905.13,987.548 1907.48,956.046 1909.83,884.425 1912.18,979.988 1914.53,887.814 1916.88,800.517 1919.23,878.492 1921.58,919.515 1923.93,964.157 1926.28,891.719 1928.63,730.099 1930.98,976.295 1933.33,901.928 1935.68,835.632 1938.04,872.749 1940.39,870.307 1942.74,919.911 1945.09,993.629 1947.44,1027.42 1949.79,970.039 1952.14,864.207 1954.49,974.685 1956.84,895.258 1959.19,968.493 1961.54,924.7 1963.89,894.512 1966.24,913.762 1968.59,912.673 1970.94,807.312 1973.29,772.274 1975.64,749.809 1977.99,1052.99 1980.34,640.615 1982.69,859.166 1985.04,964.636 1987.4,853.303 1989.75,1056.3 1992.1,1032.76 1994.45,800.658 1996.8,940.632 1999.15,848.673 2001.5,795.442 2003.85,969.528 2006.2,782.736 2008.55,775.576 2010.9,799.374 2013.25,944.335 2015.6,935.847 2017.95,764.529 2020.3,919.763 2022.65,934.428 2025,856.315 2027.35,915.459 2029.7,803.414 2032.05,1020.55 2034.4,764.19 2036.76,969.016 2039.11,926.18 2041.46,877.717 2043.81,971.195 2046.16,829.547 2048.51,1024.88 2050.86,1041.94 2053.21,746.265 2055.56,1045.88 2057.91,1059.96 2060.26,758.455 2062.61,817.894 2064.96,1086.84 2067.31,984.962 2069.66,919.084 2072.01,770.163 2074.36,890.191 2076.71,1060.11 2079.06,787.2 2081.41,851.566 2083.76,941.164 2086.11,1074.92 2088.47,1006.39 2090.82,877.244 2093.17,781.768 2095.52,922.148 2097.87,867.056 2100.22,901.104 2102.57,1025.69 2104.92,851.544 2107.27,851.823 2109.62,1011.7 2111.97,1092.6 2114.32,1044.53 2116.67,863.944 2119.02,855.193 2121.37,1035.74 2123.72,1023.08 2126.07,765.75 2128.42,866.487 2130.77,979.678 2133.12,844.064 2135.47,903.47 2137.83,930.406 2140.18,850.174 2142.53,873.537 2144.88,797 2147.23,879.267 2149.58,921.781 2151.93,867.444 2154.28,900.521 2156.63,905.499 2158.98,823.417 2161.33,1179.7 2163.68,901.41 2166.03,749.817 2168.38,877.541 2170.73,960.004 2173.08,977.857 2175.43,1182.25 2177.78,922.056 2180.13,926.796 2182.48,1026.39 2184.83,980.281 2187.19,1051.07 2189.54,1065.22 2191.89,945.108 2194.24,855.457 2196.59,964.856 2198.94,857.413 2201.29,1035.49 2203.64,950.552 2205.99,989.855 2208.34,969.215 2210.69,965.358 2213.04,926.91 2215.39,889.489 2217.74,822.707 2220.09,1027.44 2222.44,1019.71 2224.79,1046.94 2227.14,920.522 2229.49,895.264 2231.84,875.562 2234.19,803.194 2236.55,992.767 2238.9,1036.36 2241.25,970.324 2243.6,738.982 2245.95,1124.62 2248.3,768.287 2250.65,794.849 2253,781.692 2255.35,880.254 2257.7,1014.37 2260.05,1112.5 2262.4,1023.29 2264.75,886.8 2267.1,880.64 2269.45,883.142 2271.8,1118.67 2274.15,974.482 2276.5,1126.95 2278.85,1039.94 2281.2,875.564 2283.55,948.521 2285.91,965.167 2288.26,718.695 2290.61,761.016 2292.96,1039.39 2295.31,1065.38 2297.66,835.63 2300.01,863.709 2302.36,898.659 2304.71,945.676 2307.06,1030.88 2309.41,1027.38 2311.76,772.59 2314.11,1012.93 2316.46,1015.13 2318.81,880.827 2321.16,857.199 2323.51,898.602 2325.86,947.239 2328.21,825.916 2330.56,1008.19 2332.91,972.105 2335.27,910.694 2337.62,774.622 2339.97,724.745 2342.32,970.062 2344.67,899.12 2347.02,929.727 2349.37,1025.25 2351.72,940.294 2354.07,938.51 2356.42,804.223 2358.77,925.749 2361.12,746.836 2363.47,930.253 2365.82,872.809 2368.17,688.333 2370.52,829.796 2372.87,600.443 2375.22,771.558 2377.57,901.872 2379.92,910.668 2382.27,1003.36 2384.62,1031.06 2386.98,952.873 2389.33,865.214 2391.68,880.781 2394.03,613.562 2396.38,875.554 2398.73,926.512 2401.08,1052.68 2403.43,898.69 2405.78,933.832 2408.13,1157.59 2410.48,1104.24 2412.83,711.593 2415.18,1000.73 2417.53,748.904 2419.88,749.995 2422.23,924.693 2424.58,929.8 2426.93,803.876 2429.28,1071.48 2431.63,874.468 2433.98,891.646 2436.34,876.557 2438.69,953.452 2441.04,983.518 2443.39,874.288 2445.74,983.023 2448.09,876.88 2450.44,819.591 2452.79,873.076 2455.14,914.35 2457.49,1096.58 2459.84,854.887 2462.19,889.46 2464.54,1011.59 2466.89,1101.26 2469.24,894.776 2471.59,848.378 2473.94,871.389 2476.29,969.924 2478.64,838.235 2480.99,862.345 2483.34,915.992 2485.7,935.253 2488.05,930.802 2490.4,858.973 2492.75,893.511 2495.1,1017.67 2497.45,780.74 2499.8,1010.88 2502.15,997.219 2504.5,995.936 2506.85,947.326 2509.2,1151.18 2511.55,791.4 2513.9,951.759 2516.25,988.386 2518.6,1133.88 2520.95,1052.57 2523.3,872.224 2525.65,887.519 2528,1017.36 2530.35,804.465 2532.7,924.105 2535.06,1074.54 2537.41,1079.08 2539.76,967.88 2542.11,932.056 2544.46,846.177 2546.81,1024.45 2549.16,800.67 2551.51,786.85 2553.86,937.598 2556.21,990.285 2558.56,888.051 2560.91,789.312 2563.26,953.557 2565.61,941.725 2567.96,695.826 2570.31,812.769 "></polyline>
+<polyline clip-path="url(#clip692)" style="stroke:#3da44d; stroke-linecap:round; stroke-linejoin:round; stroke-width:4; stroke-opacity:0.5; fill:none" points="222.19,881.558 224.541,464.437 226.891,423.835 229.242,371.04 231.592,431.037 233.943,484.09 236.293,502.072 238.644,444.277 240.994,383.801 243.345,425.958 245.695,329.191 248.046,351.951 250.396,329.766 252.747,630.742 255.097,386.556 257.448,311.714 259.798,345.217 262.148,449.092 264.499,369.652 266.849,514.102 269.2,350.116 271.55,434.553 273.901,334.733 276.251,352.727 278.602,673.494 280.952,343.667 283.303,478.807 285.653,449.117 288.004,416.871 290.354,408.749 292.705,213.114 295.055,610.037 297.406,420.97 299.756,355.949 302.107,456.575 304.457,378.103 306.807,283.772 309.158,347.532 311.508,446.794 313.859,650.882 316.209,411.812 318.56,493.651 320.91,443.311 323.261,519.731 325.611,130.293 327.962,399.005 330.312,433.225 332.663,324.199 335.013,414.935 337.364,232.502 339.714,381.456 342.065,481.12 344.415,394.508 346.765,356.556 349.116,358.629 351.466,438.262 353.817,422.152 356.167,542.074 358.518,405.872 360.868,490.33 363.219,417.97 365.569,378.536 367.92,174.676 370.27,528.314 372.621,529.162 374.971,260.89 377.322,238.511 379.672,396.317 382.023,255.366 384.373,372.306 386.724,466.032 389.074,365.309 391.424,319.876 393.775,419.195 396.125,432.636 398.476,495.573 400.826,378.766 403.177,417.01 405.527,364.951 407.878,464.618 410.228,404.71 412.579,534.862 414.929,368.359 417.28,354.542 419.63,380.939 421.981,455.728 424.331,536.186 426.682,505.032 429.032,461.035 431.382,312.115 433.733,148.219 436.083,340.535 438.434,511.742 440.784,303.771 443.135,444.432 445.485,554.007 447.836,566.667 450.186,491.951 452.537,398.094 454.887,551.171 457.238,609.049 459.588,214.787 461.939,350.192 464.289,372.74 466.64,494.412 468.99,228.191 471.341,345.368 473.691,365.767 476.041,302.649 478.392,522.792 480.742,249.057 483.093,286.701 485.443,285.423 487.794,415.368 490.144,345.938 492.495,283.114 494.845,459.916 497.196,533.059 499.546,442.259 501.897,260.055 504.247,372.339 506.598,467.179 508.948,371.578 511.299,542.275 513.649,483.988 515.999,457.434 518.35,428.491 520.7,413.957 523.051,462.24 525.401,327.179 527.752,404.074 530.102,531.599 532.453,463.267 534.803,467.882 537.154,373.548 539.504,312.208 541.855,445.216 544.205,528.02 546.556,447.568 548.906,287.51 551.257,461.928 553.607,453.826 555.958,389.118 558.308,399.984 560.658,639.389 563.009,464.565 565.359,384.364 567.71,362.022 570.06,603.362 572.411,406.915 574.761,506.401 577.112,343.782 579.462,402.811 581.813,527.011 584.163,379.167 586.514,379.609 588.864,363.465 591.215,304.301 593.565,460.115 595.916,516.141 598.266,560.869 600.616,426.941 602.967,292.634 605.317,560.778 607.668,409.229 610.018,556.523 612.369,394.841 614.719,454.276 617.07,413.467 619.42,481.803 621.771,300.049 624.121,371.131 626.472,405.113 628.822,439.259 631.173,325.038 633.523,306.064 635.874,404.868 638.224,510.922 640.575,567.309 642.925,551.771 645.275,473.715 647.626,348.887 649.976,537.648 652.327,527.935 654.677,395.523 657.028,475.227 659.378,350.101 661.729,472.123 664.079,211.873 666.43,394.048 668.78,328.225 671.131,346.554 673.481,439.396 675.832,341.529 678.182,319.604 680.533,470.083 682.883,396.483 685.233,466.797 687.584,318.62 689.934,281.532 692.285,600.524 694.635,413.116 696.986,442.499 699.336,519.891 701.687,267.593 704.037,150.432 706.388,305.917 708.738,403.555 711.089,484.605 713.439,327.006 715.79,550.965 718.14,258.986 720.491,294.627 722.841,447.379 725.192,484.672 727.542,467.398 729.892,416.187 732.243,357.2 734.593,510.059 736.944,458.494 739.294,459.777 741.645,341.812 743.995,486.842 746.346,578.585 748.696,569.709 751.047,284.824 753.397,432.065 755.748,378.086 758.098,316.003 760.449,388.259 762.799,346.399 765.15,322.873 767.5,277.848 769.85,352.576 772.201,357.477 774.551,398.189 776.902,232.801 779.252,437.221 781.603,485.023 783.953,346.377 786.304,452.396 788.654,396.803 791.005,567.6 793.355,328.016 795.706,277.846 798.056,448.3 800.407,199.978 802.757,274.531 805.108,460.485 807.458,372.771 809.809,593.273 812.159,449.084 814.509,196.428 816.86,709.61 819.21,500.368 821.561,543.165 823.911,447.002 826.262,419.927 828.612,372.661 830.963,456.102 833.313,475.612 835.664,552.843 838.014,285.699 840.365,338.345 842.715,352 845.066,382.405 847.416,453.916 849.767,476.395 852.117,286.198 854.467,487.446 856.818,525.064 859.168,468.492 861.519,262.389 863.869,332.188 866.22,269.251 868.57,595.851 870.921,544.775 873.271,504.576 875.622,383.604 877.972,467.112 880.323,341.438 882.673,376.169 885.024,464.259 887.374,345.373 889.725,161.992 892.075,317.298 894.426,369.322 896.776,343.443 899.126,279.965 901.477,185.389 903.827,372.055 906.178,499.094 908.528,337.425 910.879,374.426 913.229,396.389 915.58,385.261 917.93,230.168 920.281,409.326 922.631,344.344 924.982,547.415 927.332,395.168 929.683,496.664 932.033,297.079 934.384,391.454 936.734,450.458 939.084,371.628 941.435,458.075 943.785,383.091 946.136,478.944 948.486,387.26 950.837,390.503 953.187,251.901 955.538,605.367 957.888,301.876 960.239,301.473 962.589,364.062 964.94,536.794 967.29,547.624 969.641,451.475 971.991,451.499 974.342,294.743 976.692,287.271 979.043,252.437 981.393,478.581 983.743,441.462 986.094,444.52 988.444,409.671 990.795,412.644 993.145,384.656 995.496,441.041 997.846,306.59 1000.2,281.729 1002.55,250.955 1004.9,380.212 1007.25,500.999 1009.6,471.483 1011.95,311.15 1014.3,449.891 1016.65,607.667 1019,151.445 1021.35,342.089 1023.7,307.697 1026.05,412.339 1028.4,330.661 1030.75,271.933 1033.1,365.078 1035.45,370.251 1037.8,298.996 1040.15,377.058 1042.51,190.542 1044.86,518.813 1047.21,333.111 1049.56,339.767 1051.91,461.361 1054.26,490.72 1056.61,464.711 1058.96,373.27 1061.31,344.06 1063.66,386.764 1066.01,467.809 1068.36,511.667 1070.71,518.596 1073.06,475.238 1075.41,473.205 1077.76,562.335 1080.11,303.999 1082.46,591.68 1084.81,605.261 1087.16,426.156 1089.51,452.686 1091.87,303.248 1094.22,454.619 1096.57,467.144 1098.92,328.429 1101.27,389.119 1103.62,257.137 1105.97,262.23 1108.32,359.059 1110.67,378.825 1113.02,243.504 1115.37,226.192 1117.72,467.274 1120.07,312.811 1122.42,390.642 1124.77,431.427 1127.12,536.287 1129.47,376.756 1131.82,412.124 1134.17,290.812 1136.52,292.052 1138.87,353.219 1141.23,360.722 1143.58,467.651 1145.93,344.45 1148.28,533.633 1150.63,510.35 1152.98,338.654 1155.33,467.876 1157.68,305.292 1160.03,807.537 1162.38,384.091 1164.73,412.316 1167.08,584.274 1169.43,364.416 1171.78,321.104 1174.13,249.344 1176.48,399.329 1178.83,531.707 1181.18,578.507 1183.53,473.419 1185.88,416.433 1188.23,373.57 1190.59,618.882 1192.94,559.675 1195.29,581.174 1197.64,470.628 1199.99,538.007 1202.34,342.466 1204.69,357.503 1207.04,372.36 1209.39,422.118 1211.74,345.802 1214.09,370.853 1216.44,450.755 1218.79,303.654 1221.14,259.145 1223.49,489.803 1225.84,484.476 1228.19,615.611 1230.54,347.996 1232.89,558.033 1235.24,605.512 1237.59,386.329 1239.94,390.618 1242.3,410.608 1244.65,370.546 1247,552.362 1249.35,317.591 1251.7,391.528 1254.05,491.527 1256.4,341.354 1258.75,427.604 1261.1,503.814 1263.45,425.094 1265.8,256.778 1268.15,568.988 1270.5,369.908 1272.85,493.312 1275.2,479.617 1277.55,436.455 1279.9,441.138 1282.25,470.803 1284.6,453.483 1286.95,253.072 1289.3,351.412 1291.66,394.939 1294.01,405.506 1296.36,281.098 1298.71,410.534 1301.06,451.221 1303.41,578.175 1305.76,521.779 1308.11,539.653 1310.46,394.792 1312.81,475.619 1315.16,419.778 1317.51,419.108 1319.86,384.413 1322.21,575.654 1324.56,551.536 1326.91,575.736 1329.26,374.05 1331.61,453.157 1333.96,276.733 1336.31,277.667 1338.66,328.158 1341.02,350.646 1343.37,258.897 1345.72,570.653 1348.07,657.101 1350.42,424.051 1352.77,472.047 1355.12,477.166 1357.47,361.531 1359.82,404.787 1362.17,326.522 1364.52,385.522 1366.87,360.152 1369.22,467.04 1371.57,522.051 1373.92,278.949 1376.27,384.563 1378.62,262.822 1380.97,479.639 1383.32,458.678 1385.67,352.992 1388.02,272.903 1390.38,267.599 1392.73,376.988 1395.08,469.006 1397.43,351.301 1399.78,341.276 1402.13,692.565 1404.48,345.796 1406.83,174.403 1409.18,418.223 1411.53,374.571 1413.88,454.043 1416.23,268.068 1418.58,230.722 1420.93,346.032 1423.28,404.963 1425.63,570.404 1427.98,284.912 1430.33,528.649 1432.68,406.987 1435.03,492.284 1437.38,539.357 1439.74,184.259 1442.09,354.05 1444.44,282.165 1446.79,304.179 1449.14,438.998 1451.49,236.856 1453.84,476.593 1456.19,443.029 1458.54,407.793 1460.89,311.596 1463.24,374.635 1465.59,347.673 1467.94,499.203 1470.29,283.799 1472.64,272.514 1474.99,539.505 1477.34,365.33 1479.69,499.472 1482.04,370.356 1484.39,506.202 1486.74,275.76 1489.1,427.562 1491.45,351.098 1493.8,283.848 1496.15,492.893 1498.5,294.242 1500.85,353.411 1503.2,96.8724 1505.55,379.839 1507.9,387.638 1510.25,590.932 1512.6,424.355 1514.95,380.931 1517.3,456.042 1519.65,581.862 1522,432.597 1524.35,406.116 1526.7,656.463 1529.05,436.223 1531.4,466.824 1533.75,411.633 1536.1,373.198 1538.45,301.378 1540.81,215.223 1543.16,381.447 1545.51,340.661 1547.86,349.697 1550.21,465.96 1552.56,444.253 1554.91,358.598 1557.26,354.901 1559.61,377.603 1561.96,322.814 1564.31,558.159 1566.66,399.739 1569.01,467.903 1571.36,463.011 1573.71,329.872 1576.06,424.337 1578.41,360.094 1580.76,416.171 1583.11,321.872 1585.46,333.641 1587.81,295.848 1590.17,448.624 1592.52,392.689 1594.87,265.034 1597.22,366.876 1599.57,413.991 1601.92,380.439 1604.27,475.151 1606.62,354.278 1608.97,498.353 1611.32,361.978 1613.67,437.654 1616.02,317.845 1618.37,284.977 1620.72,421.297 1623.07,261.912 1625.42,547.462 1627.77,635.99 1630.12,585.386 1632.47,546.091 1634.82,527.851 1637.17,380.469 1639.53,335.408 1641.88,360.967 1644.23,513.536 1646.58,275.55 1648.93,372.638 1651.28,481.966 1653.63,421.623 1655.98,292.818 1658.33,422.689 1660.68,612.037 1663.03,389.043 1665.38,364.139 1667.73,364.083 1670.08,544.773 1672.43,426.75 1674.78,468.084 1677.13,340.398 1679.48,388.246 1681.83,472.939 1684.18,479.287 1686.53,341.642 1688.89,354.262 1691.24,214.924 1693.59,504.267 1695.94,443.017 1698.29,392.44 1700.64,465.691 1702.99,268.033 1705.34,409.081 1707.69,304.838 1710.04,451.264 1712.39,194.898 1714.74,327.966 1717.09,210.773 1719.44,429.157 1721.79,408.436 1724.14,352.62 1726.49,220.158 1728.84,430.338 1731.19,527.251 1733.54,286.871 1735.89,234.177 1738.25,285.817 1740.6,342.871 1742.95,429.446 1745.3,415.087 1747.65,329.294 1750,382.115 1752.35,282.193 1754.7,326.811 1757.05,430.085 1759.4,431.463 1761.75,651.489 1764.1,529.314 1766.45,374.286 1768.8,410.057 1771.15,575.882 1773.5,305.064 1775.85,484.305 1778.2,352.638 1780.55,333.992 1782.9,538.393 1785.25,376.045 1787.6,478.416 1789.96,489.221 1792.31,576.535 1794.66,428.894 1797.01,334.376 1799.36,340.589 1801.71,624.275 1804.06,506.746 1806.41,315.47 1808.76,380.834 1811.11,252.032 1813.46,422.329 1815.81,426.862 1818.16,427.567 1820.51,320.263 1822.86,372.977 1825.21,643.313 1827.56,432.888 1829.91,596.825 1832.26,243.036 1834.61,265.029 1836.96,546.351 1839.32,382.089 1841.67,502.583 1844.02,341.796 1846.37,530.07 1848.72,538.252 1851.07,475.831 1853.42,358.467 1855.77,530.148 1858.12,545.486 1860.47,485.273 1862.82,297.285 1865.17,459.092 1867.52,354.007 1869.87,368.408 1872.22,381.151 1874.57,609.83 1876.92,394.919 1879.27,436.451 1881.62,499.232 1883.97,415.047 1886.32,566.366 1888.68,531.851 1891.03,199.456 1893.38,365.298 1895.73,333.322 1898.08,493.725 1900.43,458.105 1902.78,396.4 1905.13,449.184 1907.48,416.146 1909.83,568.931 1912.18,410.739 1914.53,541.416 1916.88,195.01 1919.23,493.407 1921.58,490.109 1923.93,319.801 1926.28,218.521 1928.63,462.741 1930.98,383.166 1933.33,476.044 1935.68,303.326 1938.04,416.236 1940.39,370.463 1942.74,641.735 1945.09,402.197 1947.44,445.835 1949.79,177.224 1952.14,229.082 1954.49,444.645 1956.84,584.963 1959.19,313.766 1961.54,343.25 1963.89,525.485 1966.24,399.017 1968.59,249.798 1970.94,460.248 1973.29,589.85 1975.64,491.816 1977.99,421.376 1980.34,372.516 1982.69,400.249 1985.04,309.154 1987.4,463.253 1989.75,521.235 1992.1,146.963 1994.45,360.61 1996.8,622.719 1999.15,358.022 2001.5,518.702 2003.85,221.311 2006.2,432.975 2008.55,476.695 2010.9,605.731 2013.25,411.414 2015.6,405.734 2017.95,439.196 2020.3,435.626 2022.65,567.221 2025,437.641 2027.35,340.223 2029.7,602.428 2032.05,489.596 2034.4,358.524 2036.76,465.87 2039.11,494.378 2041.46,461.624 2043.81,357.162 2046.16,610.441 2048.51,315.371 2050.86,474.79 2053.21,478.401 2055.56,567.437 2057.91,541.779 2060.26,468.826 2062.61,399.707 2064.96,569.51 2067.31,405.76 2069.66,510.097 2072.01,438.417 2074.36,418.2 2076.71,345.029 2079.06,315.054 2081.41,420.728 2083.76,540.042 2086.11,466.849 2088.47,357.489 2090.82,251.635 2093.17,450.278 2095.52,383.908 2097.87,177.414 2100.22,393.414 2102.57,542.897 2104.92,309.343 2107.27,343.169 2109.62,282.462 2111.97,481.011 2114.32,429.723 2116.67,430.646 2119.02,354.202 2121.37,398.941 2123.72,358.997 2126.07,422.041 2128.42,289.768 2130.77,451.335 2133.12,424.84 2135.47,494.745 2137.83,392.303 2140.18,389.81 2142.53,535.614 2144.88,527.795 2147.23,592.912 2149.58,311.034 2151.93,367.626 2154.28,388.678 2156.63,347.969 2158.98,499.923 2161.33,575.575 2163.68,449.307 2166.03,380.821 2168.38,308.425 2170.73,507.677 2173.08,379.731 2175.43,384.029 2177.78,566.068 2180.13,624.878 2182.48,393.704 2184.83,434.616 2187.19,387.662 2189.54,485.665 2191.89,369.776 2194.24,266.795 2196.59,299.818 2198.94,366.439 2201.29,599.843 2203.64,511.309 2205.99,427.872 2208.34,384.151 2210.69,440.906 2213.04,469.283 2215.39,356.202 2217.74,483.963 2220.09,660.255 2222.44,505.227 2224.79,485.613 2227.14,293.138 2229.49,424.808 2231.84,419.336 2234.19,546.725 2236.55,358.303 2238.9,357.71 2241.25,392.63 2243.6,476.188 2245.95,388.234 2248.3,488.772 2250.65,305.112 2253,479.196 2255.35,272.832 2257.7,540.291 2260.05,387.285 2262.4,493.869 2264.75,466.736 2267.1,228.268 2269.45,559.304 2271.8,632.183 2274.15,386.224 2276.5,281.73 2278.85,222.36 2281.2,244.33 2283.55,214.619 2285.91,384.366 2288.26,444.773 2290.61,378.988 2292.96,190.645 2295.31,530.012 2297.66,337.604 2300.01,449.032 2302.36,421.456 2304.71,350.472 2307.06,499.645 2309.41,532.189 2311.76,449.262 2314.11,444.363 2316.46,393.863 2318.81,400.61 2321.16,234.543 2323.51,297.162 2325.86,427.214 2328.21,257.445 2330.56,179.895 2332.91,553.474 2335.27,313.896 2337.62,252.596 2339.97,368.155 2342.32,377.02 2344.67,348.275 2347.02,395.624 2349.37,417.118 2351.72,394.857 2354.07,254.435 2356.42,459.123 2358.77,426.282 2361.12,507.736 2363.47,422.113 2365.82,281.721 2368.17,313.767 2370.52,188.551 2372.87,265.469 2375.22,331.389 2377.57,366.281 2379.92,587.658 2382.27,524.385 2384.62,564.284 2386.98,476.721 2389.33,562.458 2391.68,293.916 2394.03,448.929 2396.38,411.486 2398.73,516.429 2401.08,569.076 2403.43,630.305 2405.78,249.58 2408.13,344.365 2410.48,393.048 2412.83,365.932 2415.18,597.998 2417.53,285.777 2419.88,440.081 2422.23,388.911 2424.58,376.343 2426.93,358.787 2429.28,341.376 2431.63,212.176 2433.98,334.614 2436.34,419.409 2438.69,346.793 2441.04,334.686 2443.39,487.824 2445.74,554.402 2448.09,451.464 2450.44,300.261 2452.79,374.364 2455.14,532.572 2457.49,209.552 2459.84,297.046 2462.19,330.393 2464.54,459.173 2466.89,280.727 2469.24,440.697 2471.59,450.361 2473.94,396.376 2476.29,252.674 2478.64,390.995 2480.99,351.196 2483.34,564.334 2485.7,476.161 2488.05,485.922 2490.4,295.409 2492.75,485.66 2495.1,358.914 2497.45,347.42 2499.8,383.668 2502.15,502.864 2504.5,342.941 2506.85,349.019 2509.2,476.871 2511.55,331.817 2513.9,529.136 2516.25,325.725 2518.6,333.048 2520.95,452.344 2523.3,621.454 2525.65,395.216 2528,541.99 2530.35,376.356 2532.7,329.206 2535.06,282.525 2537.41,473.198 2539.76,332.095 2542.11,377.667 2544.46,494.015 2546.81,517.54 2549.16,402.413 2551.51,390.052 2553.86,534.857 2556.21,442.646 2558.56,367.474 2560.91,311.158 2563.26,467.857 2565.61,458.066 2567.96,515.327 2570.31,427.032 "></polyline>
+</svg>
+</div>
+</div>
+<p>Look at that! Things are working; amazin’.</p>
+<p>We can also exploit <a href="https://github.com/TuringLang/AbstractMCMC.jl">AbstractMCMC.jl</a>’s parallel sampling capabilities:</p>
+<div id="34" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Run separate 4 chains for 10 000 iterations using threads to parallelize.</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>num_chains <span class="op">=</span> <span class="fl">4</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>samples <span class="op">=</span> <span class="fu">sample</span>(</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>    model_with_grad,</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>    sampler,</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">MCMCThreads</span>(),</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>    <span class="fl">10_000</span>,</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>    num_chains;</span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Note we need to provide an initial state for every chain.</span></span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>    initial_state<span class="op">=</span><span class="fu">fill</span>(state, num_chains),</span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>    progress<span class="op">=</span><span class="cn">false</span></span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a>samples_array <span class="op">=</span> <span class="fu">stack</span>(<span class="fu">map</span>(<span class="bu">Base</span>.<span class="fu">Fix1</span>(stack, sample <span class="op">-&gt;</span> sample.x), samples))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>3×10000×4 Array{Float64, 3}:
+[:, :, 1] =
+ -2.33575  -3.31452   -4.45709  -5.94486  …  -5.30656  -4.70995  -5.94332
+  2.24967   0.557105   1.28754   1.16421     -2.84515  -2.57752  -1.64606
+  1.75637   4.37955    5.73238   6.17534      4.66243   5.51051   5.09161
+
+[:, :, 2] =
+ -4.32466   -4.12161   -2.55806   -3.17104  …  -4.60726  -4.2396    -4.2396
+ -0.384374  -0.612464  -0.595387  -1.36678     -1.66907  -0.308378  -0.308378
+  2.35321    3.76198    5.97663    5.11209      4.57988   5.01807    5.01807
+
+[:, :, 3] =
+ -2.62374  -5.27563   -5.27563   -5.09382  …  -4.65813   -5.33832  -5.80949
+  0.78622  -0.275689  -0.275689  -1.071       -0.649836   0.24002  -1.52295
+  2.77298   3.81923    3.81923    4.76027      5.48075    6.05525   5.93619
+
+[:, :, 4] =
+ -5.80745   -3.21562   -4.41484   …  -5.59931   -5.37103  -4.08679
+ -0.174821   0.329564  -0.532021      0.503098  -1.37711  -0.202864
+  4.93589    3.34099    3.52472       4.21521    3.88051   4.43315</code></pre>
+</div>
+</div>
+<p>But the fact that we have to provide the <code>AbstractMCMC.sample</code> call, etc. with an <code>initial_state</code> to get started is a bit annoying. We can avoid this by also defining a <code>AbstractMCMC.step</code> <em>without</em> the <code>state</code> argument:</p>
+<div id="36" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> AbstractMCMC.<span class="fu">step</span>(</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>    rng<span class="op">::</span><span class="dt">Random.AbstractRNG</span>,</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    model_wrapper<span class="op">::</span><span class="dt">AbstractMCMC.LogDensityModel</span>,</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">::</span><span class="dt">MALA</span>;</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># </span><span class="al">NOTE</span><span class="co">: No state provided!</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>    kwargs<span class="op">...</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> model_wrapper.logdensity</span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Let's just create the initial state by sampling using  a Gaussian.</span></span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> <span class="fu">randn</span>(rng, LogDensityProblems.<span class="fu">dimension</span>(model))</span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="fu">MALASample</span>(x), <span class="fu">MALAState</span>(x)</span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Equipped with this, we no longer need to provide the <code>initial_state</code> everywhere:</p>
+<div id="38" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>samples <span class="op">=</span> <span class="fu">sample</span>(model_with_grad, sampler, <span class="fl">10_000</span>; progress<span class="op">=</span><span class="cn">false</span>)</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>samples_matrix <span class="op">=</span> <span class="fu">stack</span>(sample <span class="op">-&gt;</span> sample.x, samples)</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="fu">hcat</span>(<span class="fu">mean</span>(samples_matrix; dims<span class="op">=</span><span class="fl">2</span>), <span class="fu">std</span>(samples_matrix; dims<span class="op">=</span><span class="fl">2</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>3×2 Matrix{Float64}:
+ -4.99016    1.00203
+  0.0261003  1.01116
+  5.01885    1.00848</code></pre>
+</div>
+</div>
+</section>
+<section id="using-our-sampler-with-turing.jl" class="level2">
+<h2 class="anchored" data-anchor-id="using-our-sampler-with-turing.jl">Using our sampler with Turing.jl</h2>
+<p>As we promised, all of this hassle of implementing our <code>MALA</code> sampler in a way that uses <a href="https://github.com/tpapp/LogDensityProblems.jl">LogDensityProblems.jl</a> and <a href="https://github.com/TuringLang/AbstractMCMC.jl">AbstractMCMC.jl</a> gets us something more than <em>just</em> an “automatic” implementation of <code>AbstractMCMC.sample</code>.</p>
+<p>It also enables use with Turing.jl through the <code>externalsampler</code>, but we need to do one final thing first: we need to tell Turing.jl how to extract a vector of parameters from the “sample” returned in our implementation of <code>AbstractMCMC.step</code>. In our case, the “sample” is a <code>MALASample</code>, so we just need the following line:</p>
+<div id="40" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Load Turing.jl.</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Turing</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Overload the `getparams` method for our "sample" type, which is just a vector.</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>Turing.Inference.<span class="fu">getparams</span>(<span class="op">::</span><span class="dt">Turing.Model</span>, sample<span class="op">::</span><span class="dt">MALASample</span>) <span class="op">=</span> sample.x</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>And with that, we’re good to go!</p>
+<div id="42" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Our previous model defined as a Turing.jl model.</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="fu">mvnormal_model</span>() <span class="op">=</span> x <span class="op">~</span> <span class="fu">MvNormal</span>([<span class="op">-</span><span class="fl">5</span>., <span class="fl">0</span>., <span class="fl">5</span>.], I)</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Instantiate our model.</span></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>turing_model <span class="op">=</span> <span class="fu">mvnormal_model</span>()</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Call `sample` but now we're passing in a Turing.jl `model` and wrapping</span></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a><span class="co"># our `MALA` sampler in the `externalsampler` to tell Turing.jl that the sampler</span></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a><span class="co"># expects something that implements LogDensityProblems.jl.</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>chain <span class="op">=</span> <span class="fu">sample</span>(turing_model, <span class="fu">externalsampler</span>(sampler), <span class="fl">10_000</span>; progress<span class="op">=</span><span class="cn">false</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>Chains MCMC chain (10000×4×1 Array{Float64, 3}):
+
+Iterations        = 1:1:10000
+Number of chains  = 1
+Samples per chain = 10000
+Wall duration     = 2.6 seconds
+Compute duration  = 2.6 seconds
+parameters        = x[1], x[2], x[3]
+internals         = lp
+
+Summary Statistics
+  parameters      mean       std      mcse    ess_bulk    ess_tail      rhat   ⋯
+      Symbol   Float64   Float64   Float64     Float64     Float64   Float64   ⋯
+
+        x[1]   -5.0285    0.9923    0.0181   3003.5713   5366.1220    1.0023   ⋯
+        x[2]   -0.0005    0.9855    0.0176   3130.9533   4910.6870    1.0001   ⋯
+        x[3]    4.9898    0.9960    0.0176   3181.1501   5148.9487    1.0002   ⋯
+                                                                1 column omitted
+
+Quantiles
+  parameters      2.5%     25.0%     50.0%     75.0%     97.5%
+      Symbol   Float64   Float64   Float64   Float64   Float64
+
+        x[1]   -7.0353   -5.6940   -5.0285   -4.3497   -3.0914
+        x[2]   -1.9496   -0.6714    0.0043    0.6550    1.9195
+        x[3]    3.0376    4.3341    4.9763    5.6601    6.9504</code></pre>
+</div>
+</div>
+<p>Pretty neat, eh?</p>
+<section id="models-with-constrained-parameters" class="level3">
+<h3 class="anchored" data-anchor-id="models-with-constrained-parameters">Models with constrained parameters</h3>
+<p>One thing we’ve sort of glossed over in all of the above is that MALA, at least how we’ve implemented it, requires <span class="math inline">\(x\)</span> to live in <span class="math inline">\(\mathbb{R}^d\)</span> for some <span class="math inline">\(d &gt; 0\)</span>. If some of the parameters were in fact constrained, e.g.&nbsp;we were working with a <code>Beta</code> distribution which has support on the interval <span class="math inline">\((0, 1)\)</span>, <em>not</em> on <span class="math inline">\(\mathbb{R}^d\)</span>, we could easily end up outside of the valid range <span class="math inline">\((0, 1)\)</span>.</p>
+<div id="44" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="fu">beta_model</span>() <span class="op">=</span> x <span class="op">~</span> <span class="fu">Beta</span>(<span class="fl">3</span>, <span class="fl">3</span>)</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>turing_model <span class="op">=</span> <span class="fu">beta_model</span>()</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>chain <span class="op">=</span> <span class="fu">sample</span>(turing_model, <span class="fu">externalsampler</span>(sampler), <span class="fl">10_000</span>; progress<span class="op">=</span><span class="cn">false</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>Chains MCMC chain (10000×2×1 Array{Float64, 3}):
+
+Iterations        = 1:1:10000
+Number of chains  = 1
+Samples per chain = 10000
+Wall duration     = 1.53 seconds
+Compute duration  = 1.53 seconds
+parameters        = x
+internals         = lp
+
+Summary Statistics
+  parameters      mean       std      mcse    ess_bulk    ess_tail      rhat   ⋯
+      Symbol   Float64   Float64   Float64     Float64     Float64   Float64   ⋯
+
+           x    0.4989    0.1895    0.0030   4021.1125   5362.4436    1.0000   ⋯
+                                                                1 column omitted
+
+Quantiles
+  parameters      2.5%     25.0%     50.0%     75.0%     97.5%
+      Symbol   Float64   Float64   Float64   Float64   Float64
+
+           x    0.1461    0.3595    0.4979    0.6377    0.8614</code></pre>
+</div>
+</div>
+<p>Yep, that still works, but only because Turing.jl actually <em>transforms</em> the <code>turing_model</code> from constrained to unconstrained, so that the <code>sampler</code> provided to <code>externalsampler</code> is actually always working in unconstrained space! This is not always desirable, so we can turn this off:</p>
+<div id="46" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>chain <span class="op">=</span> <span class="fu">sample</span>(turing_model, <span class="fu">externalsampler</span>(sampler; unconstrained<span class="op">=</span><span class="cn">false</span>), <span class="fl">10_000</span>; progress<span class="op">=</span><span class="cn">false</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>Chains MCMC chain (10000×2×1 Array{Float64, 3}):
+
+Iterations        = 1:1:10000
+Number of chains  = 1
+Samples per chain = 10000
+Wall duration     = 0.23 seconds
+Compute duration  = 0.23 seconds
+parameters        = x
+internals         = lp
+
+Summary Statistics
+  parameters      mean       std      mcse   ess_bulk   ess_tail      rhat   e ⋯
+      Symbol   Float64   Float64   Float64    Float64    Float64   Float64     ⋯
+
+           x    0.9488    0.0000    0.0000        NaN        NaN       NaN     ⋯
+                                                                1 column omitted
+
+Quantiles
+  parameters      2.5%     25.0%     50.0%     75.0%     97.5%
+      Symbol   Float64   Float64   Float64   Float64   Float64
+
+           x    0.9488    0.9488    0.9488    0.9488    0.9488</code></pre>
+</div>
+</div>
+<p>The fun thing is that this still sort of works because</p>
+<div id="48" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb34"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="fu">logpdf</span>(<span class="fu">Beta</span>(<span class="fl">3</span>, <span class="fl">3</span>), <span class="fl">10.0</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>-Inf</code></pre>
+</div>
+</div>
+<p>and so the samples that fall outside of the range are always rejected. But do notice how much worse all the diagnostics are, e.g.&nbsp;<code>ess_tail</code> is very poor compared to when we use <code>unconstrained=true</code>. Moreover, in more complex cases this won’t just result in a “nice” <code>-Inf</code> log-density value, but instead will error:</p>
+<div id="50" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb36"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">demo</span>()</span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>    σ² <span class="op">~</span> <span class="fu">truncated</span>(<span class="fu">Normal</span>(), lower<span class="op">=</span><span class="fl">0</span>)</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># If we end up with negative values for `σ²`, the `Normal` will error.</span></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>    x <span class="op">~</span> <span class="fu">Normal</span>(<span class="fl">0</span>, σ²)</span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a><span class="fu">sample</span>(<span class="fu">demo</span>(), <span class="fu">externalsampler</span>(sampler; unconstrained<span class="op">=</span><span class="cn">false</span>), <span class="fl">10_000</span>; progress<span class="op">=</span><span class="cn">false</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-error">
+<pre><code>DomainError: DomainError(-0.0654632046661718, "Normal: the condition σ &gt;= zero(σ) is not satisfied.")
+DomainError with -0.0654632046661718:
+Normal: the condition σ &gt;= zero(σ) is not satisfied.
+Stacktrace:
+  [1] #371
+    @ ~/.julia/packages/Distributions/nmUhn/src/univariate/continuous/normal.jl:37 [inlined]
+  [2] check_args
+    @ ~/.julia/packages/Distributions/nmUhn/src/utils.jl:89 [inlined]
+  [3] #Normal#370
+    @ ~/.julia/packages/Distributions/nmUhn/src/univariate/continuous/normal.jl:37 [inlined]
+  [4] Normal
+    @ ~/.julia/packages/Distributions/nmUhn/src/univariate/continuous/normal.jl:36 [inlined]
+  [5] Normal
+    @ ~/.julia/packages/Distributions/nmUhn/src/univariate/continuous/normal.jl:42 [inlined]
+  [6] macro expansion
+    @ ~/.julia/packages/DynamicPPL/MjWTB/src/compiler.jl:579 [inlined]
+  [7] demo(__model__::DynamicPPL.Model{typeof(demo), (), (), (), Tuple{}, Tuple{}, DynamicPPL.DefaultContext}, __varinfo__::DynamicPPL.ThreadSafeVarInfo{DynamicPPL.TypedVarInfo{@NamedTuple{σ²::DynamicPPL.Metadata{Dict{AbstractPPL.VarName{:σ², typeof(identity)}, Int64}, Vector{Truncated{Normal{Float64}, Continuous, Float64, Float64, Nothing}}, Vector{AbstractPPL.VarName{:σ², typeof(identity)}}, Vector{Float64}, Vector{Set{DynamicPPL.Selector}}}, x::DynamicPPL.Metadata{Dict{AbstractPPL.VarName{:x, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{AbstractPPL.VarName{:x, typeof(identity)}}, Vector{Float64}, Vector{Set{DynamicPPL.Selector}}}}, Float64}, Vector{Base.RefValue{Float64}}}, __context__::DynamicPPL.ValuesAsInModelContext{OrderedDict{Any, Any}, DynamicPPL.DefaultContext})
+    @ Main.Notebook ~/work/docs/docs/tutorials/docs-17-implementing-samplers/index.qmd:592
+  [8] _evaluate!!
+    @ ~/.julia/packages/DynamicPPL/MjWTB/src/model.jl:973 [inlined]
+  [9] evaluate_threadsafe!!(model::DynamicPPL.Model{typeof(demo), (), (), (), Tuple{}, Tuple{}, DynamicPPL.DefaultContext}, varinfo::DynamicPPL.TypedVarInfo{@NamedTuple{σ²::DynamicPPL.Metadata{Dict{AbstractPPL.VarName{:σ², typeof(identity)}, Int64}, Vector{Truncated{Normal{Float64}, Continuous, Float64, Float64, Nothing}}, Vector{AbstractPPL.VarName{:σ², typeof(identity)}}, Vector{Float64}, Vector{Set{DynamicPPL.Selector}}}, x::DynamicPPL.Metadata{Dict{AbstractPPL.VarName{:x, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{AbstractPPL.VarName{:x, typeof(identity)}}, Vector{Float64}, Vector{Set{DynamicPPL.Selector}}}}, Float64}, context::DynamicPPL.ValuesAsInModelContext{OrderedDict{Any, Any}, DynamicPPL.DefaultContext})
+    @ DynamicPPL ~/.julia/packages/DynamicPPL/MjWTB/src/model.jl:962
+ [10] evaluate!!
+    @ ~/.julia/packages/DynamicPPL/MjWTB/src/model.jl:892 [inlined]
+ [11] values_as_in_model
+    @ ~/.julia/packages/DynamicPPL/MjWTB/src/values_as_in_model.jl:196 [inlined]
+ [12] values_as_in_model
+    @ ~/.julia/packages/DynamicPPL/MjWTB/src/values_as_in_model.jl:195 [inlined]
+ [13] getparams(model::DynamicPPL.Model{typeof(demo), (), (), (), Tuple{}, Tuple{}, DynamicPPL.DefaultContext}, vi::DynamicPPL.TypedVarInfo{@NamedTuple{σ²::DynamicPPL.Metadata{Dict{AbstractPPL.VarName{:σ², typeof(identity)}, Int64}, Vector{Truncated{Normal{Float64}, Continuous, Float64, Float64, Nothing}}, Vector{AbstractPPL.VarName{:σ², typeof(identity)}}, Vector{Float64}, Vector{Set{DynamicPPL.Selector}}}, x::DynamicPPL.Metadata{Dict{AbstractPPL.VarName{:x, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{AbstractPPL.VarName{:x, typeof(identity)}}, Vector{Float64}, Vector{Set{DynamicPPL.Selector}}}}, Float64})
+    @ Turing.Inference ~/.julia/packages/Turing/Bv30p/src/mcmc/Inference.jl:343
+ [14] Turing.Inference.Transition(model::DynamicPPL.Model{typeof(demo), (), (), (), Tuple{}, Tuple{}, DynamicPPL.DefaultContext}, vi::DynamicPPL.TypedVarInfo{@NamedTuple{σ²::DynamicPPL.Metadata{Dict{AbstractPPL.VarName{:σ², typeof(identity)}, Int64}, Vector{Truncated{Normal{Float64}, Continuous, Float64, Float64, Nothing}}, Vector{AbstractPPL.VarName{:σ², typeof(identity)}}, Vector{Float64}, Vector{Set{DynamicPPL.Selector}}}, x::DynamicPPL.Metadata{Dict{AbstractPPL.VarName{:x, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{AbstractPPL.VarName{:x, typeof(identity)}}, Vector{Float64}, Vector{Set{DynamicPPL.Selector}}}}, Float64}, t::MALASample{Vector{Float64}})
+    @ Turing.Inference ~/.julia/packages/Turing/Bv30p/src/mcmc/Inference.jl:226
+ [15] transition_to_turing
+    @ ~/.julia/packages/Turing/Bv30p/src/mcmc/abstractmcmc.jl:12 [inlined]
+ [16] transition_to_turing(f::LogDensityProblemsADForwardDiffExt.ForwardDiffLogDensity{LogDensityFunction{DynamicPPL.TypedVarInfo{@NamedTuple{σ²::DynamicPPL.Metadata{Dict{AbstractPPL.VarName{:σ², typeof(identity)}, Int64}, Vector{Truncated{Normal{Float64}, Continuous, Float64, Float64, Nothing}}, Vector{AbstractPPL.VarName{:σ², typeof(identity)}}, Vector{Float64}, Vector{Set{DynamicPPL.Selector}}}, x::DynamicPPL.Metadata{Dict{AbstractPPL.VarName{:x, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{AbstractPPL.VarName{:x, typeof(identity)}}, Vector{Float64}, Vector{Set{DynamicPPL.Selector}}}}, Float64}, DynamicPPL.Model{typeof(demo), (), (), (), Tuple{}, Tuple{}, DynamicPPL.DefaultContext}, Nothing}, ForwardDiff.Chunk{2}, ForwardDiff.Tag{DynamicPPL.DynamicPPLTag, Float64}, ForwardDiff.GradientConfig{ForwardDiff.Tag{DynamicPPL.DynamicPPLTag, Float64}, Float64, 2, Vector{ForwardDiff.Dual{ForwardDiff.Tag{DynamicPPL.DynamicPPLTag, Float64}, Float64, 2}}}}, transition::MALASample{Vector{Float64}})
+    @ Turing.Inference ~/.julia/packages/Turing/Bv30p/src/mcmc/abstractmcmc.jl:17
+ [17] step(rng::TaskLocalRNG, model::DynamicPPL.Model{typeof(demo), (), (), (), Tuple{}, Tuple{}, DynamicPPL.DefaultContext}, sampler_wrapper::DynamicPPL.Sampler{Turing.Inference.ExternalSampler{MALA{Int64, UniformScaling{Bool}}, AutoForwardDiff{nothing, Nothing}, false}}; initial_state::Nothing, initial_params::Nothing, kwargs::@Kwargs{})
+    @ Turing.Inference ~/.julia/packages/Turing/Bv30p/src/mcmc/abstractmcmc.jl:141
+ [18] step
+    @ ~/.julia/packages/Turing/Bv30p/src/mcmc/abstractmcmc.jl:96 [inlined]
+ [19] macro expansion
+    @ ~/.julia/packages/AbstractMCMC/YrmkI/src/sample.jl:130 [inlined]
+ [20] macro expansion
+    @ ~/.julia/packages/AbstractMCMC/YrmkI/src/logging.jl:16 [inlined]
+ [21] mcmcsample(rng::TaskLocalRNG, model::DynamicPPL.Model{typeof(demo), (), (), (), Tuple{}, Tuple{}, DynamicPPL.DefaultContext}, sampler::DynamicPPL.Sampler{Turing.Inference.ExternalSampler{MALA{Int64, UniformScaling{Bool}}, AutoForwardDiff{nothing, Nothing}, false}}, N::Int64; progress::Bool, progressname::String, callback::Nothing, discard_initial::Int64, thinning::Int64, chain_type::Type, initial_state::Nothing, kwargs::@Kwargs{})
+    @ AbstractMCMC ~/.julia/packages/AbstractMCMC/YrmkI/src/sample.jl:120
+ [22] sample(rng::TaskLocalRNG, model::DynamicPPL.Model{typeof(demo), (), (), (), Tuple{}, Tuple{}, DynamicPPL.DefaultContext}, sampler::DynamicPPL.Sampler{Turing.Inference.ExternalSampler{MALA{Int64, UniformScaling{Bool}}, AutoForwardDiff{nothing, Nothing}, false}}, N::Int64; chain_type::Type, resume_from::Nothing, initial_state::Nothing, kwargs::@Kwargs{progress::Bool})
+    @ DynamicPPL ~/.julia/packages/DynamicPPL/MjWTB/src/sampler.jl:93
+ [23] sample
+    @ ~/.julia/packages/DynamicPPL/MjWTB/src/sampler.jl:83 [inlined]
+ [24] #sample#4
+    @ ~/.julia/packages/Turing/Bv30p/src/mcmc/Inference.jl:276 [inlined]
+ [25] sample
+    @ ~/.julia/packages/Turing/Bv30p/src/mcmc/Inference.jl:267 [inlined]
+ [26] #sample#3
+    @ ~/.julia/packages/Turing/Bv30p/src/mcmc/Inference.jl:264 [inlined]
+ [27] top-level scope
+    @ ~/work/docs/docs/tutorials/docs-17-implementing-samplers/index.qmd:594</code></pre>
+</div>
+</div>
+<p>As expected, we run into a <code>DomainError</code> at some point, while if we set <code>unconstrained=true</code>, letting Turing.jl transform the model to a unconstrained form behind the scenes, everything works as expected:</p>
+<div id="52" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb38"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sample</span>(<span class="fu">demo</span>(), <span class="fu">externalsampler</span>(sampler; unconstrained<span class="op">=</span><span class="cn">true</span>), <span class="fl">10_000</span>; progress<span class="op">=</span><span class="cn">false</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>Chains MCMC chain (10000×3×1 Array{Float64, 3}):
+
+Iterations        = 1:1:10000
+Number of chains  = 1
+Samples per chain = 10000
+Wall duration     = 1.72 seconds
+Compute duration  = 1.72 seconds
+parameters        = σ², x
+internals         = lp
+
+Summary Statistics
+  parameters      mean       std      mcse   ess_bulk   ess_tail      rhat   e ⋯
+      Symbol   Float64   Float64   Float64    Float64    Float64   Float64     ⋯
+
+          σ²    0.8950    0.5368    0.0192   612.1587   319.5451    1.0025     ⋯
+           x    0.0020    0.9775    0.0456   533.1160   424.9363    1.0019     ⋯
+                                                                1 column omitted
+
+Quantiles
+  parameters      2.5%     25.0%     50.0%     75.0%     97.5%
+      Symbol   Float64   Float64   Float64   Float64   Float64
+
+          σ²    0.1507    0.4713    0.7955    1.2347    2.1561
+           x   -2.0457   -0.4465   -0.0081    0.4677    2.0331</code></pre>
+</div>
+</div>
+<p>Neat!</p>
+<p>Similarly, which automatic differentiation backend one should use can be specified through the <code>adtype</code> keyword argument too. For example, if we want to use <a href="https://github.com/JuliaDiff/ReverseDiff.jl">ReverseDiff.jl</a> instead of the default <a href="https://github.com/JuliaDiff/ForwardDiff.jl">ForwardDiff.jl</a>:</p>
+<div id="54" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb40"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ReverseDiff</span>: ReverseDiff</span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Specify that we want to use `AutoReverseDiff`.</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a><span class="fu">sample</span>(</span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">demo</span>(),</span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">externalsampler</span>(sampler; unconstrained<span class="op">=</span><span class="cn">true</span>, adtype<span class="op">=</span><span class="fu">AutoReverseDiff</span>()),</span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a>    <span class="fl">10_000</span>;</span>
+<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a>    progress<span class="op">=</span><span class="cn">false</span></span>
+<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>Chains MCMC chain (10000×3×1 Array{Float64, 3}):
+
+Iterations        = 1:1:10000
+Number of chains  = 1
+Samples per chain = 10000
+Wall duration     = 3.06 seconds
+Compute duration  = 3.06 seconds
+parameters        = σ², x
+internals         = lp
+
+Summary Statistics
+  parameters      mean       std      mcse   ess_bulk   ess_tail      rhat   e ⋯
+      Symbol   Float64   Float64   Float64    Float64    Float64   Float64     ⋯
+
+          σ²    0.8922    0.5597    0.0249   430.4981   297.9902    1.0001     ⋯
+           x   -0.0730    1.0403    0.0621   420.2444   215.6685    1.0005     ⋯
+                                                                1 column omitted
+
+Quantiles
+  parameters      2.5%     25.0%     50.0%     75.0%     97.5%
+      Symbol   Float64   Float64   Float64   Float64   Float64
+
+          σ²    0.1430    0.4590    0.7724    1.2152    2.2583
+           x   -2.6060   -0.4806   -0.0102    0.4183    2.0522</code></pre>
+</div>
+</div>
+<p>Double-neat.</p>
+</section>
+</section>
+<section id="summary" class="level2">
+<h2 class="anchored" data-anchor-id="summary">Summary</h2>
+<p>At this point it’s worth maybe reminding ourselves what we did and also <em>why</em> we did it:</p>
+<ol type="1">
+<li>We define our models in the <a href="https://github.com/tpapp/LogDensityProblems.jl">LogDensityProblems.jl</a> interface because it makes the sampler agnostic to how the underlying model is implemented.</li>
+<li>We implement our sampler in the <a href="https://github.com/TuringLang/AbstractMCMC.jl">AbstractMCMC.jl</a> interface, which just means that our sampler is a subtype of <code>AbstractMCMC.AbstractSampler</code> and we implement the MCMC transition in <code>AbstractMCMC.step</code>.</li>
+<li>Points 1 and 2 makes it so our sampler can be used with a wide range of model implementations, amongst them being models implemented in both Turing.jl and Stan. This gives you, the inference implementer, a large collection of models to test your inference method on, in addition to allowing users of Turing.jl and Stan to try out your inference method with minimal effort.</li>
+</ol>
+
+
+</section>
+
+
+<a onclick="window.scrollTo(0, 0); return false;" role="button" id="quarto-back-to-top"><i class="bi bi-arrow-up"></i> Back to top</a><div id="quarto-appendix" class="default"><section id="footnotes" class="footnotes footnotes-end-of-document" role="doc-endnotes"><h2 class="anchored quarto-appendix-heading">Footnotes</h2>
+
+<ol>
+<li id="fn1"><p>We’re going with the leapfrog formulation because in a future version of this tutorial we’ll add a section extending this simple “baseline” MALA sampler to more complex versions. See <a href="https://github.com/TuringLang/docs/issues/479">issue #479</a> for progress on this.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn2"><p>There is no such thing as a proper interface in Julia (at least not officially), and so we use the word “interface” here to mean a few minimal methods that needs to be implemented by any type that we treat as a target model.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section></div></main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp("https:\/\/turinglang\.org\/");
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../../tutorials/docs-07-for-developers-variational-inference/index.html" class="pagination-link" aria-label="Variational Inference">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Variational Inference</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+<p>Turing is created by <a href="http://mlg.eng.cam.ac.uk/hong/" target="_blank">Hong Ge</a>, and lovingly maintained by the <a href="https://github.com/TuringLang/Turing.jl/graphs/contributors" target="_blank">core team</a> of volunteers. <br> The contents of this website are © 2024 under the terms of the <a href="https://github.com/TuringLang/Turing.jl/blob/master/LICENCE" target="_blank">MIT License</a>.</p>
+</div>   
+    <div class="nav-footer-center">
+      &nbsp;
+    <div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/TuringLang/docs/edit/master/tutorials/docs-17-implementing-samplers/index.qmd" target="_blank" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/TuringLang/docs/issues/new" target="_blank" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div>
+    <div class="nav-footer-right">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://x.com/TuringLang">
+      <i class="bi bi-twitter" role="img" aria-label="Turing Twitter">
+</i> 
+    </a>
+  </li>  
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/TuringLang/Turing.jl">
+      <i class="bi bi-github" role="img" aria-label="Turing GitHub">
+</i> 
+    </a>
+  </li>  
+</ul>
+    </div>
+  </div>
+</footer>
+
+
+
+
+<script src="../../site_libs/quarto-html/zenscroll-min.js"></script>
+</body></html>

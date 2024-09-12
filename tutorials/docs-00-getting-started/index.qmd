@@ -16,96 +16,71 @@ Pkg.instantiate();
 
 To use Turing, you need to install Julia first and then install Turing.
 
-### Install Julia
+You will need to install Julia 1.7 or greater, which you can get from [the official Julia website](http://julialang.org/downloads/).
 
-You will need to install Julia 1.3 or greater, which you can get from [the official Julia website](http://julialang.org/downloads/).
-
-### Install Turing.jl
-
-Turing is an officially registered Julia package, so you can install a stable version of Turing by running the following in the Julia REPL:
+Turing is officially registered in the [Julia General package registry](https://github.com/JuliaRegistries/General), which means that you can install a stable version of Turing by running the following in the Julia REPL:
 
 ```{julia}
+#| eval: false
 #| output: false
 using Pkg
 Pkg.add("Turing")
 ```
 
-You can check if all tests pass by running `Pkg.test("Turing")` (it might take a long time)
+### Example usage
 
-### Example
-
-Here's a simple example showing Turing in action.
-
-First, we can load the Turing and StatsPlots modules
+First, we load the Turing and StatsPlots modules.
+The latter is required for visualising the results.
 
 ```{julia}
 using Turing
 using StatsPlots
 ```
 
-Then, we define a simple Normal model with unknown mean and variance
+We then specify our model, which is a simple Gaussian model with unknown mean and variance.
+Models are defined as ordinary Julia functions, prefixed with the `@model` macro.
+Each statement inside closely resembles how the model would be defined with mathematical notation.
+Here, both `x` and `y` are observed values, and are therefore passed as function parameters.
+`m` and `s²` are the parameters to be inferred.
 
 ```{julia}
 @model function gdemo(x, y)
     s² ~ InverseGamma(2, 3)
     m ~ Normal(0, sqrt(s²))
     x ~ Normal(m, sqrt(s²))
-    return y ~ Normal(m, sqrt(s²))
+    y ~ Normal(m, sqrt(s²))
 end
 ```
 
-Then we can run a sampler to collect results. In this case, it is a Hamiltonian Monte Carlo sampler
+Suppose we observe `x = 1.5` and `y = 2`, and want to infer the mean and variance.
+We can pass these data as arguments to the `gdemo` function, and run a sampler to collect the results.
+Here, we collect 1000 samples using the No U-Turn Sampler (NUTS) algorithm.
 
 ```{julia}
-chn = sample(gdemo(1.5, 2), NUTS(), 1000, progress=false)
+chain = sample(gdemo(1.5, 2), NUTS(), 1000, progress=false)
 ```
 
-We can plot the results
+We can plot the results:
 
 ```{julia}
-plot(chn)
+plot(chain)
 ```
 
-In this case, because we use the normal-inverse gamma distribution as a conjugate prior, we can compute its updated mean as follows:
+and obtain summary statistics by indexing the chain:
 
 ```{julia}
-s² = InverseGamma(2, 3)
-m = Normal(0, 1)
-data = [1.5, 2]
-x_bar = mean(data)
-N = length(data)
-
-mean_exp = (m.σ * m.μ + N * x_bar) / (m.σ + N)
+mean(chain[:m]), mean(chain[:s²])
 ```
 
-We can also compute the updated variance
+### Where to go next
 
-```{julia}
-updated_alpha = shape(s²) + (N / 2)
-updated_beta =
-    scale(s²) +
-    (1 / 2) * sum((data[n] - x_bar)^2 for n in 1:N) +
-    (N * m.σ) / (N + m.σ) * ((x_bar)^2) / 2
-variance_exp = updated_beta / (updated_alpha - 1)
-```
+::: {.callout-note title="Note on prerequisites"}
+Familiarity with Julia is assumed throughout the Turing documentation.
+If you are new to Julia, [Learning Julia](https://julialang.org/learning/) is a good starting point.
 
-Finally, we can check if these expectations align with our HMC approximations from earlier. We can compute samples from a normal-inverse gamma following the equations given [here](https://en.wikipedia.org/wiki/Normal-inverse-gamma_distribution#Generating_normal-inverse-gamma_random_variates).
+The underlying theory of Bayesian machine learning is not explained in detail in this documentation.
+A thorough introduction to the field is [*Pattern Recognition and Machine Learning*](https://www.springer.com/us/book/9780387310732) (Bishop, 2006); an online version is available [here (PDF, 18.1 MB)](https://www.microsoft.com/en-us/research/uploads/prod/2006/01/Bishop-Pattern-Recognition-and-Machine-Learning-2006.pdf).
+:::
 
-```{julia}
-function sample_posterior(alpha, beta, mean, lambda, iterations)
-    samples = []
-    for i in 1:iterations
-        sample_variance = rand(InverseGamma(alpha, beta), 1)
-        sample_x = rand(Normal(mean, sqrt(sample_variance[1]) / lambda), 1)
-        samples = append!(samples, sample_x)
-    end
-    return samples
-end
-
-analytical_samples = sample_posterior(updated_alpha, updated_beta, mean_exp, 2, 1000);
-```
-
-```{julia}
-density(analytical_samples; label="Posterior (Analytical)")
-density!(chn[:m]; label="Posterior (HMC)")
-```
+The next page on [Turing's core functionality](../../tutorials/docs-12-using-turing-guide/) explains the basic features of the Turing language.
+From there, you can either look at [worked examples of how different models are implemented in Turing](../../tutorials/00-introduction/), or [specific tips and tricks that can help you get the most out of Turing](../../tutorials/docs-17-mode-estimation/).

@@ -1,0 +1,59 @@
+---
+title: Manually Defining a Model
+engine: julia
+---
+
+Traditionally, models in Turing are defined using the `@model` macro:
+
+```{julia}
+using Turing
+
+@model function gdemo(x)
+    # Set priors.
+    s² ~ InverseGamma(2, 3)
+    m ~ Normal(0, sqrt(s²))
+
+    # Observe each value of x.
+    @. x ~ Normal(m, sqrt(s²))
+end
+
+model = gdemo([1.5, 2.0])
+```
+
+The `@model` macro accepts a function definition and rewrites it such that call of the function generates a `Model` struct for use by the sampler.
+
+However, models can be constructed by hand without the use of a macro.
+Taking the `gdemo` model above as an example, the macro-based definition can be implemented also (a bit less generally) with the macro-free version
+
+```{julia}
+# Create the model function.
+function gdemo2(model, varinfo, context, x)
+    # Assume s² has an InverseGamma distribution.
+    s², varinfo = DynamicPPL.tilde_assume!!(
+        context, InverseGamma(2, 3), Turing.@varname(s²), varinfo
+    )
+
+    # Assume m has a Normal distribution.
+    m, varinfo = DynamicPPL.tilde_assume!!(
+        context, Normal(0, sqrt(s²)), Turing.@varname(m), varinfo
+    )
+
+    # Observe each value of x[i] according to a Normal distribution.
+    return DynamicPPL.dot_tilde_observe!!(
+        context, Normal(m, sqrt(s²)), x, Turing.@varname(x), varinfo
+    )
+end
+gdemo2(x) = Turing.Model(gdemo2, (; x))
+
+# Instantiate a Model object with our data variables.
+model2 = gdemo2([1.5, 2.0])
+```
+
+We can sample from this model in the same way:
+
+```{julia}
+setprogress!(false)
+chain = sample(model2, NUTS(), 1000)
+```
+
+The subsequent pages in this section will show how the `@model` macro does this behind-the-scenes.

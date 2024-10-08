@@ -4,6 +4,8 @@ This repository is part of [Turing.jl's](https://turinglang.org/) website (i.e. 
 - The `master` branch contains the quarto source 
 - The `gh-pages` branch contains the `html` version of these documents compiled from the `master` branch.
 
+## Local development
+
 To get started with the docs website locally, you'll need to have [Quarto](https://quarto.org/docs/download/) installed.
 Make sure you have at least version 1.5 of Quarto installed, as this is required to correctly run [the native Julia engine](https://quarto.org/docs/computations/julia.html#using-the-julia-engine).
 
@@ -49,6 +51,16 @@ Once you have the prerequisite installed, you can follow these steps:
     ```
     quarto render path/to/index.qmd
     ```
+
+## Troubleshooting build issues
+
+As described in the [Quarto docs](https://quarto.org/docs/computations/julia.html#using-the-julia-engine), Quarto's Julia engine uses a worker process behind the scenes.
+Sometimes this can result in issues with old package code not being unloaded (e.g. when package versions are upgraded).
+If you find that Quarto's execution is failing with errors that aren't reproducible via a normal REPL, try adding the `--execute-daemon-restart` flag to the `quarto render` command:
+
+```bash
+quarto render /path/to/index.qmd --execute-daemon-restart
+```
 
 ## License
 

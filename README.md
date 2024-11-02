@@ -44,13 +44,28 @@ Once you have the prerequisite installed, you can follow these steps:
     quarto render
     ```
 
-    This will render the full website in `_site` folder.
+    This will build the entire documentation and place the output in the `_site` folder.
+    You can then view the rendered website by launching a HTTP server from that directory, e.g. using Python:
 
-    It is also possible to render a single tutorial or `qmd` file without compiling the entire site. This is often helpful to speed up compilation when editing a single docs page. To do this, pass the `qmd` file as an argument to `quarto render`:
+    ```bash
+    cd _site
+    python -m http.server 8000
+    ```
 
-    ```
-    quarto render path/to/index.qmd
-    ```
+    Then, navigate to http://localhost:8000/ in your web browser.
+
+    Note that rendering the entire documentation site can take a long time (usually multiple hours).
+    If you wish to speed up local rendering, there are two options available:
+
+    - Download the most recent `_freeze` folder from the [GitHub releases of this repo](https://github.com/turinglang/docs/releases), and place it in the root of the project.
+      This will allow Quarto to reuse the outputs of previous computations for any files which have not been changed since that `_freeze` folder was created.
+
+    - Alternatively, render a single tutorial or `qmd` file without compiling the entire site.
+      To do this, pass the `qmd` file as an argument to `quarto render`:
+
+      ```
+      quarto render path/to/index.qmd
+      ```
 
 ## Troubleshooting build issues
 

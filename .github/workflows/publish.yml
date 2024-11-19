@@ -11,6 +11,9 @@ concurrency:
   group: docs
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -105,18 +108,26 @@ jobs:
         run: |
           jq -s '.[0] + .[1]' _site/search_original.json fixed_main_search.json > _site/search.json
 
-      - name: Deploy versioned docs
-        uses: JamesIves/github-pages-deploy-action@v4
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
         with:
-          branch: gh-pages
-          folder: _site
-          target-folder: versions/${{ env.version }}
-          clean: false
+          ref: gh-pages
+          path: ../gh-pages
 
-      - name: Deploy latest docs to root
-        if: env.version == env.LATEST
-        uses: JamesIves/github-pages-deploy-action@v4
-        with:
-          branch: gh-pages
-          folder: _site
-          clean: false
+      - name: Update gh-pages branch
+        run: |
+          # Copy to versions/ subdirectory
+          mkdir -p ../gh-pages/versions/${{ env.version }}
+          cp -r _site/* ../gh-pages/versions/${{ env.version }}
+
+          # Find the latest version of the docs and copy that to the root
+          cd ../gh-pages/versions
+          LATEST_DOCS=$(ls -d * | sort -V | tail -n 1)
+          cp -r $LATEST_DOCS/* ../
+
+          # Commit and push
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Publish docs @ ${GITHUB_REPOSITORY}@${GITHUB_SHA}"
+          git push

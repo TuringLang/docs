@@ -4,6 +4,17 @@ This repository is part of [Turing.jl's](https://turinglang.org/) website (i.e. 
 - The `master` branch contains the quarto source 
 - The `gh-pages` branch contains the `html` version of these documents compiled from the `master` branch.
 
+> [!NOTE]  
+> Due to [an incompatibility between Bijectors.jl and
+> Enzyme.jl](https://github.com/TuringLang/Bijectors.jl/pull/341), the docs
+> currently must be built with Julia 1.10. You can do this either by making
+> Julia 1.10 your default Julia version (`juliaup default 1.10`), or by
+> explicitly specifying Julia 1.10 when running Quarto:
+>
+> ```bash
+> QUARTO_JULIA=$(julia +1.10 -e "println(Sys.BINDIR)")/julia quarto render
+> ```
+
 ## Local development
 
 To get started with the docs website locally, you'll need to have [Quarto](https://quarto.org/docs/download/) installed.
@@ -77,6 +88,12 @@ If you find that Quarto's execution is failing with errors that aren't reproduci
 
 ```bash
 quarto render /path/to/index.qmd --execute-daemon-restart
+```
+
+And also, kill any stray Quarto processes that are still running (sometimes it keeps running in the background):
+
+```bash
+pkill -9 -f quarto
 ```
 
 ## License

@@ -1,0 +1,31 @@
+name: Remove PR previews
+
+on:
+  pull_request_target:
+    types:
+      - closed
+
+permissions:
+  contents: write
+
+jobs:
+  delete-preview-directory:
+    if: github.event.action == 'closed' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+    
+      - name: Remove PR Preview Directory
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          PREVIEW_DIR="pr-previews/${PR_NUMBER}"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git pull origin gh-pages
+          rm -rf ${PREVIEW_DIR}
+          git add .
+          git commit -m "Remove preview for merged PR #${PR_NUMBER}"
+          git push

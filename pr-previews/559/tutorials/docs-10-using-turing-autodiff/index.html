@@ -535,8 +535,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="switching-ad-modes">Switching AD Modes</h2>
 <p>Turing currently supports four automatic differentiation (AD) backends for sampling: <a href="https://github.com/JuliaDiff/ForwardDiff.jl">ForwardDiff</a> for forward-mode AD; and <a href="https://github.com/compintell/Mooncake.jl">Mooncake</a>, <a href="https://github.com/JuliaDiff/ReverseDiff.jl">ReverseDiff</a>, and <a href="https://github.com/FluxML/Zygote.jl">Zygote</a> for reverse-mode AD. <code>ForwardDiff</code> is automatically imported by Turing. To utilize <code>Mooncake</code>, <code>Zygote</code>, or <code>ReverseDiff</code> for AD, users must explicitly import them with <code>import Mooncake</code>, <code>import Zygote</code> or <code>import ReverseDiff</code>, alongside <code>using Turing</code>.</p>
 <p>As of Turing version v0.30, the global configuration flag for the AD backend has been removed in favour of <a href="https://github.com/SciML/ADTypes.jl"><code>AdTypes.jl</code></a>, allowing users to specify the AD backend for individual samplers independently. Users can pass the <code>adtype</code> keyword argument to the sampler constructor to select the desired AD backend, with the default being <code>AutoForwardDiff(; chunksize=0)</code>.</p>
-<p>For <code>ForwardDiff</code>, pass <code>adtype=AutoForwardDiff(; chunksize)</code> to the sampler constructor. A <code>chunksize</code> of 0 permits the chunk size to be automatically determined. For more information regarding the selection of <code>chunksize</code>, please refer to <a href="https://juliadiff.org/ForwardDiff.jl/dev/user/advanced/#Configuring-Chunk-Size">related section of <code>ForwardDiff</code>’s documentation</a>. For <code>ReverseDiff</code>, pass <code>adtype=AutoReverseDiff()</code> to the sampler constructor. An additional argument can be provided to <code>AutoReverseDiff</code> to specify whether to to compile the tape only once and cache it for later use (<code>false</code> by default, which means no caching tape). Be aware that the use of caching in certain types of models can lead to incorrect results and/or errors.</p>
-<p>Compiled tapes should only be used if you are absolutely certain that the computation doesn’t change between different executions of your model. Thus, e.g., in the model definition and all im- and explicitly called functions in the model all loops should be of fixed size, and <code>if</code>-statements should consistently execute the same branches. For instance, <code>if</code>-statements with conditions that can be determined at compile time or conditions that depend only on the data will always execute the same branches during sampling (if the data is constant throughout sampling and, e.g., no mini-batching is used). However, <code>if</code>-statements that depend on the model parameters can take different branches during sampling; hence, the compiled tape might be incorrect. Thus you must not use compiled tapes when your model makes decisions based on the model parameters, and you should be careful if you compute functions of parameters that those functions do not have branching which might cause them to execute different code for different values of the parameter.</p>
+<p>For <code>ForwardDiff</code>, pass <code>adtype=AutoForwardDiff(; chunksize)</code> to the sampler constructor. A <code>chunksize</code> of <code>nothing</code> permits the chunk size to be automatically determined. For more information regarding the selection of <code>chunksize</code>, please refer to <a href="https://juliadiff.org/ForwardDiff.jl/dev/user/advanced/#Configuring-Chunk-Size">related section of <code>ForwardDiff</code>’s documentation</a>.</p>
+<p>For <code>ReverseDiff</code>, pass <code>adtype=AutoReverseDiff()</code> to the sampler constructor. An additional keyword argument called <code>compile</code> can be provided to <code>AutoReverseDiff</code>. It specifies whether to pre-record the tape only once and reuse it later (<code>compile</code> is set to <code>false</code> by default, which means no pre-recording). This can substantially improve performance, but risks silently incorrect results if not used with care.</p>
+<p>Pre-recorded tapes should only be used if you are absolutely certain that the sequence of operations performed in your code does not change between different executions of your model.</p>
+<p>Thus, e.g., in the model definition and all implicitly and explicitly called functions in the model, all loops should be of fixed size, and <code>if</code>-statements should consistently execute the same branches. For instance, <code>if</code>-statements with conditions that can be determined at compile time or conditions that depend only on fixed properties of the model, e.g.&nbsp;fixed data. However, <code>if</code>-statements that depend on the model parameters can take different branches during sampling; hence, the compiled tape might be incorrect. Thus you must not use compiled tapes when your model makes decisions based on the model parameters, and you should be careful if you compute functions of parameters that those functions do not have branching which might cause them to execute different code for different values of the parameter.</p>
 <p>For <code>Zygote</code>, pass <code>adtype=AutoZygote()</code> to the sampler constructor.</p>
 <p>And the previously used interface functions including <code>ADBackend</code>, <code>setadbackend</code>, <code>setsafe</code>, <code>setchunksize</code>, and <code>setrdcache</code> are deprecated and removed.</p>
 </section>
@@ -571,8 +573,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 Iterations        = 1:1:1000
 Number of chains  = 1
 Samples per chain = 1000
-Wall duration     = 7.8 seconds
-Compute duration  = 7.8 seconds
+Wall duration     = 7.88 seconds
+Compute duration  = 7.88 seconds
 parameters        = s², m
 internals         = lp
 
@@ -580,20 +582,43 @@ Summary Statistics
   parameters      mean       std      mcse   ess_bulk   ess_tail      rhat   e ⋯
       Symbol   Float64   Float64   Float64    Float64    Float64   Float64     ⋯
 
-          s²    1.9165    1.3899    0.1261   156.6481   198.5092    1.0211     ⋯
-           m    1.1526    0.7383    0.0628   144.9590   164.2945    1.0019     ⋯
+          s²    1.8360    1.4086    0.1032   199.4852   330.4936    1.0011     ⋯
+           m    1.1656    0.7080    0.0629   131.6011   152.2421    1.0048     ⋯
                                                                 1 column omitted
 
 Quantiles
   parameters      2.5%     25.0%     50.0%     75.0%     97.5%
       Symbol   Float64   Float64   Float64   Float64   Float64
 
-          s²    0.5582    1.0165    1.5072    2.3481    5.4098
-           m   -0.1941    0.6540    1.1128    1.6174    2.6665</code></pre>
+          s²    0.5568    0.9816    1.4070    2.1366    5.7987
+           m   -0.3997    0.7167    1.1848    1.6065    2.5585</code></pre>
 </div>
 </div>
 <p>Generally, reverse-mode AD, for instance <code>ReverseDiff</code>, is faster when sampling from variables of high dimensionality (greater than 20), while forward-mode AD, for instance <code>ForwardDiff</code>, is more efficient for lower-dimension variables. This functionality allows those who are performance sensitive to fine tune their automatic differentiation for their specific models.</p>
 <p>If the differentiation method is not specified in this way, Turing will default to using whatever the global AD backend is. Currently, this defaults to <code>ForwardDiff</code>.</p>
+<p>The most reliable way to ensure you are using the fastest AD that works for your problem is to benchmark them using <a href="https://github.com/TuringLang/TuringBenchmarking.jl"><code>TuringBenchmarking</code></a>:</p>
+<div id="6" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">TuringBenchmarking</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="fu">benchmark_model</span>(<span class="fu">gdemo</span>(<span class="fl">1.5</span>, <span class="fl">2</span>), adbackends<span class="op">=</span>[<span class="fu">AutoForwardDiff</span>(), <span class="fu">AutoReverseDiff</span>()])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>2-element BenchmarkTools.BenchmarkGroup:
+  tags: []
+  "evaluation" =&gt; 2-element BenchmarkTools.BenchmarkGroup:
+      tags: []
+      "linked" =&gt; Trial(441.000 ns)
+      "standard" =&gt; Trial(390.000 ns)
+  "gradient" =&gt; 2-element BenchmarkTools.BenchmarkGroup:
+      tags: []
+      "ADTypes.AutoReverseDiff()" =&gt; 2-element BenchmarkTools.BenchmarkGroup:
+          tags: ["ReverseDiff"]
+          "linked" =&gt; Trial(9.287 μs)
+          "standard" =&gt; Trial(8.415 μs)
+      "ADTypes.AutoForwardDiff()" =&gt; 2-element BenchmarkTools.BenchmarkGroup:
+          tags: ["ForwardDiff"]
+          "linked" =&gt; Trial(661.000 ns)
+          "standard" =&gt; Trial(601.000 ns)</code></pre>
+</div>
+</div>
 
 
 </section>

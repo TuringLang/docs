@@ -107,7 +107,12 @@ if ENV["TARGET_IS_MASTER"] == "true"
         println("$(MANIFEST_TOML_PATH) is out of date; updating")
         old_env = Pkg.project().path
         Pkg.activate(".")
-        Pkg.update()
+        try
+            Pkg.add(name="Turing", version=latest_version)
+        catch e
+            # If the Manifest couldn't be updated, the error will be shown later
+            println(e)
+        end
         # Check if versions match now, error if not
         Pkg.activate(old_env)
         manifest_toml = TOML.parsefile(MANIFEST_TOML_PATH)

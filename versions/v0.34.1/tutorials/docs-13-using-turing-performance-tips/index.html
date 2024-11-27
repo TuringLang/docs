@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.7.0">
+<meta name="generator" content="quarto-1.7.1">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -72,8 +72,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="../../site_libs/quarto-html/anchor.min.js"></script>
 <link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-23b5d515405460ba008ebd3366b1cbf2.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
-<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-dark-1f07eb2c514cf428db5cebb7a2aa15a2.css" rel="prefetch" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-2bb0ec5e928ee8c40b12725cb7836c35.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-dark-31d8df3fb4b3ebd213a509f950828e75.css" rel="prefetch" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
 <script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="../../site_libs/bootstrap/bootstrap-5a965d03c83b9a52a3a52c83f34fadca.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
@@ -507,7 +507,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#use-multivariate-distributions" id="toc-use-multivariate-distributions" class="nav-link active" data-scroll-target="#use-multivariate-distributions">Use multivariate distributions</a></li>
   <li><a href="#choose-your-ad-backend" id="toc-choose-your-ad-backend" class="nav-link" data-scroll-target="#choose-your-ad-backend">Choose your AD backend</a>
   <ul class="collapse">
-  <li><a href="#special-care-for-zygote" id="toc-special-care-for-zygote" class="nav-link" data-scroll-target="#special-care-for-zygote">Special care for Zygote</a></li>
+  <li><a href="#special-care-for-zygote-and-tracker" id="toc-special-care-for-zygote-and-tracker" class="nav-link" data-scroll-target="#special-care-for-zygote-and-tracker">Special care for Zygote and Tracker</a></li>
   <li><a href="#special-care-for-reversediff-with-a-compiled-tape" id="toc-special-care-for-reversediff-with-a-compiled-tape" class="nav-link" data-scroll-target="#special-care-for-reversediff-with-a-compiled-tape">Special care for ReverseDiff with a compiled tape</a></li>
   </ul></li>
   <li><a href="#ensure-that-types-in-your-model-can-be-inferred" id="toc-ensure-that-types-in-your-model-can-be-inferred" class="nav-link" data-scroll-target="#ensure-that-types-in-your-model-can-be-inferred">Ensure that types in your model can be inferred</a></li>
@@ -568,11 +568,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="choose-your-ad-backend" class="level2">
 <h2 class="anchored" data-anchor-id="choose-your-ad-backend">Choose your AD backend</h2>
-<p>Automatic differentiation (AD) makes it possible to use modern, efficient gradient-based samplers like NUTS and HMC, and that means a good AD system is incredibly important. Turing currently supports several AD backends, including <a href="https://github.com/JuliaDiff/ForwardDiff.jl">ForwardDiff</a> (the default), <a href="https://github.com/compintell/Mooncake.jl">Mooncake</a>, <a href="https://github.com/FluxML/Zygote.jl">Zygote</a>, and <a href="https://github.com/JuliaDiff/ReverseDiff.jl">ReverseDiff</a>.</p>
+<p>Automatic differentiation (AD) makes it possible to use modern, efficient gradient-based samplers like NUTS and HMC, and that means a good AD system is incredibly important. Turing currently supports several AD backends, including <a href="https://github.com/JuliaDiff/ForwardDiff.jl">ForwardDiff</a> (the default), <a href="https://github.com/FluxML/Zygote.jl">Zygote</a>, <a href="https://github.com/JuliaDiff/ReverseDiff.jl">ReverseDiff</a>, and <a href="https://github.com/FluxML/Tracker.jl">Tracker</a>. Experimental support is also available for <a href="https://github.com/withbayes/Tapir.jl">Tapir</a>.</p>
 <p>For many common types of models, the default ForwardDiff backend performs great, and there is no need to worry about changing it. However, if you need more speed, you can try different backends via the standard <a href="https://github.com/SciML/ADTypes.jl">ADTypes</a> interface by passing an <code>AbstractADType</code> to the sampler with the optional <code>adtype</code> argument, e.g. <code>NUTS(adtype = AutoZygote())</code>. See <a href="../../tutorials/docs-10-using-turing-autodiff">Automatic Differentiation</a> for details. Generally, <code>adtype = AutoForwardDiff()</code> is likely to be the fastest and most reliable for models with few parameters (say, less than 20 or so), while reverse-mode backends such as <code>AutoZygote()</code> or <code>AutoReverseDiff()</code> will perform better for models with many parameters or linear algebra operations. If in doubt, it’s easy to try a few different backends to see how they compare.</p>
-<section id="special-care-for-zygote" class="level3">
-<h3 class="anchored" data-anchor-id="special-care-for-zygote">Special care for Zygote</h3>
-<p>Note that Zygote will not perform well if your model contains <code>for</code>-loops, due to the way reverse-mode AD is implemented in these packages. Zygote also cannot differentiate code that contains mutating operations. If you can’t implement your model without <code>for</code>-loops or mutation, <code>ReverseDiff</code> will be a better, more performant option. In general, though, vectorized operations are still likely to perform best.</p>
+<section id="special-care-for-zygote-and-tracker" class="level3">
+<h3 class="anchored" data-anchor-id="special-care-for-zygote-and-tracker">Special care for Zygote and Tracker</h3>
+<p>Note that Zygote and Tracker will not perform well if your model contains <code>for</code>-loops, due to the way reverse-mode AD is implemented in these packages. Zygote also cannot differentiate code that contains mutating operations. If you can’t implement your model without <code>for</code>-loops or mutation, <code>ReverseDiff</code> will be a better, more performant option. In general, though, vectorized operations are still likely to perform best.</p>
 <p>Avoiding loops can be done using <code>filldist(dist, N)</code> and <code>arraydist(dists)</code>. <code>filldist(dist, N)</code> creates a multivariate distribution that is composed of <code>N</code> identical and independent copies of the univariate distribution <code>dist</code> if <code>dist</code> is univariate, or it creates a matrix-variate distribution composed of <code>N</code> identical and independent copies of the multivariate distribution <code>dist</code> if <code>dist</code> is multivariate. <code>filldist(dist, N, M)</code> can also be used to create a matrix-variate distribution from a univariate distribution <code>dist</code>. <code>arraydist(dists)</code> is similar to <code>filldist</code> but it takes an array of distributions <code>dists</code> as input. Writing a <a href="advanced">custom distribution</a> with a custom adjoint is another option to avoid loops.</p>
 </section>
 <section id="special-care-for-reversediff-with-a-compiled-tape" class="level3">

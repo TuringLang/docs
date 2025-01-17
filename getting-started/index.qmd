@@ -1,0 +1,87 @@
+---
+title: Getting Started
+engine: julia
+aliases:
+  - ../tutorials/docs-00-getting-started/index.html
+  - ../index.html
+---
+
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate();
+```
+
+### Installation
+
+To use Turing, you need to install Julia first and then install Turing.
+
+You will need to install Julia 1.10 or greater, which you can get from [the official Julia website](http://julialang.org/downloads/).
+
+Turing is officially registered in the [Julia General package registry](https://github.com/JuliaRegistries/General), which means that you can install a stable version of Turing by running the following in the Julia REPL:
+
+```{julia}
+#| eval: false
+#| output: false
+using Pkg
+Pkg.add("Turing")
+```
+
+### Example usage
+
+First, we load the Turing and StatsPlots modules.
+The latter is required for visualising the results.
+
+```{julia}
+using Turing
+using StatsPlots
+```
+
+We then specify our model, which is a simple Gaussian model with unknown mean and variance.
+Models are defined as ordinary Julia functions, prefixed with the `@model` macro.
+Each statement inside closely resembles how the model would be defined with mathematical notation.
+Here, both `x` and `y` are observed values, and are therefore passed as function parameters.
+`m` and `s²` are the parameters to be inferred.
+
+```{julia}
+@model function gdemo(x, y)
+    s² ~ InverseGamma(2, 3)
+    m ~ Normal(0, sqrt(s²))
+    x ~ Normal(m, sqrt(s²))
+    y ~ Normal(m, sqrt(s²))
+end
+```
+
+Suppose we observe `x = 1.5` and `y = 2`, and want to infer the mean and variance.
+We can pass these data as arguments to the `gdemo` function, and run a sampler to collect the results.
+Here, we collect 1000 samples using the No U-Turn Sampler (NUTS) algorithm.
+
+```{julia}
+chain = sample(gdemo(1.5, 2), NUTS(), 1000, progress=false)
+```
+
+We can plot the results:
+
+```{julia}
+plot(chain)
+```
+
+and obtain summary statistics by indexing the chain:
+
+```{julia}
+mean(chain[:m]), mean(chain[:s²])
+```
+
+### Where to go next
+
+::: {.callout-note title="Note on prerequisites"}
+Familiarity with Julia is assumed throughout the Turing documentation.
+If you are new to Julia, [Learning Julia](https://julialang.org/learning/) is a good starting point.
+
+The underlying theory of Bayesian machine learning is not explained in detail in this documentation.
+A thorough introduction to the field is [*Pattern Recognition and Machine Learning*](https://www.springer.com/us/book/9780387310732) (Bishop, 2006); an online version is available [here (PDF, 18.1 MB)](https://www.microsoft.com/en-us/research/uploads/prod/2006/01/Bishop-Pattern-Recognition-and-Machine-Learning-2006.pdf).
+:::
+
+The next page on [Turing's core functionality]({{<meta using-turing>}}) explains the basic features of the Turing language.
+From there, you can either look at [worked examples of how different models are implemented in Turing]({{<meta tutorials-intro>}}), or [specific tips and tricks that can help you get the most out of Turing]({{<meta using-turing-mode-estimation>}}).

@@ -1,0 +1,59 @@
+---
+title: Modifying the Log Probability
+engine: julia
+aliases:
+ - ../../tutorials/usage-modifying-logprob/index.html
+---
+
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate();
+```
+
+Turing accumulates log probabilities internally in an internal data structure that is accessible through the internal variable `__varinfo__` inside of the model definition.
+To avoid users having to deal with internal data structures, Turing provides the `Turing.@addlogprob!` macro which increases the accumulated log probability.
+For instance, this allows you to
+[include arbitrary terms in the likelihood](https://github.com/TuringLang/Turing.jl/issues/1332)
+
+```{julia}
+using Turing
+
+myloglikelihood(x, μ) = loglikelihood(Normal(μ, 1), x)
+
+@model function demo(x)
+    μ ~ Normal()
+    Turing.@addlogprob! myloglikelihood(x, μ)
+end
+```
+
+and to force a sampler to [reject a sample](https://github.com/TuringLang/Turing.jl/issues/1328):
+
+```{julia}
+using Turing
+using LinearAlgebra
+
+@model function demo(x)
+    m ~ MvNormal(zero(x), I)
+    if dot(m, x) < 0
+        Turing.@addlogprob! -Inf
+        # Exit the model evaluation early
+        return nothing
+    end
+
+    x ~ MvNormal(m, I)
+    return nothing
+end
+```
+
+Note that `@addlogprob!` always increases the accumulated log probability, regardless of the provided
+sampling context.
+For instance, if you do not want to apply `Turing.@addlogprob!` when evaluating the prior of your model but only when computing the log likelihood and the log joint probability, then you should [check the type of the internal variable `__context_`](https://github.com/TuringLang/DynamicPPL.jl/issues/154), as in the following example:
+
+```{julia}
+#| eval: false
+if DynamicPPL.leafcontext(__context__) !== Turing.PriorContext()
+    Turing.@addlogprob! myloglikelihood(x, μ)
+end
+```

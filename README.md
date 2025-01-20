@@ -7,9 +7,7 @@ This repository is part of [Turing.jl's](https://turinglang.org/) website (i.e. 
 ## Local development
 
 To get started with the docs website locally, you'll need to have [Quarto](https://quarto.org/docs/download/) installed.
-Make sure you have at least version 1.5 of Quarto installed, as this is required to correctly run [the native Julia engine](https://quarto.org/docs/computations/julia.html#using-the-julia-engine).
-Ideally, you should use Quarto 1.6.31 or later as this version fixes [a bug which causes random number generation between different cells to not be deterministic](https://github.com/TuringLang/docs/issues/533).
-Note that as of October 2024, Quarto 1.6 is a pre-release version, so you may need to install it from source rather than via a package manager like Homebrew.
+Make sure you have at least version 1.6.31 of Quarto installed, as this version contains a fix for [a bug where random number generation in different cells was not deterministic](https://github.com/TuringLang/docs/issues/533).
 
 Once you have Quarto installed, you can follow these steps:
 

@@ -75,30 +75,10 @@ As previously mentioned, the Turing wrappers can often limit the capabilities of
 However, the native HMC sampler within Turing only allows the user to specify the type of the mass matrix despite the two options being possible within `AdvancedHMC`.
 Thankfully, we can use Turing's support for external samplers to define an HMC sampler with a custom mass matrix in `AdvancedHMC` and then use it to sample our Turing model.
 
-We will use the library `Pathfinder`[^2] ((`Pathfinder`'s GitHub)[https://github.com/mlcolab/Pathfinder.jl]) to construct our estimate of mass matrix.
+We can use the library `Pathfinder`[^2] ([`Pathfinder`'s GitHub](https://github.com/mlcolab/Pathfinder.jl)) to construct our estimate of mass matrix.
 `Pathfinder` is a variational inference algorithm that first finds the maximum a posteriori (MAP) estimate of a target posterior distribution and then uses the trace of the optimization to construct a sequence of multivariate normal approximations to the target distribution.
 In this process, `Pathfinder` computes an estimate of the mass matrix the user can access.
-
-The code below shows this can be done in practice.
-
-```{julia}
-using AdvancedHMC, Pathfinder
-# Running pathfinder
-draws = 1_000
-result_multi = multipathfinder(model, draws; nruns=8)
-
-# Estimating the metric
-inv_metric = result_multi.pathfinder_results[1].fit_distribution.Σ
-metric = DenseEuclideanMetric(Matrix(inv_metric))
-
-# Creating an AdvancedHMC NUTS sampler with the custom metric.
-n_adapts = 1000 # Number of adaptation steps
-tap = 0.9 # Large target acceptance probability to deal with the funnel structure of the posterior
-nuts = AdvancedHMC.NUTS(tap; metric=metric)
-
-# Sample
-chain = sample(model, externalsampler(nuts), 10_000; n_adapts=1_000)
-```
+You can see an example of how to use `Pathfinder` with Turing in [`Pathfinder`'s docs](https://mlcolab.github.io/Pathfinder.jl/stable/examples/turing/).
 
 ## Using new inference methods
 

@@ -857,29 +857,6 @@ Note
 <p>The purpose of having all of these machinery is to allow other parts of DynamicPPL, such as the tilde pipeline, to handle transformed variables correctly. The following diagram shows how <code>assume</code> first checks whether the variable is transformed (using <code>istrans</code>), and then applies the appropriate transformation function.</p>
 <!-- 'wrappingWidth' setting required because of https://github.com/mermaid-js/mermaid-cli/issues/112#issuecomment-2352670995 -->
 <div class="cell" data-layout-align="default">
-<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode default code-with-copy"><code class="sourceCode default"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>%%{ init: { 'themeVariables': { 'lineColor': '#000000' } } }%%</span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>%%{ init: { 'flowchart': { 'curve': 'linear', 'wrappingWidth': -1 } } }%%</span>
-<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>graph TD</span>
-<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>    A["x ~ LogNormal()"]:::boxStyle</span>
-<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>    B["vn = &lt;span style='color:#3B6EA8 !important;'&gt;@varname&lt;/span&gt;(x)&lt;br&gt;dist = LogNormal()&lt;br&gt;x, vi = ..."]:::boxStyle</span>
-<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>    C["assume(vn, dist, vi)"]:::boxStyle</span>
-<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>    D(["&lt;span style='color:#3B6EA8 !important;'&gt;if&lt;/span&gt; istrans(vi, vn)"]):::boxStyle</span>
-<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>    E["f = from_internal_transform(vi, vn, dist)"]:::boxStyle</span>
-<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>    F["f = from_linked_internal_transform(vi, vn, dist)"]:::boxStyle</span>
-<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>    G["x, logjac = with_logabsdet_jacobian(f, getindex_internal(vi, vn, dist))"]:::boxStyle</span>
-<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>    H["&lt;span style='color:#3B6EA8 !important;'&gt;return&lt;/span&gt; x, logpdf(dist, x) - logjac, vi"]:::boxStyle</span>
-<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>    A -.-&gt;|&lt;span style='color:#3B6EA8 ; background-color:#ffffff;'&gt;@model&lt;/span&gt;| B</span>
-<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>    B -.-&gt;|&lt;span style='color:#000000 ; background-color:#ffffff;'&gt;tilde-pipeline&lt;/span&gt;| C</span>
-<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a>    C --&gt; D</span>
-<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a>    D --&gt;|&lt;span style='color:#97365B ; background-color:#ffffff;'&gt;false&lt;/span&gt;| E</span>
-<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a>    D --&gt;|&lt;span style='color:#97365B ; background-color:#ffffff;'&gt;true&lt;/span&gt;| F</span>
-<span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a>    E --&gt; G</span>
-<span id="cb28-19"><a href="#cb28-19" aria-hidden="true" tabindex="-1"></a>    F --&gt; G</span>
-<span id="cb28-20"><a href="#cb28-20" aria-hidden="true" tabindex="-1"></a>    G --&gt; H</span>
-<span id="cb28-21"><a href="#cb28-21" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb28-22"><a href="#cb28-22" aria-hidden="true" tabindex="-1"></a>    classDef boxStyle fill:#ffffff,stroke:#000000,font-family:Courier,color:#000000</span>
-<span id="cb28-23"><a href="#cb28-23" aria-hidden="true" tabindex="-1"></a>    linkStyle default stroke:#000000,stroke-width:1px,color:#000000</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <p></p><figure class="figure"><p></p>
@@ -920,23 +897,7 @@ graph TD
 <h2 class="anchored" data-anchor-id="why-do-we-need-to-do-this-at-runtime">Why do we need to do this at runtime?</h2>
 <p>Given that we know whether a <code>VarInfo</code> is linked or not, one might wonder why we need both <code>from_internal_transform</code> and <code>from_linked_internal_transform</code> at the point where the model is evaluated. Could we not, for example, store the required transformation inside the <code>VarInfo</code> when we link it, and simply reuse that each time?</p>
 <p>That is, why can’t we just do</p>
-<div class="cell" data-layout-align="default">
-<div class="sourceCode cell-code" id="cb29"><pre class="sourceCode default code-with-copy"><code class="sourceCode default"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>%%{ init: { 'flowchart': { 'curve': 'linear', 'wrappingWidth': -1 } } }%%</span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>%%{ init: { 'themeVariables': { 'lineColor': '#000000' } } }%%</span>
-<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>graph TD</span>
-<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>      A["assume(varinfo, &lt;span style='color:#3B6EA8 !important;'&gt;@varname&lt;/span&gt;(x), Normal())"]:::boxStyle</span>
-<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>      B["f = from_internal_transform(varinfo, varname, dist)"]:::boxStyle</span>
-<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>      C["x, logjac = with_logabsdet_jacobian(f, getindex_internal(varinfo, varname))"]:::boxStyle</span>
-<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>      D["&lt;span style='color:#3B6EA8 !important;'&gt;return&lt;/span&gt; x, logpdf(dist, x) - logjac, varinfo"]:::dashedBox</span>
-<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>      </span>
-<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a>      A --&gt; B</span>
-<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a>      B --&gt; C</span>
-<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a>      C --&gt; D</span>
-<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a>    classDef dashedBox fill:#ffffff,stroke:#000000,stroke-dasharray: 5 5,font-family:Courier,color:#000000</span>
-<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a>    classDef boxStyle fill:#ffffff,stroke:#000000,font-family:Courier,color:#000000</span>
-<span id="cb29-15"><a href="#cb29-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb29-16"><a href="#cb29-16" aria-hidden="true" tabindex="-1"></a>    linkStyle default stroke:#000000,stroke-width:1px,color:#000000</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell" data-fig-width="5" data-layout-align="default">
 <div class="cell-output-display">
 <div>
 <p></p><figure class="figure"><p></p>
@@ -966,39 +927,39 @@ graph TD
 <p>where <code>from_internal_transform</code> here only looks up a stored transformation function?</p>
 <p>Unfortunately, this is not possible in general, because the transformation function might not be a constant between different model evaluations. Consider, for example, the following model:</p>
 <div id="32" class="cell" data-execution_count="1">
-<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">demo_dynamic_constraint</span>()</span>
-<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>    m <span class="op">~</span> <span class="fu">Normal</span>()</span>
-<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>    x <span class="op">~</span> <span class="fu">truncated</span>(<span class="fu">Normal</span>(); lower<span class="op">=</span>m)</span>
-<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (m<span class="op">=</span>m, x<span class="op">=</span>x)</span>
-<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">demo_dynamic_constraint</span>()</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>    m <span class="op">~</span> <span class="fu">Normal</span>()</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>    x <span class="op">~</span> <span class="fu">truncated</span>(<span class="fu">Normal</span>(); lower<span class="op">=</span>m)</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (m<span class="op">=</span>m, x<span class="op">=</span>x)</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>demo_dynamic_constraint (generic function with 2 methods)</code></pre>
 </div>
 </div>
 <p>Here, <code>m</code> is distributed according to a plain <code>Normal()</code>, whereas the variable <code>x</code> is constrained to be in the domain <code>(m, Inf)</code>. Because of this, we expect that any time we sample from the model, we should have that <code>m &lt; x</code> (in terms of their model representations):</p>
 <div id="34" class="cell" data-execution_count="1">
-<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> <span class="fu">demo_dynamic_constraint</span>()</span>
-<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>vi <span class="op">=</span> <span class="fu">VarInfo</span>(model)</span>
-<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>vn_m, vn_x <span class="op">=</span> <span class="pp">@varname</span>(m), <span class="pp">@varname</span>(x)</span>
-<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>vi[vn_m], vi[vn_x]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> <span class="fu">demo_dynamic_constraint</span>()</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>vi <span class="op">=</span> <span class="fu">VarInfo</span>(model)</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>vn_m, vn_x <span class="op">=</span> <span class="pp">@varname</span>(m), <span class="pp">@varname</span>(x)</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>vi[vn_m], vi[vn_x]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>(-0.20318141265857553, 0.07028870940645648)</code></pre>
 </div>
 </div>
 <p>(Note that <code>vi[vn]</code> is a shorthand for <code>getindex(vi, vn)</code>, so this retrieves the model representations of <code>m</code> and <code>x</code>.) So far, so good. Let’s now link this <code>VarInfo</code> so that we end up working in an ‘unconstrained’ space, where both <code>m</code> and <code>x</code> can take on any values in <code>(-Inf, Inf)</code>. First, we should check that the model representations are unchanged when linking:</p>
 <div id="36" class="cell" data-execution_count="1">
-<div class="sourceCode cell-code" id="cb34"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>vi_linked <span class="op">=</span> <span class="fu">link</span>(vi, model)</span>
-<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>vi_linked[vn_m], vi_linked[vn_x]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>vi_linked <span class="op">=</span> <span class="fu">link</span>(vi, model)</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>vi_linked[vn_m], vi_linked[vn_x]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>(-0.20318141265857553, 0.07028870940645648)</code></pre>
 </div>
 </div>
 <p>But if we change the value of <code>m</code>, to, say, a bit larger than <code>x</code>:</p>
 <div id="38" class="cell" data-execution_count="1">
-<div class="sourceCode cell-code" id="cb36"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Update the model representation for `m` in `vi_linked`.</span></span>
-<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>vi_linked[vn_m] <span class="op">=</span> vi_linked[vn_x] <span class="op">+</span> <span class="fl">1</span></span>
-<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>vi_linked[vn_m], vi_linked[vn_x]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb34"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Update the model representation for `m` in `vi_linked`.</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>vi_linked[vn_m] <span class="op">=</span> vi_linked[vn_x] <span class="op">+</span> <span class="fl">1</span></span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>vi_linked[vn_m], vi_linked[vn_x]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>(1.0702887094064564, 0.07028870940645648)</code></pre>
 </div>
@@ -1018,8 +979,8 @@ Warning
 </div>
 <p>Now, we see that the constraint <code>m &lt; x</code> is no longer satisfied. Hence, one might expect that if we try to evaluate the model using this <code>VarInfo</code>, we should obtain an error. Here, <code>evaluate!!</code> returns two things: the model’s return value itself (which we defined above to be a <code>NamedTuple</code>), and the resulting <code>VarInfo</code> post-evaluation.</p>
 <div id="40" class="cell" data-execution_count="1">
-<div class="sourceCode cell-code" id="cb38"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>retval, ret_varinfo <span class="op">=</span> DynamicPPL.<span class="fu">evaluate!!</span>(model, vi_linked, <span class="fu">DefaultContext</span>())</span>
-<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="fu">getlogp</span>(ret_varinfo)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb36"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>retval, ret_varinfo <span class="op">=</span> DynamicPPL.<span class="fu">evaluate!!</span>(model, vi_linked, <span class="fu">DefaultContext</span>())</span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="fu">getlogp</span>(ret_varinfo)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>-2.6598362786308956</code></pre>
 </div>
@@ -1027,7 +988,7 @@ Warning
 <p>But we don’t get any errors! Indeed, we could even calculate the ‘log probability density’ for this evaluation.</p>
 <p>To understand this, we need to look at the actual value which was used during the model evaluation. We can glean this from the return value (or from the returned <code>VarInfo</code>, but the former is easier):</p>
 <div id="42" class="cell" data-execution_count="1">
-<div class="sourceCode cell-code" id="cb40"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>retval</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb38"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>retval</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>(m = 1.0702887094064564, x = 1.3437588314714883)</code></pre>
 </div>
@@ -1037,38 +998,39 @@ Warning
 <p>Knowing that the distribution of <code>x</code> depends on the value of <code>m</code>, we can now understand how the model representation of <code>x</code> got updated. The linked <code>VarInfo</code> does not store the model representation of <code>x</code>, but only its linked internal representation. So, what happened during the model evaluation above was that the linked internal representation of <code>x</code> – which was constructed using the <em>original</em> value of <code>m</code> – was transformed back into a new model representation using a <em>different</em> value of <code>m</code>.</p>
 <p>We can reproduce the ‘new’ value of <code>x</code> by performing these transformations manually:</p>
 <div id="44" class="cell" data-execution_count="1">
-<div class="sourceCode cell-code" id="cb42"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate a fresh linked VarInfo (without the new / 'corrupted' values)</span></span>
-<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>vi_linked <span class="op">=</span> <span class="fu">link</span>(vi, model)</span>
-<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a><span class="co"># See the linked internal representations</span></span>
-<span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a>DynamicPPL.<span class="fu">getindex_internal</span>(vi_linked, vn_m), DynamicPPL.<span class="fu">getindex_internal</span>(vi_linked, vn_x)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb40"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate a fresh linked VarInfo (without the new / 'corrupted' values)</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>vi_linked <span class="op">=</span> <span class="fu">link</span>(vi, model)</span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a><span class="co"># See the linked internal representations</span></span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>DynamicPPL.<span class="fu">getindex_internal</span>(vi_linked, vn_m), DynamicPPL.<span class="fu">getindex_internal</span>(vi_linked, vn_x)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>([-0.20318141265857553], [-1.2965629059941892])</code></pre>
 </div>
 </div>
 <p>Now we update the value of <code>m</code> like we did before:</p>
 <div id="46" class="cell" data-execution_count="1">
-<div class="sourceCode cell-code" id="cb44"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a>vi_linked[vn_m] <span class="op">=</span> vi_linked[vn_x] <span class="op">+</span> <span class="fl">1</span></span>
-<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a>vi_linked[vn_m]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb42"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a>vi_linked[vn_m] <span class="op">=</span> vi_linked[vn_x] <span class="op">+</span> <span class="fl">1</span></span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>vi_linked[vn_m]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>1.0702887094064564</code></pre>
 </div>
 </div>
 <p>When evaluating the model, the distribution of <code>x</code> is now changed, and so is the corresponding inverse bijector:</p>
 <div id="48" class="cell" data-execution_count="1">
-<div class="sourceCode cell-code" id="cb46"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a>new_dist_x <span class="op">=</span> <span class="fu">truncated</span>(<span class="fu">Normal</span>(); lower<span class="op">=</span>vi_linked[vn_m])</span>
-<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a>new_f_inv <span class="op">=</span> DynamicPPL.<span class="fu">invlink_transform</span>(new_dist_x)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb44"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a>new_dist_x <span class="op">=</span> <span class="fu">truncated</span>(<span class="fu">Normal</span>(); lower<span class="op">=</span>vi_linked[vn_m])</span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a>new_f_inv <span class="op">=</span> DynamicPPL.<span class="fu">invlink_transform</span>(new_dist_x)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>Inverse{Bijectors.TruncatedBijector{Float64, Float64}}(Bijectors.TruncatedBijector{Float64, Float64}(1.0702887094064564, Inf))</code></pre>
 </div>
 </div>
 <p>and if we apply this to the internal representation of <code>x</code>:</p>
 <div id="50" class="cell" data-execution_count="1">
-<div class="sourceCode cell-code" id="cb48"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="fu">new_f_inv</span>(DynamicPPL.<span class="fu">getindex_internal</span>(vi_linked, vn_x))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb46"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="fu">new_f_inv</span>(DynamicPPL.<span class="fu">getindex_internal</span>(vi_linked, vn_x))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>1-element Vector{Float64}:
  1.3437588314714883</code></pre>
 </div>
 </div>
+<p>which is the same value as we got above in <code>retval</code>.</p>
 
 
 </section>

@@ -169,7 +169,7 @@ end
 # `x0`        : the initial value
 # Returns a vector of samples, plus the number of times we went out of bounds.
 function mh(logp, n_samples, in_bounds; x0=1.0)
-    samples = []
+    samples = [x0]
     x = x0
     n_out_of_bounds = 0
     for _ in 2:n_samples
@@ -231,7 +231,7 @@ function logq(y)
     x = f_inv(y)
     return B.logpdf_with_trans(d, x, true)
 end
-samples_transformed, _ = mh(logq, 10000, x -> true);
+samples_transformed, n_oob_transformed = mh(logq, 10000, x -> true);
 ```
 
 Now, this process gives us samples that have been transformed, so we need to un-transform them to get the samples from the original distribution:
@@ -248,6 +248,12 @@ println("expected mean: $(exp(0 + (1^2/2)))")
 println("  actual mean: $(mean(samples_untransformed))")
 ```
 
+On top of that, we can also verify that we don't ever go out of bounds:
+
+```{julia}
+println("went out of bounds $n_oob_transformed/10000 times")
+```
+
 ### Which one is better?
 
 In the subsections above, we've seen two different methods of sampling from a constrained distribution:
@@ -257,9 +263,16 @@ In the subsections above, we've seen two different methods of sampling from a co
 
 (Note that both of these methods are applicable to other samplers as well, such as Hamiltonian Monte Carlo.)
 
-Of course, the question then becomes which one of these is better.
-We might look at the sample means above to see which one is 'closer' to the expected mean, but that's not a very robust method because the sample mean is itself random.
-What we could do is to perform both methods many times and see how reliable the sample mean is.
+Of course, a natural question to then ask is which one of these is better!
+
+One option might be look at the sample means above to see which one is 'closer' to the expected mean.
+However, that's not a very robust method because the sample mean is itself random, and if we were to use a different random seed we might well reach a different conclusion.
+
+Another possibility we could look at the number of times the sample was rejected.
+Does a lower rejection rate (as in the transformed case) imply that the method is better?
+As it happens, this might seem like an intuitive conclusion, but it's not necessarily the case: for example, the sampling in unconstrained space could be much less efficient, such that even though we're not _rejecting_ samples, the ones that we do get are overly correlated and thus not representative of the distribution.
+
+A robust comparison would involve performing both methods many times and seeing how _reliable_ the sample mean is.
 
 ```{julia}
 function get_sample_mean(; transform)
@@ -285,6 +298,21 @@ mean(means_with_transformation), var(means_with_transformation)
 ```
 
 We can see from this small study that although both methods give us the correct mean (on average), the method with the transformation is more reliable, in that the variance is much lower!
+
+::: {.callout-note}
+Alternatively, we could also try to directly measure how correlated the samples are.
+One way to do this is to calculate the _effective sample size_ (ESS), which is described in [the Stan documentation](https://mc-stan.org/docs/reference-manual/analysis.html#effective-sample-size.section), and implemented in [MCMCChains.jl](https://github.com/TuringLang/MCMCChains.jl/).
+A larger ESS implies that the samples are less correlated, and thus more representative of the underlying distribution:
+
+```{julia}
+using MCMCChains: Chains, ess
+
+rejection = first(mh(logp, 10000, x -> x > 0))
+transformation = f_inv(first(mh(logq, 10000, x -> true)))
+chn = Chains(hcat(rejection, transformation), [:rejection, :transformation])
+ess(chn)
+```
+:::
 
 ### What happens without the Jacobian?
 

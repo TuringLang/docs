@@ -133,7 +133,8 @@ Pre-recorded tapes should only be used if you are absolutely certain that the se
 
 ## Compositional Sampling with Differing AD Modes
 
-Turing supports intermixed automatic differentiation methods for different variable spaces. The snippet below shows using `ForwardDiff` to sample the mean (`m`) parameter, and using `ReverseDiff` for the variance (`s²`) parameter:
+Turing supports intermixed automatic differentiation methods for different variable spaces when using a Gibbs sampler.
+The snippet below shows using `ForwardDiff` to sample the mean (`m`) parameter, and using `ReverseDiff` for the variance (`s²`) parameter:
 
 ```{julia}
 using Turing
@@ -159,6 +160,45 @@ c = sample(
 )
 ```
 
+## Troubleshooting
+
+### ForwardDiff
+
+A common error with ForwardDiff looks like this:
+
+```{julia}
+#| error: true
+@model function forwarddiff_fail()
+    x = Float64[0.0, 1.0]
+    a ~ Normal()
+    @show typeof(a)
+    x[1] = a
+    b ~ MvNormal(x, I)
+end
+sample(forwarddiff_fail(), NUTS(; adtype=AutoForwardDiff()), 100)
+```
+
+The problem here is the line `x[1] = a`.
+When the log probability density of the model is calculated, `a` is sampled from a normal distribution and is thus a Float64; however, when ForwardDiff calculates the gradient of the log density, `a` is a `ForwardDiff.Dual` object.
+However, `x` is _always_ a `Vector{Float64}`, and the call `x[1] = a` attempts to insert a `Dual` object into a `Vector{Float64}`, which is not allowed.
+
+::: {.callout-note}
+In more depth: the basic premise of ForwardDiff is that functions have to accept `Real` parameters instead of `Float64` (since `Dual` is a subtype of `Real`).
+Here, the line `x[1] = a` is equivalent to `setindex!(x, a, 1)`, and although the method `setindex!(::Vector{Float64}, ::Real, ...)` does exist, it attempts to convert the `Real` into a `Float64`, which is where it fails.
+:::
+
+The way around this is to pass a type as a parameter to the model:
+
+```{julia}
+@model function forwarddiff_working(::Type{T}=Float64) where T
+    x = T[0.0, 1.0]
+    a ~ Normal()
+    x[1] = a
+    b ~ MvNormal(x, I)
+end
+sample(forwarddiff_working(), NUTS(), 100) # runs fine
+```
+
 ## For AD Backend Developers
 
 Suppose you have developed a new AD backend and want to integrate it with Turing.
@@ -171,3 +211,4 @@ Please do open an issue in the first instance if you would like to discuss this 
 
 We are currently working on formalising and exporting a set of tests, which will allow you to easily test your AD library on a range of Turing models.
 Keep an eye out for updates on this in the future!
+

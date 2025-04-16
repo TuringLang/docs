@@ -79,7 +79,7 @@ To make the example more realistic we add random normally distributed noise to t
 
 ```{julia}
 sol = solve(prob, Tsit5(); saveat=0.1)
-odedata = Array(sol) + 0.8 * randn(size(Array(sol)))
+odedata = Array(sol) + 0.5 * randn(size(Array(sol)))
 
 # Plot simulation and noisy observations.
 plot(sol; alpha=0.3)
@@ -98,18 +98,18 @@ Therefore, we write the Lotka-Volterra parameter estimation problem using the Tu
 ```{julia}
 @model function fitlv(data, prob)
     # Prior distributions.
-    σ ~ InverseGamma(2, 3)
-    α ~ truncated(Normal(1.5, 0.5); lower=0.5, upper=2.5)
-    β ~ truncated(Normal(1.2, 0.5); lower=0, upper=2)
-    γ ~ truncated(Normal(3.0, 0.5); lower=1, upper=4)
-    δ ~ truncated(Normal(1.0, 0.5); lower=0, upper=2)
+    σ ~ InverseGamma(3, 2)
+    α ~ truncated(Normal(1.5, 0.2); lower=0.5, upper=2.5)
+    β ~ truncated(Normal(1.1, 0.2); lower=0, upper=2)
+    γ ~ truncated(Normal(3.0, 0.2); lower=1, upper=4)
+    δ ~ truncated(Normal(1.0, 0.2); lower=0, upper=2)
 
     # Simulate Lotka-Volterra model. 
     p = [α, β, γ, δ]
     predicted = solve(prob, Tsit5(); p=p, saveat=0.1)
 
     # Observations.
-    for i in 1:length(predicted)
+    for i in eachindex(predicted)
         data[:, i] ~ MvNormal(predicted[i], σ^2 * I)
     end
 
@@ -160,11 +160,11 @@ I.e., we fit the model only to the $y$ variable of the system without providing 
 ```{julia}
 @model function fitlv2(data::AbstractVector, prob)
     # Prior distributions.
-    σ ~ InverseGamma(2, 3)
-    α ~ truncated(Normal(1.5, 0.5); lower=0.5, upper=2.5)
-    β ~ truncated(Normal(1.2, 0.5); lower=0, upper=2)
-    γ ~ truncated(Normal(3.0, 0.5); lower=1, upper=4)
-    δ ~ truncated(Normal(1.0, 0.5); lower=0, upper=2)
+    σ ~ InverseGamma(3, 2)
+    α ~ truncated(Normal(1.5, 0.2); lower=0.5, upper=2.5)
+    β ~ truncated(Normal(1.1, 0.2); lower=0, upper=2)
+    γ ~ truncated(Normal(3.0, 0.2); lower=1, upper=4)
+    δ ~ truncated(Normal(1.0, 0.2); lower=0, upper=2)
 
     # Simulate Lotka-Volterra model but save only the second state of the system (predators).
     p = [α, β, γ, δ]
@@ -260,18 +260,18 @@ Now we define the Turing model for the Lotka-Volterra model with delay and sampl
 ```{julia}
 @model function fitlv_dde(data, prob)
     # Prior distributions.
-    σ ~ InverseGamma(2, 3)
-    α ~ truncated(Normal(1.5, 0.5); lower=0.5, upper=2.5)
-    β ~ truncated(Normal(1.2, 0.5); lower=0, upper=2)
-    γ ~ truncated(Normal(3.0, 0.5); lower=1, upper=4)
-    δ ~ truncated(Normal(1.0, 0.5); lower=0, upper=2)
+    σ ~ InverseGamma(3, 2)
+    α ~ truncated(Normal(1.5, 0.2); lower=0.5, upper=2.5)
+    β ~ truncated(Normal(1.1, 0.2); lower=0, upper=2)
+    γ ~ truncated(Normal(3.0, 0.2); lower=1, upper=4)
+    δ ~ truncated(Normal(1.0, 0.2); lower=0, upper=2)
 
     # Simulate Lotka-Volterra model.
     p = [α, β, γ, δ]
     predicted = solve(prob, MethodOfSteps(Tsit5()); p=p, saveat=0.1)
 
     # Observations.
-    for i in 1:length(predicted)
+    for i in eachindex(predicted)
         data[:, i] ~ MvNormal(predicted[i], σ^2 * I)
     end
 end
@@ -340,18 +340,18 @@ Here we will not choose a `sensealg` and let it use the default choice:
 ```{julia}
 @model function fitlv_sensealg(data, prob)
     # Prior distributions.
-    σ ~ InverseGamma(2, 3)
-    α ~ truncated(Normal(1.5, 0.5); lower=0.5, upper=2.5)
-    β ~ truncated(Normal(1.2, 0.5); lower=0, upper=2)
-    γ ~ truncated(Normal(3.0, 0.5); lower=1, upper=4)
-    δ ~ truncated(Normal(1.0, 0.5); lower=0, upper=2)
+    σ ~ InverseGamma(3, 2)
+    α ~ truncated(Normal(1.5, 0.2); lower=0.5, upper=2.5)
+    β ~ truncated(Normal(1.1, 0.2); lower=0, upper=2)
+    γ ~ truncated(Normal(3.0, 0.2); lower=1, upper=4)
+    δ ~ truncated(Normal(1.0, 0.2); lower=0, upper=2)
 
     # Simulate Lotka-Volterra model and use a specific algorithm for computing sensitivities.
     p = [α, β, γ, δ]
     predicted = solve(prob; p=p, saveat=0.1)
 
     # Observations.
-    for i in 1:length(predicted)
+    for i in eachindex(predicted)
         data[:, i] ~ MvNormal(predicted[i], σ^2 * I)
     end
 
@@ -361,7 +361,7 @@ end;
 model_sensealg = fitlv_sensealg(odedata, prob)
 
 # Sample a single chain with 1000 samples using Zygote.
-sample(model_sensealg, NUTS(;adtype=AutoZygote()), 1000; progress=false)
+sample(model_sensealg, NUTS(; adtype=AutoZygote()), 1000; progress=false)
 ```
 
 For more examples of adjoint usage on large parameter models, consult the [DiffEqFlux documentation](https://diffeqflux.sciml.ai/dev/).

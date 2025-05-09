@@ -1,0 +1,98 @@
+---
+title: Tracking Extra Quantities
+engine: julia
+aliases:
+  - ../../tutorials/usage-generated-quantities/index.html
+  - ../generated-quantities/index.html
+---
+
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate();
+```
+
+Often, the most natural parameterization for a model is not the most computationally feasible.
+Consider the following (efficiently reparametrized) implementation of Neal's funnel [(Neal, 2003)](https://arxiv.org/abs/physics/0009028):
+
+```{julia}
+using Turing
+
+@model function Neal()
+    # Raw draws
+    y_raw ~ Normal(0, 1)
+    x_raw ~ arraydist([Normal(0, 1) for i in 1:9])
+
+    # Transform:
+    y = 3 * y_raw
+    x = exp.(y ./ 2) .* x_raw
+    return nothing
+end
+```
+
+In this case, the random variables exposed in the chain (`x_raw`, `y_raw`) are not in a helpful form — what we're after are the deterministically transformed variables `x` and `y`.
+
+More generally, there are often quantities in our models that we might be interested in viewing, but which are not explicitly present in our chain.
+
+There are two ways of tracking such extra quantities.
+
+## Using `:=` (during inference)
+
+The first way is to use the `:=` operator, which behaves exactly like `=` except that the values of the variables on its left-hand side are automatically added to the chain returned by the sampler.
+For example:
+
+```{julia}
+@model function Neal_coloneq()
+    # Raw draws
+    y_raw ~ Normal(0, 1)
+    x_raw ~ arraydist([Normal(0, 1) for i in 1:9])
+
+    # Transform:
+    y := 3 * y_raw
+    x := exp.(y ./ 2) .* x_raw
+end
+
+sample(Neal_coloneq(), NUTS(), 1000; progress=false)
+```
+
+## Using `returned` (post-inference)
+
+Alternatively, one can specify the extra quantities as part of the model function's return statement:
+
+```{julia}
+@model function Neal_return()
+    # Raw draws
+    y_raw ~ Normal(0, 1)
+    x_raw ~ arraydist([Normal(0, 1) for i in 1:9])
+
+    # Transform and return as a NamedTuple
+    y = 3 * y_raw
+    x = exp.(y ./ 2) .* x_raw
+    return [x; y]
+end
+
+chain = sample(Neal_return(), NUTS(), 1000; progress=false)
+```
+
+This chain does not contain `x` and `y`, but we can extract the values using the `returned` function.
+Calling this function outputs an array of values specified in the return statement of the model.
+
+```{julia}
+returned(Neal_return(), chain)
+```
+
+Each element of this corresponds to an array with the values of `x1, x2, ..., x9, y` for each posterior sample.
+
+In this case, it might be useful to reorganize our output into a matrix for plotting:
+
+```{julia}
+reparam_chain = reduce(hcat, returned(Neal_return(), chain))'
+```
+
+from which we can recover a vector of our samples:
+
+```{julia}
+x1_samples = reparam_chain[:, 1]
+y_samples = reparam_chain[:, 10]
+```

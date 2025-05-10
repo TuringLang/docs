@@ -679,6 +679,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul>
   <li><a href="#using-during-inference" id="toc-using-during-inference" class="nav-link active" data-scroll-target="#using-during-inference">Using <code>:=</code> (during inference)</a></li>
   <li><a href="#using-returned-post-inference" id="toc-using-returned-post-inference" class="nav-link" data-scroll-target="#using-returned-post-inference">Using <code>returned</code> (post-inference)</a></li>
+  <li><a href="#which-to-use" id="toc-which-to-use" class="nav-link" data-scroll-target="#which-to-use">Which to use?</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/TuringLang/docs/edit/main/usage/tracking-extra-quantities/index.qmd" target="_blank" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/TuringLang/docs/issues/new" target="_blank" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -705,27 +706,35 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<p>Often, the most natural parameterization for a model is not the most computationally feasible. Consider the following (efficiently reparametrized) implementation of Neal’s funnel <a href="https://arxiv.org/abs/physics/0009028">(Neal, 2003)</a>:</p>
+<p>Often, there are quantities in models that we might be interested in viewing the values of, but which are not random variables in the model that are explicitly drawn from a distribution.</p>
+<p>As a motivating example, the most natural parameterization for a model might not the most computationally feasible. Consider the following (efficiently reparametrized) implementation of Neal’s funnel <a href="https://arxiv.org/abs/physics/0009028">(Neal, 2003)</a>:</p>
 <div id="4" class="cell" data-execution_count="1">
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Turing</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">Neal</span>()</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Raw draws</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    y_raw <span class="op">~</span> <span class="fu">Normal</span>(<span class="fl">0</span>, <span class="fl">1</span>)</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    x_raw <span class="op">~</span> <span class="fu">arraydist</span>([<span class="fu">Normal</span>(<span class="fl">0</span>, <span class="fl">1</span>) for i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">9</span>])</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Transform:</span></span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> <span class="fl">3</span> <span class="op">*</span> y_raw</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> <span class="fu">exp</span>.(y <span class="op">./</span> <span class="fl">2</span>) <span class="op">.*</span> x_raw</span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="cn">nothing</span></span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">setprogress!</span>(<span class="cn">false</span>)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">Neal</span>()</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Raw draws</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    y_raw <span class="op">~</span> <span class="fu">Normal</span>(<span class="fl">0</span>, <span class="fl">1</span>)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    x_raw <span class="op">~</span> <span class="fu">arraydist</span>([<span class="fu">Normal</span>(<span class="fl">0</span>, <span class="fl">1</span>) for i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">9</span>])</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Transform:</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> <span class="fl">3</span> <span class="op">*</span> y_raw</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> <span class="fu">exp</span>.(y <span class="op">./</span> <span class="fl">2</span>) <span class="op">.*</span> x_raw</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="cn">nothing</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">[ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>[Turing]: progress logging is disabled globally
+<span class="ansi-cyan-fg ansi-bold">[ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>[AdvancedVI]: global PROGRESS is set as false
+</pre>
+</div>
+</div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>Neal (generic function with 2 methods)</code></pre>
 </div>
 </div>
 <p>In this case, the random variables exposed in the chain (<code>x_raw</code>, <code>y_raw</code>) are not in a helpful form — what we’re after are the deterministically transformed variables <code>x</code> and <code>y</code>.</p>
-<p>More generally, there are often quantities in our models that we might be interested in viewing, but which are not explicitly present in our chain.</p>
-<p>There are two ways of tracking such extra quantities.</p>
+<p>There are two ways to track these extra quantities in Turing.jl.</p>
 <section id="using-during-inference" class="level2">
 <h2 class="anchored" data-anchor-id="using-during-inference">Using <code>:=</code> (during inference)</h2>
 <p>The first way is to use the <code>:=</code> operator, which behaves exactly like <code>=</code> except that the values of the variables on its left-hand side are automatically added to the chain returned by the sampler. For example:</p>
@@ -740,7 +749,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    x <span class="op">:=</span> <span class="fu">exp</span>.(y <span class="op">./</span> <span class="fl">2</span>) <span class="op">.*</span> x_raw</span>
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
 <span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="fu">sample</span>(<span class="fu">Neal_coloneq</span>(), <span class="fu">NUTS</span>(), <span class="fl">1000</span>; progress<span class="op">=</span><span class="cn">false</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="fu">sample</span>(<span class="fu">Neal_coloneq</span>(), <span class="fu">NUTS</span>(), <span class="fl">1000</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <div class="ansi-escaped-output">
 <pre><span class="ansi-cyan-fg ansi-bold">┌ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Found initial step size
@@ -755,8 +764,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 Iterations        = 501:1:1500
 Number of chains  = 1
 Samples per chain = 1000
-Wall duration     = 7.99 seconds
-Compute duration  = 7.99 seconds
+Wall duration     = 7.15 seconds
+Compute duration  = 7.15 seconds
 parameters        = y_raw, x_raw[1], x_raw[2], x_raw[3], x_raw[4], x_raw[5], x_raw[6], x_raw[7], x_raw[8], x_raw[9], y, x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9]
 internals         = lp, n_steps, is_accept, acceptance_rate, log_density, hamiltonian_energy, hamiltonian_energy_error, max_hamiltonian_energy_error, tree_depth, numerical_error, step_size, nom_step_size
 
@@ -764,23 +773,23 @@ Summary Statistics
  <span class="ansi-bold"> parameters  </span><span class="ansi-bold">    mean  </span><span class="ansi-bold">     std  </span><span class="ansi-bold">    mcse  </span><span class="ansi-bold">  ess_bulk  </span><span class="ansi-bold"> ess_tail  </span><span class="ansi-bold">    rhat  </span><span class="ansi-bold">  ⋯
  </span><span class="ansi-bright-black-fg ansi-bold">     Symbol  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold">   Float64  </span><span class="ansi-bright-black-fg ansi-bold">  Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold">  ⋯
 
-       y_raw   -0.0245    1.1102    0.0335   1099.7262   572.9928    1.0009    ⋯
-    x_raw[1]    0.0114    1.0134    0.0307   1072.7394   519.7045    0.9993    ⋯
-    x_raw[2]   -0.0085    1.0050    0.0337    890.6014   599.0340    1.0014    ⋯
-    x_raw[3]   -0.0167    1.0063    0.0281   1287.2022   705.6892    1.0014    ⋯
-    x_raw[4]    0.0113    1.0070    0.0291   1199.3135   738.2873    1.0013    ⋯
-    x_raw[5]    0.0120    1.0187    0.0293   1156.8804   717.1505    1.0018    ⋯
-    x_raw[6]   -0.0947    0.9964    0.0309   1042.4032   736.2112    1.0002    ⋯
-    x_raw[7]    0.0043    1.0521    0.0312   1167.5469   622.5862    1.0067    ⋯
-    x_raw[8]   -0.0111    1.0009    0.0333    927.5749   577.9441    1.0136    ⋯
-    x_raw[9]    0.0154    0.9628    0.0356    729.6859   573.6546    0.9994    ⋯
-           y   -0.0736    3.3306    0.1005   1099.7262   572.9928    1.0009    ⋯
-        x[1]    0.4050    9.4651    0.2705    956.1339   814.7566    0.9997    ⋯
-        x[2]    0.4010    7.6330    0.2598    883.5891   852.1766    1.0003    ⋯
-        x[3]   -0.1081    8.2787    0.2766   1084.3426   750.6217    1.0015    ⋯
-        x[4]    0.0129   14.3829    0.4897    986.5635   780.6795    1.0000    ⋯
-        x[5]   -1.1444   16.1195    0.8985    731.2127   674.9069    1.0011    ⋯
-        x[6]    0.2724   11.0934    0.5445    793.6092   716.9414    1.0004    ⋯
+       y_raw    0.0184    1.0069    0.0275   1343.6105   554.0173    1.0026    ⋯
+    x_raw[1]    0.0159    0.9626    0.0302   1022.5080   693.7327    1.0009    ⋯
+    x_raw[2]   -0.0131    1.0007    0.0245   1645.0362   754.2693    1.0021    ⋯
+    x_raw[3]   -0.0124    1.0397    0.0262   1582.8382   654.9136    1.0015    ⋯
+    x_raw[4]    0.0023    0.9886    0.0241   1671.6875   906.1256    1.0014    ⋯
+    x_raw[5]    0.0075    0.9721    0.0293   1100.6861   837.9152    0.9993    ⋯
+    x_raw[6]   -0.0612    1.0206    0.0345    875.9348   592.2541    1.0001    ⋯
+    x_raw[7]   -0.0229    0.9572    0.0284   1133.0373   689.4901    1.0020    ⋯
+    x_raw[8]    0.0281    0.9911    0.0276   1290.5154   866.8385    1.0002    ⋯
+    x_raw[9]   -0.0306    0.9725    0.0304   1035.1579   633.1539    0.9991    ⋯
+           y    0.0552    3.0206    0.0826   1343.6105   554.0173    1.0026    ⋯
+        x[1]    0.0335    6.8561    0.2184    980.5502   874.3368    0.9996    ⋯
+        x[2]   -0.5305    7.3633    0.2625   1217.2957   850.2053    1.0010    ⋯
+        x[3]    0.2994    6.4123    0.2259   1132.8001   842.7605    1.0003    ⋯
+        x[4]    0.2695    7.6289    0.2549   1025.2965   809.9495    1.0005    ⋯
+        x[5]   -0.1615    6.1697    0.2282    903.8574   673.8774    0.9996    ⋯
+        x[6]   -0.1687    7.0629    0.2512    790.3433   798.1462    0.9999    ⋯
       ⋮           ⋮         ⋮         ⋮          ⋮          ⋮          ⋮       ⋱
 </span><span class="ansi-cyan-fg ansi-bold">                                                     1 column and 3 rows omitted
 
@@ -788,23 +797,23 @@ Quantiles
  </span><span class="ansi-cyan-fg ansi-bold"> parameters  </span><span class="ansi-cyan-fg ansi-bold">     2.5%  </span><span class="ansi-cyan-fg ansi-bold">   25.0%  </span><span class="ansi-cyan-fg ansi-bold">   50.0%  </span><span class="ansi-cyan-fg ansi-bold">   75.0%  </span><span class="ansi-cyan-fg ansi-bold">   97.5%
  </span><span class="ansi-bright-black-fg ansi-bold">     Symbol  </span><span class="ansi-bright-black-fg ansi-bold">  Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64
 
-       y_raw    -2.1488   -0.8146   -0.0255    0.7853    2.1259
-    x_raw[1]    -2.0095   -0.6556    0.0121    0.7041    2.0705
-    x_raw[2]    -2.0383   -0.6795   -0.0267    0.7012    1.8891
-    x_raw[3]    -1.9794   -0.6889    0.0294    0.6663    1.8821
-    x_raw[4]    -1.9254   -0.6441    0.0077    0.6970    1.9870
-    x_raw[5]    -1.8959   -0.6458    0.0217    0.6892    1.9692
-    x_raw[6]    -2.0986   -0.8100   -0.1001    0.6309    1.8338
-    x_raw[7]    -2.0382   -0.7237    0.0227    0.7209    1.9749
-    x_raw[8]    -1.9828   -0.6939    0.0042    0.6658    2.0187
-    x_raw[9]    -1.9205   -0.6264    0.0349    0.6388    1.9213
-           y    -6.4464   -2.4439   -0.0764    2.3559    6.3778
-        x[1]   -11.6239   -0.5159    0.0046    0.5843   12.3044
-        x[2]   -10.4046   -0.5116   -0.0088    0.6246   13.1404
-        x[3]   -13.1690   -0.5840    0.0043    0.5488   11.3300
-        x[4]   -12.4252   -0.5489    0.0013    0.4800    9.6916
-        x[5]   -16.0368   -0.5215    0.0079    0.5589   11.8799
-        x[6]   -11.6903   -0.6058   -0.0251    0.4915   10.9267
+       y_raw    -1.9100   -0.7099    0.0335    0.6766    1.9480
+    x_raw[1]    -1.7868   -0.6713    0.0320    0.6512    1.9294
+    x_raw[2]    -1.9886   -0.7040   -0.0192    0.6639    2.0273
+    x_raw[3]    -2.0607   -0.7174   -0.0290    0.6899    2.0129
+    x_raw[4]    -1.8272   -0.6809   -0.0067    0.6517    2.0094
+    x_raw[5]    -1.9364   -0.6666    0.0352    0.6568    1.8245
+    x_raw[6]    -2.0744   -0.7769   -0.0128    0.5999    1.8655
+    x_raw[7]    -1.8230   -0.6629   -0.0385    0.6492    1.8862
+    x_raw[8]    -1.8313   -0.6522    0.0184    0.7389    1.8514
+    x_raw[9]    -1.7270   -0.7342   -0.0773    0.6352    1.8176
+           y    -5.7301   -2.1296    0.1005    2.0299    5.8440
+        x[1]    -9.4995   -0.5308    0.0098    0.6295   10.2913
+        x[2]   -13.5774   -0.6121   -0.0082    0.5736    7.6005
+        x[3]    -9.0227   -0.5512   -0.0114    0.7220   10.3459
+        x[4]    -8.9229   -0.5444   -0.0014    0.5752    9.3830
+        x[5]   -10.1665   -0.5699    0.0087    0.5631    8.1780
+        x[6]   -11.8500   -0.6115   -0.0046    0.6270    8.2542
       ⋮           ⋮          ⋮         ⋮         ⋮         ⋮
 </span><span class="ansi-cyan-fg ansi-bold">                                                   3 rows omitted
 </span></pre>
@@ -824,10 +833,10 @@ Quantiles
 <span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Transform and return as a NamedTuple</span></span>
 <span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> <span class="fl">3</span> <span class="op">*</span> y_raw</span>
 <span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> <span class="fu">exp</span>.(y <span class="op">./</span> <span class="fl">2</span>) <span class="op">.*</span> x_raw</span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> [x; y]</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (x<span class="op">=</span>x, y<span class="op">=</span>y)</span>
 <span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
 <span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>chain <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">Neal_return</span>(), <span class="fu">NUTS</span>(), <span class="fl">1000</span>; progress<span class="op">=</span><span class="cn">false</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>chain <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">Neal_return</span>(), <span class="fu">NUTS</span>(), <span class="fl">1000</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <div class="ansi-escaped-output">
 <pre><span class="ansi-cyan-fg ansi-bold">┌ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Found initial step size
@@ -842,8 +851,8 @@ Quantiles
 Iterations        = 501:1:1500
 Number of chains  = 1
 Samples per chain = 1000
-Wall duration     = 1.67 seconds
-Compute duration  = 1.67 seconds
+Wall duration     = 1.57 seconds
+Compute duration  = 1.57 seconds
 parameters        = y_raw, x_raw[1], x_raw[2], x_raw[3], x_raw[4], x_raw[5], x_raw[6], x_raw[7], x_raw[8], x_raw[9]
 internals         = lp, n_steps, is_accept, acceptance_rate, log_density, hamiltonian_energy, hamiltonian_energy_error, max_hamiltonian_energy_error, tree_depth, numerical_error, step_size, nom_step_size
 
@@ -851,119 +860,223 @@ Summary Statistics
  <span class="ansi-bold"> parameters  </span><span class="ansi-bold">    mean  </span><span class="ansi-bold">     std  </span><span class="ansi-bold">    mcse  </span><span class="ansi-bold">  ess_bulk  </span><span class="ansi-bold"> ess_tail  </span><span class="ansi-bold">    rhat  </span><span class="ansi-bold">  ⋯
  </span><span class="ansi-bright-black-fg ansi-bold">     Symbol  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold">   Float64  </span><span class="ansi-bright-black-fg ansi-bold">  Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold">  ⋯
 
-       y_raw    0.0228    1.0108    0.0266   1425.9659   788.5790    1.0010    ⋯
-    x_raw[1]    0.0237    1.0063    0.0300   1116.0536   536.3582    1.0001    ⋯
-    x_raw[2]   -0.0167    1.0010    0.0272   1354.6053   684.8523    1.0010    ⋯
-    x_raw[3]   -0.0251    0.9904    0.0273   1332.8023   782.5589    0.9997    ⋯
-    x_raw[4]    0.0011    1.0298    0.0305   1145.4198   668.4070    1.0021    ⋯
-    x_raw[5]    0.0438    1.0002    0.0267   1398.1027   781.0498    1.0010    ⋯
-    x_raw[6]   -0.0409    1.0543    0.0311   1146.0279   734.4145    0.9990    ⋯
-    x_raw[7]   -0.0097    1.0316    0.0274   1430.5763   653.0930    1.0010    ⋯
-    x_raw[8]   -0.0211    0.9414    0.0281   1158.0133   834.1345    1.0000    ⋯
-    x_raw[9]   -0.0060    0.9814    0.0343    817.1907   738.6535    0.9991    ⋯
+       y_raw   -0.0336    1.0174    0.0233   1910.7237   766.6262    0.9998    ⋯
+    x_raw[1]    0.0463    0.9861    0.0275   1303.0786   579.3981    0.9995    ⋯
+    x_raw[2]   -0.0093    0.9621    0.0227   1796.6947   788.7053    0.9995    ⋯
+    x_raw[3]   -0.0258    0.9974    0.0238   1753.2258   736.1315    0.9992    ⋯
+    x_raw[4]   -0.0168    0.9692    0.0195   2470.2387   842.7230    1.0003    ⋯
+    x_raw[5]    0.0217    1.0108    0.0238   1821.0360   696.1919    1.0091    ⋯
+    x_raw[6]   -0.0195    0.9797    0.0290   1148.1846   655.2434    0.9999    ⋯
+    x_raw[7]   -0.0188    1.0392    0.0250   1734.0697   742.6619    0.9990    ⋯
+    x_raw[8]    0.0138    1.0102    0.0276   1330.7530   698.4040    0.9991    ⋯
+    x_raw[9]   -0.0098    0.9956    0.0243   1682.6378   833.4506    1.0057    ⋯
 </span><span class="ansi-cyan-fg ansi-bold">                                                                1 column omitted
 
 Quantiles
  </span><span class="ansi-cyan-fg ansi-bold"> parameters  </span><span class="ansi-cyan-fg ansi-bold">    2.5%  </span><span class="ansi-cyan-fg ansi-bold">   25.0%  </span><span class="ansi-cyan-fg ansi-bold">   50.0%  </span><span class="ansi-cyan-fg ansi-bold">   75.0%  </span><span class="ansi-cyan-fg ansi-bold">   97.5%
  </span><span class="ansi-bright-black-fg ansi-bold">     Symbol  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64
 
-       y_raw   -1.9904   -0.6473    0.0494    0.7060    2.0038
-    x_raw[1]   -1.9889   -0.6434   -0.0243    0.7107    1.9273
-    x_raw[2]   -1.9436   -0.6868   -0.0339    0.6851    1.8334
-    x_raw[3]   -1.9636   -0.6821   -0.0160    0.6412    1.8634
-    x_raw[4]   -1.9885   -0.7017   -0.0186    0.6570    2.0279
-    x_raw[5]   -1.9596   -0.6109    0.0787    0.7043    2.1055
-    x_raw[6]   -2.0880   -0.7670   -0.0244    0.6644    1.9772
-    x_raw[7]   -2.0286   -0.7308   -0.0194    0.6811    2.0065
-    x_raw[8]   -1.8002   -0.6627   -0.0207    0.6265    1.7559
-    x_raw[9]   -1.9430   -0.7091   -0.0136    0.6865    1.9155
+       y_raw   -2.0234   -0.7258   -0.0281    0.6174    1.9239
+    x_raw[1]   -1.8583   -0.6286   -0.0022    0.6825    2.0882
+    x_raw[2]   -1.9101   -0.6034    0.0131    0.6052    1.9129
+    x_raw[3]   -1.9222   -0.6856    0.0075    0.6392    1.9042
+    x_raw[4]   -1.9906   -0.6369   -0.0114    0.6279    1.8688
+    x_raw[5]   -1.9395   -0.6697    0.0450    0.7327    1.7836
+    x_raw[6]   -1.9010   -0.7058   -0.0439    0.6477    1.9138
+    x_raw[7]   -2.0892   -0.7115    0.0108    0.6446    1.9990
+    x_raw[8]   -2.0037   -0.6105    0.0322    0.6612    2.0144
+    x_raw[9]   -1.9642   -0.6877    0.0112    0.6727    1.8512
 </span></pre>
 </div>
 </div>
 </div>
-<p>This chain does not contain <code>x</code> and <code>y</code>, but we can extract the values using the <code>returned</code> function. Calling this function outputs an array of values specified in the return statement of the model.</p>
+<p>The sampled chain does not contain <code>x</code> and <code>y</code>, but we can extract the values using the <code>returned</code> function. Calling this function outputs an array:</p>
 <div id="10" class="cell" data-execution_count="1">
-<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">returned</span>(<span class="fu">Neal_return</span>(), chain)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>nts <span class="op">=</span> <span class="fu">returned</span>(<span class="fu">Neal_return</span>(), chain)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>1000×1 Matrix{Vector{Float64}}:
- [-0.03485272523074737, -0.27721382680958206, 0.10852890297145651, -0.46208458887703624, 0.05521168017001297, -0.03809872005968702, -0.023761171517072334, -0.2732063952106714, 0.04648804044647719, -2.5305553024408245]
- [-0.01050190653384539, -0.12210302829618894, -0.026989630699723204, -0.055678231097056184, 0.018725089063776366, -0.04847399903415494, -0.027374501751952007, -0.0047803876120680235, -0.09327571540190394, -5.645527788922887]
- [1.2853042757097832, -1.5209310636369433, -3.641763335220049, -0.10839672344341564, 1.2914506644173365, -2.079985070174166, 0.517306675561966, 1.128999137787291, -2.1311009476379326, 1.409958195130156]
- [-0.1407269597000685, -0.2904561807216304, 0.23234508312660615, -0.048684596185976245, 0.11347357976154797, -0.11644170731321207, 0.09654149492595698, -0.15507158850212088, -0.1629388872094582, -2.9035059377151526]
- [0.0006212064332919383, -1.3363888885031456, 0.3551693930338469, -0.3193606769529723, -0.8469326689051335, -0.21711329543160932, -0.0505253203343255, 0.6273951776283176, -0.8713892936388962, -0.8001820387101604]
- [0.220101296387722, -0.0756228552483, -0.20339033399157172, 0.39237409935133216, 0.04507011661122626, -0.16219212908687253, 0.027016448761774028, 0.21255789963993366, -0.19199803516858513, -2.741441081308527]
- [-23.133143618770504, 11.00535602884173, 0.04388969642426304, 6.460069337207754, -23.954670865080967, 29.773630546089834, -16.30422687452795, 18.028638999425144, 12.654894124244104, 5.4257746299056056]
- [1.6132252717292574, -0.4052816601126995, -0.6665700699248752, -0.8007531726914782, 2.2685368972540356, -0.4755026242160484, -0.8559747063618095, 1.3748786071565036, 0.30141498322691834, -0.12199657915816942]
- [-1.3873300098890706, 1.8483474889920068, 0.7150562417725119, 3.490561413851024, -4.076636382148301, -2.5725966114443084, -0.03219553345788717, 0.7989153587900787, 4.64201497716458, 2.0211092279842235]
- [-12.114516527396763, 27.777136950951853, 19.024589613841666, -10.923411942630787, 10.871517395646242, -19.476185310682684, 0.18315245924057347, -1.7227062448816968, 30.851290835108188, 6.163230325994473]
+<pre><code>1000×1 Matrix{@NamedTuple{x::Vector{Float64}, y::Float64}}:
+ (x = [-0.07186003595706475, -0.0861853532252704, -0.12072521453964445, -0.1082226121285815, 0.09073943018882949, -0.20421313958486007, 0.05760337101648906, 0.24092003125941996, -0.3359937936701525], y = -2.5594143437833776)
+ (x = [-0.07186003595706475, -0.0861853532252704, -0.12072521453964445, -0.1082226121285815, 0.09073943018882949, -0.20421313958486007, 0.05760337101648906, 0.24092003125941996, -0.3359937936701525], y = -2.5594143437833776)
+ (x = [0.5289756177723957, -0.11122206919384565, 0.4226494605836343, -0.11904782627468555, 0.5569901276505465, 2.563318683332549, -1.8187617930059425, -1.19387802964357, 1.5336668239374343], y = 0.5617597264135546)
+ (x = [-0.11710055466970587, 0.18095145729667395, -0.1702417342198823, -0.13025570469960532, -0.11167558736613277, -0.4775286784930996, 0.5292561526678738, 0.3902378362512551, -0.47360182835957415], y = -1.773363466125895)
+ (x = [-0.11710055466970587, 0.18095145729667395, -0.1702417342198823, -0.13025570469960532, -0.11167558736613277, -0.4775286784930996, 0.5292561526678738, 0.3902378362512551, -0.47360182835957415], y = -1.773363466125895)
+ (x = [-0.11710055466970587, 0.18095145729667395, -0.1702417342198823, -0.13025570469960532, -0.11167558736613277, -0.4775286784930996, 0.5292561526678738, 0.3902378362512551, -0.47360182835957415], y = -1.773363466125895)
+ (x = [0.22049214908849815, -0.036918136461880836, 0.07661980508484359, -0.24930470884351122, -0.21333083464627076, 0.18601309590040374, -0.05750803339817475, -0.21308258993208015, 0.2462880533859646], y = -3.1237834383096263)
+ (x = [0.8884010852477541, -0.01722102812382484, -0.07436871020383178, -0.9387248712911164, 0.5471793191498499, 1.7292073644982504, -1.25886951803645, 1.6134617460767768, -0.41635295976704084], y = 1.1222336961699986)
+ (x = [0.06687964097162433, 0.28690728162435986, 0.029991757766772573, -0.0442327587274252, -0.41735045496233336, 0.1214342438955086, 0.07377524570366215, 0.18751245272776504, -0.23354253840236122], y = -3.6167324066935294)
+ (x = [0.11571215414239898, -1.0042732459856483, -0.21706859024871514, -0.3306329427938119, 2.272047123895233, -0.28140738846564667, -0.2621513429364175, -1.0746766899795042, 1.3218910169684353], y = -0.24332729956787746)
  ⋮
- [-0.2690786879829133, -0.33442369091376084, -0.8371850207218464, 0.7249181635134054, 1.6152994140689392, -0.8403090254615295, -0.21008031145906206, -0.0822406119812888, 0.6456239250022221, -1.099096820958348]
- [1.644036117357319, -0.5144513081971481, 0.07288960458190831, -0.09034942328744451, -1.6555665899520637, 1.7239914645992334, 0.021393051842548465, -0.08582483637738683, 0.01502752573208077, -0.054458822259277784]
- [0.23426520501378564, 0.40095821520503794, -0.08227787008714663, 0.9605005774664367, -0.24459356049313133, -0.19476516902907928, 0.8115805672682788, 0.8294645095656232, -0.437869240354825, -1.4943647436117917]
- [-0.09259258313945205, -0.029292273969471014, -0.22087321583210404, 0.7396962544862885, -1.1935107270729404, 1.9381257905807048, -0.19076674049248904, -0.9732267885155212, -1.4586076244178212, -0.6838660608934386]
- [-0.9130918404593732, 0.28298713144712956, -0.6162125962808448, -1.7237327077396913, -0.7635172914237491, 3.794059998751119, 0.25914616065149576, -1.5726831885151127, -1.6683921570731555, 1.4932208728848309]
- [2.224673203075275, 0.8147846502859803, 7.100279967853108, 1.1078120407964096, -4.930896529470345, 2.1785785459267775, 3.800868897460287, -0.591757924231173, -3.5938660515030185, 2.576603017555612]
- [-2.7293367698948185, 1.3881376854181546, 7.161112762861097, -0.4116906509559676, -4.344464066508525, 5.116563608767443, 2.7237432410671585, -2.319003288491945, -1.5727508952566, 2.687373767602647]
- [0.04916902536291953, 0.04331153085932055, 0.03350749780367417, 0.015584975799876376, 0.009336621163778707, 0.014980146554237515, -0.08835651551047252, -0.012564077517608298, 0.07216730093032935, -6.0181048988534895]
- [2.69012045440389, 0.35024507071353733, -0.13795061922554291, 1.3138965606039428, -0.13720318419941943, 0.6231997763290354, 1.6717168872047896, 2.673960433403934, -0.4659066742648449, 1.1120164867807727]</code></pre>
+ (x = [0.15584335401084332, -1.5904262189607754, -4.462427742016065, -0.4691265462257178, 2.3213669046234133, 0.3633231257610476, -1.7108697075680255, 0.3070288638162303, 1.3280090252174597], y = 1.3029071074345286)
+ (x = [-0.34288905997672403, 0.09079681665763634, 1.1233282103623574, -0.16400194978557306, -0.2265639163689014, 1.2356411643662726, 0.9943589966096009, -0.2041307525749005, 0.8646612304021987], y = -0.9222658563268502)
+ (x = [0.7822384257710715, -0.1523231029331181, -1.2312159416153465, -0.0014663388319530626, 0.5113232613766064, -1.0067160082767341, -0.43346306216078984, 0.22959810937327935, -0.9084153884969908], y = -0.8056823795812544)
+ (x = [0.4993840849125912, 0.07907490936529989, -0.7870628182982355, 0.9007345064823085, 0.45146335484641126, -0.16728396425391914, -0.5292006655738749, 0.9129785863396391, 0.3198387695369223], y = -1.6987128082593645)
+ (x = [9.042796741519473, -2.5288485868759136, 5.97437561124198, -5.855725890109285, -3.921147732006982, -0.5906345584208074, 2.924908894024931, -10.216589706522658, 1.8078010661240085], y = 2.9948486336820137)
+ (x = [-0.17087464591642698, -0.02856843079250498, -0.20646445918457115, 0.2159557116063529, 0.02637364600077321, -0.43577908593759934, -0.17998321963310054, 0.092308290874372, -0.13617176463827477], y = -3.6823909277997564)
+ (x = [-3.668141251187344, -0.050738862085499305, -1.1694604270674722, -6.336431183154603, -0.9828866468434664, -4.037824834263912, -0.28034369122365743, -3.0294073829938437, -2.606158417732563], y = 1.618919001383014)
+ (x = [1.2450079020727076, 0.18733097009105779, 0.3163337137820869, 0.8217666092526932, -0.17506168500972694, 0.8651722490206304, 0.025639753401957916, 0.7418635675102184, 0.6174692528928524], y = -1.3196991448398638)
+ (x = [-0.795495320000132, -0.11385162264190746, -0.5046498199981506, -0.47635676218539136, 0.44237722099238513, -0.3629554131042059, -0.24271607667623135, -0.676350961724002, -0.6534327925833308], y = -1.1814732569492983)</code></pre>
 </div>
 </div>
-<p>Each element of this corresponds to an array with the values of <code>x1, x2, ..., x9, y</code> for each posterior sample.</p>
-<p>In this case, it might be useful to reorganize our output into a matrix for plotting:</p>
+<p>where each element of which is a NamedTuple, as specified in the return statement of the model.</p>
 <div id="12" class="cell" data-execution_count="1">
-<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>reparam_chain <span class="op">=</span> <span class="fu">reduce</span>(hcat, <span class="fu">returned</span>(<span class="fu">Neal_return</span>(), chain))<span class="ch">'</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>nts[<span class="fl">1</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>1000×10 adjoint(::Matrix{Float64}) with eltype Float64:
-  -0.0348527    -0.277214   …  -0.273206     0.046488   -2.53056
-  -0.0105019    -0.122103      -0.00478039  -0.0932757  -5.64553
-   1.2853       -1.52093        1.129       -2.1311      1.40996
-  -0.140727     -0.290456      -0.155072    -0.162939   -2.90351
-   0.000621206  -1.33639        0.627395    -0.871389   -0.800182
-   0.220101     -0.0756229  …   0.212558    -0.191998   -2.74144
- -23.1331       11.0054        18.0286      12.6549      5.42577
-   1.61323      -0.405282       1.37488      0.301415   -0.121997
-  -1.38733       1.84835        0.798915     4.64201     2.02111
- -12.1145       27.7771        -1.72271     30.8513      6.16323
-   ⋮                        ⋱                           
-  -0.269079     -0.334424      -0.0822406    0.645624   -1.0991
-   1.64404      -0.514451      -0.0858248    0.0150275  -0.0544588
-   0.234265      0.400958       0.829465    -0.437869   -1.49436
-  -0.0925926    -0.0292923     -0.973227    -1.45861    -0.683866
-  -0.913092      0.282987   …  -1.57268     -1.66839     1.49322
-   2.22467       0.814785      -0.591758    -3.59387     2.5766
-  -2.72934       1.38814       -2.319       -1.57275     2.68737
-   0.049169      0.0433115     -0.0125641    0.0721673  -6.0181
-   2.69012       0.350245       2.67396     -0.465907    1.11202</code></pre>
+<pre><code>(x = [-0.07186003595706475, -0.0861853532252704, -0.12072521453964445, -0.1082226121285815, 0.09073943018882949, -0.20421313958486007, 0.05760337101648906, 0.24092003125941996, -0.3359937936701525], y = -2.5594143437833776)</code></pre>
 </div>
 </div>
-<p>from which we can recover a vector of our samples:</p>
+</section>
+<section id="which-to-use" class="level2">
+<h2 class="anchored" data-anchor-id="which-to-use">Which to use?</h2>
+<p>There are some pros and cons of using <code>returned</code>, as opposed to <code>:=</code>.</p>
+<p>Firstly, <code>returned</code> is more flexible, as it allows you to track any type of object; <code>:=</code> only works with variables that can be inserted into an <code>MCMCChains.Chains</code> object. (Notice that <code>x</code> is a vector, and in the first case where we used <code>:=</code>, reconstructing the vector value of <code>x</code> can also be rather annoying as the chain stores each individual element of <code>x</code> separately.)</p>
+<p>However, if used carelessly, <code>returned</code> can lead to unnecessary computation. For example, in <code>Neal_return()</code> above, the <code>x</code> and <code>y</code> variables are also calculated during the inference process (i.e.&nbsp;the call to <code>sample()</code>), but are then thrown away. They are then calculated <em>again</em> when <code>returned()</code> is called.</p>
+<p>To avoid this, you will essentially have to create two different models, one for inference and one for post-inference. The simplest way of doing this is to add a parameter to the model argument:</p>
 <div id="14" class="cell" data-execution_count="1">
-<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>x1_samples <span class="op">=</span> reparam_chain[<span class="op">:</span>, <span class="fl">1</span>]</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>y_samples <span class="op">=</span> reparam_chain[<span class="op">:</span>, <span class="fl">10</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">Neal_coloneq_optional</span>(track<span class="op">::</span><span class="dt">Bool</span>)</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Raw draws</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    y_raw <span class="op">~</span> <span class="fu">Normal</span>(<span class="fl">0</span>, <span class="fl">1</span>)</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    x_raw <span class="op">~</span> <span class="fu">arraydist</span>([<span class="fu">Normal</span>(<span class="fl">0</span>, <span class="fl">1</span>) for i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">9</span>])</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> track</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>        y <span class="op">=</span> <span class="fl">3</span> <span class="op">*</span> y_raw</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> <span class="fu">exp</span>.(y <span class="op">./</span> <span class="fl">2</span>) <span class="op">.*</span> x_raw</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> (x<span class="op">=</span>x, y<span class="op">=</span>y)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="cn">nothing</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>chain <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">Neal_coloneq_optional</span>(<span class="cn">false</span>), <span class="fu">NUTS</span>(), <span class="fl">1000</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">┌ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Found initial step size
+<span class="ansi-cyan-fg ansi-bold">└ </span>  ϵ = 2.6000000000000005
+</pre>
+</div>
+</div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>1000-element Vector{Float64}:
- -2.5305553024408245
- -5.645527788922887
-  1.409958195130156
- -2.9035059377151526
- -0.8001820387101604
- -2.741441081308527
-  5.4257746299056056
- -0.12199657915816942
-  2.0211092279842235
-  6.163230325994473
-  ⋮
- -1.099096820958348
- -0.054458822259277784
- -1.4943647436117917
- -0.6838660608934386
-  1.4932208728848309
-  2.576603017555612
-  2.687373767602647
- -6.0181048988534895
-  1.1120164867807727</code></pre>
+<div class="ansi-escaped-output">
+<pre>Chains MCMC chain (1000×22×1 Array{Float64, 3}):
+
+Iterations        = 501:1:1500
+Number of chains  = 1
+Samples per chain = 1000
+Wall duration     = 1.64 seconds
+Compute duration  = 1.64 seconds
+parameters        = y_raw, x_raw[1], x_raw[2], x_raw[3], x_raw[4], x_raw[5], x_raw[6], x_raw[7], x_raw[8], x_raw[9]
+internals         = lp, n_steps, is_accept, acceptance_rate, log_density, hamiltonian_energy, hamiltonian_energy_error, max_hamiltonian_energy_error, tree_depth, numerical_error, step_size, nom_step_size
+
+Summary Statistics
+ <span class="ansi-bold"> parameters  </span><span class="ansi-bold">    mean  </span><span class="ansi-bold">     std  </span><span class="ansi-bold">    mcse  </span><span class="ansi-bold">  ess_bulk  </span><span class="ansi-bold"> ess_tail  </span><span class="ansi-bold">    rhat  </span><span class="ansi-bold">  ⋯
+ </span><span class="ansi-bright-black-fg ansi-bold">     Symbol  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold">   Float64  </span><span class="ansi-bright-black-fg ansi-bold">  Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold">  ⋯
+
+       y_raw   -0.0434    0.9984    0.0366    744.1742   715.2958    1.0013    ⋯
+    x_raw[1]    0.0504    1.0312    0.0297   1208.7998   743.7114    1.0008    ⋯
+    x_raw[2]   -0.0189    0.9865    0.0273   1303.3994   560.2939    1.0007    ⋯
+    x_raw[3]    0.0195    0.9542    0.0270   1239.7754   868.4614    1.0018    ⋯
+    x_raw[4]   -0.0254    0.9850    0.0265   1381.2714   908.2495    0.9991    ⋯
+    x_raw[5]   -0.0129    1.0132    0.0274   1445.2102   694.7157    1.0001    ⋯
+    x_raw[6]   -0.0136    1.0240    0.0298   1183.0916   623.8066    1.0004    ⋯
+    x_raw[7]   -0.0295    1.0170    0.0315   1047.0882   758.9332    1.0019    ⋯
+    x_raw[8]   -0.0041    1.0294    0.0309   1097.3524   698.9634    1.0013    ⋯
+    x_raw[9]   -0.0052    0.9961    0.0320    979.2597   744.6307    0.9995    ⋯
+</span><span class="ansi-cyan-fg ansi-bold">                                                                1 column omitted
+
+Quantiles
+ </span><span class="ansi-cyan-fg ansi-bold"> parameters  </span><span class="ansi-cyan-fg ansi-bold">    2.5%  </span><span class="ansi-cyan-fg ansi-bold">   25.0%  </span><span class="ansi-cyan-fg ansi-bold">   50.0%  </span><span class="ansi-cyan-fg ansi-bold">   75.0%  </span><span class="ansi-cyan-fg ansi-bold">   97.5%
+ </span><span class="ansi-bright-black-fg ansi-bold">     Symbol  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64  </span><span class="ansi-bright-black-fg ansi-bold"> Float64
+
+       y_raw   -2.0159   -0.6875   -0.0305    0.5558    1.8754
+    x_raw[1]   -1.9296   -0.6545    0.0151    0.7445    2.0767
+    x_raw[2]   -1.8652   -0.6814   -0.0241    0.7050    1.9440
+    x_raw[3]   -1.9094   -0.6217    0.0367    0.7062    1.7962
+    x_raw[4]   -1.9489   -0.6953   -0.0318    0.6505    1.8963
+    x_raw[5]   -2.0723   -0.6798   -0.0200    0.6419    2.0432
+    x_raw[6]   -2.0117   -0.7137   -0.0026    0.6903    1.9221
+    x_raw[7]   -1.9257   -0.7389   -0.0260    0.6583    2.0146
+    x_raw[8]   -1.9630   -0.6813   -0.0394    0.7034    1.9768
+    x_raw[9]   -1.9047   -0.6797   -0.0265    0.6713    1.9483
+</span></pre>
 </div>
 </div>
+</div>
+<p>The above ensures that <code>x</code> and <code>y</code> are not calculated during inference, but allows us to still use <code>returned</code> to extract them:</p>
+<div id="16" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">returned</span>(<span class="fu">Neal_coloneq_optional</span>(<span class="cn">true</span>), chain)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>1000×1 Matrix{@NamedTuple{x::Vector{Float64}, y::Float64}}:
+ (x = [-0.04949957163391853, 0.010978340870505547, 0.095037860564283, 0.0664939756560261, -0.05614459622665385, 0.01102124886675899, 0.2188736769383319, 0.16423606582417172, -0.13646340543430646], y = -4.428876897995791)
+ (x = [0.20952216949779925, 0.5882637181267839, -0.3173491828893489, 1.484915540323349, -0.6005233192311364, -0.06783400986564413, -0.33787532275040905, 0.8285595255480144, 0.3449262850530194], y = -0.4221120372526984)
+ (x = [0.040519601463477654, 0.0508420301610784, 0.027147013357453547, 0.468612348100558, -0.04775733286692238, -0.033612844721880614, 0.06957273793602875, 0.07852663081303697, 0.19985591154822588], y = -2.753635980253158)
+ (x = [-1.9098241375069185, 3.98134336174859, -1.1552947678654522, 0.9296229269243428, -0.6675777827799532, -5.7573315259122, -2.288150618877465, -2.087152024432048, 8.41743924169181], y = 2.833455070685951)
+ (x = [-0.4269825600023228, -0.14967544054254603, 0.30482836035669125, -0.1973677144594655, 0.09546380791307132, -0.26207550177180683, -0.2655788615964842, -0.16858216058973577, 0.34682820864453623], y = -2.4545327831583212)
+ (x = [-0.4269825600023228, -0.14967544054254603, 0.30482836035669125, -0.1973677144594655, 0.09546380791307132, -0.26207550177180683, -0.2655788615964842, -0.16858216058973577, 0.34682820864453623], y = -2.4545327831583212)
+ (x = [-3.3866608164498984, -1.7488435328876633, -8.009391246082325, 2.456303362849591, 3.1976414523420056, -4.3500572529044925, 11.507724404008655, 0.21343342676967897, 1.8628008613135472], y = 2.7077449936379696)
+ (x = [1.2786471321749324, -0.5917836211070345, -1.673216787755838, 0.22440344733806367, -1.5110004774547432, -0.7226510447081772, -0.8750655411028455, -0.13868946588511583, -0.2998347143190806], y = -0.5666134026361038)
+ (x = [-0.8012879716257495, -0.007951918930777133, 0.14580633157259024, 0.8474179325526682, -0.056571031813933435, 0.07431249399426974, 0.16214976631925868, 0.11405843256172525, -0.4092647110811388], y = -2.259740182832526)
+ (x = [1.3856894999427178, -0.3444435095619372, -0.34704905916612283, -0.9887607458892151, 0.050237459174019734, -0.17605036031557872, 0.6271166675256108, -0.16709481224748698, 0.7788943082545593], y = -1.370740201532627)
+ ⋮
+ (x = [-1.2219036989610164, -0.304320229490407, 2.1016946342310705, 0.18127075963286313, -2.122855760677686, 2.2963775768756918, -2.048717778923458, 1.2089023426434669, -2.100456641098809], y = 0.824870303711557)
+ (x = [0.013222062378807001, -0.05252541787509658, -0.8537365526168728, -0.27795779485855127, 1.0150775225761337, -1.0228091426446448, 0.8844882992079387, -0.6220890752074423, 0.47187374714164654], y = -0.8777212732114514)
+ (x = [-0.291244286302274, -0.02274504081642108, 0.1299690743017371, 1.0490847250482438, -1.6023710709667383, -0.853558883976043, 0.5552365889896467, 0.7721193599470062, 1.5253344602862606], y = 0.4782683687825528)
+ (x = [-0.8841613629439747, -0.0379110683247604, -0.2464122125325406, -0.15922396070780237, -0.4359580227357686, 0.17976248001253067, 0.5650903684192611, 0.28040661247095855, 0.08823153823186251], y = -1.6157732058567584)
+ (x = [3.244095542884429, 0.9736818699318979, 1.043531814573967, 2.329951346242548, 1.5342763915190538, -1.0003995211447743, -2.779764490443789, -1.7583717685432596, 0.8667531277819047], y = 1.5764236290001672)
+ (x = [-0.1798242227020497, 0.19433579536608314, 1.1302409996967202, 1.0897338411046558, -2.2233040752320954, -0.06930419241393193, -2.2698715958637763, -1.242385389714844, 0.3259288098924346], y = 1.1679248397207846)
+ (x = [0.6902813590266587, 0.12265416393504441, 4.1885000363182305, 0.6715379256249352, -2.1071146454333842, 1.695374899468942, 2.5603360363105763, -0.9698580191241617, 2.4409439649536977], y = 2.717610379078762)
+ (x = [-0.552048592477213, 0.4403346470034421, -0.2653775503705069, 0.06263960476656226, -0.15748553842527152, -0.20219906144099964, 0.17094254713493628, 0.555777909993707, -0.0655945652332789], y = -1.8574376268854058)
+ (x = [2.9244772212385253, -3.836146893959677, 1.8356803454228539, -3.2062125017868, -3.3515664037809634, 1.4301904750299195, -1.1147135481369421, -3.099630795628019, 0.362101381630365], y = 1.897754736346366)</code></pre>
+</div>
+</div>
+<p>Another equivalent option is to use a submodel:</p>
+<div id="18" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">Neal</span>()</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    y_raw <span class="op">~</span> <span class="fu">Normal</span>(<span class="fl">0</span>, <span class="fl">1</span>)</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    x_raw <span class="op">~</span> <span class="fu">arraydist</span>([<span class="fu">Normal</span>(<span class="fl">0</span>, <span class="fl">1</span>) for i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">9</span>])</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (x_raw<span class="op">=</span>x_raw, y_raw<span class="op">=</span>y_raw)</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>chain <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">Neal</span>(), <span class="fu">NUTS</span>(), <span class="fl">1000</span>)</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">Neal_with_extras</span>()</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    neal <span class="op">~</span> <span class="fu">to_submodel</span>(<span class="fu">Neal</span>(), <span class="cn">false</span>)</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> <span class="fl">3</span> <span class="op">*</span> neal.y_raw</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> <span class="fu">exp</span>.(y <span class="op">./</span> <span class="fl">2</span>) <span class="op">.*</span> neal.x_raw</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (x<span class="op">=</span>x, y<span class="op">=</span>y)</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a><span class="fu">returned</span>(<span class="fu">Neal_with_extras</span>(), chain)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">┌ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Found initial step size
+<span class="ansi-cyan-fg ansi-bold">└ </span>  ϵ = 1.6
+</pre>
+</div>
+</div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>1000×1 Matrix{@NamedTuple{x::Vector{Float64}, y::Float64}}:
+ (x = [6.991340868076116, 21.070958223995415, 3.2044498181041035, 1.5309823442358148, 2.0747582538422464, -13.327300282802243, -15.724859685474478, -3.1417091634846517, -2.238768802056653], y = 5.349931234457748)
+ (x = [0.2840520235513664, -0.811409014472965, 0.20640862836731352, -0.6282521342928941, 0.09817884048839613, 0.13856846251978802, -0.0259909629141259, 0.4084974549998344, -2.0732255780796476], y = -0.26555242959559777)
+ (x = [0.7476485646674883, 0.03272447618587079, 0.5988634680314638, -0.8311263228873635, 0.005164111415308789, -0.6503245968628701, 0.08412679397430912, 0.5014994487484676, 3.2369401133901228], y = 0.6587306981496961)
+ (x = [-0.10395356995123875, -0.17283279843499538, -0.3645307914855865, 0.6794276607281942, 0.31543536599256095, 1.2091059711210894, 0.1864493494163241, -0.6664283706855123, -2.0600306280436587], y = -0.15923752580604209)
+ (x = [-0.6692918968099076, 0.8043792533340631, 0.4548884324748307, -0.5181833629359452, -0.4197196626158769, 0.14540816216740113, 1.7558375149428431, -1.1201979251797214, 0.015829746690363862], y = -0.40737198538150643)
+ (x = [1.1718521945879716, -1.2866234760022877, 0.8985345412402816, 0.9169357283675947, 0.699754858208381, 0.5399313279927966, -2.3126036043690656, 1.4938026150034838, 0.16142102161554214], y = 0.5217216763088287)
+ (x = [7.632070009935281, -24.520300620507047, 5.100880911471986, 4.933488519519323, -13.442219442211243, -3.321283183348792, 3.467788984962832, 18.869789007814727, 7.898693271518127], y = 4.823197324246664)
+ (x = [0.7095896370877965, -27.36504687507685, 4.384279411830956, -1.6126784743862987, -9.030848029414582, -3.01987674953298, 8.302531460528307, -32.84192074386214, -2.206964052815537], y = 5.448623413761234)
+ (x = [-0.4038868678951522, -11.467919233694488, 5.530073304879844, -2.2404404855430022, -2.8686024981912746, 1.5619805224103933, -1.6944468617383766, -11.733920714202503, 3.883158663077483], y = 3.3921695020188594)
+ (x = [0.39714181128985027, 0.01830990227789114, -0.05494375879521034, -0.23117485597810503, -0.0011945043773128477, -0.16232296582506608, -0.18230414566087436, -0.1037952353219816, 0.10288162863544201], y = -3.10096224728726)
+ ⋮
+ (x = [-1.7191921375080141, 0.3041506923878785, -2.2817426173626325, -0.6435941430565012, 1.106734880942793, -0.09055230853559172, -0.8715686343709033, -0.6285190189443277, 0.7458574185005543], y = 0.4774114646703844)
+ (x = [2.4761781671655876, -15.41612378330415, 0.2733574220389968, 9.67064527848062, 10.77667135025502, -1.3354466796496918, -0.9481672941190497, -4.704119183704383, -8.055068683361746], y = 4.211865080010611)
+ (x = [-0.19119128813588673, 0.05414553572416269, 0.037632203414317604, -0.16644516690194303, -0.18972692798145982, -0.08513376159065703, -0.012294218040699719, 0.12254323953314131, 0.19069405793541985], y = -3.5886199190676304)
+ (x = [-0.3015861933649038, 0.12343759116617158, 0.19963264541624057, 0.006482445642982729, -0.12154404393533709, -0.34791699155250866, 0.24846712906398774, 0.05158323239781879, 0.5724525676758505], y = -2.4656072846603605)
+ (x = [2.222020865643679, -1.1073363398545197, -5.463909660384837, 0.17990545400922517, 1.6057082575183512, 4.279360215965474, -4.259521656832733, -1.8050190108198005, -2.8679398437180037], y = 2.527411052314774)
+ (x = [0.09905149736226998, 0.9503614953715279, 1.0158837339970763, 0.1985568079778163, 0.660905690777188, -1.1896300970355007, -1.0150163938523251, -1.111900291799362, -0.12422563610671], y = -0.5580487137869661)
+ (x = [-0.2587761053912434, 0.35087192264847494, 0.5556771656145845, -0.041068735893269114, -0.23604829465910282, -0.007463456691779424, -0.22956181101974701, 0.04250142882348031, 0.24372354829886286], y = -2.7532312824380387)
+ (x = [0.24446746086875806, 0.5257572844287933, -0.18701121331004125, 0.1400568432687995, -0.06841454671244676, -0.058140900037582266, -0.42161161203568787, 0.01542814965510902, 0.37969391545584447], y = -2.4831463809185794)
+ (x = [-0.43233143136765895, -1.8841148116282418, 0.2624414671119769, -0.5763914420719852, -0.2739814351699253, 0.725655372833591, 1.0500629925126135, -0.05435650761434909, -0.9004557741837556], y = -0.6564742406940214)</code></pre>
+</div>
+</div>
+<p>Note that for the <code>returned</code> call to work, the <code>Neal_with_extras()</code> model must have the same variable names as stored in <code>chain</code>. This means the submodel <code>Neal()</code> must not be prefixed, i.e.&nbsp;<code>to_submodel()</code> must be passed a second parameter <code>false</code>.</p>
 
 
 </section>

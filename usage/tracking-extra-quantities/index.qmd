@@ -1,0 +1,152 @@
+---
+title: Tracking Extra Quantities
+engine: julia
+aliases:
+  - ../../tutorials/usage-generated-quantities/index.html
+  - ../generated-quantities/index.html
+---
+
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate();
+```
+
+Often, there are quantities in models that we might be interested in viewing the values of, but which are not random variables in the model that are explicitly drawn from a distribution.
+
+As a motivating example, the most natural parameterization for a model might not be the most computationally feasible.
+Consider the following (efficiently reparametrized) implementation of Neal's funnel [(Neal, 2003)](https://arxiv.org/abs/physics/0009028):
+
+```{julia}
+using Turing
+setprogress!(false)
+
+@model function Neal()
+    # Raw draws
+    y_raw ~ Normal(0, 1)
+    x_raw ~ arraydist([Normal(0, 1) for i in 1:9])
+
+    # Transform:
+    y = 3 * y_raw
+    x = exp.(y ./ 2) .* x_raw
+    return nothing
+end
+```
+
+In this case, the random variables exposed in the chain (`x_raw`, `y_raw`) are not in a helpful form — what we're after are the deterministically transformed variables `x` and `y`.
+
+There are two ways to track these extra quantities in Turing.jl.
+
+## Using `:=` (during inference)
+
+The first way is to use the `:=` operator, which behaves exactly like `=` except that the values of the variables on its left-hand side are automatically added to the chain returned by the sampler.
+For example:
+
+```{julia}
+@model function Neal_coloneq()
+    # Raw draws
+    y_raw ~ Normal(0, 1)
+    x_raw ~ arraydist([Normal(0, 1) for i in 1:9])
+
+    # Transform:
+    y := 3 * y_raw
+    x := exp.(y ./ 2) .* x_raw
+end
+
+sample(Neal_coloneq(), NUTS(), 1000)
+```
+
+## Using `returned` (post-inference)
+
+Alternatively, one can specify the extra quantities as part of the model function's return statement:
+
+```{julia}
+@model function Neal_return()
+    # Raw draws
+    y_raw ~ Normal(0, 1)
+    x_raw ~ arraydist([Normal(0, 1) for i in 1:9])
+
+    # Transform and return as a NamedTuple
+    y = 3 * y_raw
+    x = exp.(y ./ 2) .* x_raw
+    return (x=x, y=y)
+end
+
+chain = sample(Neal_return(), NUTS(), 1000)
+```
+
+The sampled chain does not contain `x` and `y`, but we can extract the values using the `returned` function.
+Calling this function outputs an array:
+
+```{julia}
+nts = returned(Neal_return(), chain)
+```
+
+where each element of which is a NamedTuple, as specified in the return statement of the model.
+
+```{julia}
+nts[1]
+```
+
+## Which to use?
+
+There are some pros and cons of using `returned`, as opposed to `:=`.
+
+Firstly, `returned` is more flexible, as it allows you to track any type of object; `:=` only works with variables that can be inserted into an `MCMCChains.Chains` object.
+(Notice that `x` is a vector, and in the first case where we used `:=`, reconstructing the vector value of `x` can also be rather annoying as the chain stores each individual element of `x` separately.)
+
+A drawback is that naively using `returned` can lead to unnecessary computation during inference.
+This is because during the sampling process, the return values are also calculated (since they are part of the model function), but then thrown away.
+So, if the extra quantities are expensive to compute, this can be a problem.
+
+To avoid this, you will essentially have to create two different models, one for inference and one for post-inference.
+The simplest way of doing this is to add a parameter to the model argument:
+
+```{julia}
+@model function Neal_coloneq_optional(track::Bool)
+    # Raw draws
+    y_raw ~ Normal(0, 1)
+    x_raw ~ arraydist([Normal(0, 1) for i in 1:9])
+
+    if track
+        y = 3 * y_raw
+        x = exp.(y ./ 2) .* x_raw
+        return (x=x, y=y)
+    else
+        return nothing
+    end
+end
+
+chain = sample(Neal_coloneq_optional(false), NUTS(), 1000)
+```
+
+The above ensures that `x` and `y` are not calculated during inference, but allows us to still use `returned` to extract them:
+
+```{julia}
+returned(Neal_coloneq_optional(true), chain)
+```
+
+Another equivalent option is to use a submodel:
+
+```{julia}
+@model function Neal()
+    y_raw ~ Normal(0, 1)
+    x_raw ~ arraydist([Normal(0, 1) for i in 1:9])
+    return (x_raw=x_raw, y_raw=y_raw)
+end
+
+chain = sample(Neal(), NUTS(), 1000)
+
+@model function Neal_with_extras()
+    neal ~ to_submodel(Neal(), false)
+    y = 3 * neal.y_raw
+    x = exp.(y ./ 2) .* neal.x_raw
+    return (x=x, y=y)
+end
+
+returned(Neal_with_extras(), chain)
+```
+
+Note that for the `returned` call to work, the `Neal_with_extras()` model must have the same variable names as stored in `chain`.
+This means the submodel `Neal()` must not be prefixed, i.e. `to_submodel()` must be passed a second parameter `false`.

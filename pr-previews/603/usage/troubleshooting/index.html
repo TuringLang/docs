@@ -744,8 +744,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="cell-output cell-output-stdout">
 <div class="ansi-escaped-output">
 <pre><span class="ansi-cyan-fg ansi-bold">[ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Running AD on t0001_bad with ADTypes.AutoForwardDiff()
-       params : [2.618395892494956, -0.0007016468404532925]
-       actual : (-6.57288826373337, [NaN, NaN])
+       params : [0.7181836428642773, -0.7514377253456562]
+       actual : (-2.6079796526609886, [NaN, NaN])
 </pre>
 </div>
 </div>
@@ -769,15 +769,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="cell-output cell-output-stdout">
 <div class="ansi-escaped-output">
 <pre><span class="ansi-cyan-fg ansi-bold">[ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Running AD on t0001_good with ADTypes.AutoForwardDiff()
-       params : [-0.06679197373919739, 0.13819543914962595]
-       actual : (-1.6921446454003433, [0.4408976311984438, -0.3950536225228891])
+       params : [-0.2424372321175102, 0.21028319489211664]
+       actual : (-1.8411615231088103, [0.7605423014018654, -0.8219980300540466])
 </pre>
 </div>
 </div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>2-element Vector{Float64}:
-  0.4408976311984438
- -0.3950536225228891</code></pre>
+  0.7605423014018654
+ -0.8219980300540466</code></pre>
 </div>
 </div>
 <p>More generally, you could try using a different AD backend; if you don’t know why a model is returning <code>NaN</code> gradients, feel free to open an issue.</p>
@@ -789,16 +789,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode cell-code" id="cb6"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">t0001_bad2</span>()</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>      x <span class="op">~</span> <span class="fu">Exponential</span>(<span class="fl">100</span>)</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>      y <span class="op">~</span> <span class="fu">Uniform</span>(<span class="fl">0</span>, x)</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> <span class="fu">t0001_bad2</span>() <span class="op">|</span> (y <span class="op">=</span> <span class="fl">50.0</span>,)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>t0001_bad2 (generic function with 2 methods)</code></pre>
+<pre><code>DynamicPPL.Model{typeof(t0001_bad2), (), (), (), Tuple{}, Tuple{}, DynamicPPL.ConditionContext{@NamedTuple{y::Float64}, DynamicPPL.DefaultContext}}(t0001_bad2, NamedTuple(), NamedTuple(), ConditionContext((y = 50.0,), DynamicPPL.DefaultContext()))</code></pre>
 </div>
 </div>
 <p>The problem here is that HMC attempts to find initial values for parameters inside the region of <code>[-2, 2]</code>, <em>after</em> the parameters have been transformed to unconstrained space. For a distribution of <code>Exponential(100)</code>, the appropriate transformation is <code>log(x)</code> (see the <a href="../../developers/transforms/distributions">variable transformation docs</a> for more info).</p>
 <p>Thus, HMC attempts to find initial values of <code>log(x)</code> in the region of <code>[-2, 2]</code>, which corresponds to <code>x</code> in the region of <code>[exp(-2), exp(2)]</code> = <code>[0.135, 7.39]</code>. However, all of these values of <code>x</code> will give rise to a zero probability density for <code>y</code> because the value of <code>y = 50.0</code> is outside the support of <code>Uniform(0, x)</code>. Thus, the log density of the model is <code>-Inf</code>, as can be seen with <code>logjoint</code>:</p>
 <div id="12" class="cell" data-execution_count="1">
-<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> <span class="fu">t0001_bad2</span>() <span class="op">|</span> (y <span class="op">=</span> <span class="fl">50.0</span>,)</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">logjoint</span>(model, (x <span class="op">=</span> <span class="fu">exp</span>(<span class="op">-</span><span class="fl">2</span>),))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">logjoint</span>(model, (x <span class="op">=</span> <span class="fu">exp</span>(<span class="op">-</span><span class="fl">2</span>),))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>-Inf</code></pre>
 </div>

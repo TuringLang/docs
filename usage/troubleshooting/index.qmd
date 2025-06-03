@@ -1,0 +1,104 @@
+---
+title: Troubleshooting
+engine: julia
+---
+
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate();
+```
+
+This page collects a number of common error messages observed when using Turing, along with suggestions on how to fix them.
+
+If the suggestions here do not resolve your problem, please do feel free to [open an issue](https://github.com/TuringLang/Turing.jl/issues).
+
+```{julia}
+using Turing
+Turing.setprogress!(false)
+```
+
+## Initial parameters
+
+> failed to find valid initial parameters in {N} tries. This may indicate an error with the model or AD backend...
+
+This error is seen when a Hamiltonian Monte Carlo sampler is unable to determine a valid set of initial parameters for the sampling.
+Here, 'valid' means that the log probability density of the model, as well as its gradient with respect to each parameter, is finite and not `NaN`.
+
+### `NaN` gradient
+
+One of the most common causes of this error is having a `NaN` gradient.
+To find out whether this is happening, you can evaluate the gradient manually.
+Here is an example with a model that is known to be problematic:
+
+```{julia}
+using Turing
+using DynamicPPL.TestUtils.AD: run_ad
+
+@model function initial_bad()
+    a ~ Normal()
+    x ~ truncated(Normal(a), 0, Inf)
+end
+
+model = initial_bad()
+adtype = AutoForwardDiff()
+result = run_ad(model, adtype; test=false, benchmark=false)
+result.grad_actual
+```
+
+(See [the DynamicPPL docs](https://turinglang.org/DynamicPPL.jl/stable/api/#AD-testing-and-benchmarking-utilities) for more details on the `run_ad` function and its return type.)
+
+In this case, the `NaN` gradient is caused by the `Inf` argument to `truncated`.
+(See, e.g., [this issue on Distributions.jl](https://github.com/JuliaStats/Distributions.jl/issues/1910).)
+Here, the upper bound of `Inf` is not needed, so it can be removed:
+
+```{julia}
+@model function initial_good()
+    a ~ Normal()
+    x ~ truncated(Normal(a); lower=0)
+end
+
+model = initial_good()
+adtype = AutoForwardDiff()
+run_ad(model, adtype; test=false, benchmark=false).grad_actual
+```
+
+More generally, you could try using a different AD backend; if you don't know why a model is returning `NaN` gradients, feel free to open an issue.
+
+### `-Inf` log density
+
+Another cause of this error is having models with very extreme parameters.
+This example is taken from [this Turing.jl issue](https://github.com/TuringLang/Turing.jl/issues/2476):
+
+```{julia}
+@model function initial_bad2()
+    x ~ Exponential(100)
+    y ~ Uniform(0, x)
+end
+model = initial_bad2() | (y = 50.0,)
+```
+
+The problem here is that HMC attempts to find initial values for parameters inside the region of `[-2, 2]`, _after_ the parameters have been transformed to unconstrained space.
+For a distribution of `Exponential(100)`, the appropriate transformation is `log(x)` (see the [variable transformation docs]({{< meta dev-transforms-distributions >}}) for more info).
+
+Thus, HMC attempts to find initial values of `log(x)` in the region of `[-2, 2]`, which corresponds to `x` in the region of `[exp(-2), exp(2)]` = `[0.135, 7.39]`.
+However, all of these values of `x` will give rise to a zero probability density for `y` because the value of `y = 50.0` is outside the support of `Uniform(0, x)`.
+Thus, the log density of the model is `-Inf`, as can be seen with `logjoint`:
+
+```{julia}
+logjoint(model, (x = exp(-2),))
+```
+
+```{julia}
+logjoint(model, (x = exp(2),))
+```
+
+The most direct way of fixing this is to manually provide a set of initial parameters that are valid.
+For example, you can obtain a set of initial parameters with `rand(Vector, model)`, and then pass this as the `initial_params` keyword argument to `sample`:
+
+```{julia}
+sample(model, NUTS(), 1000; initial_params=rand(Vector, model))
+```
+
+More generally, you may also consider reparameterising the model to avoid such issues.

@@ -7,6 +7,13 @@ on:
       - backport-v0.*
   workflow_dispatch: # manual trigger for testing
 
+concurrency:
+  group: docs
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -18,7 +25,10 @@ jobs:
       - name: Setup Julia
         uses: julia-actions/setup-julia@v2
         with:
-          version: '1.10'
+          version: '1.11'
+
+      - name: Load Julia packages from cache
+        uses: julia-actions/cache@v2
 
       # Note: needs resolve() to fix #518
       - name: Instantiate Julia environment
@@ -36,7 +46,10 @@ jobs:
         with:
           path: |
             ./_freeze/
-          key: ${{ runner.os }}-${{ hashFiles('**/Manifest.toml') }}
+          key: |
+            ${{ runner.os }}-${{ hashFiles('**/Manifest.toml') }}-${{ hashFiles('**/index.qmd') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ hashFiles('**/Manifest.toml') }}
 
       - name: Extract version from _quarto.yml
         id: extract_version
@@ -77,7 +90,7 @@ jobs:
         with:
           path: |
             ./_freeze/
-          key: ${{ runner.os }}-${{ hashFiles('**/Manifest.toml') }}
+          key: ${{ runner.os }}-${{ hashFiles('**/Manifest.toml') }}-${{ hashFiles('**/index.qmd') }}
 
       - name: Fetch search_original.json from main site
         run: curl -O https://raw.githubusercontent.com/TuringLang/turinglang.github.io/gh-pages/search_original.json
@@ -92,18 +105,26 @@ jobs:
         run: |
           jq -s '.[0] + .[1]' _site/search_original.json fixed_main_search.json > _site/search.json
 
-      - name: Deploy versioned docs
-        uses: JamesIves/github-pages-deploy-action@v4
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
         with:
-          branch: gh-pages
-          folder: _site
-          target-folder: versions/${{ env.version }}
-          clean: false
+          ref: gh-pages
+          path: gh-pages
 
-      - name: Deploy latest docs to root
-        if: env.version == env.LATEST
-        uses: JamesIves/github-pages-deploy-action@v4
-        with:
-          branch: gh-pages
-          folder: _site
-          clean: false
+      - name: Update gh-pages branch
+        run: |
+          # Copy to versions/ subdirectory
+          mkdir -p gh-pages/versions/${{ env.version }}
+          cp -r _site/* gh-pages/versions/${{ env.version }}
+
+          # Find the latest version of the docs and copy that to the root
+          cd gh-pages/versions
+          LATEST_DOCS=$(ls -d * | sort -V | tail -n 1)
+          cp -r $LATEST_DOCS/* ../
+
+          # Commit and push
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Publish docs @ ${GITHUB_REPOSITORY}@${GITHUB_SHA}"
+          git push

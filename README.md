@@ -4,10 +4,12 @@ This repository is part of [Turing.jl's](https://turinglang.org/) website (i.e. 
 - The `master` branch contains the quarto source 
 - The `gh-pages` branch contains the `html` version of these documents compiled from the `master` branch.
 
-To get started with the docs website locally, you'll need to have [Quarto](https://quarto.org/docs/download/) installed.
-Make sure you have at least version 1.5 of Quarto installed, as this is required to correctly run [the native Julia engine](https://quarto.org/docs/computations/julia.html#using-the-julia-engine).
+## Local development
 
-Once you have the prerequisite installed, you can follow these steps:
+To get started with the docs website locally, you'll need to have [Quarto](https://quarto.org/docs/download/) installed.
+Make sure you have at least version 1.6.31 of Quarto installed, as this version contains a fix for [a bug where random number generation in different cells was not deterministic](https://github.com/TuringLang/docs/issues/533).
+
+Once you have Quarto installed, you can follow these steps:
 
 1. Clone this repository:
 
@@ -42,13 +44,44 @@ Once you have the prerequisite installed, you can follow these steps:
     quarto render
     ```
 
-    This will render the full website in `_site` folder.
+    This will build the entire documentation and place the output in the `_site` folder.
+    You can then view the rendered website by launching a HTTP server from that directory, e.g. using Python:
 
-    It is also possible to render a single tutorial or `qmd` file without compiling the entire site. This is often helpful to speed up compilation when editing a single docs page. To do this, pass the `qmd` file as an argument to `quarto render`:
+    ```bash
+    cd _site
+    python -m http.server 8000
+    ```
 
-    ```
-    quarto render path/to/index.qmd
-    ```
+    Then, navigate to http://localhost:8000/ in your web browser.
+
+    Note that rendering the entire documentation site can take a long time (usually multiple hours).
+    If you wish to speed up local rendering, there are two options available:
+
+    - Download the most recent `_freeze` folder from the [GitHub releases of this repo](https://github.com/turinglang/docs/releases), and place it in the root of the project.
+      This will allow Quarto to reuse the outputs of previous computations for any files which have not been changed since that `_freeze` folder was created.
+
+    - Alternatively, render a single tutorial or `qmd` file without compiling the entire site.
+      To do this, pass the `qmd` file as an argument to `quarto render`:
+
+      ```
+      quarto render path/to/index.qmd
+      ```
+
+## Troubleshooting build issues
+
+As described in the [Quarto docs](https://quarto.org/docs/computations/julia.html#using-the-julia-engine), Quarto's Julia engine uses a worker process behind the scenes.
+Sometimes this can result in issues with old package code not being unloaded (e.g. when package versions are upgraded).
+If you find that Quarto's execution is failing with errors that aren't reproducible via a normal REPL, try adding the `--execute-daemon-restart` flag to the `quarto render` command:
+
+```bash
+quarto render /path/to/index.qmd --execute-daemon-restart
+```
+
+And also, kill any stray Quarto processes that are still running (sometimes it keeps running in the background):
+
+```bash
+pkill -9 -f quarto
+```
 
 ## License
 

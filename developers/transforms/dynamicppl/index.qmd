@@ -1,0 +1,418 @@
+---
+title: "Variable transformations in DynamicPPL"
+engine: julia
+---
+
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate();
+```
+
+In the final part of this chapter, we'll discuss the higher-level implications of constrained distributions in the Turing.jl framework.
+
+## Linked and unlinked VarInfos in DynamicPPL
+
+```{julia}
+import Random
+Random.seed!(468);
+
+# Turing re-exports the entirety of Distributions
+using Turing
+```
+
+When we are performing Bayesian inference, we're trying to sample from a joint probability distribution, which isn't usually a single, well-defined distribution like in the rather simplified example above.
+However, each random variable in the model will have its own distribution, and often some of these will be constrained.
+For example, if `b ~ LogNormal()` is a random variable in a model, then $p(b)$ will be zero for any $b \leq 0$.
+Consequently, any joint probability $p(b, c, \ldots)$ will also be zero for any combination of parameters where $b \leq 0$, and so that joint distribution is itself constrained.
+
+To get around this, DynamicPPL allows the variables to be transformed in exactly the same way as above.
+For simplicity, consider the following model:
+
+```{julia}
+using DynamicPPL
+
+@model function demo()
+    x ~ LogNormal()
+end
+
+model = demo()
+vi = VarInfo(model)
+vn_x = @varname(x)
+# Retrieve the 'internal' representation of x – we'll explain this later
+DynamicPPL.getindex_internal(vi, vn_x)
+```
+
+The call to `VarInfo` executes the model once and stores the sampled value inside `vi`.
+By default, `VarInfo` itself stores un-transformed values.
+We can see this by comparing the value of the logpdf stored inside the `VarInfo`:
+
+```{julia}
+DynamicPPL.getlogp(vi)
+```
+
+with a manual calculation:
+
+```{julia}
+logpdf(LogNormal(), DynamicPPL.getindex_internal(vi, vn_x))
+```
+
+In DynamicPPL, the `link` function can be used to transform the variables.
+This function does three things: firstly, it transforms the variables; secondly, it updates the value of logp (by adding the Jacobian term); and thirdly, it sets a flag on the variables to indicate that it has been transformed.
+Note that this acts on _all_ variables in the model, including unconstrained ones.
+(Unconstrained variables just have an identity transformation.)
+
+```{julia}
+vi_linked = DynamicPPL.link(vi, model)
+println("Transformed value: $(DynamicPPL.getindex_internal(vi_linked, vn_x))")
+println("Transformed logp: $(DynamicPPL.getlogp(vi_linked))")
+println("Transformed flag: $(DynamicPPL.istrans(vi_linked, vn_x))")
+```
+
+Indeed, we can see that the new logp value matches with
+
+```{julia}
+logpdf(Normal(), DynamicPPL.getindex_internal(vi_linked, vn_x))
+```
+
+The reverse transformation, `invlink`, reverts all of the above steps:
+
+```{julia}
+vi = DynamicPPL.invlink(vi_linked, model)  # Same as the previous vi
+println("Un-transformed value: $(DynamicPPL.getindex_internal(vi, vn_x))")
+println("Un-transformed logp: $(DynamicPPL.getlogp(vi))")
+println("Un-transformed flag: $(DynamicPPL.istrans(vi, vn_x))")
+```
+
+### Model and internal representations
+
+In DynamicPPL, there is a difference between the value of a random variable and its 'internal' value.
+This is most easily seen by first transforming, and then comparing the output of `getindex` and `getindex_internal`.
+The former extracts the regular value, which we call the **model representation** (because it is consistent with the distribution specified in the model).
+The latter, as the name suggests, gets the **internal representation** of the variable, which is how it is actually stored in the VarInfo object.
+
+```{julia}
+println("   Model representation: $(getindex(vi_linked, vn_x))")
+println("Internal representation: $(DynamicPPL.getindex_internal(vi_linked, vn_x))")
+```
+
+::: {.callout-note}
+Note that `vi_linked[vn_x]` can also be used as shorthand for `getindex(vi_linked, vn_x)`; this usage is common in the DynamicPPL/Turing codebase.
+:::
+
+We can see (for this linked varinfo) that there are _two_ differences between these outputs:
+
+1. _The internal representation has been transformed using the bijector (in this case, the log function)._
+   This means that the `istrans()` flag which we used above doesn't modify the model representation: it only tells us whether the internal representation has been transformed or not.
+
+2. _The internal representation is a vector, whereas the model representation is a scalar._
+   This is because in DynamicPPL, _all_ internal values are vectorised (i.e. converted into some vector), regardless of distribution. On the other hand, since the model specifies a univariate distribution, the model representation is a scalar.
+
+One might also ask, what is the internal representation for an _unlinked_ varinfo?
+
+```{julia}
+println("   Model representation: $(getindex(vi, vn_x))")
+println("Internal representation: $(DynamicPPL.getindex_internal(vi, vn_x))")
+```
+
+For an unlinked VarInfo, the internal representation is vectorised, but not transformed.
+We call this an **unlinked internal representation**; conversely, when the VarInfo has been linked, each variable will have a corresponding **linked internal representation**.
+
+This sequence of events is summed up in the following diagram, where `f(..., args)` indicates that the `...` is to be replaced with the object at the beginning of the arrow:
+
+![Functions related to variable transforms in DynamicPPL](./dynamicppl_link.png)
+
+In the final part of this article, we'll take a more in-depth look at the internal DynamicPPL machinery that allows us to convert between representations and obtain the correct probability densities.
+Before that, though, we'll take a quick high-level look at how the HMC sampler in Turing.jl uses the functions introduced so far.
+
+## Case study: HMC in Turing.jl
+
+While DynamicPPL provides the _functionality_ for transforming variables, the transformation itself happens at an even higher level, i.e. in the sampler itself.
+The HMC sampler in Turing.jl is in [this file](https://github.com/TuringLang/Turing.jl/blob/5b24cebe773922e0f3d5c4cb7f53162eb758b04d/src/mcmc/hmc.jl).
+In the first step of sampling, it calls `link` on the sampler.
+This transformation is preserved throughout the sampling process, meaning that `istrans()` always returns true.
+
+We can observe this by inserting print statements into the model.
+Here, `__varinfo__` is the internal symbol for the `VarInfo` object used in model evaluation:
+
+```{julia}
+setprogress!(false)
+
+@model function demo2()
+    x ~ LogNormal()
+    if x isa AbstractFloat
+        println("-----------")
+        println("model repn: $(DynamicPPL.getindex(__varinfo__, @varname(x)))")
+        println("internal repn: $(DynamicPPL.getindex_internal(__varinfo__, @varname(x)))")
+        println("istrans: $(istrans(__varinfo__, @varname(x)))")
+    end
+end
+
+sample(demo2(), HMC(0.1, 3), 3);
+```
+
+
+(Here, the check on `if x isa AbstractFloat` prevents the printing from occurring during computation of the derivative.)
+You can see that during the three sampling steps, `istrans` is always kept as `true`.
+
+::: {.callout-note}
+The first two model evaluations where `istrans` is `false` occur prior to the actual sampling.
+One occurs when the model is checked for correctness (using [`DynamicPPL.check_model_and_trace`](https://github.com/TuringLang/DynamicPPL.jl/blob/ba490bf362653e1aaefe298364fe3379b60660d3/src/debug_utils.jl#L582-L612)).
+The second occurs because the model is evaluated once to generate a set of initial parameters inside [DynamicPPL's implementation of `AbstractMCMC.step`](https://github.com/TuringLang/DynamicPPL.jl/blob/ba490bf362653e1aaefe298364fe3379b60660d3/src/sampler.jl#L98-L117).
+Both of these steps occur with all samplers in Turing.jl, so are not specific to the HMC example shown here.
+:::
+
+What this means is that from the perspective of the HMC sampler, it _never_ sees the constrained variable: it always thinks that it is sampling from an unconstrained distribution.
+
+The biggest prerequisite for this to work correctly is that the potential energy term in the Hamiltonian—or in other words, the model log density—must be programmed correctly to include the Jacobian term.
+This is exactly the same as how we had to make sure to define `logq(y)` correctly in the toy HMC example above.
+
+Within Turing.jl, this is correctly handled because a statement like `x ~ LogNormal()` in the model definition above is translated into `assume(LogNormal(), @varname(x), __varinfo__)`, defined [here](https://github.com/TuringLang/DynamicPPL.jl/blob/ba490bf362653e1aaefe298364fe3379b60660d3/src/context_implementations.jl#L225-L229).
+If you follow the trail of function calls, you can verify that the `assume` function does indeed check for the presence of the `istrans` flag and adds the Jacobian term accordingly.
+
+## A deeper dive into DynamicPPL's internal machinery
+
+As described above, DynamicPPL stores a (possibly linked) _internal representation_ which is accessible via `getindex_internal`, but can also provide users with the original, untransformed, _model representation_ via `getindex`.
+This abstraction allows the user to obtain samples from constrained distributions without having to perform the transformation themselves.
+
+![More functions related to variable transforms in DynamicPPL](./dynamicppl_link2.png)
+
+The conversion between these representations is done using several internal functions in DynamicPPL, as depicted in the above diagram.
+The following operations are labelled:
+
+1. This is linking, i.e. transforming a constrained variable to an unconstrained one.
+
+2. This is vectorisation: for example, converting a scalar value to a 1-element vector.
+
+3. This arrow brings us from the model representation to the linked internal representation.
+   This is the composition of (1) and (2): linking and then vectorising.
+
+4. This arrow brings us from the model representation to the unlinked internal representation.
+   This only requires a single step, vectorisation.
+
+Each of these steps can be accomplished using the following functions.
+
+|     | To get the function | To get the inverse function |
+| --- | ------------------- | --------------------------- |
+| (1) | `link_transform(dist)` | `invlink_transform(dist)` |
+| (2) | `to_vec_transform(dist)` | `from_vec_transform(dist)` |
+| (3) | `to_linked_internal_transform(vi, vn[, dist])` | `from_linked_internal_transform(vi, vn[, dist])` |
+| (4) | `to_internal_transform(vi, vn[, dist])` | `from_internal_transform(vi, vn[, dist])` |
+
+Note that these functions do not perform the actual transformation; rather, they return the transformation function itself.
+For example, let's take a look at the `VarInfo` from the previous section, which contains a single variable `x ~ LogNormal()`.
+
+```{julia}
+model_repn = vi[vn_x]
+```
+
+```{julia}
+# (1) Get the link function
+f_link = DynamicPPL.link_transform(LogNormal())
+# (2) Get the vectorise function
+f_vec = DynamicPPL.to_vec_transform(LogNormal())
+
+# Apply it to the model representation
+linked_internal_repn = f_vec(f_link(model_repn))
+```
+
+Equivalently, we could have done:
+
+```{julia}
+# (3) Get the linked internal transform function
+f_linked_internal = DynamicPPL.to_linked_internal_transform(vi, vn_x, LogNormal())
+
+# Apply it to the model representation
+linked_internal_repn = f_linked_internal(model_repn)
+```
+
+And let's confirm that this is the same as the linked internal representation, using the `VarInfo` that we linked earlier:
+
+```{julia}
+DynamicPPL.getindex_internal(vi_linked, vn_x)
+```
+
+The purpose of having all of these machinery is to allow other parts of DynamicPPL, such as the tilde pipeline, to handle transformed variables correctly.
+The following diagram shows how `assume` first checks whether the variable is transformed (using `istrans`), and then applies the appropriate transformation function.
+
+<!-- 'wrappingWidth' setting required because of https://github.com/mermaid-js/mermaid-cli/issues/112#issuecomment-2352670995 -->
+```{mermaid}
+%%| echo: false
+
+%%{ init: { 'themeVariables': { 'lineColor': '#000000' } } }%%
+%%{ init: { 'flowchart': { 'curve': 'linear', 'wrappingWidth': -1 } } }%%
+graph TD
+    A["x ~ LogNormal()"]:::boxStyle
+    B["vn = <span style='color:#3B6EA8 !important;'>@varname</span>(x)<br>dist = LogNormal()<br>x, vi = ..."]:::boxStyle
+    C["assume(vn, dist, vi)"]:::boxStyle
+    D(["<span style='color:#3B6EA8 !important;'>if</span> istrans(vi, vn)"]):::boxStyle
+    E["f = from_internal_transform(vi, vn, dist)"]:::boxStyle
+    F["f = from_linked_internal_transform(vi, vn, dist)"]:::boxStyle
+    G["x, logjac = with_logabsdet_jacobian(f, getindex_internal(vi, vn, dist))"]:::boxStyle
+    H["<span style='color:#3B6EA8 !important;'>return</span> x, logpdf(dist, x) - logjac, vi"]:::boxStyle
+    
+    A -.->|<span style='color:#3B6EA8 ; background-color:#ffffff;'>@model</span>| B
+    B -.->|<span style='color:#000000 ; background-color:#ffffff;'>tilde-pipeline</span>| C
+    C --> D
+    D -->|<span style='color:#97365B ; background-color:#ffffff;'>false</span>| E
+    D -->|<span style='color:#97365B ; background-color:#ffffff;'>true</span>| F
+    E --> G
+    F --> G
+    G --> H
+
+    classDef boxStyle fill:#ffffff,stroke:#000000,font-family:Courier,color:#000000
+    linkStyle default stroke:#000000,stroke-width:1px,color:#000000
+```
+
+Here, `with_logabsdet_jacobian` is defined [in the ChangesOfVariables.jl package](https://juliamath.github.io/ChangesOfVariables.jl/stable/api/#ChangesOfVariables.with_logabsdet_jacobian), and returns both the effect of the transformation `f` as well as the log Jacobian term.
+
+Because we chose `f` appropriately, we find here that `x` is always the model representation; furthermore, if the variable was _not_ linked (i.e. `istrans` was false), the log Jacobian term will be zero.
+However, if it was linked, then the Jacobian term would be appropriately included, making sure that sampling proceeds correctly.
+
+## Why do we need to do this at runtime?
+
+Given that we know whether a `VarInfo` is linked or not, one might wonder why we need both `from_internal_transform` and `from_linked_internal_transform` at the point where the model is evaluated.
+Could we not, for example, store the required transformation inside the `VarInfo` when we link it, and simply reuse that each time?
+
+That is, why can't we just do
+
+```{mermaid}
+%%| echo: false
+%%| fig-width: 5
+
+%%{ init: { 'flowchart': { 'curve': 'linear', 'wrappingWidth': -1 } } }%%
+%%{ init: { 'themeVariables': { 'lineColor': '#000000' } } }%%
+graph TD
+      A["assume(varinfo, <span style='color:#3B6EA8 !important;'>@varname</span>(x), Normal())"]:::boxStyle
+      B["f = from_internal_transform(varinfo, varname, dist)"]:::boxStyle
+      C["x, logjac = with_logabsdet_jacobian(f, getindex_internal(varinfo, varname))"]:::boxStyle
+      D["<span style='color:#3B6EA8 !important;'>return</span> x, logpdf(dist, x) - logjac, varinfo"]:::dashedBox
+      
+      A --> B
+      B --> C
+      C --> D
+
+    classDef dashedBox fill:#ffffff,stroke:#000000,stroke-dasharray: 5 5,font-family:Courier,color:#000000
+    classDef boxStyle fill:#ffffff,stroke:#000000,font-family:Courier,color:#000000
+
+    linkStyle default stroke:#000000,stroke-width:1px,color:#000000
+```
+
+where `from_internal_transform` here only looks up a stored transformation function?
+
+Unfortunately, this is not possible in general, because the transformation function might not be a constant between different model evaluations.
+Consider, for example, the following model:
+
+```{julia}
+@model function demo_dynamic_constraint()
+    m ~ Normal()
+    x ~ truncated(Normal(); lower=m)
+    return (m=m, x=x)
+end
+```
+
+Here, `m` is distributed according to a plain `Normal()`, whereas the variable `x` is constrained to be in the domain `(m, Inf)`.
+Because of this, we expect that any time we sample from the model, we should have that `m < x` (in terms of their model representations):
+
+```{julia}
+model = demo_dynamic_constraint()
+vi = VarInfo(model)
+vn_m, vn_x = @varname(m), @varname(x)
+
+vi[vn_m], vi[vn_x]
+```
+
+(Note that `vi[vn]` is a shorthand for `getindex(vi, vn)`, so this retrieves the model representations of `m` and `x`.)
+So far, so good.
+Let's now link this `VarInfo` so that we end up working in an 'unconstrained' space, where both `m` and `x` can take on any values in `(-Inf, Inf)`.
+First, we should check that the model representations are unchanged when linking:
+
+```{julia}
+vi_linked = link(vi, model)
+vi_linked[vn_m], vi_linked[vn_x]
+```
+
+But if we change the value of `m`, to, say, a bit larger than `x`:
+
+```{julia}
+# Update the model representation for `m` in `vi_linked`.
+vi_linked[vn_m] = vi_linked[vn_x] + 1
+vi_linked[vn_m], vi_linked[vn_x]
+```
+
+::: {.callout-warning}
+This is just for demonstration purposes!
+You shouldn't be directly setting variables in a linked `varinfo` like this unless you know for a fact that the value will be compatible with the constraints of the model.
+:::
+
+Now, we see that the constraint `m < x` is no longer satisfied.
+Hence, one might expect that if we try to evaluate the model using this `VarInfo`, we should obtain an error.
+Here, `evaluate!!` returns two things: the model's return value itself (which we defined above to be a `NamedTuple`), and the resulting `VarInfo` post-evaluation.
+
+```{julia}
+retval, ret_varinfo = DynamicPPL.evaluate!!(model, vi_linked, DefaultContext())
+getlogp(ret_varinfo)
+```
+
+But we don't get any errors!
+Indeed, we could even calculate the 'log probability density' for this evaluation.
+
+To understand this, we need to look at the actual value which was used during the model evaluation.
+We can glean this from the return value (or from the returned `VarInfo`, but the former is easier):
+
+```{julia}
+retval
+```
+
+We can see here that the model evaluation used the value of `m` that we provided, but the value of `x` was 'updated'.
+
+The reason for this is that internally in a model evaluation, we construct the transformation function from the internal to the model representation based on the *current* realizations in the model!
+That is, we take the `dist` in a `x ~ dist` expression _at model evaluation time_ and use that to construct the transformation, thus allowing it to change between model evaluations without invalidating the transformation.
+
+Knowing that the distribution of `x` depends on the value of `m`, we can now understand how the model representation of `x` got updated.
+The linked `VarInfo` does not store the model representation of `x`, but only its linked internal representation.
+So, what happened during the model evaluation above was that the linked internal representation of `x` – which was constructed using the _original_ value of `m` – was transformed back into a new model representation using a _different_ value of `m`.
+
+We can reproduce the 'new' value of `x` by performing these transformations manually:
+
+```{julia}
+# Generate a fresh linked VarInfo (without the new / 'corrupted' values)
+vi_linked = link(vi, model)
+# See the linked internal representations
+DynamicPPL.getindex_internal(vi_linked, vn_m), DynamicPPL.getindex_internal(vi_linked, vn_x)
+```
+
+Now we update the value of `m` like we did before:
+
+```{julia}
+vi_linked[vn_m] = vi_linked[vn_x] + 1
+vi_linked[vn_m]
+```
+
+When evaluating the model, the distribution of `x` is now changed, and so is the corresponding inverse bijector:
+
+```{julia}
+new_dist_x = truncated(Normal(); lower=vi_linked[vn_m])
+new_f_inv = DynamicPPL.invlink_transform(new_dist_x)
+```
+
+and if we apply this to the internal representation of `x`:
+
+```{julia}
+new_f_inv(DynamicPPL.getindex_internal(vi_linked, vn_x))
+```
+
+which is the same value as we got above in `retval`.
+
+## Conclusion
+
+In this chapter of the Turing docs, we've looked at:
+
+- why variables might need to be transformed;
+- how this is accounted for mathematically with the Jacobian term;
+- the basic API and functionality of Bijectors.jl; and
+- the higher-level usage of transforms in DynamicPPL and Turing.
+
+This will hopefully have equipped you with a better understanding of how constrained variables are handled in the Turing framework.
+With this knowledge, you should especially find it easier to navigate DynamicPPL's `VarInfo` type, which forms the backbone of model evaluation.

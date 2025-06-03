@@ -1,0 +1,285 @@
+---
+title: Hidden Markov Models
+engine: julia
+aliases:
+ - ../04-hidden-markov-model/index.html
+---
+
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate();
+```
+
+This tutorial illustrates training Bayesian [hidden Markov models](https://en.wikipedia.org/wiki/Hidden_Markov_model) (HMMs) using Turing.
+The main goals are learning the transition matrix, emission parameter, and hidden states.
+For a more rigorous academic overview of hidden Markov models, see [An Introduction to Hidden Markov Models and Bayesian Networks](https://mlg.eng.cam.ac.uk/zoubin/papers/ijprai.pdf) (Ghahramani, 2001).
+
+In this tutorial, we assume there are $k$ discrete hidden states; the observations are continuous and normally distributed - centered around the hidden states. This assumption reduces the number of parameters to be estimated in the emission matrix.
+
+Let's load the libraries we'll need, and set a random seed for reproducibility.
+
+```{julia}
+# Load libraries.
+using Turing, StatsPlots, Random
+
+# Set a random seed
+Random.seed!(12345678);
+```
+
+## Simple State Detection
+
+In this example, we'll use something where the states and emission parameters are straightforward.
+
+```{julia}
+#| code-fold: true
+#| code-summary: "Load and plot data for this tutorial."
+
+# Define the emission parameter.
+y = [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    3.0,
+    3.0,
+    3.0,
+    3.0,
+    3.0,
+    3.0,
+    3.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+];
+N = length(y);
+K = 3;
+
+# Plot the data we just made.
+plot(y; xlim=(0, 30), ylim=(-1, 5), size=(500, 250), legend = false)
+scatter!(y, color = :blue; xlim=(0, 30), ylim=(-1, 5), size=(500, 250), legend = false)
+```
+
+We can see that we have three states, one for each height of the plot (1, 2, 3). This height is also our emission parameter, so state one produces a value of one, state two produces a value of two, and so on.
+
+Ultimately, we would like to understand three major parameters:
+
+ 1. The transition matrix. This is a matrix that assigns a probability of switching from one state to any other state, including the state that we are already in.
+ 2. The emission parameters, which describes a typical value emitted by some state. In the plot above, the emission parameter for state one is simply one.
+ 3. The state sequence is our understanding of what state we were actually in when we observed some data. This is very important in more sophisticated HMMs, where the emission value does not equal our state.
+
+With this in mind, let's set up our model. We are going to use some of our knowledge as modelers to provide additional information about our system. This takes the form of the prior on our emission parameter.
+
+$$
+m_i \sim \mathrm{Normal}(i, 0.5) \quad \text{where} \quad m = \{1,2,3\}
+$$
+
+Simply put, this says that we expect state one to emit values in a Normally distributed manner, where the mean of each state's emissions is that state's value. The variance of 0.5 helps the model converge more quickly — consider the case where we have a variance of 1 or 2. In this case, the likelihood of observing a 2 when we are in state 1 is actually quite high, as it is within a standard deviation of the true emission value. Applying the prior that we are likely to be tightly centered around the mean prevents our model from being too confused about the state that is generating our observations.
+
+The priors on our transition matrix are noninformative, using `T[i] ~ Dirichlet(ones(K)/K)`. The Dirichlet prior used in this way assumes that the state is likely to change to any other state with equal probability. As we'll see, this transition matrix prior will be overwritten as we observe data.
+
+```{julia}
+# Turing model definition.
+@model function BayesHmm(y, K)
+    # Get observation length.
+    N = length(y)
+
+    # State sequence.
+    s = tzeros(Int, N)
+
+    # Emission matrix.
+    m = Vector(undef, K)
+
+    # Transition matrix.
+    T = Vector{Vector}(undef, K)
+
+    # Assign distributions to each element
+    # of the transition matrix and the
+    # emission matrix.
+    for i in 1:K
+        T[i] ~ Dirichlet(ones(K) / K)
+        m[i] ~ Normal(i, 0.5)
+    end
+
+    # Observe each point of the input.
+    s[1] ~ Categorical(K)
+    y[1] ~ Normal(m[s[1]], 0.1)
+
+    for i in 2:N
+        s[i] ~ Categorical(vec(T[s[i - 1]]))
+        y[i] ~ Normal(m[s[i]], 0.1)
+    end
+end;
+```
+
+We will use a combination of two samplers ([HMC](https://turinglang.org/dev/docs/library/#Turing.Inference.HMC) and [Particle Gibbs](https://turinglang.org/dev/docs/library/#Turing.Inference.PG)) by passing them to the [Gibbs](https://turinglang.org/dev/docs/library/#Turing.Inference.Gibbs) sampler. The Gibbs sampler allows for compositional inference, where we can utilize different samplers on different parameters.
+
+In this case, we use HMC for `m` and `T`, representing the emission and transition matrices respectively. We use the Particle Gibbs sampler for `s`, the state sequence. You may wonder why it is that we are not assigning `s` to the HMC sampler, and why it is that we need compositional Gibbs sampling at all.
+
+The parameter `s` is not a continuous variable. It is a vector of **integers**, and thus Hamiltonian methods like HMC and [NUTS](https://turinglang.org/dev/docs/library/#Turing.Inference.NUTS) won't work correctly. Gibbs allows us to apply the right tools to the best effect. If you are a particularly advanced user interested in higher performance, you may benefit from setting up your Gibbs sampler to use [different automatic differentiation](https://turinglang.org/dev/docs/using-turing/autodiff#compositional-sampling-with-differing-ad-modes) backends for each parameter space.
+
+Time to run our sampler.
+
+```{julia}
+#| output: false
+#| echo: false
+setprogress!(false)
+```
+
+```{julia}
+g = Gibbs(HMC(0.01, 50, :m, :T), PG(120, :s))
+chn = sample(BayesHmm(y, 3), g, 1000);
+```
+
+Let's see how well our chain performed.
+Ordinarily, using `display(chn)` would be a good first step, but we have generated a lot of parameters here (`s[1]`, `s[2]`, `m[1]`, and so on).
+It's a bit easier to show how our model performed graphically.
+
+The code below generates an animation showing the graph of the data above, and the data our model generates in each sample.
+
+```{julia}
+# Extract our m and s parameters from the chain.
+m_set = MCMCChains.group(chn, :m).value
+s_set = MCMCChains.group(chn, :s).value
+
+# Iterate through the MCMC samples.
+Ns = 1:length(chn)
+
+# Make an animation.
+animation = @gif for i in Ns
+    m = m_set[i, :]
+    s = Int.(s_set[i, :])
+    emissions = m[s]
+
+    p = plot(
+        y;
+        chn=:red,
+        size=(500, 250),
+        xlabel="Time",
+        ylabel="State",
+        legend=:topright,
+        label="True data",
+        xlim=(0, 30),
+        ylim=(-1, 5),
+    )
+    plot!(emissions; color=:blue, label="Sample $i")
+end every 3
+```
+
+Looks like our model did a pretty good job, but we should also check to make sure our chain converges. A quick check is to examine whether the diagonal (representing the probability of remaining in the current state) of the transition matrix appears to be stationary. The code below extracts the diagonal and shows a traceplot of each persistence probability.
+
+```{julia}
+# Index the chain with the persistence probabilities.
+subchain = chn[["T[1][1]", "T[2][2]", "T[3][3]"]]
+
+plot(subchain; seriestype=:traceplot, title="Persistence Probability", legend=false)
+```
+
+A cursory examination of the traceplot above indicates that all three chains converged to something resembling
+stationary. We can use the diagnostic functions provided by [MCMCChains](https://github.com/TuringLang/MCMCChains.jl) to engage in some more formal tests, like the Heidelberg and Welch diagnostic:
+
+```{julia}
+heideldiag(MCMCChains.group(chn, :T))[1]
+```
+
+The p-values on the test suggest that we cannot reject the hypothesis that the observed sequence comes from a stationary distribution, so we can be reasonably confident that our transition matrix has converged to something reasonable.
+
+## Efficient Inference With The Forward Algorithm
+
+While the above method works well for the simple example in this tutorial, some users may desire a more efficient method, especially when their model is more complicated.
+One simple way to improve inference is to marginalize out the hidden states of the model with an appropriate algorithm, calculating only the posterior over the continuous random variables.
+Not only does this allow more efficient inference via Rao-Blackwellization, but now we can sample our model with `NUTS()` alone, which is usually a much more performant MCMC kernel.
+
+Thankfully, [HiddenMarkovModels.jl](https://github.com/gdalle/HiddenMarkovModels.jl) provides an extremely efficient implementation of many algorithms related to hidden Markov models. This allows us to rewrite our model as:
+
+```{julia}
+#| output: false
+using HiddenMarkovModels
+using FillArrays
+using LinearAlgebra
+using LogExpFunctions
+
+
+@model function BayesHmm2(y, K)
+    m ~ Bijectors.ordered(MvNormal([1.0, 2.0, 3.0], 0.5I))
+    T ~ filldist(Dirichlet(Fill(1/K, K)), K)
+
+    hmm = HMM(softmax(ones(K)), copy(T'), [Normal(m[i], 0.1) for i in 1:K])
+    Turing.@addlogprob! logdensityof(hmm, y)
+end
+
+chn2 = sample(BayesHmm2(y, 3), NUTS(), 1000)
+```
+
+
+We can compare the chains of these two models, confirming the posterior estimate is similar (modulo label switching concerns with the Gibbs model):
+```{julia}
+#| code-fold: true
+#| code-summary: "Plotting Chains"
+
+plot(chn["m[1]"], label = "m[1], Model 1, Gibbs", color = :lightblue)
+plot!(chn2["m[1]"], label = "m[1], Model 2, NUTS", color = :blue)
+plot!(chn["m[2]"], label = "m[2], Model 1, Gibbs", color = :pink)
+plot!(chn2["m[2]"], label = "m[2], Model 2, NUTS", color = :red)
+plot!(chn["m[3]"], label = "m[3], Model 1, Gibbs", color = :yellow)
+plot!(chn2["m[3]"], label = "m[3], Model 2, NUTS", color = :orange)
+```
+
+
+### Recovering Marginalized Trajectories
+
+We can use the `viterbi()` algorithm, also from the `HiddenMarkovModels` package, to recover the most probable state for each parameter set in our posterior sample:
+```{julia}
+#| output: false
+@model function BayesHmmRecover(y, K, IncludeGenerated = false)
+
+    m ~ Bijectors.ordered(MvNormal([1.0, 2.0, 3.0], 0.5I))
+    T ~ filldist(Dirichlet(Fill(1/K, K)), K)
+
+    hmm = HMM(softmax(ones(K)), copy(T'), [Normal(m[i], 0.1) for i in 1:K])
+    Turing.@addlogprob! logdensityof(hmm, y)
+
+    # Conditional generation of the hidden states.
+    if IncludeGenerated
+        seq, _ = viterbi(hmm, y)
+        s := [m[s] for s in seq]
+    else
+        return nothing
+    end
+end
+
+chn_recover = sample(BayesHmmRecover(y, 3, true), NUTS(), 1000)
+```
+
+Plotting the estimated states, we can see that the results align well with our expectations:
+
+```{julia}
+#| code-fold: true
+#| code-summary: "HMM Plotting Functions"
+
+p = plot(xlim=(0, 30), ylim=(-1, 5), size=(500, 250))
+for i in 1:100
+    ind = rand(DiscreteUniform(1, 1000))
+    plot!(MCMCChains.group(chn_recover, :s).value[ind,:], color = :grey, opacity = 0.1, legend = :false)
+end
+scatter!(y, color = :blue)
+
+p
+```

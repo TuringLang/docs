@@ -1,63 +1,66 @@
-# Documentation and Tutorials for Turing.jl
+# Turing.jl Documentation and Tutorials
 
-This repository hosts the code for the main Turing.jl documentation `https://turinglang.org/docs/`.
-It contains the Turing.jl documentation and tutorials. 
+**https://turinglang.org/docs/**
 
-- The `main` branch contains the Quarto source.
-- The `gh-pages` branch contains the `html` version of these documents compiled from the `main` branch.
+## Contributing
+
+The easiest way to contribute to the documentation is to simply open a pull request.
+A preview version of the documentation is built for PRs, so you can see how your changes look without having to build the entire site locally.
+(Note that if you are editing a tutorial that takes a long time to run, this feedback may take a while.)
+
+The `main` branch contains the Quarto source code.
+The HTML documentation is automatically built using GitHub Actions, and deployed to the `gh-pages` branch, so you do not have to build and commit the HTML files yourself.
 
 ## Local development
 
-To get started with the docs website locally, you'll need to have [Quarto](https://quarto.org/docs/download/) installed.
-Make sure you have at least version 1.6.31 of Quarto installed, as this version contains a fix for [a bug where random number generation in different cells was not deterministic](https://github.com/TuringLang/docs/issues/533).
-
-Once you have Quarto installed, you can follow these steps:
+If you wish to render the docs website locally, you'll need to have [Quarto](https://quarto.org/docs/download/) installed (at least version 1.6.31) on your computer.
+Then:
 
 1. Clone this repository:
 
-    ```bash
-    git clone https://github.com/TuringLang/docs
-    ```
+   ```bash
+   git clone https://github.com/TuringLang/docs
+   ```
 
 2. Navigate into the cloned directory:
 
-    ```bash
-    cd docs
-    ```
+   ```bash
+   cd docs
+   ```
 
 3. Instantiate the project environment:
 
-    ```bash
-    julia --project=. -e 'using Pkg; Pkg.instantiate()'
-    ```
+   ```bash
+   julia --project=. -e 'using Pkg; Pkg.instantiate()'
+   ```
 
 4. Preview the website using Quarto.
 
-   > [!WARNING]  
-   > This will take a _very_ long time, as it will build every tutorial from scratch. See below for ways to speed this up.
+   > [!WARNING]
+   >
+   > This will take a _very_ long time, as it will build every tutorial from scratch. See [below](#faster-rendering) for ways to speed this up.
 
-    ```bash
-    quarto preview
-    ```
+   ```bash
+   quarto preview
+   ```
 
-    This will launch a local server at http://localhost:4200/, which you can view in your web browser by navigating to the link shown in your terminal.
-    Note: Avoid clicking links in the navbar while previewing locally because they will eventually lead to https links online!
+   This will launch a local server at http://localhost:4200/, which you can view in your web browser by navigating to the link shown in your terminal.
 
 5. Render the website locally:
 
-    ```bash
-    quarto render
-    ```
+   ```bash
+   quarto render
+   ```
 
-    This will build the entire documentation and place the output in the `_site` folder.
-    You can then view the rendered website by launching a HTTP server from that directory, e.g. using Python:
+   This will build the entire documentation and place the output in the `_site` folder.
+   You can then view the rendered website by launching a HTTP server from that directory, e.g. using Python:
 
-    ```bash
-    cd _site
-    python -m http.server 8000
-    ```
+   ```bash
+   cd _site
+   python -m http.server 8000
+   ```
 
-    Then, navigate to http://localhost:8000/ in your web browser.
+   Then, navigate to http://localhost:8000/ in your web browser.
 
 ## Faster rendering
 

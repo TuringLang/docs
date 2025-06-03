@@ -1,0 +1,72 @@
+---
+title: "Frequently Asked Questions"
+description: "Common questions and answers about using Turing.jl"
+---
+
+## Why is this variable being treated as random instead of observed?
+
+This is a common source of confusion. In Turing.jl, you can only manipulate expressions that explicitly appear on the left-hand side (LHS) of a `~` statement. 
+
+For example, if your model contains:
+```julia
+x ~ filldist(Normal(), 2)
+```
+
+You cannot directly condition on `x[2]` using `condition(model, @varname(x[2]) => 1.0)` because `x[2]` never appears on the LHS of a `~` statement. Only `x` as a whole appears there.
+
+To understand more about how Turing determines whether a variable is treated as random or observed, see:
+- [Compiler Design Overview](../developers/compiler/design-overview/) - explains the heuristics Turing uses
+- [DynamicPPL Transformations](../developers/transforms/dynamicppl/) - details about variable transformations and the `@varname` macro
+- [Core Functionality](../core-functionality/) - basic explanation of the `~` notation and conditioning
+
+## How do I implement a sampler for a Turing.jl model?
+
+We have comprehensive guides on implementing custom samplers:
+- [Implementing Samplers Tutorial](../developers/inference/implementing-samplers/) - step-by-step guide on implementing samplers in the AbstractMCMC framework
+- [AbstractMCMC-Turing Interface](../developers/inference/abstractmcmc-turing/) - how to integrate your sampler with Turing
+- [AbstractMCMC Interface](../developers/inference/abstractmcmc-interface/) - the underlying interface documentation
+
+## Can I use parallelism / threads in my model?
+
+Yes! Turing.jl supports both multithreaded and distributed sampling. See the [Core Functionality guide](../core-functionality/#sampling-multiple-chains) for detailed examples showing:
+- Multithreaded sampling using `MCMCThreads()`
+- Distributed sampling using `MCMCDistributed()`
+
+## How do I check the type stability of my Turing model?
+
+Type stability is crucial for performance. Check out:
+- [Performance Tips](../usage/performance-tips/) - includes specific advice on type stability
+- [Automatic Differentiation](../usage/automatic-differentiation/) - contains benchmarking utilities using `DynamicPPL.TestUtils.AD`
+
+## How do I debug my Turing model?
+
+For debugging both statistical and syntactical issues:
+- [Troubleshooting Guide](../usage/troubleshooting/) - common errors and their solutions
+- For more advanced debugging, DynamicPPL provides `DynamicPPL.DebugUtils` for inspecting model internals
+
+## What are the main differences between Turing vs BUGS vs Stan syntax?
+
+While there are many syntactic differences, key advantages of Turing include:
+- **Julia ecosystem**: Full access to Julia's profiling and debugging tools
+- **Parallel computing**: Much easier to use distributed and parallel computing inside models
+- **Flexibility**: Can use arbitrary Julia code within models
+- **Extensibility**: Easy to implement custom distributions and samplers
+
+## Which automatic differentiation backend should I use?
+
+The choice of AD backend can significantly impact performance. See:
+- [Automatic Differentiation Guide](../usage/automatic-differentiation/) - comprehensive comparison of ForwardDiff, Mooncake, ReverseDiff, and other backends
+- [Performance Tips](../usage/performance-tips/#choose-your-ad-backend) - quick guide on choosing backends
+- [AD Backend Benchmarks](https://turinglang.org/ADTests/) - performance comparisons across various models
+
+For more specific recommendations, check out the [DifferentiationInterface.jl tutorial](https://juliadiff.org/DifferentiationInterface.jl/DifferentiationInterfaceTest/stable/tutorial/).
+
+## I changed one line of my model and now it's so much slower; why?
+
+Small changes can have big performance impacts. Common culprits include:
+- Type instability introduced by the change
+- Switching from vectorized to scalar operations (or vice versa)
+- Inadvertently causing AD backend incompatibilities
+- Breaking assumptions that allowed compiler optimizations
+
+See our [Performance Tips](../usage/performance-tips/) and [Troubleshooting Guide](../usage/troubleshooting/) for debugging performance regressions.

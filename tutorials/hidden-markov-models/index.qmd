@@ -33,42 +33,9 @@ Random.seed!(12345678);
 In this example, we'll use something where the states and emission parameters are straightforward.
 
 ```{julia}
-#| code-fold: true
-#| code-summary: "Load and plot data for this tutorial."
-
 # Define the emission parameter.
-y = [
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    2.0,
-    2.0,
-    2.0,
-    2.0,
-    2.0,
-    2.0,
-    3.0,
-    3.0,
-    3.0,
-    3.0,
-    3.0,
-    3.0,
-    3.0,
-    2.0,
-    2.0,
-    2.0,
-    2.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-];
+y = [fill(1.0, 6)..., fill(2.0, 6)..., fill(3.0, 7)...,
+  fill(2.0, 4)..., fill(1.0, 7)...]
 N = length(y);
 K = 3;
 
@@ -147,7 +114,7 @@ setprogress!(false)
 ```
 
 ```{julia}
-g = Gibbs(HMC(0.01, 50, :m, :T), PG(120, :s))
+g = Gibbs(:m, :T => HMC(0.01, 50), :s => PG(120))
 chn = sample(BayesHmm(y, 3), g, 1000);
 ```
 
@@ -213,7 +180,6 @@ Not only does this allow more efficient inference via Rao-Blackwellization, but 
 Thankfully, [HiddenMarkovModels.jl](https://github.com/gdalle/HiddenMarkovModels.jl) provides an extremely efficient implementation of many algorithms related to hidden Markov models. This allows us to rewrite our model as:
 
 ```{julia}
-#| output: false
 using HiddenMarkovModels
 using FillArrays
 using LinearAlgebra
@@ -222,7 +188,7 @@ using LogExpFunctions
 
 @model function BayesHmm2(y, K)
     m ~ Bijectors.ordered(MvNormal([1.0, 2.0, 3.0], 0.5I))
-    T ~ filldist(Dirichlet(Fill(1/K, K)), K)
+    T ~ filldist(Dirichlet(fill(1/K, K)), K)
 
     hmm = HMM(softmax(ones(K)), copy(T'), [Normal(m[i], 0.1) for i in 1:K])
     Turing.@addlogprob! logdensityof(hmm, y)
@@ -250,11 +216,9 @@ plot!(chn2["m[3]"], label = "m[3], Model 2, NUTS", color = :orange)
 
 We can use the `viterbi()` algorithm, also from the `HiddenMarkovModels` package, to recover the most probable state for each parameter set in our posterior sample:
 ```{julia}
-#| output: false
 @model function BayesHmmRecover(y, K, IncludeGenerated = false)
-
     m ~ Bijectors.ordered(MvNormal([1.0, 2.0, 3.0], 0.5I))
-    T ~ filldist(Dirichlet(Fill(1/K, K)), K)
+    T ~ filldist(Dirichlet(fill(1/K, K)), K)
 
     hmm = HMM(softmax(ones(K)), copy(T'), [Normal(m[i], 0.1) for i in 1:K])
     Turing.@addlogprob! logdensityof(hmm, y)
@@ -263,8 +227,6 @@ We can use the `viterbi()` algorithm, also from the `HiddenMarkovModels` package
     if IncludeGenerated
         seq, _ = viterbi(hmm, y)
         s := [m[s] for s in seq]
-    else
-        return nothing
     end
 end
 
@@ -274,9 +236,6 @@ chn_recover = sample(BayesHmmRecover(y, 3, true), NUTS(), 1000)
 Plotting the estimated states, we can see that the results align well with our expectations:
 
 ```{julia}
-#| code-fold: true
-#| code-summary: "HMM Plotting Functions"
-
 p = plot(xlim=(0, 30), ylim=(-1, 5), size=(500, 250))
 for i in 1:100
     ind = rand(DiscreteUniform(1, 1000))

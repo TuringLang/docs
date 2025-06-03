@@ -167,10 +167,12 @@ One solution here is to enforce an ordering on our $\mu$ vector, requiring $\mu_
 `Bijectors.jl` [provides](https://turinglang.org/Bijectors.jl/dev/transforms/#Bijectors.OrderedBijector) an easy transformation (`ordered()`) for this purpose:
 
 ```{julia}
+using Bijectors: ordered
+
 @model function gaussian_mixture_model_ordered(x)
     # Draw the parameters for each of the K=2 clusters from a standard normal distribution.
     K = 2
-    μ ~ Bijectors.ordered(MvNormal(Zeros(K), I))
+    μ ~ ordered(MvNormal(Zeros(K), I))
     # Draw the weights for the K clusters from a Dirichlet distribution with parameters αₖ = 1.
     w ~ Dirichlet(K, 1.0)
     # Alternatively, one could use a fixed set of weights.
@@ -285,7 +287,7 @@ using LogExpFunctions
 @model function gmm_marginalized(x)
     K = 2
     D, N = size(x)
-    μ ~ Bijectors.ordered(MvNormal(Zeros(K), I))
+    μ ~ ordered(MvNormal(Zeros(K), I))
     w ~ Dirichlet(K, 1.0)
     dists = [MvNormal(Fill(μₖ, D), I) for μₖ in μ]
     for i in 1:N
@@ -325,7 +327,7 @@ The `logpdf` implementation for a `MixtureModel` distribution is exactly the mar
 @model function gmm_marginalized(x)
     K = 2
     D, _ = size(x)
-    μ ~ Bijectors.ordered(MvNormal(Zeros(K), I))
+    μ ~ ordered(MvNormal(Zeros(K), I))
     w ~ Dirichlet(K, 1.0)
     x ~ MixtureModel([MvNormal(Fill(μₖ, D), I) for μₖ in μ], w)
 end
@@ -381,7 +383,7 @@ end
 @model function gmm_recover(x)
     K = 2
     D, N =  size(x)
-    μ ~ Bijectors.ordered(MvNormal(Zeros(K), I))
+    μ ~ ordered(MvNormal(Zeros(K), I))
     w ~ Dirichlet(K, 1.0)
     dists = [MvNormal(Fill(μₖ, D), I) for μₖ in μ]
     x ~ MixtureModel(dists, w)
@@ -401,7 +403,7 @@ chains = sample(model, sampler, MCMCThreads(), nsamples, nchains, discard_initia
 Given a sample from the marginalized posterior, these assignments can be recovered with:
 
 ```{julia}
-assignments = mean(generated_quantities(gmm_recover(x), chains));
+assignments = mean(returned(gmm_recover(x), chains));
 ```
 
 ```{julia}

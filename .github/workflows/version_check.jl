@@ -80,7 +80,7 @@ println("Manifest.toml version: ", manifest_version)
 
 errors = []
 
-if ENV["TARGET_IS_MASTER"] == "true"
+if ENV["TARGET_IS_MAIN"] == "true"
     # This environment variable is set by the GitHub Actions workflow. If it is
     # true, fetch the latest version from GitHub and update files to match this
     # version if necessary.

@@ -29,6 +29,7 @@ jobs:
           version: '1.11'
 
       - name: Load Julia packages from cache
+        id: julia-cache
         uses: julia-actions/cache@v2
         with:
           cache-name: julia-cache;${{ hashFiles('**/Manifest.toml') }}
@@ -57,11 +58,20 @@ jobs:
 
       - name: Save _freeze folder
         id: cache-save
+        if: ${{ !cancelled() }}
         uses: actions/cache/save@v4
         with:
           path: |
             ./_freeze/
           key: ${{ runner.os }}-${{ hashFiles('**/Manifest.toml') }}-${{ hashFiles('**/index.qmd') }}
+
+      - name: Save Julia depot cache
+        id: julia-cache-save
+        if: ${{ !cancelled() && steps.julia-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.julia-cache.outputs.cache-paths }}
+          key: ${{ steps.julia-cache.outputs.cache-key }}
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4

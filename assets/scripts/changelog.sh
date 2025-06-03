@@ -1,4 +1,4 @@
-url="https://raw.githubusercontent.com/TuringLang/Turing.jl/master/HISTORY.md"
+url="https://raw.githubusercontent.com/TuringLang/Turing.jl/main/HISTORY.md"
 
 changelog_content=$(curl -s "$url")
 

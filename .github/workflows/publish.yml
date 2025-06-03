@@ -3,7 +3,7 @@ name: Render Docs Website
 on:
   push:
     branches:
-      - master
+      - main
       - backport-v0.*
   workflow_dispatch: # manual trigger for testing
 
@@ -28,7 +28,11 @@ jobs:
           version: '1.11'
 
       - name: Load Julia packages from cache
+        id: julia-cache
         uses: julia-actions/cache@v2
+        with:
+          cache-name: julia-cache;${{ hashFiles('**/Manifest.toml') }}
+          delete-old-caches: false
 
       # Note: needs resolve() to fix #518
       - name: Instantiate Julia environment
@@ -86,11 +90,20 @@ jobs:
 
       - name: Save _freeze folder
         id: cache-save
+        if: ${{ !cancelled() }}
         uses: actions/cache/save@v4
         with:
           path: |
             ./_freeze/
           key: ${{ runner.os }}-${{ hashFiles('**/Manifest.toml') }}-${{ hashFiles('**/index.qmd') }}
+
+      - name: Save Julia depot cache
+        id: julia-cache-save
+        if: ${{ !cancelled() && steps.julia-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.julia-cache.outputs.cache-paths }}
+          key: ${{ steps.julia-cache.outputs.cache-key }}
 
       - name: Fetch search_original.json from main site
         run: curl -O https://raw.githubusercontent.com/TuringLang/turinglang.github.io/gh-pages/search_original.json

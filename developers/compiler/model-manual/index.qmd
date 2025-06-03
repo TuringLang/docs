@@ -16,7 +16,9 @@ using Turing
     m ~ Normal(0, sqrt(s²))
 
     # Observe each value of x.
-    @. x ~ Normal(m, sqrt(s²))
+    x .~ Normal(m, sqrt(s²))
+
+    return nothing
 end
 
 model = gdemo([1.5, 2.0])
@@ -28,6 +30,8 @@ However, models can be constructed by hand without the use of a macro.
 Taking the `gdemo` model above as an example, the macro-based definition can be implemented also (a bit less generally) with the macro-free version
 
 ```{julia}
+using DynamicPPL
+
 # Create the model function.
 function gdemo2(model, varinfo, context, x)
     # Assume s² has an InverseGamma distribution.
@@ -41,9 +45,15 @@ function gdemo2(model, varinfo, context, x)
     )
 
     # Observe each value of x[i] according to a Normal distribution.
-    return DynamicPPL.dot_tilde_observe!!(
-        context, Normal(m, sqrt(s²)), x, Turing.@varname(x), varinfo
-    )
+    for i in eachindex(x)
+        _retval, varinfo = DynamicPPL.tilde_observe!!(
+            context, Normal(m, sqrt(s²)), x[i], Turing.@varname(x[i]), varinfo
+        )
+    end
+
+    # The final return statement should comprise both the original return
+    # value and the updated varinfo.
+    return nothing, varinfo
 end
 gdemo2(x) = Turing.Model(gdemo2, (; x))
 

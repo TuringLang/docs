@@ -12,20 +12,19 @@ using Pkg;
 Pkg.instantiate();
 ```
 
-Most of the scientific community deals with the basic problem of trying to mathematically model the reality around them and this often involves dynamical systems. The general trend to model these complex dynamical systems is through the use of differential equations.
-Differential equation models often have non-measurable parameters.
-The popular “forward-problem” of simulation consists of solving the differential equations for a given set of parameters, the “inverse problem” to simulation, known as parameter estimation, is the process of utilizing data to determine these model parameters.
+A basic scientific problem is to mathematically model a system of interest, then compare this model to the observable reality around us.
+Such models often involve dynamical systems of differential equations.
+In practice, these equations often have unkown parameters we would like to estimate.
+The “forward problem” of simulation consists of solving the differential equations for a given set of parameters, while the “inverse problem," also known as parameter estimation, is the process of utilizing data to determine these model parameters.
 Bayesian inference provides a robust approach to parameter estimation with quantified uncertainty.
 
 ```{julia}
 using Turing
 using DifferentialEquations
-
 # Load StatsPlots for visualizations and diagnostics.
 using StatsPlots
-
 using LinearAlgebra
-
+using Distributions
 # Set a seed for reproducibility.
 using Random
 Random.seed!(14);
@@ -45,6 +44,9 @@ $$
 $$
 
 where $x(t)$ and $y(t)$ denote the populations of prey and predator at time $t$, respectively, and $\alpha, \beta, \gamma, \delta$ are positive parameters.
+In the absence of predators, the prey population $x$ would increase exponentially at rate $\alpha$ (with dimensions of time^-1^).
+However, the predators kill some prey at a rate $\beta$ (prey predator^-1^ time^-1^), which enables the predator population to increase at rate $\delta$ (predators prey^-1^ time^-1^).
+Finally, predators are removed by natural mortality at rate $\gamma$ (time^-1^).
 
 We implement the Lotka-Volterra model and simulate it with parameters $\alpha = 1.5$, $\beta = 1$, $\gamma = 3$, and $\delta = 1$ and initial conditions $x(0) = y(0) = 1$.
 
@@ -74,19 +76,25 @@ plot(solve(prob, Tsit5()))
 ```
 
 We generate noisy observations to use for the parameter estimation tasks in this tutorial.
-With the [`saveat` argument](https://docs.sciml.ai/latest/basics/common_solver_opts/) we specify that the solution is stored only at `0.1` time units.
-To make the example more realistic we add random normally distributed noise to the simulation.
+With the [`saveat` argument](https://docs.sciml.ai/latest/basics/common_solver_opts/) to the differential equation solver, we specify that the solution is stored only at `0.1` time units.
+
+To make the example more realistic, we generate data as random Poisson counts based on the "true" population densities of predator and prey from the simulation.
+Poisson-distributed data are common in ecology (for instance, counts of animals detected by a camera trap).
+We'll assume that the rate $\lambda$, which parameterizes the Poisson distribution, is proportional to the underlying animal densities via a constant factor $q = 1.7$.
 
 ```{julia}
 sol = solve(prob, Tsit5(); saveat=0.1)
-odedata = Array(sol) + 0.5 * randn(size(Array(sol)))
+q = 1.7
+odedata = rand.(Poisson.(q * Array(sol)))
 
 # Plot simulation and noisy observations.
-plot(sol; alpha=0.3)
+plot(sol, label=["Prey" "Predator"])
 scatter!(sol.t, odedata'; color=[1 2], label="")
 ```
 
-Alternatively, we can use real-world data from Hudson’s Bay Company records (an Stan implementation with slightly different priors can be found here: https://mc-stan.org/users/documentation/case-studies/lotka-volterra-predator-prey.html).
+An even more realistic example could be fitted to the famous hare-and-lynx system using the long-term trapping records of the Hudson's Bay Company.
+A Stan implementation of this problem with slightly different priors can be found [here](https://mc-stan.org/users/documentation/case-studies/lotka-volterra-predator-prey.html).
+For this tutorial, though, we will stick with simulated data.
 
 ## Direct Handling of Bayesian Estimation with Turing
 
@@ -95,25 +103,35 @@ Previously, functions in Turing and DifferentialEquations were not inter-composa
 Nowadays, however, Turing and DifferentialEquations are completely composable and we can just simulate differential equations inside a Turing `@model`.
 Therefore, we write the Lotka-Volterra parameter estimation problem using the Turing `@model` macro as below.
 For the purposes of this tutorial, we choose priors for the parameters that are quite close to the ground truth.
-This helps us to illustrate the results without needing to run overly long MCMC chains:
+As justification, we can imagine we have preexisting estimates for the biological rates.
+Practically, this helps us to illustrate the results without needing to run overly long MCMC chains.
 
+Note we also have to take special care with the ODE solver.
+For certain parameter combinations, the numerical solver may predict animal densities that are just barely below zero.
+This causes errors with the Poisson distribution, which needs a non-negative mean $\lambda$.
+To avoid this happening, we tell the solver to aim for small abolute and relative errors (`abstol=1e-6, reltol=1e-6`).
+We also add a fudge factor `ϵ = 1e-5` to the predicted data.
+Since `ϵ` is greater than the solver's tolerance, it should overcome any remaining numerical error, making sure all predicted values are positive.
+At the same time, it is so small compared to the data that it should have a negligible effect on inference.
+If this approach doesn't work, there are some more ideas to try [here](https://docs.sciml.ai/DiffEqDocs/stable/basics/faq/#My-ODE-goes-negative-but-should-stay-positive,-what-tools-can-help?).
 
 ```{julia}
 @model function fitlv(data, prob)
     # Prior distributions.
-    σ ~ InverseGamma(3, 2)
     α ~ truncated(Normal(1.5, 0.2); lower=0.5, upper=2.5)
     β ~ truncated(Normal(1.1, 0.2); lower=0, upper=2)
     γ ~ truncated(Normal(3.0, 0.2); lower=1, upper=4)
     δ ~ truncated(Normal(1.0, 0.2); lower=0, upper=2)
+    q ~ truncated(Normal(1.7, 0.2); lower=0, upper=3)
 
     # Simulate Lotka-Volterra model. 
     p = [α, β, γ, δ]
-    predicted = solve(prob, Tsit5(); p=p, saveat=0.1)
-
+    predicted = solve(prob, Tsit5(); p=p, saveat=0.1, abstol=1e-6, reltol=1e-6)
+    ϵ = 1e-5
+    
     # Observations.
     for i in eachindex(predicted)
-        data[:, i] ~ MvNormal(predicted[i], σ^2 * I)
+        data[:, i] ~ arraydist(Poisson.(q .* predicted[i] .+ ϵ))
     end
 
     return nothing
@@ -125,8 +143,7 @@ model = fitlv(odedata, prob)
 chain = sample(model, NUTS(), MCMCSerial(), 1000, 3; progress=false)
 ```
 
-The estimated parameters are close to the parameter values the observations were generated with.
-We can also check visually that the chains have converged.
+The estimated parameters are close to the parameter values the observations were generated with. We can also check visually that the chains have converged.
 
 ```{julia}
 plot(chain)
@@ -157,24 +174,24 @@ We can see that, even though we added quite a bit of noise to the data the poste
 ## Lotka-Volterra model without data of prey
 
 One can also perform parameter inference for a Lotka-Volterra model with incomplete data.
-For instance, let us suppose we have only observations of the predators but not of the prey.
-I.e., we fit the model only to the $y$ variable of the system without providing any data for $x$:
+For instance, let us suppose we have only observations of the predators but not of the prey. I.e., we fit the model only to the $y$ variable of the system without providing any data for $x$:
 
 ```{julia}
 @model function fitlv2(data::AbstractVector, prob)
     # Prior distributions.
-    σ ~ InverseGamma(3, 2)
     α ~ truncated(Normal(1.5, 0.2); lower=0.5, upper=2.5)
     β ~ truncated(Normal(1.1, 0.2); lower=0, upper=2)
     γ ~ truncated(Normal(3.0, 0.2); lower=1, upper=4)
     δ ~ truncated(Normal(1.0, 0.2); lower=0, upper=2)
+    q ~ truncated(Normal(1.7, 0.2); lower=0, upper=3)
 
     # Simulate Lotka-Volterra model but save only the second state of the system (predators).
     p = [α, β, γ, δ]
-    predicted = solve(prob, Tsit5(); p=p, saveat=0.1, save_idxs=2)
+    predicted = solve(prob, Tsit5(); p=p, saveat=0.1, save_idxs=2, abstol=1e-6, reltol=1e-6)
+    ϵ = 1e-5
 
     # Observations of the predators.
-    data ~ MvNormal(predicted.u, σ^2 * I)
+    data ~ arraydist(Poisson.(q .* predicted.u .+ ϵ))
 
     return nothing
 end
@@ -251,7 +268,7 @@ We generate observations by adding normally distributed noise to the results of 
 
 ```{julia}
 sol_dde = solve(prob_dde; saveat=0.1)
-ddedata = Array(sol_dde) + 0.5 * randn(size(sol_dde))
+ddedata = rand.(Poisson.(q .* Array(sol_dde)))
 
 # Plot simulation and noisy observations.
 plot(sol_dde)
@@ -263,19 +280,20 @@ Now we define the Turing model for the Lotka-Volterra model with delay and sampl
 ```{julia}
 @model function fitlv_dde(data, prob)
     # Prior distributions.
-    σ ~ InverseGamma(3, 2)
     α ~ truncated(Normal(1.5, 0.2); lower=0.5, upper=2.5)
     β ~ truncated(Normal(1.1, 0.2); lower=0, upper=2)
     γ ~ truncated(Normal(3.0, 0.2); lower=1, upper=4)
     δ ~ truncated(Normal(1.0, 0.2); lower=0, upper=2)
+    q ~ truncated(Normal(1.7, 0.2); lower=0, upper=3)
 
     # Simulate Lotka-Volterra model.
     p = [α, β, γ, δ]
-    predicted = solve(prob, MethodOfSteps(Tsit5()); p=p, saveat=0.1)
+    predicted = solve(prob, MethodOfSteps(Tsit5()); p=p, saveat=0.1, abstol=1e-6, reltol=1e-6)
+    ϵ = 1e-5
 
     # Observations.
     for i in eachindex(predicted)
-        data[:, i] ~ MvNormal(predicted[i], σ^2 * I)
+        data[:, i] ~ arraydist(Poisson.(q .* predicted[i] .+ ϵ))
     end
 end
 

@@ -20,9 +20,15 @@ This article provides an overview of the core functionality in Turing.jl, which 
 
 A probabilistic program is Julia code wrapped in a `@model` macro. It can use arbitrary Julia code, but to ensure correctness of inference it should not have external effects or modify global state. Stack-allocated variables are safe, but mutable heap-allocated objects may lead to subtle bugs when using task copying. By default Libtask deepcopies `Array` and `Dict` objects when copying task to avoid bugs with data stored in mutable structure in Turing models.
 
-To specify distributions of random variables, Turing programs should use the `~` notation:
+To specify distributions of random variables, Turing models use `~` notation: `x ~ distr` where `x` is an identifier and `distr` is a distribution.
 
-`x ~ distr` where `x` is a symbol and `distr` is a distribution. If `x` is undefined in the model function, inside the probabilistic program, this puts a random variable named `x`, distributed according to `distr`, in the current scope. `distr` can be a value of any type that implements `rand(distr)`, which samples a value from the distribution `distr`. If `x` is defined, this is used for conditioning in a style similar to [Anglican](https://probprog.github.io/anglican/index.html) (another PPL). In this case, `x` is an observed value, assumed to have been drawn from the distribution `distr`. The likelihood is computed using `logpdf(distr,y)`. The observe statements should be arranged so that every possible run traverses all of them in exactly the same order. This is equivalent to demanding that they are not placed inside stochastic control flow.
+If `x` is not defined in the model function, inside the probabilistic program, this puts a random variable named `x`, distributed according to `distr`, in the current scope.
+`distr` is typically either a distribution from Distributions.jl (see [this page]({{< meta usage-custom-distribution >}}) for implementing custom distributions), or another Turing model wrapped in `to_submodel()`.
+
+If `x` is defined, this is used for conditioning in a style similar to [Anglican](https://probprog.github.io/anglican/index.html) (another PPL).
+In this case, `x` is an observed value, assumed to have been drawn from the distribution `distr`.
+The likelihood is computed using `loglikelihood(distr, x)`.
+These observe-statements should be arranged so that every possible run traverses all of them in exactly the same order. This is equivalent to demanding that they are not placed inside stochastic control flow.
 
 Available inference methods include Importance Sampling (IS), Sequential Monte Carlo (SMC), Particle Gibbs (PG), Hamiltonian Monte Carlo (HMC), Hamiltonian Monte Carlo with Dual Averaging (HMCDA) and The No-U-Turn Sampler (NUTS).
 

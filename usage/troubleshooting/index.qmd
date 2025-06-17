@@ -102,3 +102,60 @@ sample(model, NUTS(), 1000; initial_params=rand(Vector, model))
 ```
 
 More generally, you may also consider reparameterising the model to avoid such issues.
+
+## ForwardDiff type parameters
+
+> MethodError: no method matching Float64(::ForwardDiff.Dual{... The type `Float64` exists, but no method is defined for this combination of argument types when trying to construct it.
+
+A common error with ForwardDiff looks like this:
+
+```{julia}
+#| error: true
+@model function forwarddiff_fail()
+    x = Float64[0.0, 1.0]
+    a ~ Normal()
+    @show typeof(a)
+    x[1] = a
+    b ~ MvNormal(x, I)
+end
+sample(forwarddiff_fail(), NUTS(; adtype=AutoForwardDiff()), 10)
+```
+
+The problem here is the line `x[1] = a`.
+When the log probability density of the model is calculated, `a` is sampled from a normal distribution and is thus a Float64; however, when ForwardDiff calculates the gradient of the log density, `a` is a `ForwardDiff.Dual` object.
+However, `x` is _always_ a `Vector{Float64}`, and the call `x[1] = a` attempts to insert a `Dual` object into a `Vector{Float64}`, which is not allowed.
+
+::: {.callout-note}
+In more depth: the basic premise of ForwardDiff is that functions have to accept `Real` parameters instead of `Float64` (since `Dual` is a subtype of `Real`).
+Here, the line `x[1] = a` is equivalent to `setindex!(x, a, 1)`, and although the method `setindex!(::Vector{Float64}, ::Real, ...)` does exist, it attempts to convert the `Real` into a `Float64`, which is where it fails.
+:::
+
+There are two ways around this.
+
+Firstly, you could broaden the type of the container:
+
+```{julia}
+@model function forwarddiff_working1()
+    x = Real[0.0, 1.0]
+    a ~ Normal()
+    x[1] = a
+    b ~ MvNormal(x, I)
+end
+sample(forwarddiff_working1(), NUTS(; adtype=AutoForwardDiff()), 10)
+```
+
+This is generally unfavourable because the `Vector{Real}` type contains an abstract type parameter.
+As a result, memory allocation is less efficient (because the compiler does not know the size of each vector's elements).
+Furthermore, the compiler cannot infer the type of `x[1]`, which can lead to type stability issues (to see this in action, run `x = Real[0.0, 1.0]; @code_warntype x[1]` in the Julia REPL).
+
+A better solution is to pass a type as a parameter to the model:
+
+```{julia}
+@model function forwarddiff_working2(::Type{T}=Float64) where T
+    x = T[0.0, 1.0]
+    a ~ Normal()
+    x[1] = a
+    b ~ MvNormal(x, I)
+end
+sample(forwarddiff_working2(), NUTS(; adtype=AutoForwardDiff()), 10)
+```

@@ -34,66 +34,133 @@ To get a bit more into what we can do with VI, let's have a look at a more concr
 We will reproduce the [tutorial on Bayesian linear regression]({{<meta linear-regression>}}) using VI instead of MCMC.
 After that we will discuss how to customize the behavior of `vi` for more advanced usage.
 
-Let's first import the necessary packages:
+Let's first import the relevant packages:
 
 ```{julia}
 using Random
 using Turing
 using Turing: Variational
 using AdvancedVI
-using Bijectors: bijector
-using StatsPlots, Measures
 using Plots
 
 Random.seed!(42);
 ```
 
-## Basic example: Normal-Gamma model
+## Bayesian Linear Regression Example
+Let's start by setting up our example.
+We will re-use the [Bayesian linear regression]({{<meta linear-regression>}}) example.
+As we'll see, there is really no additional work required to apply variational inference to a more complex `Model`.
 
-The Normal-(Inverse)Gamma model is defined by the following generative process
-
-\begin{align}
-s &\sim \mathrm{InverseGamma}(2, 3) \\
-m &\sim \mathcal{N}(0, s) \\
-x_i &\overset{\text{i.i.d.}}{=} \mathcal{N}(m, s), \quad i = 1, \dots, n
-\end{align}
-
-Note that this model is conjugate, meaning that we can obtain a closed-form expression for the posterior.
-This will enable us to compare the result of VI against the true posterior.
-(Of course, in practice, it doesn't make sense to use VI on a conjugate model. This is simply for illustration purposes.)
-
-Let's first generate some synthetic data:
 ```{julia}
-# generate data
-x = randn(1000);
+using FillArrays
+using RDatasets
+
+using LinearAlgebra
+
+# Import the "Default" dataset.
+data = RDatasets.dataset("datasets", "mtcars");
+
+# Show the first six rows of the dataset.
+first(data, 6)
 ```
 
-A corresponding `Turing.Model` can be defined as follows:
 ```{julia}
-@model function model(x)
-    s ~ InverseGamma(2, 3)
-    m ~ Normal(0.0, sqrt(s))
-    for i in 1:length(x)
-        x[i] ~ Normal(m, sqrt(s))
-    end
+# Function to split samples.
+function split_data(df, at=0.70)
+    r = size(df, 1)
+    index = Int(round(r * at))
+    train = df[1:index, :]
+    test = df[(index + 1):end, :]
+    return train, test
+end
+
+# A handy helper function to rescale our dataset.
+function standardize(x)
+    return (x .- mean(x; dims=1)) ./ std(x; dims=1)
+end
+
+function standardize(x, orig)
+    return (x .- mean(orig; dims=1)) ./ std(orig; dims=1)
+end
+
+# Another helper function to unstandardize our datasets.
+function unstandardize(x, orig)
+    return x .* std(orig; dims=1) .+ mean(orig; dims=1)
+end
+
+function unstandardize(x, mean_train, std_train)
+    return x .* std_train .+ mean_train
+end
+```
+
+```{julia}
+# Remove the model column.
+select!(data, Not(:Model))
+
+# Split our dataset 70%/30% into training/test sets.
+train, test = split_data(data, 0.7)
+train_unstandardized = copy(train)
+
+# Standardize both datasets.
+std_train = standardize(Matrix(train))
+std_test = standardize(Matrix(test), Matrix(train))
+
+# Save dataframe versions of our dataset.
+train_cut = DataFrame(std_train, names(data))
+test_cut = DataFrame(std_test, names(data))
+
+# Create our labels. These are the values we are trying to predict.
+train_label = train_cut[:, :MPG]
+test_label = test_cut[:, :MPG]
+
+# Get the list of columns to keep.
+remove_names = filter(x -> !in(x, ["MPG"]), names(data))
+
+# Filter the test and train sets.
+train = Matrix(train_cut[:, remove_names]);
+test = Matrix(test_cut[:, remove_names]);
+```
+
+```{julia}
+# Bayesian linear regression.
+@model function linear_regression(x, y, n_obs, n_vars, ::Type{T}=Vector{Float64}) where {T}
+    # Set variance prior.
+    σ² ~ truncated(Normal(0, 100); lower=0)
+
+    # Set intercept prior.
+    intercept ~ Normal(0, 3)
+
+    # Set the priors on our coefficients.
+    coefficients ~ MvNormal(Zeros(n_vars), 10.0 * I)
+
+    # Calculate all the mu terms.
+    mu = intercept .+ x * coefficients
+    return y ~ MvNormal(mu, σ² * I)
 end;
 ```
-and instantiated as follows:
+
 ```{julia}
-m = model(x);
+n_obs, n_vars = size(train)
+m = linear_regression(train, train_label, n_obs, n_vars);
 ```
 
+## Basic Usage
 To run VI, we must first set a *variational family*.
 For instance, the most commonly used family is the mean-field Gaussian family.
 For this, Turing `provides` functions that automatically constructs the initialization corresponding to the model `m`:
 ```{julia}
 q_init = q_meanfield_gaussian(m);
 ```
+
+```{julia}
+@doc(Variational.q_meanfield_gaussian)
+```
+
 `vi` will automatically recognize the variational family through the type of `q_init`.
 
 Let's run VI with the default setting:
 ```{julia}
-n_iters = 300
+n_iters = 1000
 q_avg, q_last, info, state = vi(m, q_init, n_iters; show_progress=false);
 ```
 
@@ -153,14 +220,14 @@ The `NamedTuple` returned by `callback` will be appended to the corresponding en
 
 The custom callback can be supplied to `vi` as a keyword argument:
 ```{julia}
-_, _, info_mf, _ = vi(m, q_init, n_iters; show_progress=false, callback=callback);
+q_mf, _, info_mf, _ = vi(m, q_init, n_iters; show_progress=false, callback=callback);
 ```
 
 Let's plot the result:
 ```{julia}
 iters   = 1:10:length(info_mf)
 elbo_mf = [i.elbo_avg for i in info_mf[iters]]
-Plots.plot!(iters, elbo_mf, xlabel="Iterations", ylabel="ELBO", label="callback", ylims=(-1450,Inf))
+Plots.plot!(iters, elbo_mf, xlabel="Iterations", ylabel="ELBO", label="callback", ylims=(-200,Inf))
 ```
 We can see that the ELBO values are less noisy and progress more smoothly due to averaging.
 
@@ -172,20 +239,20 @@ Or, for whatever reason, it might be desirable to use a different optimiser.
 Our implementation supports any optimiser that implements the [Optimisers.jl]() interface.
 
 For instance, let's try using `Optimiers.Adam`, which is a popular choice.
-Since `AdvancedVI` does not implement a proximal operator for `Optimisers.Adam`, we must use the `AdvancedVI.Identity()` operator, which results in regular (non-proximal) gradient descent.
+Since `AdvancedVI` does not implement a proximal operator for `Optimisers.Adam`, we must use the `AdvancedVI.ClipScale()` operator, which ensures that the scale matrix of the variational approximation is positive definite.
 ```{julia}
 using Optimisers
 
-_, _, info_adam, _ = vi(m, q_init, n_iters; show_progress=false, callback=callback, optimizer=Optimisers.Adam(1e-2), operator=IdentityOperator());
+_, _, info_adam, _ = vi(m, q_init, n_iters; show_progress=false, callback=callback, optimizer=Optimisers.Adam(3e-3), operator=ClipScale());
 ```
 
 ```{julia}
 iters     = 1:10:length(info_mf)
 elbo_adam = [i.elbo_avg for i in info_adam[iters]]
-Plots.plot(iters, elbo_mf, xlabel="Iterations", ylabel="ELBO", label="DoWG()")
-Plots.plot!(iters, elbo_adam, xlabel="Iterations", ylabel="ELBO", label="Adam(1e-2)")
+Plots.plot(iters, elbo_mf, xlabel="Iterations", ylabel="ELBO", label="DoWG")
+Plots.plot!(iters, elbo_adam, xlabel="Iterations", ylabel="ELBO", label="Adam")
 ```
-Compared to the default option `AdvancedVI.DoWG()`, we can see that `Optimisers.Adam(1e-2)` is converging more slowly.
+Compared to the default option `AdvancedVI.DoWG()`, we can see that `Optimisers.Adam(3e-3)` is converging more slowly.
 With more step size tuning, it is possible that `Optimisers.Adam` could perform better or equial.
 That is, most common optimisers require some degree of tuning to perform better or comparably to `AdvancedVI.DoWG()` or `AdvancedVI.DoG()`, which do not require much tuning at all.
 Due to this fact, they are referred to as parameter-free optimizers.
@@ -195,37 +262,245 @@ So far, we have only used the mean-field Gaussian family.
 This, however, approximates the posterior covariance with a diagonal matrix.
 To model the full covariance matrix, we can use the *full-rank* Gaussian family:
 ```{julia}
-q_init_fr = q_fullrank_gaussian(m) 
+q_init_fr = q_fullrank_gaussian(m);
 ```
+
+```{julia}
+@doc(Variational.q_fullrank_gaussian)
+```
+
 The term *full-rank* might seem a bit peculiar since covariance matrices are always full-rank.
 This term, however, traditionally comes from the fact that full-rank families use full-rank factors in addition to the diagonal of the covariance.
 
 In contrast to the mean-field family, the full-rank family will often result in more computation per optimization step and slower convergence, especially in high-dimensions:
 ```{julia}
-q_init_fr = q_fullrank_gaussian(m)
-q_fr, _, info_fr, _ = vi(m, q_init_fr, 300; show_progress=false, callback)
+q_fr, _, info_fr, _ = vi(m, q_init_fr, n_iters; show_progress=false, callback)
 
-Plots.plot(elbo_mf, xlabel="Iterations", ylabel="ELBO", label="Mean-Field", ylims=(-1450, Inf))
+Plots.plot(elbo_mf, xlabel="Iterations", ylabel="ELBO", label="Mean-Field", ylims=(-200, Inf))
 
 elbo_fr = [i.elbo_avg for i in info_fr[iters]]
-Plots.plot!(elbo_fr, xlabel="Iterations", ylabel="ELBO", label="Full-Rank", ylims=(-1450, Inf))
+Plots.plot!(elbo_fr, xlabel="Iterations", ylabel="ELBO", label="Full-Rank", ylims=(-200, Inf))
 ```
+However, we can see that the full-rank families achieve a higher ELBO in the end.
+Due to the relationship between the ELBO and the Kullback-Leibler divergence, this indicates that the full-rank covariance is much more accurate.
 This trade-off between statistical accuracy and optimization speed is often referred to as the *statistical-computational trade-off*.
 The fact that we can control this trade-off through the choice of variational family is a strength, rather than a limitation, of variational inference.
 
+We can also visualize the covariance matrix.
+```{julia}
+heatmap(cov(rand(q_fr, 100_000), dims=2))
+```
 
+## Obtaining Summary Statistics
 
-Now we'll produce some samples from the posterior using a MCMC method, which in constrast to VI is guaranteed to converge to the *exact* posterior (as the number of samples go to infinity).
-
-We'll produce 10 000 samples with 200 steps used for adaptation and a target acceptance rate of 0.65
-
-If you don't understand what "adaptation" or "target acceptance rate" refers to, all you really need to know is that `NUTS` is known to be one of the most accurate and efficient samplers (when applicable) while requiring little to no hand-tuning to work well.
+Let's inspect the resulting variational approximation in more detail and compare against MCMC.
+To obtain summary statistics from VI, we can draw samples from the resulting variational approximation:
 
 ```{julia}
-#| output: false
-setprogress!(false)
+z = rand(q_fr, 100_000);
+```
+
+Now, we can, for example, look at expectations:
+
+```{julia}
+avg = vec(mean(z; dims=2))
+```
+
+The vector has the same ordering as the parameters in the model, *e.g.* in this case `σ²` has index `1`, `intercept` has index `2` and `coefficients` has indices `3:12`. If  you forget or you might want to do something programmatically with the result, you can obtain the `sym → indices` mapping as follows:
+
+```{julia}
+using Bijectors: bijector
+
+_, sym2range = bijector(m, Val(true));
+sym2range
+```
+
+For example, we can check the sample distribution and mean value of `σ²`:
+
+```{julia}
+histogram(z[1, :])
+avg[union(sym2range[:σ²]...)]
 ```
 
 ```{julia}
-samples_nuts = sample(m, NUTS(), 10_000);
+avg[union(sym2range[:intercept]...)]
 ```
+
+```{julia}
+avg[union(sym2range[:coefficients]...)]
+```
+
+For further convenience, we can wrap the samples into a `Chains` object to summarize the results.
+```{julia}
+varnames = vcat(["σ²", "intercept"], ["coefficients[$i]" for i in 1:n_vars])
+vi_chain = Chains(reshape(z', (size(z,2), size(z,1), 1)), varnames)
+```
+(Since we're drawing independent samples, we can simply ignore the ESS and Rhat metrics.)
+
+Let's compare this against samples from `NUTS`:
+
+```{julia}
+mcmc_chain = sample(m, NUTS(), 10_000, drop_warmup=true, progress=false);
+
+vi_mean = mean(vi_chain)[:, 2]
+mcmc_mean = mean(mcmc_chain, names(mcmc_chain, :parameters))[:, 2]
+
+plot(mcmc_mean; xticks=1:1:length(mcmc_mean), label="mean of NUTS")
+plot!(vi_mean; label="mean of VI")
+```
+That looks pretty good! But let's see how the predictive distributions looks for the two.
+
+## Making Predictions
+
+Similarily to the linear regression tutorial, we're going to compare to multivariate ordinary linear regression using the `GLM` package:
+
+```{julia}
+# Import the GLM package.
+using GLM
+
+# Perform multivariate OLS.
+ols = lm(
+    @formula(MPG ~ Cyl + Disp + HP + DRat + WT + QSec + VS + AM + Gear + Carb), train_cut
+)
+
+# Store our predictions in the original dataframe.
+train_cut.OLSPrediction = unstandardize(GLM.predict(ols), train_unstandardized.MPG)
+test_cut.OLSPrediction = unstandardize(GLM.predict(ols, test_cut), train_unstandardized.MPG);
+```
+
+```{julia}
+# Make a prediction given an input vector, using mean parameter values from a chain.
+function prediction(chain, x)
+    p = get_params(chain)
+    α = mean(p.intercept)
+    β = collect(mean.(p.coefficients))
+    return α .+ x * β
+end
+```
+
+```{julia}
+# Unstandardize the dependent variable.
+train_cut.MPG = unstandardize(train_cut.MPG, train_unstandardized.MPG)
+test_cut.MPG = unstandardize(test_cut.MPG, train_unstandardized.MPG);
+```
+
+```{julia}
+# Show the first side rows of the modified dataframe.
+first(test_cut, 6)
+```
+
+```{julia}
+# Construct the Chains from the Variational Approximations
+z_mf = rand(q_mf, 10_000);
+z_fr = rand(q_fr, 10_000);
+
+vi_mf_chain = Chains(reshape(z_mf', (size(z_mf,2), size(z_mf,1), 1)), varnames);
+vi_fr_chain = Chains(reshape(z_fr', (size(z_fr,2), size(z_fr,1), 1)), varnames)/
+```
+
+```{julia}
+# Calculate the predictions for the training and testing sets using the samples `z` from variational posterior
+train_cut.VIMFPredictions = unstandardize(
+    prediction(vi_mf_chain, train), train_unstandardized.MPG
+)
+test_cut.VIMFPredictions = unstandardize(
+    prediction(vi_mf_chain, test), train_unstandardized.MPG
+)
+
+train_cut.VIFRPredictions = unstandardize(
+    prediction(vi_fr_chain, train), train_unstandardized.MPG
+)
+test_cut.VIFRPredictions = unstandardize(
+    prediction(vi_fr_chain, test), train_unstandardized.MPG
+)
+
+train_cut.BayesPredictions = unstandardize(
+    prediction(mcmc_chain, train), train_unstandardized.MPG
+)
+test_cut.BayesPredictions = unstandardize(
+    prediction(mcmc_chain, test), train_unstandardized.MPG
+);
+```
+
+```{julia}
+vi_mf_loss1 = mean((train_cut.VIMFPredictions - train_cut.MPG) .^ 2)
+vi_fr_loss1 = mean((train_cut.VIFRPredictions - train_cut.MPG) .^ 2)
+bayes_loss1 = mean((train_cut.BayesPredictions - train_cut.MPG) .^ 2)
+ols_loss1 = mean((train_cut.OLSPrediction - train_cut.MPG) .^ 2)
+
+vi_mf_loss2 = mean((test_cut.VIMFPredictions - test_cut.MPG) .^ 2)
+vi_fr_loss2 = mean((test_cut.VIFRPredictions - test_cut.MPG) .^ 2)
+bayes_loss2 = mean((test_cut.BayesPredictions - test_cut.MPG) .^ 2)
+ols_loss2 = mean((test_cut.OLSPrediction - test_cut.MPG) .^ 2)
+
+println("Training set:
+    VI Mean-Field loss: $vi_mf_loss1
+    VI Full-Rank loss: $vi_fr_loss1
+    Bayes loss: $bayes_loss1
+    OLS loss: $ols_loss1
+Test set:
+    VI Mean-Field loss: $vi_mf_loss2
+    VI Full-Rank loss: $vi_fr_loss2
+    Bayes loss: $bayes_loss2
+    OLS loss: $ols_loss2")
+```
+
+Interestingly the squared difference between true- and mean-prediction on the test-set is actually *better* for the full-rank variational posterior than for the "true" posterior obtained by MCMC sampling using `NUTS`.
+But, as Bayesians, we know that the mean doesn't tell the entire story. One quick check is to look at the mean predictions ± standard deviation of the two different approaches:
+
+```{julia}
+preds_vi_mf = mapreduce(hcat, 1:5:size(vi_mf_chain, 1)) do i
+    return unstandardize(prediction(vi_mf_chain[i], test), train_unstandardized.MPG)
+end
+
+p1 = scatter(
+    1:size(test, 1),
+    mean(preds_vi_mf; dims=2);
+    yerr=std(preds_vi_mf; dims=2),
+    label="prediction (mean ± std)",
+    size=(900, 500),
+    markersize=8,
+)
+scatter!(1:size(test, 1), unstandardize(test_label, train_unstandardized.MPG); label="true")
+xaxis!(1:size(test, 1))
+ylims!(10, 40)
+title!("VI Mean-Field")
+
+preds_vi_fr = mapreduce(hcat, 1:5:size(vi_mf_chain, 1)) do i
+    return unstandardize(prediction(vi_fr_chain[i], test), train_unstandardized.MPG)
+end
+
+p2 = scatter(
+    1:size(test, 1),
+    mean(preds_vi_fr; dims=2);
+    yerr=std(preds_vi_fr; dims=2),
+    label="prediction (mean ± std)",
+    size=(900, 500),
+    markersize=8,
+)
+scatter!(1:size(test, 1), unstandardize(test_label, train_unstandardized.MPG); label="true")
+xaxis!(1:size(test, 1))
+ylims!(10, 40)
+title!("VI Full-Rank")
+
+preds_mcmc = mapreduce(hcat, 1:5:size(mcmc_chain, 1)) do i
+    return unstandardize(prediction(mcmc_chain[i], test), train_unstandardized.MPG)
+end
+
+p3 = scatter(
+    1:size(test, 1),
+    mean(preds_mcmc; dims=2);
+    yerr=std(preds_mcmc; dims=2),
+    label="prediction (mean ± std)",
+    size=(900, 500),
+    markersize=8,
+)
+scatter!(1:size(test, 1), unstandardize(test_label, train_unstandardized.MPG); label="true")
+xaxis!(1:size(test, 1))
+ylims!(10, 40)
+title!("MCMC (NUTS)")
+
+plot(p1, p2, p3; layout=(1, 3), size=(900, 250), label="")
+```
+We can see that the full-rank VI approximation is very close to the predictions from MCMC samples.
+Also, the coverage of full-rank VI and MCMC is much better the the crude mean-field approximation.

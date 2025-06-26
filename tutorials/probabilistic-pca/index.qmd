@@ -90,7 +90,7 @@ First, we load the dependencies used.
 
 ```{julia}
 using Turing
-using ReverseDiff
+using Mooncake
 using LinearAlgebra, FillArrays
 
 # Packages for visualization
@@ -108,7 +108,7 @@ You can install them via `using Pkg; Pkg.add("package_name")`.
 ::: {.callout-caution}
 ## Package usages:
 We use `DataFrames` for instantiating matrices, `LinearAlgebra` and `FillArrays` to perform matrix operations;
-`Turing` for model specification and MCMC sampling, `ReverseDiff` for setting the automatic differentiation backend when sampling.
+`Turing` for model specification and MCMC sampling, `Mooncake` for automatic differentiation when sampling.
 `StatsPlots` for visualising the resutls. `, Measures` for setting plot margin units.
 As all examples involve sampling, for reproducibility we set a fixed seed using the `Random` standard library.
 :::
@@ -194,8 +194,9 @@ Specifically:
 
 Here we aim to perform MCMC sampling to infer the projection matrix $\mathbf{W}_{D \times k}$, the latent variable matrix $\mathbf{Z}_{k \times N}$, and the offsets $\boldsymbol{\mu}_{N \times 1}$.
 
-We run the inference using the NUTS sampler, of which the chain length is set to be 500, target accept ratio 0.65 and initial stepsize 0.1. By default, the NUTS sampler samples 1 chain.
-You are free to try [different samplers](https://turinglang.org/stable/docs/library/#samplers).
+We run the inference using the NUTS sampler.
+By default, `sample` samples a single chain (in this case with 500 samples).
+You can also use [different samplers]({{< meta usage/sampler-visualisation >}}) if you wish.
 
 ```{julia}
 #| output: false
@@ -205,17 +206,21 @@ setprogress!(false)
 ```{julia}
 k = 2 # k is the dimension of the projected space, i.e. the number of principal components/axes of choice
 ppca = pPCA(mat_exp', k) # instantiate the probabilistic model
-chain_ppca = sample(ppca, NUTS(;adtype=AutoReverseDiff()), 500);
+chain_ppca = sample(ppca, NUTS(; adtype=AutoMooncake(; config=nothing)), 500);
 ```
 
-The samples are saved in the Chains struct `chain_ppca`, whose shape can be checked:
+The samples are saved in `chain_ppca`, which is an `MCMCChains.Chains` object.
+We can check its shape:
 
 ```{julia}
 size(chain_ppca) # (no. of iterations, no. of vars, no. of chains) = (500, 159, 1)
 ```
 
-The Chains struct `chain_ppca` also contains the sampling info such as r-hat, ess, mean estimates, etc.
-You can print it to check these quantities.
+Sampling statistics such as R-hat, ESS, mean estimates, and so on can also be obtained from this:
+
+```{julia}
+describe(chain_ppca)
+```
 
 #### Step 5: posterior predictive checks
 
@@ -280,7 +285,7 @@ Another way to put it: 2 dimensions is enough to capture the main structure of t
 A direct question arises from above practice is: how many principal components do we want to keep, in order to sufficiently represent the latent structure in the data?
 This is a very central question for all latent factor models, i.e. how many dimensions are needed to represent that data in the latent space.
 In the case of PCA, there exist a lot of heuristics to make that choice.
-For example, We can tune the number of principal components using empirical methods such as cross-validation based some criteria such as MSE between the posterior predicted (e.g. mean predictions) data matrix and the original data matrix or the percentage of variation explained [^3].
+For example, We can tune the number of principal components using empirical methods such as cross-validation based on some criteria such as MSE between the posterior predicted (e.g. mean predictions) data matrix and the original data matrix or the percentage of variation explained [^3].
 
 For p-PCA, this can be done in an elegant and principled way, using a technique called *Automatic Relevance Determination* (ARD).
 ARD can help pick the correct number of principal directions by regularizing the solution space using a parameterized, data-dependent prior distribution that effectively prunes away redundant or superfluous features [^4].
@@ -315,7 +320,7 @@ We instantiate the model and ask Turing to sample from it using NUTS sampler. Th
 
 ```{julia}
 ppca_ARD = pPCA_ARD(mat_exp') # instantiate the probabilistic model
-chain_ppcaARD = sample(ppca_ARD, NUTS(;adtype=AutoReverseDiff()), 500) # sampling
+chain_ppcaARD = sample(ppca_ARD, NUTS(; adtype=AutoMooncake(; config=nothing)), 500) # sampling
 plot(group(chain_ppcaARD, :α); margin=6.0mm)
 ```
 

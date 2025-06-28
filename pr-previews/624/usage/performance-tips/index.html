@@ -691,7 +691,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#use-multivariate-distributions" id="toc-use-multivariate-distributions" class="nav-link active" data-scroll-target="#use-multivariate-distributions">Use multivariate distributions</a></li>
   <li><a href="#choose-your-ad-backend" id="toc-choose-your-ad-backend" class="nav-link" data-scroll-target="#choose-your-ad-backend">Choose your AD backend</a>
   <ul class="collapse">
-  <li><a href="#special-care-for-zygote" id="toc-special-care-for-zygote" class="nav-link" data-scroll-target="#special-care-for-zygote">Special care for Zygote</a></li>
   <li><a href="#special-care-for-reversediff-with-a-compiled-tape" id="toc-special-care-for-reversediff-with-a-compiled-tape" class="nav-link" data-scroll-target="#special-care-for-reversediff-with-a-compiled-tape">Special care for ReverseDiff with a compiled tape</a></li>
   </ul></li>
   <li><a href="#ensure-that-types-in-your-model-can-be-inferred" id="toc-ensure-that-types-in-your-model-can-be-inferred" class="nav-link" data-scroll-target="#ensure-that-types-in-your-model-can-be-inferred">Ensure that types in your model can be inferred</a></li>
@@ -730,7 +729,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Turing</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">gmodel</span>(x)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    m <span class="op">~</span> <span class="fu">Normal</span>()</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fu">length</span>(x)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="fu">eachindex</span>(x)</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        x[i] <span class="op">~</span> <span class="fu">Normal</span>(m, <span class="fl">0.2</span>)</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -753,16 +752,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="choose-your-ad-backend" class="level2">
 <h2 class="anchored" data-anchor-id="choose-your-ad-backend">Choose your AD backend</h2>
-<p>Automatic differentiation (AD) makes it possible to use modern, efficient gradient-based samplers like NUTS and HMC, and that means a good AD system is incredibly important. Turing currently supports several AD backends, including <a href="https://github.com/JuliaDiff/ForwardDiff.jl">ForwardDiff</a> (the default), <a href="https://github.com/compintell/Mooncake.jl">Mooncake</a>, <a href="https://github.com/FluxML/Zygote.jl">Zygote</a>, and <a href="https://github.com/JuliaDiff/ReverseDiff.jl">ReverseDiff</a>.</p>
-<p>For many common types of models, the default ForwardDiff backend performs great, and there is no need to worry about changing it. However, if you need more speed, you can try different backends via the standard <a href="https://github.com/SciML/ADTypes.jl">ADTypes</a> interface by passing an <code>AbstractADType</code> to the sampler with the optional <code>adtype</code> argument, e.g. <code>NUTS(adtype = AutoZygote())</code>. See <a href="../../usage/automatic-differentiation">Automatic Differentiation</a> for details. Generally, <code>adtype = AutoForwardDiff()</code> is likely to be the fastest and most reliable for models with few parameters (say, less than 20 or so), while reverse-mode backends such as <code>AutoZygote()</code> or <code>AutoReverseDiff()</code> will perform better for models with many parameters or linear algebra operations. If in doubt, it’s easy to try a few different backends to see how they compare.</p>
-<section id="special-care-for-zygote" class="level3">
-<h3 class="anchored" data-anchor-id="special-care-for-zygote">Special care for Zygote</h3>
-<p>Note that Zygote will not perform well if your model contains <code>for</code>-loops, due to the way reverse-mode AD is implemented in these packages. Zygote also cannot differentiate code that contains mutating operations. If you can’t implement your model without <code>for</code>-loops or mutation, <code>ReverseDiff</code> will be a better, more performant option. In general, though, vectorized operations are still likely to perform best.</p>
-<p>Avoiding loops can be done using <code>filldist(dist, N)</code> and <code>arraydist(dists)</code>. <code>filldist(dist, N)</code> creates a multivariate distribution that is composed of <code>N</code> identical and independent copies of the univariate distribution <code>dist</code> if <code>dist</code> is univariate, or it creates a matrix-variate distribution composed of <code>N</code> identical and independent copies of the multivariate distribution <code>dist</code> if <code>dist</code> is multivariate. <code>filldist(dist, N, M)</code> can also be used to create a matrix-variate distribution from a univariate distribution <code>dist</code>. <code>arraydist(dists)</code> is similar to <code>filldist</code> but it takes an array of distributions <code>dists</code> as input. Writing a <a href="advanced">custom distribution</a> with a custom adjoint is another option to avoid loops.</p>
-</section>
+<p>Automatic differentiation (AD) makes it possible to use modern, efficient gradient-based samplers like NUTS and HMC. This, however, also means that using a performant AD system is incredibly important. Turing currently supports several AD backends, including <a href="https://github.com/JuliaDiff/ForwardDiff.jl">ForwardDiff</a> (the default), <a href="https://github.com/chalk-lab/Mooncake.jl">Mooncake</a>, and <a href="https://github.com/JuliaDiff/ReverseDiff.jl">ReverseDiff</a>.</p>
+<p>For many common types of models, the default ForwardDiff backend performs well, and there is no need to worry about changing it. However, if you need more speed, you can try different backends via the standard <a href="https://github.com/SciML/ADTypes.jl">ADTypes</a> interface by passing an <code>AbstractADType</code> to the sampler with the optional <code>adtype</code> argument, e.g.&nbsp;<code>NUTS(; adtype = AutoMooncake())</code>.</p>
+<p>Generally, <code>adtype = AutoForwardDiff()</code> is likely to be the fastest and most reliable for models with few parameters (say, less than 20 or so), while reverse-mode backends such as <code>AutoMooncake()</code> or <code>AutoReverseDiff()</code> will perform better for models with many parameters or linear algebra operations. If in doubt, you can benchmark your model with different backends to see which one performs best. See the <a href="../../usage/automatic-differentiation">Automatic Differentiation</a> page for details.</p>
 <section id="special-care-for-reversediff-with-a-compiled-tape" class="level3">
 <h3 class="anchored" data-anchor-id="special-care-for-reversediff-with-a-compiled-tape">Special care for ReverseDiff with a compiled tape</h3>
-<p>For large models, the fastest option is often ReverseDiff with a compiled tape, specified as <code>adtype=AutoReverseDiff(true)</code>. However, it is important to note that if your model contains any branching code, such as <code>if</code>-<code>else</code> statements, <strong>the gradients from a compiled tape may be inaccurate, leading to erroneous results</strong>. If you use this option for the (considerable) speedup it can provide, make sure to check your code. It’s also a good idea to verify your gradients with another backend.</p>
+<p>For large models, the fastest option is often ReverseDiff with a compiled tape, specified as <code>adtype=AutoReverseDiff(; compile=true)</code>. However, it is important to note that if your model contains any branching code, such as <code>if</code>-<code>else</code> statements, <strong>the gradients from a compiled tape may be inaccurate, leading to erroneous results</strong>. If you use this option for the (considerable) speedup it can provide, make sure to check your code for branching and ensure that it does not affect the gradients. It is also a good idea to verify your gradients with another backend.</p>
 </section>
 </section>
 <section id="ensure-that-types-in-your-model-can-be-inferred" class="level2">
@@ -811,8 +806,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <pre><code>tmodel (generic function with 4 methods)</code></pre>
 </div>
 </div>
-<p>Note that you can use <code>@code_warntype</code> to find types in your model definition that the compiler cannot infer. They are marked in red in the Julia REPL.</p>
-<p>For example, consider the following simple program:</p>
+<p>You can use DynamicPPL’s debugging utilities to find types in your model definition that the compiler cannot infer. These will be marked in red in the Julia REPL (much like when using the <code>@code_warntype</code> macro).</p>
+<p>For example, consider the following model:</p>
 <div id="14" class="cell" data-execution_count="1">
 <div class="sourceCode cell-code" id="cb11"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">tmodel</span>(x)</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    p <span class="op">=</span> <span class="fu">Vector</span><span class="dt">{Real}</span>(<span class="cn">undef</span>, <span class="fl">1</span>)</span>
@@ -824,22 +819,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <pre><code>tmodel (generic function with 6 methods)</code></pre>
 </div>
 </div>
-<p>We can use</p>
+<p>Because the element type of <code>p</code> is an abstract type (<code>Real</code>), the compiler cannot infer a concrete type for <code>p[1]</code>. To detect this, we can use</p>
 <div id="16" class="cell" data-execution_count="0">
-<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Random</span></span>
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> <span class="fu">tmodel</span>(<span class="fl">1.0</span>)</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> <span class="fu">tmodel</span>(<span class="fl">1.0</span>)</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="pp">@code_warntype</span> model.<span class="fu">f</span>(</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    model,</span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    Turing.<span class="fu">VarInfo</span>(model),</span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    Turing.<span class="fu">SamplingContext</span>(</span>
-<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>        <span class="bu">Random</span>.<span class="fu">default_rng</span>(), Turing.<span class="fu">SampleFromPrior</span>(), Turing.<span class="fu">DefaultContext</span>()</span>
-<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    model.args<span class="op">...</span>,</span>
-<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">DynamicPPL</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>DynamicPPL.DebugUtils.<span class="fu">model_warntype</span>(model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>to inspect type inference in the model.</p>
+<p>In this particular model, the following call to <code>getindex</code> should be highlighted in red (the exact numbers may vary):</p>
+<pre><code>[...]
+│    %120 = p::AbstractVector
+│    %121 = Base.getindex(%120, 1)::Any
+[...]</code></pre>
 
 
 </section>

@@ -74,9 +74,9 @@ and then drawing the datum accordingly, i.e., in our example drawing
 $$
 x_i \sim \mathcal{N}([\mu_{z_i}, \mu_{z_i}]^\mathsf{T}, I) \qquad (i=1,\ldots,N).
 $$
-For more details on Gaussian mixture models, we refer to Christopher M. Bishop, *Pattern Recognition and Machine Learning*, Section 9.
+For more details on Gaussian mixture models, refer to Chapter 9 of Christopher M. Bishop, *Pattern Recognition and Machine Learning*.
 
-We specify the model with Turing.
+We specify the model in Turing:
 
 ```{julia}
 using Turing
@@ -130,10 +130,11 @@ burn = 10
 chains = sample(model, sampler, MCMCThreads(), nsamples, nchains, discard_initial = burn);
 ```
 
-::: {.callout-warning collapse="true"}
+::: {.callout-warning}
 ## Sampling With Multiple Threads
-The `sample()` call above assumes that you have at least `nchains` threads available in your Julia instance. If you do not, the multiple chains
-will run sequentially, and you may notice a warning. For more information, see [the Turing documentation on sampling multiple chains.](https://turinglang.org/dev/docs/using-turing/guide/#sampling-multiple-chains)
+The `sample()` call above assumes that you have at least two threads available in your Julia instance.
+If you do not, the multiple chains will run sequentially, and you may notice a warning.
+For more information, see [the Turing documentation on sampling multiple chains.]({{<meta core-functionality>}}#sampling-multiple-chains)
 :::
 
 ```{julia}
@@ -159,12 +160,14 @@ We consider the samples of the location parameters $\mu_1$ and $\mu_2$ for the t
 plot(chains[["μ[1]", "μ[2]"]]; legend=true)
 ```
 
-It can happen that the modes of $\mu_1$ and $\mu_2$ switch between chains.
-For more information see the [Stan documentation](https://mc-stan.org/users/documentation/case-studies/identifying_mixture_models.html). This is because it's possible for either model parameter $\mu_k$ to be assigned to either of the corresponding true means, and this assignment need not be consistent between chains.
+From the plots above, we can see that the chains have converged to seemingly different values for the parameters $\mu_1$ and $\mu_2$.
+However, these actually represent the same solution: it does not matter whether we assign $\mu_1$ to the first cluster and $\mu_2$ to the second, or vice versa, since the resulting sum is the same.
+(In principle it is also possible for the parameters to swap places _within_ a single chain, although this does not happen in this example.)
+For more information see the [Stan documentation](https://mc-stan.org/users/documentation/case-studies/identifying_mixture_models.html), or Bishop's book, where the concept of _identifiability_ is discussed.
 
-That is, the posterior is fundamentally multimodal, and different chains can end up in different modes, complicating inference.
-One solution here is to enforce an ordering on our $\mu$ vector, requiring $\mu_k > \mu_{k-1}$ for all $k$.
-`Bijectors.jl` [provides](https://turinglang.org/Bijectors.jl/dev/transforms/#Bijectors.OrderedBijector) an easy transformation (`ordered()`) for this purpose:
+Having $\mu_1$ and $\mu_2$ swap can complicate the interpretation of the results, especially when different chains converge to different assignments.
+One solution here is to enforce an ordering on our $\mu$ vector, requiring $\mu_k \geq \mu_{k-1}$ for all $k$.
+`Bijectors.jl` [provides](https://turinglang.org/Bijectors.jl/stable/transforms/#Bijectors.OrderedBijector) a convenient function, `ordered()`, which can be applied to a (continuous multivariate) distribution to enforce this:
 
 ```{julia}
 using Bijectors: ordered
@@ -194,14 +197,12 @@ end
 model = gaussian_mixture_model_ordered(x);
 ```
 
-
-Now, re-running our model, we can see that the assigned means are consistent across chains:
+Now, re-running our model, we can see that the assigned means are consistent between chains:
 
 ```{julia}
 #| output: false
 chains = sample(model, sampler, MCMCThreads(), nsamples, nchains, discard_initial = burn);
 ```
-
 
 ```{julia}
 #| echo: false
@@ -243,6 +244,7 @@ scatter!(x[1, :], x[2, :]; legend=false, title="Synthetic Dataset")
 ```
 
 ## Inferred Assignments
+
 Finally, we can inspect the assignments of the data points inferred using Turing.
 As we can see, the dataset is partitioned into two distinct groups.
 
@@ -259,23 +261,23 @@ scatter(
 
 
 ## Marginalizing Out The Assignments
-We can write out the marginal posterior of (continuous) $w, \mu$ by summing out the influence of our (discrete) assignments $z_i$ from
-our likelihood:
-$$
-p(y \mid w, \mu ) = \sum_{k=1}^K w_k p_k(y \mid \mu_k)
-$$
+
+We can write out the marginal posterior of (continuous) $w, \mu$ by summing out the influence of our (discrete) assignments $z_i$ from our likelihood:
+
+$$p(y \mid w, \mu ) = \sum_{k=1}^K w_k p_k(y \mid \mu_k)$$
+
 In our case, this gives us:
-$$
-p(y \mid w, \mu) = \sum_{k=1}^K w_k \cdot \operatorname{MvNormal}(y \mid \mu_k, I)
-$$
+
+$$p(y \mid w, \mu) = \sum_{k=1}^K w_k \cdot \operatorname{MvNormal}(y \mid \mu_k, I)$$
 
 
 ### Marginalizing By Hand
-We could implement the above version of the Gaussian mixture model in Turing as follows:
+
+We could implement the above version of the Gaussian mixture model in Turing as follows.
+
 First, Turing uses log-probabilities, so the likelihood above must be converted into log-space:
-$$
-\log \left( p(y \mid w, \mu) \right) = \text{logsumexp} \left[\log (w_k) + \log(\operatorname{MvNormal}(y \mid \mu_k, I)) \right]
-$$
+
+$$\log \left( p(y \mid w, \mu) \right) = \text{logsumexp} \left[\log (w_k) + \log(\operatorname{MvNormal}(y \mid \mu_k, I)) \right]$$
 
 Where we sum the components with `logsumexp` from the [`LogExpFunctions.jl` package](https://juliastats.org/LogExpFunctions.jl/stable/).
 The manually incremented likelihood can be added to the log-probability with `@addlogprob!`, giving us the following model:
@@ -300,27 +302,25 @@ using LogExpFunctions
 end
 ```
 
-::: {.callout-warning collapse="false"}
+::: {.callout-warning}
 ## Manually Incrementing Probablity
 
-When possible, use of `@addlogprob!` should be avoided, as it exists outside the
-usual structure of a Turing model. In most cases, a custom distribution should be used instead.
+When possible, use of `@addlogprob!` should be avoided, as it exists outside the usual structure of a Turing model.
+In most cases, a custom distribution should be used instead.
 
-Here, the next section demonstrates the preferred method --- using the `MixtureModel` distribution we have seen already to
-perform the marginalization automatically.
+The next section demonstrates the preferred method: using the `MixtureModel` distribution we have seen already to perform the marginalization automatically.
 :::
 
+### Marginalizing For Free With Distribution.jl's `MixtureModel` Implementation
 
-### Marginalizing For Free With Distribution.jl's MixtureModel Implementation
-
-We can use Turing's `~` syntax with anything that `Distributions.jl` provides `logpdf` and `rand` methods for. It turns out that the
-`MixtureModel` distribution it provides has, as its `logpdf` method, `logpdf(MixtureModel([Component_Distributions], weight_vector), Y)`, where `Y` can be either a single observation or vector of observations.
+We can use Turing's `~` syntax with anything that `Distributions.jl` provides `logpdf` and `rand` methods for.
+It turns out that the `MixtureModel` distribution it provides has, as its `logpdf` method, `logpdf(MixtureModel([Component_Distributions], weight_vector), Y)`, where `Y` can be either a single observation or vector of observations.
 
 In fact, `Distributions.jl` provides [many convenient constructors](https://juliastats.org/Distributions.jl/stable/mixture/) for mixture models, allowing further simplification in common special cases.
 
 For example, when mixtures distributions are of the same type, one can write: `~ MixtureModel(Normal, [(μ1, σ1), (μ2, σ2)], w)`, or when the weight vector is known to allocate probability equally, it can be ommited.
 
-The `logpdf` implementation for a `MixtureModel` distribution is exactly the marginalization defined above, and so our model becomes simply:
+The `logpdf` implementation for a `MixtureModel` distribution is exactly the marginalization defined above, and so our model can be simplified to:
 
 ```{julia}
 #| output: false
@@ -334,14 +334,13 @@ end
 model = gmm_marginalized(x);
 ```
 
-As we've summed out the discrete components, we can perform inference using `NUTS()` alone.
+As we have summed out the discrete components, we can perform inference using `NUTS()` alone.
 
 ```{julia}
 #| output: false
 sampler = NUTS()
 chains = sample(model, sampler, MCMCThreads(), nsamples, nchains; discard_initial = burn);
 ```
-
 
 ```{julia}
 #| echo: false
@@ -356,23 +355,22 @@ let
 end
 ```
 
-`NUTS()` significantly outperforms our compositional Gibbs sampler, in large part because our model is now Rao-Blackwellized thanks to
-the marginalization of our assignment parameter.
+`NUTS()` significantly outperforms our compositional Gibbs sampler, in large part because our model is now Rao-Blackwellized thanks to the marginalization of our assignment parameter.
 
 ```{julia}
 plot(chains[["μ[1]", "μ[2]"]], legend=true)
 ```
 
-## Inferred Assignments - Marginalized Model
-As we've summed over possible assignments, the associated parameter is no longer available in our chain.
-This is not a problem, however, as given any fixed sample $(\mu, w)$, the assignment probability — $p(z_i \mid y_i)$ — can be recovered using Bayes rule:
-$$
-p(z_i \mid y_i) = \frac{p(y_i \mid z_i) p(z_i)}{\sum_{k = 1}^K \left(p(y_i \mid z_i) p(z_i) \right)}
-$$
+## Inferred Assignments With The Marginalized Model
 
-This quantity can be computed for every $p(z = z_i \mid y_i)$, resulting in a probability vector, which is then used to sample
-posterior predictive assignments from a categorial distribution.
+As we have summed over possible assignments, the latent parameter representing the assignments is no longer available in our chain.
+This is not a problem, however, as given any fixed sample $(\mu, w)$, the assignment probability $p(z_i \mid y_i)$ can be recovered using Bayes's theorme:
+
+$$p(z_i \mid y_i) = \frac{p(y_i \mid z_i) p(z_i)}{\sum_{k = 1}^K \left(p(y_i \mid z_i) p(z_i) \right)}$$
+
+This quantity can be computed for every $p(z = z_i \mid y_i)$, resulting in a probability vector, which is then used to sample posterior predictive assignments from a categorial distribution.
 For details on the mathematics here, see [the Stan documentation on latent discrete parameters](https://mc-stan.org/docs/stan-users-guide/latent-discrete.html).
+
 ```{julia}
 #| output: false
 function sample_class(xi, dists, w)

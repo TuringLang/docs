@@ -142,7 +142,6 @@ end
 rand(Xoshiro(468), outer_with_varinfo())
 ```
 
-
 ## Example: linear models
 
 Here is a motivating example for the use of submodels.
@@ -159,28 +158,36 @@ where $d$ is _some_ distribution parameterised by the value of $\mu$, which we d
 
 In practice, what we would do is to write several different models, one for each function $f$:
 
-```julia
+```{julia}
 @model function normal(x, y)
     c0 ~ Normal(0, 5)
     c1 ~ Normal(0, 5)
-    mu = c0 + c1 * x
+    mu = c0 .+ c1 .* x
     # Assume that y = mu, and that the noise in `y` is
     # normally distributed with standard deviation sigma
     sigma ~ truncated(Cauchy(0, 3); lower=0)
-    y ~ Normal(mu, sigma)
+    for i in eachindex(y)
+        y[i] ~ Normal(mu[i], sigma)
+    end
 end
 
 @model function logpoisson(x, y)
     c0 ~ Normal(0, 5)
     c1 ~ Normal(0, 5)
-    mu = c0 + c1 * x
+    mu = c0 .+ c1 .* x
     # exponentiate mu because the rate parameter of
     # a Poisson distribution must be positive
-    y ~ Poisson(exp(mu))
+    for i in eachindex(y)
+        y[i] ~ Poisson(exp(mu[i]))
+    end
 end
 
 # and so on...
 ```
+
+::: {.callout-note}
+You could use `arraydist` to avoid the loops: for example, in `logpoisson`, one could write `y ~ arraydist(Poisson.(exp.(mu)))`, but for simplicity in this tutorial we spell it out fully.
+:::
 
 We would then fit all of our models and use some criterion to test which model is most suitable (see e.g. [Wikipedia](https://en.wikipedia.org/wiki/Model_selection), or section 3.4 of Bishop's *Pattern Recognition and Machine Learning*).
 
@@ -189,37 +196,45 @@ For example, if we wanted to adjust the priors on `c0` and `c1`, we would have t
 If this was any other kind of code, we would naturally think of extracting the common parts into a separate function.
 In this case we can do exactly that with a submodel:
 
-```julia
+```{julia}
 @model function priors(x)
     c0 ~ Normal(0, 5)
     c1 ~ Normal(0, 5)
-    mu = c0 + c1 * x
+    mu = c0 .+ c1 .* x
     return (; c0=c0, c1=c1, mu=mu)
 end
 
 @model function normal(x, y)
-    (; c0, c1, mu) = to_submodel(priors(x))
+    ps = to_submodel(priors(x))
     sigma ~ truncated(Cauchy(0, 3); lower=0)
-    y ~ Normal(mu, sigma)
+    for i in eachindex(y)
+        y[i] ~ Normal(ps.mu[i], sigma)
+    end
 end
 
 @model function logpoisson(x, y)
-    (; c0, c1, mu) = to_submodel(priors(x))
-    y ~ Poisson(exp(mu))
+    ps = to_submodel(priors(x))
+    for i in eachindex(y)
+        y[i] ~ Poisson(exp(ps.mu[i]))
+    end
 end
 ```
 
 One could go even further and extract the `y` section into its own submodel as well, which would bring us to a generalised linear modelling interface that does not actually require the user to define their own Turing models at all:
 
-```julia
+```{julia}
 @model function normal_family(mu, y)
     sigma ~ truncated(Cauchy(0, 3); lower=0)
-    y ~ Normal(mu, sigma)
+    for i in eachindex(y)
+        y[i] ~ Normal(mu[i], sigma)
+    end
     return nothing
 end
 
 @model function logpoisson_family(mu, y)
-    y ~ Poisson(exp(mu))
+    for i in eachindex(y)
+        y[i] ~ Poisson(exp(mu[i]))
+    end
     return nothing
 end
 
@@ -236,16 +251,18 @@ function make_model(x, y, family::Symbol)
     end
 
     @model function general(x, y)
-        (; c0, c1, mu) ~ to_submodel(priors(x))
-        _n ~ to_submodel(family_model(mu, y))
+        ps ~ to_submodel(priors(x), false)
+        _n ~ to_submodel(family_model(ps.mu, y), false)
     end
     return general(x, y)
 end
+
+sample(make_model([1, 2, 3], [1, 2, 3], :normal), NUTS(), 1000; progress=false)
 ```
 
 While this final example really showcases the composability of submodels, it also illustrates a minor syntactic drawback.
 In the case of the `family_model`, we do not care about its return value because it is not used anywhere else in the model.
-Ideally, we would therefore not need to place anything on the left-hand side of `to_submodel`.
+Ideally, we should therefore not need to place anything on the left-hand side of `to_submodel`.
 However, because the special behaviour of `to_submodel` relies on the tilde operator, and the tilde operator requires a left-hand side, we have to use a dummy variable (here `_n`).
 
 

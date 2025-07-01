@@ -18,17 +18,64 @@ This article provides an overview of the core functionality in Turing.jl, which 
 
 ### Introduction
 
-A probabilistic program is Julia code wrapped in a `@model` macro. It can use arbitrary Julia code, but to ensure correctness of inference it should not have external effects or modify global state. Stack-allocated variables are safe, but mutable heap-allocated objects may lead to subtle bugs when using task copying. By default Libtask deepcopies `Array` and `Dict` objects when copying task to avoid bugs with data stored in mutable structure in Turing models.
+A probabilistic program is a Julia function wrapped in a `@model` macro.
+In this function, arbitrary Julia code can be used, but to ensure correctness of inference it should not have external effects or modify global state.
 
-To specify distributions of random variables, Turing programs should use the `~` notation:
+To specify distributions of random variables, Turing models use `~` notation: `x ~ distr` where `x` is an identifier.
+This resembles the notation used in statistical models.
+For example, the model:
 
-`x ~ distr` where `x` is a symbol and `distr` is a distribution. If `x` is undefined in the model function, inside the probabilistic program, this puts a random variable named `x`, distributed according to `distr`, in the current scope. `distr` can be a value of any type that implements `rand(distr)`, which samples a value from the distribution `distr`. If `x` is defined, this is used for conditioning in a style similar to [Anglican](https://probprog.github.io/anglican/index.html) (another PPL). In this case, `x` is an observed value, assumed to have been drawn from the distribution `distr`. The likelihood is computed using `logpdf(distr,y)`. The observe statements should be arranged so that every possible run traverses all of them in exactly the same order. This is equivalent to demanding that they are not placed inside stochastic control flow.
+$$\begin{align}
+a &\sim \text{Normal}(0, 1) \\
+x &\sim \text{Normal}(a, 1)
+\end{align}$$
 
-Available inference methods include Importance Sampling (IS), Sequential Monte Carlo (SMC), Particle Gibbs (PG), Hamiltonian Monte Carlo (HMC), Hamiltonian Monte Carlo with Dual Averaging (HMCDA) and The No-U-Turn Sampler (NUTS).
+is written in Turing as:
+
+```julia
+using Turing
+
+@model function mymodel()
+    a ~ Normal(0, 1)
+    x ~ Normal(a, 1)
+end
+```
+
+### Tilde-statements
+
+Indexing and field access is supported, so that `x[i] ~ distr` and `x.field ~ distr` are valid statements.
+However, in these cases, `x` must be defined in the scope of the model function.
+`distr` is typically either a distribution from Distributions.jl (see [this page]({{< meta usage-custom-distribution >}}) for implementing custom distributions), or another Turing model wrapped in `to_submodel()`.
+
+There are two classes of tilde-statements: _observe_ statements, where the left-hand side contains an observed value, and _assume_ statements, where the left-hand side is not observed.
+These respectively correspond to likelihood and prior terms.
+
+It is easier to start by explaining when a variable is treated as an observed value.
+This can happen in one of two ways:
+- The variable is passed as one of the arguments to the model function; or
+- The value of the variable in the model is explicitly conditioned or fixed.
+
+::: {.callout-caution}
+Note that it is not enough for the variable to be defined in the current scope. For example, in
+
+```julia
+@model function mymodel(x)
+    y = x + 1
+    y ~ Normal(0, 1)
+end
+```
+
+`y` is not treated as an observed value.
+:::
+
+In such a case, `x` is considered to be an observed value, assumed to have been drawn from the distribution `distr`.
+The likelihood (if needed) is computed using `loglikelihood(distr, x)`.
+
+On the other hand, if neither of the above are true, then this is treated as an assume-statement: inside the probabilistic program, this samples a new variable called `x`, distributed according to `distr`, and places it in the current scope.
 
 ### Simple Gaussian Demo
 
-Below is a simple Gaussian demo illustrate the basic usage of Turing.jl.
+Below is a simple Gaussian demo illustrating the basic usage of Turing.jl.
 
 
 ```{julia}
@@ -45,7 +92,10 @@ using StatsPlots
 end
 ```
 
-Note: As a sanity check, the prior expectation of `s²` is `mean(InverseGamma(2, 3)) = 3/(2 - 1) = 3` and the prior expectation of `m` is 0. This can be easily checked using `Prior`:
+In Turing.jl, MCMC sampling is performed using the `sample()` function, which (at its most basic) takes a model, a sampler, and the number of samples to draw.
+
+For this model, the prior expectation of `s²` is `mean(InverseGamma(2, 3)) = 3/(2 - 1) = 3`, and the prior expectation of `m` is 0.
+We can check this using the `Prior` sampler:
 
 ```{julia}
 #| output: false
@@ -56,7 +106,7 @@ setprogress!(false)
 p1 = sample(gdemo(missing, missing), Prior(), 100000)
 ```
 
-We can perform inference by using the `sample` function, the first argument of which is our probabilistic program and the second of which is a sampler.
+To perform inference, we simply need to specify the sampling algorithm we want to use.
 
 ```{julia}
 #  Run sampler, collect results.
@@ -79,10 +129,10 @@ The arguments for each sampler are:
 
 More information about each sampler can be found in [Turing.jl's API docs](https://turinglang.org/Turing.jl).
 
-The `MCMCChains` module (which is re-exported by Turing) provides plotting tools for the `Chain` objects returned by a `sample` function. See the [MCMCChains](https://github.com/TuringLang/MCMCChains.jl) repository for more information on the suite of tools available for diagnosing MCMC chains.
+The `MCMCChains` module (which is re-exported by Turing) provides plotting tools for the `Chain` objects returned by a `sample` function.
+See the [MCMCChains](https://github.com/TuringLang/MCMCChains.jl) repository for more information on the suite of tools available for diagnosing MCMC chains.
 
-```{julia}
-#| eval: false
+```julia
 # Summarise results
 describe(c3)
 
@@ -91,41 +141,61 @@ plot(c3)
 savefig("gdemo-plot.png")
 ```
 
-### Modelling Syntax Explained
+### Conditioning on data
 
-Using this syntax, a probabilistic model is defined in Turing. The model function generated by Turing can then be used to condition the model onto data. Subsequently, the sample function can be used to generate samples from the posterior distribution.
+Using this syntax, a probabilistic model is defined in Turing.
+The model function generated by Turing can then be used to condition the model on data.
+Subsequently, the `sample` function can be used to generate samples from the posterior distribution.
 
-In the following example, the defined model is conditioned to the data (arg*1 = 1, arg*2 = 2) by passing (1, 2) to the model function.
+In the following example, the defined model is conditioned to the data (`arg_1 = 1`, `arg_2 = 2`) by passing the arguments `1` and `2` to the model function.
 
-```{julia}
-#| eval: false
+```julia
 @model function model_name(arg_1, arg_2)
-    return ...
+    arg_1 ~ ...
+    arg_2 ~ ...
 end
 ```
 
 The conditioned model can then be passed onto the sample function to run posterior inference.
 
-```{julia}
-#| eval: false
-model_func = model_name(1, 2)
-chn = sample(model_func, HMC(..)) # Perform inference by sampling using HMC.
+```julia
+model = model_name(1, 2)
+chn = sample(model, HMC(0.5, 20), 1000) # Sample with HMC.
 ```
+
+Alternatively, one can also use the conditioning operator `|` to condition the model on data.
+In this case, the model does not need to be defined with `arg_1` and `arg_2` as parameters.
+
+```julia
+@model function model_name()
+    arg_1 ~ ...
+    arg_2 ~ ...
+end
+
+# Condition the model on data.
+model = model_name() | (arg_1 = 1, arg_2 = 2) 
+```
+
+### Analysing MCMC chains
 
 The returned chain contains samples of the variables in the model.
 
-```{julia}
-#| eval: false
+```julia
 var_1 = mean(chn[:var_1]) # Taking the mean of a variable named var_1.
 ```
 
-The key (`:var_1`) can be a `Symbol` or a `String`. For example, to fetch `x[1]`, one can use `chn[Symbol("x[1]")]` or `chn["x[1]"]`.
-If you want to retrieve all parameters associated with a specific symbol, you can use `group`. As an example, if you have the
-parameters `"x[1]"`, `"x[2]"`, and `"x[3]"`, calling `group(chn, :x)` or `group(chn, "x")` will return a new chain with only `"x[1]"`, `"x[2]"`, and `"x[3]"`.
+The key (`:var_1`) can either be a `Symbol` or a `String`.
+For example, to fetch `x[1]`, one can use `chn[Symbol("x[1]")]` or `chn["x[1]"]`.
+If you want to retrieve all parameters associated with a specific symbol, you can use `group`.
+As an example, if you have the parameters `"x[1]"`, `"x[2]"`, and `"x[3]"`, calling `group(chn, :x)` or `group(chn, "x")` will return a new chain with only `"x[1]"`, `"x[2]"`, and `"x[3]"`.
 
-Turing does not have a declarative form. More generally, the order in which you place the lines of a `@model` macro matters. For example, the following example works:
+### Tilde-statement ordering
 
-```{julia}
+Turing does not have a declarative form.
+Thus, the ordering of tilde-statements in a Turing model is important: random variables cannot be used until they have been first declared in a tilde-statement.
+For example, the following example works:
+
+```julia
 # Define a simple Normal model with unknown mean and variance.
 @model function model_function(y)
     s ~ Poisson(1)
@@ -138,8 +208,7 @@ sample(model_function(10), SMC(), 100)
 
 But if we switch the `s ~ Poisson(1)` and `y ~ Normal(s, 1)` lines, the model will no longer sample correctly:
 
-```{julia}
-#| eval: false
+```julia
 # Define a simple Normal model with unknown mean and variance.
 @model function model_function(y)
     y ~ Normal(s, 1)
@@ -152,16 +221,17 @@ sample(model_function(10), SMC(), 100)
 
 ### Sampling Multiple Chains
 
-Turing supports distributed and threaded parallel sampling. To do so, call `sample(model, sampler, parallel_type, n, n_chains)`, where `parallel_type` can be either `MCMCThreads()` or `MCMCDistributed()` for thread and parallel sampling, respectively.
+Turing supports distributed and threaded parallel sampling.
+To do so, call `sample(model, sampler, parallel_type, n, n_chains)`, where `parallel_type` can be either `MCMCThreads()` or `MCMCDistributed()` for thread and parallel sampling, respectively.
 
-Having multiple chains in the same object is valuable for evaluating convergence. Some diagnostic functions like `gelmandiag` require multiple chains.
+Having multiple chains in the same object is valuable for evaluating convergence.
+Some diagnostic functions like `gelmandiag` require multiple chains.
 
-If you do not want parallelism or are on an older version Julia, you can sample multiple chains with the `mapreduce` function:
+If you want to sample multiple chains without using parallelism, you can use `MCMCSerial()`:
 
-```{julia}
-#| eval: false
-# Replace num_chains below with however many chains you wish to sample.
-chains = mapreduce(c -> sample(model_fun, sampler, 1000), chainscat, 1:num_chains)
+```julia
+# Sample 3 chains in a serial fashion.
+chains = sample(model, sampler, MCMCSerial(), 1000, 3)
 ```
 
 The `chains` variable now contains a `Chains` object which can be indexed by chain. To pull out the first chain from the `chains` object, use `chains[:,:,1]`. The method is the same if you use either of the below parallel sampling methods.
@@ -170,26 +240,13 @@ The `chains` variable now contains a `Chains` object which can be indexed by cha
 
 If you wish to perform multithreaded sampling, you can call `sample` with the following signature:
 
-```{julia}
-#| eval: false
-using Turing
-
-@model function gdemo(x)
-    s² ~ InverseGamma(2, 3)
-    m ~ Normal(0, sqrt(s²))
-
-    for i in eachindex(x)
-        x[i] ~ Normal(m, sqrt(s²))
-    end
-end
-
-model = gdemo([1.5, 2.0])
-
+```julia
 # Sample four chains using multiple threads, each with 1000 samples.
-sample(model, NUTS(), MCMCThreads(), 1000, 4)
+sample(model, sampler, MCMCThreads(), 1000, 4)
 ```
 
-Be aware that Turing cannot add threads for you -- you must have started your Julia instance with multiple threads to experience any kind of parallelism. See the [Julia documentation](https://docs.julialang.org/en/v1/manual/parallel-computing/#man-multithreading-1) for details on how to achieve this.
+Be aware that Turing cannot add threads for you -- you must have started your Julia instance with multiple threads to experience any kind of parallelism.
+See the [Julia documentation](https://docs.julialang.org/en/v1/manual/parallel-computing/#man-multithreading-1) for details on how to achieve this.
 
 #### Distributed sampling
 
@@ -233,15 +290,16 @@ sample(model, NUTS(), MCMCDistributed(), 1000, 4)
 
 ### Sampling from an Unconditional Distribution (The Prior)
 
-Turing allows you to sample from a declared model's prior. If you wish to draw a chain from the prior to inspect your prior distributions, you can simply run
+Turing allows you to sample from a declared model's prior. If you wish to draw a chain from the prior to inspect your prior distributions, you can run
 
 ```{julia}
 #| eval: false
 chain = sample(model, Prior(), n_samples)
 ```
 
-You can also run your model (as if it were a function) from the prior distribution, by calling the model without specifying inputs or a sampler. In the below example, we specify a `gdemo` model which returns two variables, `x` and `y`. The model includes `x` and `y` as arguments, but calling the function without passing in `x` or `y` means that Turing's compiler will assume they are missing values to draw from the relevant distribution. The `return` statement is necessary to retrieve the sampled `x` and `y` values.
-Assign the function with `missing` inputs to a variable, and Turing will produce a sample from the prior distribution.
+You can also run your model (as if it were a function) from the prior distribution, by calling the model without specifying inputs or a sampler.
+In the below example, we specify a `gdemo` model which returns two variables, `x` and `y`.
+Here, including the `return` statement is necessary to retrieve the sampled `x` and `y` values.
 
 ```{julia}
 @model function gdemo(x, y)
@@ -253,7 +311,7 @@ Assign the function with `missing` inputs to a variable, and Turing will produce
 end
 ```
 
-Assign the function with `missing` inputs to a variable, and Turing will produce a sample from the prior distribution.
+To produce a sample from the prior distribution, we instantiate the model with `missing` inputs:
 
 ```{julia}
 # Samples from p(x,y)
@@ -285,9 +343,11 @@ model = gdemo(missing)
 c = sample(model, HMC(0.05, 20), 500)
 ```
 
-Note the need to initialize `x` when missing since we are iterating over its elements later in the model. The generated values for `x` can be extracted from the `Chains` object using `c[:x]`.
+Note the need to initialize `x` when missing since we are iterating over its elements later in the model.
+The generated values for `x` can be extracted from the `Chains` object using `c[:x]`.
 
-Turing also supports mixed `missing` and non-`missing` values in `x`, where the missing ones will be treated as random variables to be sampled while the others get treated as observations. For example:
+Turing also supports mixed `missing` and non-`missing` values in `x`, where the missing ones will be treated as random variables to be sampled while the others get treated as observations.
+For example:
 
 ```{julia}
 @model function gdemo(x)
@@ -305,7 +365,9 @@ c = sample(model, HMC(0.01, 5), 500)
 
 #### Default Values
 
-Arguments to Turing models can have default values much like how default values work in normal Julia functions. For instance, the following will assign `missing` to `x` and treat it as a random variable. If the default value is not `missing`, `x` will be assigned that value and will be treated as an observation instead.
+Arguments to Turing models can have default values much like how default values work in normal Julia functions.
+For instance, the following will assign `missing` to `x` and treat it as a random variable.
+If the default value is not `missing`, `x` will be assigned that value and will be treated as an observation instead.
 
 
 ```{julia}
@@ -330,7 +392,7 @@ chain = sample(m, HMC(0.01, 5), 1000)
 
 #### Access Values inside Chain
 
-You can access the values inside a chain several ways:
+You can access the values inside a chain in several ways:
 
  1. Turn them into a `DataFrame` object
  2. Use their raw `AxisArray` form
@@ -344,7 +406,9 @@ For example, let `c` be a `Chain`:
 
 #### Variable Types and Type Parameters
 
-The element type of a vector (or matrix) of random variables should match the `eltype` of its prior distribution, `<: Integer` for discrete distributions and `<: AbstractFloat` for continuous distributions. Moreover, if the continuous random variable is to be sampled using a Hamiltonian sampler, the vector's element type needs to either be:
+The element type of a vector (or matrix) of random variables should match the `eltype` of its prior distribution, i.e., `<: Integer` for discrete distributions and `<: AbstractFloat` for continuous distributions.
+
+Some automatic differentiation backends (used in conjunction with Hamiltonian samplers such as `HMC` or `NUTS`) further require that the vector's element type needs to either be:
 
 1. `Real` to enable auto-differentiation through the model which uses special number types that are sub-types of `Real`, or
 
@@ -429,7 +493,7 @@ mle_estimate = maximum_likelihood(model)
 map_estimate = maximum_a_posteriori(model)
 ```
 
-For more details see the [mode estimation page]({{<meta using-turing-mode-estimation>}}).
+For more details see the [mode estimation page]({{<meta usage-mode-estimation>}}).
 
 ## Beyond the Basics
 
@@ -455,7 +519,7 @@ simple_choice_f = simple_choice([1.5, 2.0, 0.3])
 chn = sample(simple_choice_f, Gibbs(:p => HMC(0.2, 3), :z => PG(20)), 1000)
 ```
 
-The `Gibbs` sampler can be used to specify unique automatic differentiation backends for different variable spaces. Please see the [Automatic Differentiation]({{<meta using-turing-autodiff>}}) article for more.
+The `Gibbs` sampler can be used to specify unique automatic differentiation backends for different variable spaces. Please see the [Automatic Differentiation]({{<meta usage-automatic-differentiation>}}) article for more.
 
 For more details of compositional sampling in Turing.jl, please check the corresponding [paper](https://proceedings.mlr.press/v84/ge18b.html).
 
@@ -516,15 +580,14 @@ There are numerous functions in addition to `describe` and `plot` in the `MCMCCh
 
 Some of Turing.jl's default settings can be changed for better usage.
 
-#### AD Chunk Size
-
-ForwardDiff (Turing's default AD backend) uses forward-mode chunk-wise AD. The chunk size can be set manually by `AutoForwardDiff(;chunksize=new_chunk_size)`.
-
 #### AD Backend
 
-Turing supports four automatic differentiation (AD) packages in the back end during sampling. The default AD backend is [ForwardDiff](https://github.com/JuliaDiff/ForwardDiff.jl) for forward-mode AD. Three reverse-mode AD backends are also supported, namely [Mooncake](https://github.com/compintell/Mooncake.jl), [Zygote](https://github.com/FluxML/Zygote.jl) and [ReverseDiff](https://github.com/JuliaDiff/ReverseDiff.jl). `Mooncake`, `Zygote`, and `ReverseDiff` also require the user to explicitly load them using `import Mooncake`, `import Zygote`, or `import ReverseDiff` next to `using Turing`.
+Turing is thoroughly tested with three automatic differentiation (AD) backend packages.
+The default AD backend is [ForwardDiff](https://github.com/JuliaDiff/ForwardDiff.jl), which uses forward-mode AD.
+Two reverse-mode AD backends are also supported, namely [Mooncake](https://github.com/compintell/Mooncake.jl) and [ReverseDiff](https://github.com/JuliaDiff/ReverseDiff.jl).
+`Mooncake` and `ReverseDiff` also require the user to explicitly load them using `import Mooncake` or `import ReverseDiff` next to `using Turing`.
 
-For more information on Turing's automatic differentiation backend, please see the [Automatic Differentiation]({{<meta using-turing-autodiff>}}) article.
+For more information on Turing's automatic differentiation backend, please see the [Automatic Differentiation]({{<meta usage-automatic-differentiation>}}) article as well as the [ADTests website](https://turinglang.org/ADTests/), where a number of AD backends (not just those above) are tested against Turing.jl.
 
 #### Progress Logging
 

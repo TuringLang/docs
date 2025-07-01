@@ -1,0 +1,314 @@
+---
+title: Submodels
+engine: julia
+---
+
+```{julia}
+using Turing
+using Random: Xoshiro, seed!
+seed!(468)
+```
+
+In Turing.jl, you can define models and use them as components of larger models (i.e., _submodels_), using the `to_submodel` function.
+In this way, you can (for example) define a model once and use it in multiple places:
+
+```{julia}
+@model function inner()
+    a ~ Normal()
+    return a + 100
+end
+
+@model function outer()
+    # This line adds the variable `x.a` to the chain.
+    # The inner variable `a` is prefixed with the
+    # left-hand side of the `~` operator, i.e. `x`.
+    x ~ to_submodel(inner())
+    # Here, the value of x will be `a + 100` because
+    # that is the return value of the submodel.
+    b ~ Normal(x)
+end
+```
+
+If we sample from this model, we would expect that `x.a` should be close to zero, and `b` close to 100:
+
+```{julia}
+rand(outer())
+```
+
+## Manipulating submodels
+
+### Conditioning
+
+In general, everything that can be done to a model 'carries over' to when it is used as a submodel.
+For example, you can condition a variable in a submodel in two ways:
+
+```{julia}
+# From the outside; the prefix `x` must be applied because
+# from the perspective of `outer`, the variable is called
+# `x.a`.
+outer_conditioned1 = outer() | (@varname(x.a) => 1);
+rand(Xoshiro(468), outer_conditioned1)
+```
+
+Or equivalently, from the inside:
+
+```{julia}
+@model function outer_conditioned2()
+    # The prefix doesn't need to be applied here because
+    # `inner` itself has no knowledge of the prefix.
+    x ~ to_submodel(inner() | (@varname(a) => 1))
+    b ~ Normal(x)
+end
+rand(Xoshiro(468), outer_conditioned2())
+```
+
+In both cases the variable `x.a` does not appear.
+
+Note, however, that you cannot condition on the return value of a submodel.
+Thus, for example, if we had:
+
+```{julia}
+@model function inner_sensible()
+    a ~ Normal()
+    return a
+end
+
+@model function outer()
+    x ~ to_submodel(inner())
+    b ~ Normal(x)
+end
+```
+
+and we tried to condition on `x`, it would be silently ignored, even though `x` is equal to `a`.
+
+The reason for this is because it is entirely coincidental that the return value of the submodel is equal to `a`.
+In general, a return value can be anything, and conditioning on it is in general not a meaningful operation.
+
+### Prefixing
+
+Prefixing is the only place where submodel behaviour is 'special' compared to that of ordinary models.
+
+By default, all variables in a submodel are prefixed with the left-hand side of the tilde-statement.
+This is done to avoid clashes if the same submodel is used multiple times in a model.
+
+You can disable this by passing `false` as the second argument to `to_submodel`:
+
+```{julia}
+@model function outer_no_prefix()
+    x ~ to_submodel(inner(), false)
+    b ~ Normal(x)
+end
+rand(outer_no_prefix())
+```
+
+## Accessing submodel variables
+
+In all of the examples above, `x` is equal to `a + 100` because that is the return value of the submodel.
+To access the actual latent variables in the submodel itself, the simplest option is to include the variable in the return value of the submodel:
+
+```{julia}
+@model function inner_with_retval()
+    a ~ Normal()
+    # You can return anything you like from the model,
+    # but if you want to access the latent variables, they
+    # should be included in the return value.
+    return (; a=a, a_plus_100=a + 100)
+end
+@model function outer_with_retval()
+    # The variable `x` will now contain the return value of the submodel,
+    # which is a named tuple with `a` and `a_plus_100`.
+    x ~ to_submodel(inner_with_retval())
+    # You can access the value of x.a directly, because
+    # x is a NamedTuple which contains `a`. Since `b` is
+    # centred on `x.a`, it should be close to 0, not 100.
+    b ~ Normal(x.a)
+end
+rand(Xoshiro(468), outer_with_retval())
+```
+
+You can also manually access the value by looking inside the special `__varinfo__` object.
+
+::: {.callout-warning}
+This relies on DynamicPPL internals and we do not recommend doing this unless you have no other option, e.g., if the submodel is defined in a different package which you do not control.
+:::
+
+```{julia}
+@model function outer_with_varinfo()
+    x ~ to_submodel(inner())
+    # Access the value of x.a
+    a_value = __varinfo__[@varname(x.a)]
+    b ~ Normal(a_value)
+end
+rand(Xoshiro(468), outer_with_varinfo())
+```
+
+
+## Example: linear models
+
+Here is a motivating example for the use of submodels.
+Suppose we want to fit a (very simplified) regression model to some data $x$ and $y$, where
+
+$$\begin{align}
+c_0 &\sim \text{Normal}(0, 5) \\
+c_1 &\sim \text{Normal}(0, 5) \\
+\mu &= c_0 + c_1x \\
+y &\sim d
+\end{align}$$
+
+where $d$ is _some_ distribution parameterised by the value of $\mu$, which we don't know the exact form of.
+
+In practice, what we would do is to write several different models, one for each function $f$:
+
+```julia
+@model function normal(x, y)
+    c0 ~ Normal(0, 5)
+    c1 ~ Normal(0, 5)
+    mu = c0 + c1 * x
+    # Assume that y = mu, and that the noise in `y` is
+    # normally distributed with standard deviation sigma
+    sigma ~ truncated(Cauchy(0, 3); lower=0)
+    y ~ Normal(mu, sigma)
+end
+
+@model function logpoisson(x, y)
+    c0 ~ Normal(0, 5)
+    c1 ~ Normal(0, 5)
+    mu = c0 + c1 * x
+    # exponentiate mu because the rate parameter of
+    # a Poisson distribution must be positive
+    y ~ Poisson(exp(mu))
+end
+
+# and so on...
+```
+
+We would then fit all of our models and use some criterion to test which model is most suitable (see e.g. [Wikipedia](https://en.wikipedia.org/wiki/Model_selection), or section 3.4 of Bishop's *Pattern Recognition and Machine Learning*).
+
+However, the code above is quite repetitive.
+For example, if we wanted to adjust the priors on `c0` and `c1`, we would have to do it in each model separately.
+If this was any other kind of code, we would naturally think of extracting the common parts into a separate function.
+In this case we can do exactly that with a submodel:
+
+```julia
+@model function priors(x)
+    c0 ~ Normal(0, 5)
+    c1 ~ Normal(0, 5)
+    mu = c0 + c1 * x
+    return (; c0=c0, c1=c1, mu=mu)
+end
+
+@model function normal(x, y)
+    (; c0, c1, mu) = to_submodel(priors(x))
+    sigma ~ truncated(Cauchy(0, 3); lower=0)
+    y ~ Normal(mu, sigma)
+end
+
+@model function logpoisson(x, y)
+    (; c0, c1, mu) = to_submodel(priors(x))
+    y ~ Poisson(exp(mu))
+end
+```
+
+One could go even further and extract the `y` section into its own submodel as well, which would bring us to a generalised linear modelling interface that does not actually require the user to define their own Turing models at all:
+
+```julia
+@model function normal_family(mu, y)
+    sigma ~ truncated(Cauchy(0, 3); lower=0)
+    y ~ Normal(mu, sigma)
+    return nothing
+end
+
+@model function logpoisson_family(mu, y)
+    y ~ Poisson(exp(mu))
+    return nothing
+end
+
+# An end-user could just use this function. Of course,
+# a more thorough interface would also allow the user to
+# specify priors, etc.
+function make_model(x, y, family::Symbol)
+    if family == :normal
+        family_model = normal_family
+    elseif family == :logpoisson
+        family_model = logpoisson_family
+    else
+        error("unknown family: `$family`")
+    end
+
+    @model function general(x, y)
+        (; c0, c1, mu) ~ to_submodel(priors(x))
+        _n ~ to_submodel(family_model(mu, y))
+    end
+    return general(x, y)
+end
+```
+
+While this final example really showcases the composability of submodels, it also illustrates a minor syntactic drawback.
+In the case of the `family_model`, we do not care about its return value because it is not used anywhere else in the model.
+Ideally, we would therefore not need to place anything on the left-hand side of `to_submodel`.
+However, because the special behaviour of `to_submodel` relies on the tilde operator, and the tilde operator requires a left-hand side, we have to use a dummy variable (here `_n`).
+
+
+## Submodels versus distributions
+
+Finally, we end with a discussion of why some of the behaviour for submodels above has come about.
+This is slightly more behind-the-scenes and therefore will likely be of most interest to Turing developers.
+
+Fundamentally, submodels are to be compared against distributions: both of them can appear on the right-hand side of a tilde statement.
+However, distributions only have one 'output', i.e., the value that is sampled from them:
+
+```{julia}
+dist = Normal()
+rand(dist)
+```
+
+Another point to bear in mind is that, given a sample from `dist`, asking for its log-probability is a meaningful calculation.
+
+```{julia}
+logpdf(dist, rand(dist))
+```
+
+In contrast, models (and hence submodels) have two different outputs: the latent variables, and the return value.
+These are accessed respectively using `rand(model)` and `model()`:
+
+```{julia}
+@model function f()
+    a ~ Normal()
+    return "hello, world."
+end
+
+model = f()
+```
+
+```{julia}
+# Latent variables
+rand(model)
+```
+
+```{julia}
+# Return value
+model()
+```
+
+Just like for distributions, one can indeed ask for the log-probability of the latent variables (although we have to specify whether we want the joint, likelihood, or prior):
+
+```{julia}
+logjoint(model, rand(model))
+```
+
+But it does not make sense to ask for the log-probability of the return value (which in this case is a string, and in general, could be literally any object).
+
+The fact that we have what looks like a unified notation for these is a bit of a lie, since it hides this distinction.
+In particular, for `x ~ distr`, `x` is assigned the value of `rand(distr)`; but for `y ~ submodel`, `y` is assigned the value of `submodel()`.
+This is why, for example, it is impossible to condition on `y` in `y ~ ...`; we can only condition on `x` in `x ~ dist`.
+
+Eventually we would like to make this more logically consistent.
+In particular, it is clear that `y ~ submodel` should return not one but two objects: the latent variables and the return value.
+Furthermore, it should be possible to condition on the latent variables, but not on the return value.
+See [this issue](https://github.com/TuringLang/Turing.jl/issues/2485) for an ongoing discussion of the best way to accomplish this.
+
+It should be mentioned that extracting the latent variables from a submodel is not entirely trivial since the submodel is run using the same `VarInfo` as the parent model (i.e., we would have to do a before-and-after comparison to see which _new_ variables were added by the submodel).
+
+Also, we are still working out the exact data structure that should be used to represent the latent variables.
+In the examples above `rand(model)` returns a `NamedTuple`, but this actually causes loss of information because the keys of a `NamedTuple` are `Symbol`s, whereas we really want to use `VarName`s.
+See [this issue](https://github.com/TuringLang/DynamicPPL.jl/issues/900) for a current proposal.

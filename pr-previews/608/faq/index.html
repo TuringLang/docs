@@ -769,11 +769,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="threading-within-models" class="level3">
 <h3 class="anchored" data-anchor-id="threading-within-models">2. Threading Within Models</h3>
 <p>Using threads inside your model (e.g., <code>Threads.@threads</code>) requires more care:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">f</span>(x)</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">Threads</span>.<span class="pp">@threads</span> <span class="cf">for</span> i <span class="kw">in</span> <span class="fu">eachindex</span>(x)</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>        x[i] <span class="op">~</span> <span class="fu">Normal</span>()  <span class="co"># UNSAFE: Assume statements in threads can crash!</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">f</span>(y)</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> <span class="fu">Vector</span><span class="dt">{Float64}</span>(<span class="cn">undef</span>, <span class="fu">length</span>(y))</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">Threads</span>.<span class="pp">@threads</span> <span class="cf">for</span> i <span class="kw">in</span> <span class="fu">eachindex</span>(y)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>        x[i] <span class="op">~</span> <span class="fu">Normal</span>()  <span class="co"># UNSAFE: `assume` statements in @threads can crash!</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        y[i] <span class="op">~</span> <span class="fu">Normal</span>(x[i])  <span class="co"># `observe` statements are okay</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p><strong>Important limitations:</strong> - <strong>Observe statements</strong>: Generally safe to use in threaded loops - <strong>Assume statements</strong> (sampling statements): Often crash unpredictably or produce incorrect results - <strong>AD backend compatibility</strong>: Many AD backends don’t support threading. Check the <a href="https://turinglang.org/ADTests/">multithreaded column in ADTests</a> for compatibility</p>
 <p>For safe parallelism within models, consider vectorized operations instead of explicit threading.</p>
 </section>

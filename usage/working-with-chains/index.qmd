@@ -1,0 +1,177 @@
+---
+title: Extract Data from Chains
+engine: julia
+---
+
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate();
+```
+
+After running a sampler, Turing.jl returns an `MCMCChains.Chains` object. This object holds all the samples from your model's posterior distribution, but it's much more than a simple array. It's a structured container that includes parameter names, iteration numbers, chain indices, and parameter sections, making it easy and safe to inspect and analyze your results. This guide covers the various ways to extract and manipulate data from a `Chains` object.
+
+First, let's set up a sample `Chains` object. We'll include different kinds of parameters and organize them into **sections** (`:parameters` and `:internals`) for a more realistic example.
+
+```{julia}
+using MCMCChains, Random
+
+# Set a seed for reproducibility
+Random.seed!(1234)
+
+# Create some dummy data: 1000 iterations, 6 parameters, 2 chains
+vals = randn(1000, 6, 2)
+
+# Define parameter names, including indexed parameters
+p_names = ["alpha", "beta[1]", "beta[2]", "sigma", "eta[1,1]", "eta[1,2]"]
+
+# Define sections to group parameters. Unassigned parameters
+# automatically go into the default `:parameters` section.
+sections = (internals = ["sigma"],)
+
+# Construct the Chains object
+chn = Chains(vals, p_names, sections)
+```
+
+### Basic Indexing
+
+The most direct way to access data is through indexing. A `Chains` object behaves like a 3-dimensional array with the dimensions corresponding to `(iterations, parameters, chains)`.
+
+You can use standard integer-based indexing to get specific slices of your data.
+
+```{julia}
+# Get the first 10 iterations for the first parameter in the first chain
+chn[1:10, 1, 1]
+```
+
+
+More powerfully, you can use parameter names as `Symbol`s or strings to make your code more readable and robust.
+
+```{julia}
+# Get all iterations for the :alpha parameter across all chains
+alpha_samples = chn[:, :alpha, :]
+
+# Get iterations 100 to 200 for "sigma" in the second chain
+sigma_slice = chn[100:200, "sigma", 2]
+```
+
+`MCMCChains.jl` also provides convenient shorthands for common slicing operations:
+
+```{julia}
+# Get all samples for the :alpha parameter (equivalent to chn[:, :alpha, :])
+chn[:alpha]
+
+# Get the 50th sample for all parameters and chains
+chn[50, :, :]
+```
+
+### Use `get` for Structured Access
+
+For more structured data extraction, the `get` function is extremely useful. It returns a `NamedTuple` where keys are the parameter names and values are the corresponding samples, usually as an `AxisArray`. This is often more convenient than indexing when you want to work with parameters by name.
+
+```{julia}
+# Get the samples for a single parameter
+alpha_nt = get(chn, :alpha)
+alpha_nt.alpha
+
+# Get the samples for multiple parameters
+params_nt = get(chn, [:alpha, :sigma])
+keys(params_nt)
+```
+
+The `get` function is particularly useful for parameters that have indices, like `beta[1]` and `beta[2]`. By default, `get` will group these into a single entry. The value associated with the key `:beta` will be a `Tuple` of `AxisArray`s.
+
+```{julia}
+# Get all `beta` parameters, grouped together
+beta_grouped = get(chn, :beta)
+
+# The value is a tuple of AxisArrays, one for each matching parameter
+size(beta_grouped.beta[1])
+```
+
+If you prefer to get each indexed parameter as a separate entry in the `NamedTuple`, you can use the `flatten=true` keyword argument.
+
+```{julia}
+# Get all `beta` parameters, but flattened into separate keys
+beta_flat = get(chn, :beta, flatten=true)
+keys(beta_flat)
+```
+
+You can also extract all parameters from a given section. The `get_params` function is a convenient shorthand to get all parameters from all sections.
+
+```{julia}
+# Get all parameters as a NamedTuple
+all_params = get_params(chn)
+keys(all_params)
+```
+
+### Converting to Arrays and Matrices
+
+Sometimes you need to work with the raw sample data as a standard Julia `Array`. `MCMCChains.jl` makes this easy.
+
+To get a single matrix of samples where all chains are pooled together, simply use the `Array` constructor. This is a very common operation for calculating summary statistics over the entire posterior. The resulting matrix will have dimensions `(total_samples, num_parameters)`.
+
+```{julia}
+# Convert the Chains object to a single matrix, pooling all chains
+pooled_matrix = Array(chn)
+size(pooled_matrix)
+```
+
+If you need to keep the chains separate, you can set the `append_chains=false` keyword argument. This will return a vector of matrices, where each matrix corresponds to a single chain.
+
+```{julia}
+# Get a vector of matrices, one for each chain
+unpooled_matrices = Array(chn; append_chains=false)
+length(unpooled_matrices)
+size(unpooled_matrices[1])
+```
+
+### Interoperability: `DataFrames.jl` and `Tables.jl`
+
+One of the most powerful features of `MCMCChains.jl` is its seamless integration with the broader Julia data ecosystem via the `Tables.jl` interface.[^1] This means you can convert a `Chains` object directly into a `DataFrame` with a single command.
+
+The resulting `DataFrame` is in a "tidy" long format, which is ideal for many analysis and plotting workflows.
+
+```{julia}
+using DataFrames
+
+# Convert the Chains object to a DataFrame
+df = DataFrame(chn)
+
+# Show the first few rows
+first(df, 6)
+```
+
+This `DataFrame` has columns for `:iteration`, `:chain`, and each of the model parameters. This format makes it easy to perform complex manipulations using `DataFrames.jl` or to save your results to a standard format like CSV.
+
+```{julia}
+# This would save the entire chain to a CSV file
+# using CSV
+# CSV.write("my_chain_results.csv", df)
+```
+
+### Working with Parameter Groups and Names
+
+When your model has indexed parameters (e.g., `beta[1]`, `beta[2]`,...), you might want to analyze them as a group.
+
+`namesingroup` returns a vector of the parameter names that belong to a specific group. `group` uses this to return a new, smaller `Chains` object containing only the parameters from that group.
+
+```{julia}
+# Get all parameter names belonging to the 'beta' group
+beta_names = namesingroup(chn, :beta)
+
+# Create a new Chains object with only the beta parameters
+beta_chain = group(chn, :beta)
+names(beta_chain)
+```
+
+Finally, you can easily rename parameters using `replacenames`. This is helpful for improving the labels in plots and tables. It returns a new `Chains` object that shares the same underlying data.
+
+```{julia}
+# Rename :alpha to :intercept
+chn_renamed = replacenames(chn, :alpha => :intercept)
+names(chn_renamed)
+```
+
+[^1]: `Tables.jl` provides a common interface for tabular data in Julia. It allows many different data source types (like a `Chains` object) to work seamlessly with many different data sink types (like a `DataFrame`).

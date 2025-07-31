@@ -90,11 +90,11 @@ Note that although this library is hosted under the TuringLang GitHub organisati
 
 In this section, we will briefly go through the interface requirements for external samplers.
 First and foremost, the sampler `T` should be a subtype of `AbstractMCMC.AbstractSampler`.
-Second, the stepping function of the MCMC algorithm must be made defined using `AbstractMCMC.step` and follow the structure below:
+Second, the stepping function of the MCMC algorithm must be defined as new methods of `AbstractMCMC.step` following the structure below:
 
 ```julia
 # First step
-function AbstractMCMC.step{T<:AbstractMCMC.AbstractSampler}(
+function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model::AbstractMCMC.LogDensityModel,
     spl::T;
@@ -105,7 +105,7 @@ function AbstractMCMC.step{T<:AbstractMCMC.AbstractSampler}(
 end
 
 # N+1 step
-function AbstractMCMC.step{T<:AbstractMCMC.AbstractSampler}(
+function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model::AbstractMCMC.LogDensityModel,
     sampler::T,
@@ -117,19 +117,20 @@ function AbstractMCMC.step{T<:AbstractMCMC.AbstractSampler}(
 end
 ```
 
-There are several characteristics to note in these functions:
+Note that the `model` argument here must be [an `AbstractMCMC.LogDensityModel`](https://turinglang.org/AbstractMCMC.jl/stable/api/#AbstractMCMC.LogDensityModel).
+This is a thin wrapper around an object which satisfies the `LogDensityProblems.jl` interface.
+Thus, in your external sampler, you can access the inner object with `model.logdensity` and call `LogDensityProblems.logdensity(model.logdensity, params)` to calculate the (unnormalised) log density of the model at `params`.
 
-- There must be two `step` functions:
+As shown above, there must be two `step` methods:
     
- + A function that performs the first step and initializes the sampler.
- + A function that performs the following steps and takes an extra input, `state`, which carries the initialization information.
+ - A method that performs the first step, performing any initialisation it needs to; and
+ - A method that performs the following steps and takes an extra input, `state`, which carries the initialization information.
 
-- The functions must follow the displayed signatures.
-- The output of the functions must be a tuple containing:
-  + a 'transition', which is essentially the 'visible output' of the sampler: this object is later used to construct an `MCMCChains.Chains`;
-  + a 'state', representing the current state of the sampler, which is passed to the next step of the MCMC algorithm.
+The output of both of these methods must be a tuple containing:
+ - a 'transition', which is essentially the 'visible output' of the sampler: this object is later used to construct an `MCMCChains.Chains`;
+ - a 'state', representing the current state of the sampler, which is passed to the next step of the MCMC algorithm.
 
-On top of this, your sampler state should also implement `AbstractMCMC.getparams`:
+Apart from this, your sampler state should also implement `AbstractMCMC.getparams`:
 
 ```julia
 function AbstractMCMC.getparams(model::DynamicPPL.Model, spl::T)
@@ -137,10 +138,13 @@ function AbstractMCMC.getparams(model::DynamicPPL.Model, spl::T)
 end
 ```
 
-It is possible that `getparams` can be implemented without using the model, in which case you can just define `getparams(::Any, spl::T)`.
+It is quite possible that `getparams` can be implemented without needing to use the model, in which case you can just define `getparams(::Any, spl::T)`.
 
 These functions are the bare minimum that your external sampler must implement to work with Turing models.
 There are other methods which can be overloaded to improve the performance or other features of the sampler; please refer to the documentation linked above for more details.
+
+In general, we recommend that the `AbstractMCMC` interface is implemented directly in your library.
+However, any DynamicPPL- or Turing-specific functionality is best implemented in a `MySamplerTuringExt` extension.
 
 [^1]: Xu et al., [AdvancedHMC.jl: A robust, modular and efficient implementation of advanced HMC algorithms](http://proceedings.mlr.press/v118/xu20a/xu20a.pdf), 2019
 [^2]: Zhang et al., [Pathfinder: Parallel quasi-Newton variational inference](https://arxiv.org/abs/2108.03782), 2021

@@ -89,7 +89,7 @@ For an example of an 'external sampler' that works in this way with Turing, we r
 Note that although this library is hosted under the TuringLang GitHub organisation, it is not a Turing.jl dependency, and thus from Turing's perspective it is truly an 'external' sampler.
 
 In this section, we will briefly go through the interface requirements for external samplers.
-First and foremost, the sampler `T` should be a subtype of `AbstractMCMC.AbstractSampler`.
+First and foremost, the sampler `MySampler` should be a subtype of `AbstractMCMC.AbstractSampler`.
 Second, the stepping function of the MCMC algorithm must be defined as new methods of `AbstractMCMC.step` following the structure below:
 
 ```julia
@@ -97,7 +97,7 @@ Second, the stepping function of the MCMC algorithm must be defined as new metho
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model::AbstractMCMC.LogDensityModel,
-    spl::T;
+    spl::MySampler;
     kwargs...,
 )
     [...]
@@ -108,7 +108,7 @@ end
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model::AbstractMCMC.LogDensityModel,
-    sampler::T,
+    sampler::MySampler,
     state;
     kwargs...,
 ) 
@@ -130,15 +130,14 @@ The output of both of these methods must be a tuple containing:
  - a 'transition', which is essentially the 'visible output' of the sampler: this object is later used to construct an `MCMCChains.Chains`;
  - a 'state', representing the current state of the sampler, which is passed to the next step of the MCMC algorithm.
 
-Apart from this, your sampler state should also implement `AbstractMCMC.getparams`:
+Apart from this, your sampler state should also implement `Turing.Inference.getparams(model, transition)` to return the parameters of the model as a vector.
+Here, `transition` represents the first output of the `step` function.
 
 ```julia
-function AbstractMCMC.getparams(model::DynamicPPL.Model, spl::T)
+function Turing.Inference.getparams(model::DynamicPPL.Model, state::MyTransition)
     # Return a vector containing the parameters of the model.
 end
 ```
-
-It is quite possible that `getparams` can be implemented without needing to use the model, in which case you can just define `getparams(::Any, spl::T)`.
 
 These functions are the bare minimum that your external sampler must implement to work with Turing models.
 There are other methods which can be overloaded to improve the performance or other features of the sampler; please refer to the documentation linked above for more details.

@@ -1,0 +1,219 @@
+---
+title: Stochastic Gradient Samplers
+engine: julia
+---
+
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate();
+```
+
+Turing.jl provides stochastic gradient-based MCMC samplers that are designed for large-scale datasets where computing full gradients is computationally expensive. The two main stochastic gradient samplers are **Stochastic Gradient Langevin Dynamics (SGLD)** and **Stochastic Gradient Hamiltonian Monte Carlo (SGHMC)**.
+
+**Important**: The current implementation in Turing.jl computes full gradients with added stochastic noise rather than true mini-batch stochastic gradients. These samplers require very careful hyperparameter tuning and are typically most useful for research purposes or when working with streaming data.
+
+## Setup
+
+```{julia}
+using Turing
+using Distributions
+using StatsPlots
+using Random
+using LinearAlgebra
+
+Random.seed!(123)
+```
+
+## SGLD (Stochastic Gradient Langevin Dynamics)
+
+SGLD adds properly scaled noise to gradient descent steps to enable MCMC sampling. The key insight is that the right amount of noise transforms optimization into sampling from the posterior distribution.
+
+Let's start with a simple Gaussian model:
+
+```{julia}
+# Generate synthetic data
+true_μ = 2.0
+true_σ = 1.5
+N = 100
+data = rand(Normal(true_μ, true_σ), N)
+
+# Define a simple Gaussian model
+@model function gaussian_model(x)
+    μ ~ Normal(0, 10)
+    σ ~ truncated(Normal(0, 5), 0, Inf)
+    
+    for i in 1:length(x)
+        x[i] ~ Normal(μ, σ)
+    end
+end
+
+model = gaussian_model(data)
+```
+
+SGLD requires very small step sizes to ensure stability. We use a `PolynomialStepsize` that decreases over time:
+
+```{julia}
+# SGLD with polynomial stepsize schedule
+# stepsize(t) = a / (b + t)^γ
+sgld_stepsize = Turing.PolynomialStepsize(0.0001, 10000, 0.55)
+chain_sgld = sample(model, SGLD(stepsize=sgld_stepsize), 2000)
+
+summarystats(chain_sgld)
+```
+
+```{julia}
+#| output: false
+setprogress!(false)
+```
+
+```{julia}
+plot(chain_sgld)
+```
+
+## SGHMC (Stochastic Gradient Hamiltonian Monte Carlo)
+
+SGHMC extends HMC to the stochastic gradient setting by incorporating friction to counteract the noise from stochastic gradients:
+
+```{julia}
+# SGHMC with very small learning rate
+chain_sghmc = sample(model, SGHMC(learning_rate=0.00001, momentum_decay=0.1), 2000)
+
+summarystats(chain_sghmc)
+```
+
+```{julia}
+plot(chain_sghmc)
+```
+
+## Comparison with Standard HMC
+
+For comparison, let's sample the same model using standard HMC:
+
+```{julia}
+chain_hmc = sample(model, HMC(0.01, 10), 1000)
+
+println("True values: μ = ", true_μ, ", σ = ", true_σ)
+summarystats(chain_hmc)
+```
+
+Compare the trace plots:
+
+```{julia}
+p1 = plot(chain_sgld[:μ], label="SGLD", title="μ parameter traces")
+hline!([true_μ], label="True value", linestyle=:dash, color=:red)
+
+p2 = plot(chain_sghmc[:μ], label="SGHMC")
+hline!([true_μ], label="True value", linestyle=:dash, color=:red)
+
+p3 = plot(chain_hmc[:μ], label="HMC")
+hline!([true_μ], label="True value", linestyle=:dash, color=:red)
+
+plot(p1, p2, p3, layout=(3,1), size=(800,600))
+```
+
+## Bayesian Linear Regression Example
+
+Here's a more complex example using Bayesian linear regression:
+
+```{julia}
+# Generate regression data
+n_features = 3
+n_samples = 100
+X = randn(n_samples, n_features)
+true_β = [0.5, -1.2, 2.1]
+true_σ_noise = 0.3
+y = X * true_β + true_σ_noise * randn(n_samples)
+
+@model function linear_regression(X, y)
+    n_features = size(X, 2)
+    
+    # Priors
+    β ~ MvNormal(zeros(n_features), 3 * I)
+    σ ~ truncated(Normal(0, 1), 0, Inf)
+    
+    # Likelihood
+    y ~ MvNormal(X * β, σ^2 * I)
+end
+
+lr_model = linear_regression(X, y)
+```
+
+Sample using the stochastic gradient methods:
+
+```{julia}
+# Very conservative parameters for stability
+sgld_lr_stepsize = Turing.PolynomialStepsize(0.00005, 10000, 0.55)
+chain_lr_sgld = sample(lr_model, SGLD(stepsize=sgld_lr_stepsize), 3000)
+
+chain_lr_sghmc = sample(lr_model, SGHMC(learning_rate=0.00005, momentum_decay=0.1), 3000)
+
+chain_lr_hmc = sample(lr_model, HMC(0.01, 10), 1000)
+```
+
+Compare the results:
+
+```{julia}
+println("True β values: ", true_β)
+println("True σ value: ", true_σ_noise)
+println()
+
+println("SGLD estimates:")
+summarystats(chain_lr_sgld)
+```
+
+## Automatic Differentiation Backends
+
+Both samplers support different AD backends:
+
+```{julia}
+using ADTypes
+
+# ForwardDiff (default) - good for few parameters
+sgld_forward = SGLD(stepsize=sgld_stepsize, adtype=AutoForwardDiff())
+
+# ReverseDiff - better for many parameters  
+sgld_reverse = SGLD(stepsize=sgld_stepsize, adtype=AutoReverseDiff())
+
+# Zygote - good for complex models
+sgld_zygote = SGLD(stepsize=sgld_stepsize, adtype=AutoZygote())
+```
+
+## Best Practices and Recommendations
+
+### When to Use Stochastic Gradient Samplers
+
+- **Large datasets**: When full gradient computation is prohibitively expensive
+- **Streaming data**: When data arrives continuously
+- **Research**: For studying stochastic gradient MCMC methods
+
+### Critical Hyperparameters
+
+**For SGLD:**
+- Use `PolynomialStepsize` with very small initial values (≤ 0.0001)
+- Larger `b` values in `PolynomialStepsize(a, b, γ)` provide more stability
+- The stepsize decreases as `a / (b + t)^γ`
+
+**For SGHMC:**
+- Use extremely small learning rates (≤ 0.00001)
+- Momentum decay (friction) typically between 0.1-0.5
+- Higher momentum decay improves stability but slows convergence
+
+### Current Limitations
+
+1. **No mini-batching**: Full gradients are computed despite "stochastic" name
+2. **Hyperparameter sensitivity**: Requires extensive tuning
+3. **Computational overhead**: Often slower than HMC/NUTS for small-medium datasets
+4. **Convergence**: Typically requires longer chains
+
+### General Recommendations
+
+- **Start conservatively**: Use very small step sizes initially
+- **Monitor convergence**: Check trace plots and diagnostics carefully  
+- **Compare with HMC/NUTS**: Validate results when possible
+- **Consider alternatives**: For most applications, HMC or NUTS will be more efficient
+
+## Summary
+
+Stochastic gradient samplers in Turing.jl provide an interface to gradient-based MCMC methods with added stochasticity. While designed for large-scale problems, the current implementation uses full gradients, making them primarily useful for research or specialized applications. For most practical Bayesian inference tasks, standard samplers like HMC or NUTS will be more efficient and easier to tune.

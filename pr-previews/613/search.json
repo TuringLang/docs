@@ -4,7 +4,111 @@
     "href": "developers/contexts/submodel-condition/index.html",
     "title": "Conditioning and fixing in submodels",
     "section": "",
-    "text": "This page is a technical explanation of how contexts are managed for submodels.\nA user-facing guide to submodels is available on [this page](\n\n Back to top",
+    "text": "This page is a technical explanation of how contexts are managed for submodels.\nA user-facing guide to submodels is available on this page.",
+    "crumbs": [
+      "Get Started",
+      "Developers",
+      "DynamicPPL Contexts",
+      "Conditioning and fixing in submodels"
+    ]
+  },
+  {
+    "objectID": "developers/contexts/submodel-condition/index.html#prefixcontext",
+    "href": "developers/contexts/submodel-condition/index.html#prefixcontext",
+    "title": "Conditioning and fixing in submodels",
+    "section": "PrefixContext",
+    "text": "PrefixContext\nSubmodels in DynamicPPL come with the notion of prefixing variables: under the hood, this is implemented by adding a PrefixContext to the context stack.\nPrefixContext is a context that, as the name suggests, prefixes all variables inside a model with a given symbol. Thus, for example:\n\nusing DynamicPPL, Distributions\n\n@model function f()\n    x ~ Normal()\n    return y ~ Normal()\nend\n\n@model function g()\n    return a ~ to_submodel(f())\nend\n\ng (generic function with 2 methods)\n\n\ninside the submodel f, the variables x and y become a.x and a.y respectively. This is easiest to observe by running the model:\n\nvi = VarInfo(g())\nkeys(vi)\n\n2-element Vector{VarName{:a}}:\n a.x\n a.y\n\n\n\n\n\n\n\n\nNote\n\n\n\nIn this case, where to_submodel is called without any other arguments, the prefix to be used is automatically inferred from the name of the variable on the left-hand side of the tilde. We will return to the ‘manual prefixing’ case later.\n\n\nThe phrase ‘becoming’ a different variable is a little underspecified: it is useful to pinpoint the exact location where the prefixing occurs, which is tilde_assume. The method responsible for it is tilde_assume(::PrefixContext, right, vn, vi): this attaches the prefix in the context to the VarName argument, before recursively calling tilde_assume with the new prefixed VarName. This means that even though a statement x ~ dist still enters the tilde pipeline at the top level as x, if the model evaluation context contains a PrefixContext, any function after tilde_assume(::PrefixContext, ...) will see a.x instead.",
+    "crumbs": [
+      "Get Started",
+      "Developers",
+      "DynamicPPL Contexts",
+      "Conditioning and fixing in submodels"
+    ]
+  },
+  {
+    "objectID": "developers/contexts/submodel-condition/index.html#conditioncontext",
+    "href": "developers/contexts/submodel-condition/index.html#conditioncontext",
+    "title": "Conditioning and fixing in submodels",
+    "section": "ConditionContext",
+    "text": "ConditionContext\nConditionContext is a context which stores values of variables that are to be conditioned on. These values may be stored as a Dict which maps VarNames to values, or alternatively as a NamedTuple. The latter only works correctly if all VarNames are ‘basic’, in that they have an identity optic (i.e., something like a.x or a[1] is forbidden). Because of this limitation, we will only use Dict in this example.\n\n\n\n\n\n\nNote\n\n\n\nIf a ConditionContext with a NamedTuple encounters anything to do with a prefix, its internal NamedTuple is converted to a Dict anyway, so it is quite reasonable to ignore the NamedTuple case in this exposition.\n\n\nOne can inspect the conditioning values with, for example:\n\n@model function d()\n    x ~ Normal()\n    return y ~ Normal()\nend\n\ncond_model = d() | (@varname(x) =&gt; 1.0)\ncond_ctx = cond_model.context\n\nConditionContext(Dict(x =&gt; 1.0), DynamicPPL.DefaultContext())\n\n\nThere are several internal functions that are used to determine whether a variable is conditioned, and if so, what its value is.\n\nDynamicPPL.hasconditioned_nested(cond_ctx, @varname(x))\n\ntrue\n\n\n\nDynamicPPL.getconditioned_nested(cond_ctx, @varname(x))\n\n1.0\n\n\nThese functions are in turn used by the function DynamicPPL.contextual_isassumption, which is largely the same as hasconditioned_nested, but also checks whether the value is missing (in which case it isn’t really conditioned).\n\nDynamicPPL.contextual_isassumption(cond_ctx, @varname(x))\n\nfalse\n\n\n\n\n\n\n\n\nNote\n\n\n\nNotice that (neglecting missing values) the return value of contextual_isassumption is the opposite of hasconditioned_nested, i.e. for a variable that is conditioned on, contextual_isassumption returns false.\n\n\nIf a variable x is conditioned on, then the effect of this is to set the value of x to the given value (while still including its contribution to the log probability density). Since x is no longer a random variable, if we were to evaluate the model, we would find only one key in the VarInfo:\n\nkeys(VarInfo(cond_model))\n\n1-element Vector{VarName{:y, typeof(identity)}}:\n y",
+    "crumbs": [
+      "Get Started",
+      "Developers",
+      "DynamicPPL Contexts",
+      "Conditioning and fixing in submodels"
+    ]
+  },
+  {
+    "objectID": "developers/contexts/submodel-condition/index.html#joint-behaviour-desiderata-at-the-model-level",
+    "href": "developers/contexts/submodel-condition/index.html#joint-behaviour-desiderata-at-the-model-level",
+    "title": "Conditioning and fixing in submodels",
+    "section": "Joint behaviour: desiderata at the model level",
+    "text": "Joint behaviour: desiderata at the model level\nWhen paired together, these two contexts have the potential to cause substantial confusion: PrefixContext modifies the variable names that are seen, which may cause them to be out of sync with the values contained inside the ConditionContext.\nWe begin by mentioning some high-level desiderata for their joint behaviour. Take these models, for example:\n\n# We define a helper function to unwrap a layer of SamplingContext, to\n# avoid cluttering the print statements.\nunwrap_sampling_context(ctx::DynamicPPL.SamplingContext) = ctx.context\nunwrap_sampling_context(ctx::DynamicPPL.AbstractContext) = ctx\n\n@model function inner()\n    println(\"inner context: $(unwrap_sampling_context(__context__))\")\n    x ~ Normal()\n    return y ~ Normal()\nend\n\n@model function outer()\n    println(\"outer context: $(unwrap_sampling_context(__context__))\")\n    return a ~ to_submodel(inner())\nend\n\n# 'Outer conditioning'\nwith_outer_cond = outer() | (@varname(a.x) =&gt; 1.0)\n\n# 'Inner conditioning'\ninner_cond = inner() | (@varname(x) =&gt; 1.0)\n@model function outer2()\n    println(\"outer context: $(unwrap_sampling_context(__context__))\")\n    return a ~ to_submodel(inner_cond)\nend\nwith_inner_cond = outer2()\n\nModel{typeof(outer2), (), (), (), Tuple{}, Tuple{}, DefaultContext}(outer2, NamedTuple(), NamedTuple(), DefaultContext())\n\n\nWe want that:\n\nkeys(VarInfo(outer())) should return [a.x, a.y];\nkeys(VarInfo(with_outer_cond)) should return [a.y];\nkeys(VarInfo(with_inner_cond)) should return [a.y],\n\nIn other words, we can condition submodels either from the outside (point (2)) or from the inside (point (3)), and the variable name we use to specify the conditioning should match the level at which we perform the conditioning.\nThis is an incredibly salient point because it means that submodels can be treated as individual, opaque objects, and we can condition them without needing to know what it will be prefixed with, or the context in which that submodel is being used. For example, this means we can reuse inner_cond in another model with a different prefix, and it will still have its inner x value be conditioned, despite the prefix differing.\n\n\n\n\n\n\nNote\n\n\n\nIn the current version of DynamicPPL, these criteria are all fulfilled. However, this was not the case in the past: in particular, point (3) was not fulfilled, and users had to condition the internal submodel with the prefixes that were used outside. (See this GitHub issue for more information; this issue was the direct motivation for this documentation page.)",
+    "crumbs": [
+      "Get Started",
+      "Developers",
+      "DynamicPPL Contexts",
+      "Conditioning and fixing in submodels"
+    ]
+  },
+  {
+    "objectID": "developers/contexts/submodel-condition/index.html#desiderata-at-the-context-level",
+    "href": "developers/contexts/submodel-condition/index.html#desiderata-at-the-context-level",
+    "title": "Conditioning and fixing in submodels",
+    "section": "Desiderata at the context level",
+    "text": "Desiderata at the context level\nThe above section describes how we expect conditioning and prefixing to behave from a user’s perpective. We now turn to the question of how we implement this in terms of DynamicPPL contexts. We do not specify the implementation details here, but we will sketch out something resembling an API that will allow us to achieve the target behaviour.\nPoint (1) does not involve any conditioning, only prefixing; it is therefore already satisfied by virtue of the tilde_assume method shown above.\nPoints (2) and (3) are more tricky. As the reader may surmise, the difference between them is the order in which the contexts are stacked.\nFor the outer conditioning case (point (2)), the ConditionContext will contain a VarName that is already prefixed. When we enter the inner submodel, this ConditionContext has to be passed down and somehow combined with the PrefixContext that is created when we enter the submodel. We make the claim here that the best way to do this is to nest the PrefixContext inside the ConditionContext. This is indeed what happens, as can be demonstrated by running the model.\n\nwith_outer_cond()\n\nouter context: ConditionContext(Dict(a.x =&gt; 1.0), DynamicPPL.DefaultContext())\ninner context: ConditionContext(Dict(a.x =&gt; 1.0), DynamicPPL.PrefixContext{AbstractPPL.VarName{:a, typeof(identity)}, DynamicPPL.DefaultContext}(a, DynamicPPL.DefaultContext()))\n\n\n-0.7900634872537153\n\n\nFor the inner conditioning case (point (3)), the outer model is not run with any special context. The inner model will itself contain a ConditionContext will contain a VarName that is not prefixed. When we run the model, this ConditionContext should be then nested inside a PrefixContext to form the final evaluation context. Again, we can run the model to see this in action:\n\nwith_inner_cond()\n\nouter context: DynamicPPL.DefaultContext()\ninner context: DynamicPPL.PrefixContext{AbstractPPL.VarName{:a, typeof(identity)}, DynamicPPL.ConditionContext{Dict{AbstractPPL.VarName{:x, typeof(identity)}, Float64}, DynamicPPL.DefaultContext}}(a, ConditionContext(Dict(x =&gt; 1.0), DynamicPPL.DefaultContext()))\n\n\n-0.5474485721574758\n\n\nPutting all of the information so far together, what it means is that if we have these two inner contexts (taken from above):\n\nusing DynamicPPL: PrefixContext, ConditionContext, DefaultContext\n\ninner_ctx_with_outer_cond = ConditionContext(\n    Dict(@varname(a.x) =&gt; 1.0), PrefixContext(@varname(a))\n)\ninner_ctx_with_inner_cond = PrefixContext(\n    @varname(a), ConditionContext(Dict(@varname(x) =&gt; 1.0))\n)\n\nPrefixContext{VarName{:a, typeof(identity)}, ConditionContext{Dict{VarName{:x, typeof(identity)}, Float64}, DefaultContext}}(a, ConditionContext(Dict(x =&gt; 1.0), DynamicPPL.DefaultContext()))\n\n\nthen we want both of these to be true (and thankfully, they are!):\n\nDynamicPPL.hasconditioned_nested(inner_ctx_with_outer_cond, @varname(a.x))\n\ntrue\n\n\n\nDynamicPPL.hasconditioned_nested(inner_ctx_with_inner_cond, @varname(a.x))\n\ntrue\n\n\nThis allows us to finally specify our task as follows:\n\nGiven the correct arguments, we need to make sure that hasconditioned_nested and getconditioned_nested behave correctly.\nWe need to make sure that both the correct arguments are supplied. In order to do so:\n\n\n(2a) We need to make sure that when evaluating a submodel, the context stack is arranged such that PrefixContext is applied inside the parent model’s context, but outside the submodel’s own context.\n(2b) We also need to make sure that the VarName passed to it is prefixed correctly.",
+    "crumbs": [
+      "Get Started",
+      "Developers",
+      "DynamicPPL Contexts",
+      "Conditioning and fixing in submodels"
+    ]
+  },
+  {
+    "objectID": "developers/contexts/submodel-condition/index.html#how-do-we-do-it",
+    "href": "developers/contexts/submodel-condition/index.html#how-do-we-do-it",
+    "title": "Conditioning and fixing in submodels",
+    "section": "How do we do it?",
+    "text": "How do we do it?\n\nhasconditioned_nested and getconditioned_nested accomplish this by first ‘collapsing’ the context stack, i.e. they go through the context stack, remove all PrefixContexts, and apply those prefixes to any conditioned variables below it in the stack. Once the PrefixContexts have been removed, one can then iterate through the context stack and check if any of the ConditionContexts contain the variable, or get the value itself. For more details the reader is encouraged to read the source code.\n\n(2a) We ensure that the context stack is correctly arranged by relying on the behaviour of make_evaluate_args_and_kwargs. This function is called whenever a model (which itself contains a context) is evaluated with a separate (‘external’) context, and makes sure to arrange both of these contexts such that the model’s context is nested inside the external context. Thus, as long as prefixing is implemented by applying a PrefixContext on the outermost layer of the inner model context, this will be correctly combined with an external context to give the behaviour seen above.\n(2b) At first glance, it seems like tilde_assume can take care of the VarName prefixing for us (as described in the first section). However, this is not actually the case: contextual_isassumption, which is the function that calls hasconditioned_nested, is much higher in the call stack than tilde_assume is. So, we need to explicitly prefix it before passing it to contextual_isassumption. This is done inside the @model macro, or technically, its subsidiary function isassumption.",
+    "crumbs": [
+      "Get Started",
+      "Developers",
+      "DynamicPPL Contexts",
+      "Conditioning and fixing in submodels"
+    ]
+  },
+  {
+    "objectID": "developers/contexts/submodel-condition/index.html#nested-submodels",
+    "href": "developers/contexts/submodel-condition/index.html#nested-submodels",
+    "title": "Conditioning and fixing in submodels",
+    "section": "Nested submodels",
+    "text": "Nested submodels\nJust in case the above wasn’t complicated enough, we need to also be very careful when dealing with nested submodels, which have multiple layers of PrefixContexts which may be interspersed with ConditionContexts. For example, in this series of nested submodels,\n\n@model function charlie()\n    x ~ Normal()\n    y ~ Normal()\n    return z ~ Normal()\nend\n@model function bravo()\n    return b ~ to_submodel(charlie() | (@varname(x) =&gt; 1.0))\nend\n@model function alpha()\n    return a ~ to_submodel(bravo() | (@varname(b.y) =&gt; 1.0))\nend\n\nalpha (generic function with 2 methods)\n\n\nwe expect that the only variable to be sampled should be z inside charlie, or rather, a.b.z once it has been through the prefixes.\n\nkeys(VarInfo(alpha()))\n\n1-element Vector{VarName{:a, ComposedFunction{Accessors.PropertyLens{:z}, Accessors.PropertyLens{:b}}}}:\n a.b.z\n\n\nThe general strategy that we adopt is similar to above. Following the principle that PrefixContext should be nested inside the outer context, but outside the inner submodel’s context, we can infer that the correct context inside charlie should be:\n\nbig_ctx = PrefixContext(\n    @varname(a),\n    ConditionContext(\n        Dict(@varname(b.y) =&gt; 1.0),\n        PrefixContext(@varname(b), ConditionContext(Dict(@varname(x) =&gt; 1.0))),\n    ),\n)\n\nPrefixContext{VarName{:a, typeof(identity)}, ConditionContext{Dict{VarName{:b, Accessors.PropertyLens{:y}}, Float64}, PrefixContext{VarName{:b, typeof(identity)}, ConditionContext{Dict{VarName{:x, typeof(identity)}, Float64}, DefaultContext}}}}(a, ConditionContext(Dict(b.y =&gt; 1.0), DynamicPPL.PrefixContext{AbstractPPL.VarName{:b, typeof(identity)}, DynamicPPL.ConditionContext{Dict{AbstractPPL.VarName{:x, typeof(identity)}, Float64}, DynamicPPL.DefaultContext}}(b, ConditionContext(Dict(x =&gt; 1.0), DynamicPPL.DefaultContext()))))\n\n\nWe need several things to work correctly here: we need the VarName prefixing to behave correctly, and then we need to implement hasconditioned_nested and getconditioned_nested on the resulting prefixed VarName. It turns out that the prefixing itself is enough to illustrate the most important point in this section, namely, the need to traverse the context stack in a different direction to what most of DynamicPPL does.\nLet’s work with a function called myprefix(::AbstractContext, ::VarName) (to avoid confusion with any existing DynamicPPL function). We should like myprefix(big_ctx, @varname(x)) to return @varname(a.b.x). Consider the following naive implementation, which mirrors a lot of code in the tilde-pipeline:\n\nusing DynamicPPL: NodeTrait, IsLeaf, IsParent, childcontext, AbstractContext\nusing AbstractPPL: AbstractPPL\n\nfunction myprefix(ctx::DynamicPPL.AbstractContext, vn::VarName)\n    return myprefix(NodeTrait(ctx), ctx, vn)\nend\nfunction myprefix(::IsLeaf, ::AbstractContext, vn::VarName)\n    return vn\nend\nfunction myprefix(::IsParent, ctx::AbstractContext, vn::VarName)\n    return myprefix(childcontext(ctx), vn)\nend\nfunction myprefix(ctx::DynamicPPL.PrefixContext, vn::VarName)\n    # The functionality to actually manipulate the VarNames is in AbstractPPL\n    new_vn = AbstractPPL.prefix(vn, ctx.vn_prefix)\n    # Then pass to the child context\n    return myprefix(childcontext(ctx), new_vn)\nend\n\nmyprefix(big_ctx, @varname(x))\n\nb.a.x\n\n\nThis implementation clearly is not correct, because it applies the inner PrefixContext before the outer one.\nThe right way to implement myprefix is to, essentially, reverse the order of two lines above:\n\nfunction myprefix(ctx::DynamicPPL.PrefixContext, vn::VarName)\n    # Pass to the child context first\n    new_vn = myprefix(childcontext(ctx), vn)\n    # Then apply this context's prefix\n    return AbstractPPL.prefix(new_vn, ctx.vn_prefix)\nend\n\nmyprefix(big_ctx, @varname(x))\n\na.b.x\n\n\nThis is a much better result! The implementation of related functions such as hasconditioned_nested and getconditioned_nested, under the hood, use a similar recursion scheme, so you will find that this is a common pattern when reading the source code of various prefixing-related functions. When editing this code, it is worth being mindful of this as a potential source of incorrectness.\n\n\n\n\n\n\nNote\n\n\n\nIf you have encountered left and right folds, the above discussion illustrates the difference between them: the wrong implementation of myprefix uses a left fold (which collects prefixes in the opposite order from which they are encountered), while the correct implementation uses a right fold.",
+    "crumbs": [
+      "Get Started",
+      "Developers",
+      "DynamicPPL Contexts",
+      "Conditioning and fixing in submodels"
+    ]
+  },
+  {
+    "objectID": "developers/contexts/submodel-condition/index.html#loose-ends-1-manual-prefixing",
+    "href": "developers/contexts/submodel-condition/index.html#loose-ends-1-manual-prefixing",
+    "title": "Conditioning and fixing in submodels",
+    "section": "Loose ends 1: Manual prefixing",
+    "text": "Loose ends 1: Manual prefixing\nSometimes users may want to manually prefix a model, for example:\n\n@model function inner_manual()\n    x ~ Normal()\n    return y ~ Normal()\nend\n\n@model function outer_manual()\n    return _unused ~ to_submodel(prefix(inner_manual(), :a), false)\nend\n\nouter_manual (generic function with 2 methods)\n\n\nIn this case, the VarName on the left-hand side of the tilde is not used, and the prefix is instead specified using the prefix function.\nThe way to deal with this follows on from the previous discussion. Specifically, we said that:\n\n[…] as long as prefixing is implemented by applying a PrefixContext on the outermost layer of the inner model context, this will be correctly combined […]\n\nWhen automatic prefixing is used, this application of PrefixContext occurs inside the tilde_assume!! method. In the manual prefixing case, we need to make sure that prefix(submodel::Model, ::Symbol) does the same thing, i.e. it inserts a PrefixContext at the outermost layer of submodel’s context. We can see that this is precisely what happens:\n\n@model f() = x ~ Normal()\n\nmodel = f()\nprefixed_model = prefix(model, :a)\n\n(model.context, prefixed_model.context)\n\n(DefaultContext(), PrefixContext{VarName{:a, typeof(identity)}, DefaultContext}(a, DefaultContext()))",
+    "crumbs": [
+      "Get Started",
+      "Developers",
+      "DynamicPPL Contexts",
+      "Conditioning and fixing in submodels"
+    ]
+  },
+  {
+    "objectID": "developers/contexts/submodel-condition/index.html#loose-ends-2-fixedcontext",
+    "href": "developers/contexts/submodel-condition/index.html#loose-ends-2-fixedcontext",
+    "title": "Conditioning and fixing in submodels",
+    "section": "Loose ends 2: FixedContext",
+    "text": "Loose ends 2: FixedContext\nFinally, note that all of the above also applies to the interaction between PrefixContext and FixedContext, except that the functions have different names. (FixedContext behaves the same way as ConditionContext, except that unlike conditioned variables, fixed variables do not contribute to the log probability density.) This generally results in a large amount of code duplication, but the concepts that underlie both contexts are exactly the same.",
     "crumbs": [
       "Get Started",
       "Developers",

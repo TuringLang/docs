@@ -36,9 +36,8 @@ Then:
 
 4. Preview the website using Quarto.
 
-   > [!WARNING]
-   >
-   > This will take a _very_ long time, as it will build every tutorial from scratch. See [below](#faster-rendering) for ways to speed this up.
+> [!WARNING]
+> This will take a _very_ long time, as it will build every tutorial from scratch. See [below](#faster-rendering) for ways to speed this up.
 
    ```bash
    quarto preview

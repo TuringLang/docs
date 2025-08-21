@@ -12,14 +12,22 @@ Pkg.instantiate();
 
 Turing.jl provides stochastic gradient-based MCMC samplers: **Stochastic Gradient Langevin Dynamics (SGLD)** and **Stochastic Gradient Hamiltonian Monte Carlo (SGHMC)**. 
 
+::: {.callout-warning}
+## Research-Grade Implementation
+These samplers are **primarily intended for research purposes** and require significant expertise to use effectively. For production use and most practical applications, we strongly recommend using HMC or NUTS instead, which are more robust and efficient.
+:::
+
 ## Current Capabilities
 
 The current implementation in Turing.jl is primarily useful for:
 - **Research purposes**: Studying stochastic gradient MCMC methods
-- **Streaming data**: When data arrives continuously
+- **Educational purposes**: Understanding stochastic gradient MCMC algorithms
+- **Streaming data**: When data arrives continuously (with careful tuning)
 - **Experimental applications**: Testing stochastic sampling approaches
 
 **Important**: The current implementation computes full gradients with added stochastic noise rather than true mini-batch stochastic gradients. This means these samplers don't currently provide the computational benefits typically associated with stochastic gradient methods for large datasets. They require very careful hyperparameter tuning and often perform slower than standard samplers like HMC or NUTS for most practical applications.
+
+**Future Development**: These stochastic gradient samplers are being migrated to [AdvancedHMC.jl](https://github.com/TuringLang/AdvancedHMC.jl) for better maintenance and development. Once migration is complete, Turing.jl will support AbstractMCMC-compatible algorithms, and users requiring research-grade stochastic gradient algorithms will be directed to AdvancedHMC.
 
 ## Setup
 
@@ -210,11 +218,21 @@ sgld_zygote = SGLD(stepsize=sgld_stepsize, adtype=AutoZygote())
 - Use `PolynomialStepsize` with very small initial values (≤ 0.0001)
 - Larger `b` values in `PolynomialStepsize(a, b, γ)` provide more stability
 - The stepsize decreases as `a / (b + t)^γ`
+- **Recommended starting point**: `PolynomialStepsize(0.0001, 10000, 0.55)`
+- **For unstable models**: Reduce `a` to 0.00001 or increase `b` to 50000
 
 **For SGHMC:**
 - Use extremely small learning rates (≤ 0.00001)
 - Momentum decay (friction) typically between 0.1-0.5
 - Higher momentum decay improves stability but slows convergence
+- **Recommended starting point**: `learning_rate=0.00001, momentum_decay=0.1`
+- **For high-dimensional problems**: Increase momentum_decay to 0.3-0.5
+
+**Tuning Strategy:**
+1. Start with recommended values and run a short chain (500-1000 samples)
+2. If chains diverge or parameters explode, reduce step size by factor of 10
+3. If mixing is too slow, carefully increase step size by factor of 2
+4. Always validate against HMC/NUTS results when possible
 
 ### Current Limitations
 
@@ -223,10 +241,21 @@ sgld_zygote = SGLD(stepsize=sgld_stepsize, adtype=AutoZygote())
 3. **Computational overhead**: Often slower than HMC/NUTS for small-medium datasets
 4. **Convergence**: Typically requires longer chains
 
+### Convergence Diagnostics
+
+Due to the high variance and slow convergence of stochastic gradient samplers, careful diagnostics are essential:
+
+- **Visual inspection**: Always check trace plots for all parameters
+- **Effective sample size (ESS)**: Expect lower ESS than HMC/NUTS
+- **R-hat values**: Should be < 1.01 for all parameters
+- **Long chains**: Often need 5,000-10,000+ samples for convergence
+- **Multiple chains**: Run multiple chains with different initializations to verify convergence
+
 ### General Recommendations
 
 - **Start conservatively**: Use very small step sizes initially
 - **Monitor convergence**: Check trace plots and diagnostics carefully  
+- **Increase samples if needed**: Don't hesitate to use 10,000+ samples if convergence is poor
 - **Compare with HMC/NUTS**: Validate results when possible
 - **Consider alternatives**: For most applications, HMC or NUTS will be more efficient
 

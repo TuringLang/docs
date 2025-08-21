@@ -732,6 +732,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#when-to-consider-stochastic-gradient-samplers" id="toc-when-to-consider-stochastic-gradient-samplers" class="nav-link" data-scroll-target="#when-to-consider-stochastic-gradient-samplers">When to Consider Stochastic Gradient Samplers</a></li>
   <li><a href="#critical-hyperparameters" id="toc-critical-hyperparameters" class="nav-link" data-scroll-target="#critical-hyperparameters">Critical Hyperparameters</a></li>
   <li><a href="#current-limitations" id="toc-current-limitations" class="nav-link" data-scroll-target="#current-limitations">Current Limitations</a></li>
+  <li><a href="#convergence-diagnostics" id="toc-convergence-diagnostics" class="nav-link" data-scroll-target="#convergence-diagnostics">Convergence Diagnostics</a></li>
   <li><a href="#general-recommendations" id="toc-general-recommendations" class="nav-link" data-scroll-target="#general-recommendations">General Recommendations</a></li>
   </ul></li>
   <li><a href="#summary" id="toc-summary" class="nav-link" data-scroll-target="#summary">Summary</a></li>
@@ -762,10 +763,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 
 <p>Turing.jl provides stochastic gradient-based MCMC samplers: <strong>Stochastic Gradient Langevin Dynamics (SGLD)</strong> and <strong>Stochastic Gradient Hamiltonian Monte Carlo (SGHMC)</strong>.</p>
+<div class="callout callout-style-default callout-warning callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Research-Grade Implementation
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>These samplers are <strong>primarily intended for research purposes</strong> and require significant expertise to use effectively. For production use and most practical applications, we strongly recommend using HMC or NUTS instead, which are more robust and efficient.</p>
+</div>
+</div>
 <section id="current-capabilities" class="level2">
 <h2 class="anchored" data-anchor-id="current-capabilities">Current Capabilities</h2>
-<p>The current implementation in Turing.jl is primarily useful for: - <strong>Research purposes</strong>: Studying stochastic gradient MCMC methods - <strong>Streaming data</strong>: When data arrives continuously - <strong>Experimental applications</strong>: Testing stochastic sampling approaches</p>
+<p>The current implementation in Turing.jl is primarily useful for: - <strong>Research purposes</strong>: Studying stochastic gradient MCMC methods - <strong>Educational purposes</strong>: Understanding stochastic gradient MCMC algorithms - <strong>Streaming data</strong>: When data arrives continuously (with careful tuning) - <strong>Experimental applications</strong>: Testing stochastic sampling approaches</p>
 <p><strong>Important</strong>: The current implementation computes full gradients with added stochastic noise rather than true mini-batch stochastic gradients. This means these samplers don’t currently provide the computational benefits typically associated with stochastic gradient methods for large datasets. They require very careful hyperparameter tuning and often perform slower than standard samplers like HMC or NUTS for most practical applications.</p>
+<p><strong>Future Development</strong>: These stochastic gradient samplers are being migrated to <a href="https://github.com/TuringLang/AdvancedHMC.jl">AdvancedHMC.jl</a> for better maintenance and development. Once migration is complete, Turing.jl will support AbstractMCMC-compatible algorithms, and users requiring research-grade stochastic gradient algorithms will be directed to AdvancedHMC.</p>
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
@@ -958,8 +973,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 Iterations        = 1:1:1000
 Number of chains  = 1
 Samples per chain = 1000
-Wall duration     = 1.52 seconds
-Compute duration  = 1.52 seconds
+Wall duration     = 1.54 seconds
+Compute duration  = 1.54 seconds
 parameters        = β[1], β[2], β[3], σ
 internals         = lp, n_steps, is_accept, acceptance_rate, log_density, hamiltonian_energy, hamiltonian_energy_error, numerical_error, step_size, nom_step_size
 
@@ -1028,8 +1043,9 @@ SGLD estimates:</code></pre>
 </section>
 <section id="critical-hyperparameters" class="level3">
 <h3 class="anchored" data-anchor-id="critical-hyperparameters">Critical Hyperparameters</h3>
-<p><strong>For SGLD:</strong> - Use <code>PolynomialStepsize</code> with very small initial values (≤ 0.0001) - Larger <code>b</code> values in <code>PolynomialStepsize(a, b, γ)</code> provide more stability - The stepsize decreases as <code>a / (b + t)^γ</code></p>
-<p><strong>For SGHMC:</strong> - Use extremely small learning rates (≤ 0.00001) - Momentum decay (friction) typically between 0.1-0.5 - Higher momentum decay improves stability but slows convergence</p>
+<p><strong>For SGLD:</strong> - Use <code>PolynomialStepsize</code> with very small initial values (≤ 0.0001) - Larger <code>b</code> values in <code>PolynomialStepsize(a, b, γ)</code> provide more stability - The stepsize decreases as <code>a / (b + t)^γ</code> - <strong>Recommended starting point</strong>: <code>PolynomialStepsize(0.0001, 10000, 0.55)</code> - <strong>For unstable models</strong>: Reduce <code>a</code> to 0.00001 or increase <code>b</code> to 50000</p>
+<p><strong>For SGHMC:</strong> - Use extremely small learning rates (≤ 0.00001) - Momentum decay (friction) typically between 0.1-0.5 - Higher momentum decay improves stability but slows convergence - <strong>Recommended starting point</strong>: <code>learning_rate=0.00001, momentum_decay=0.1</code> - <strong>For high-dimensional problems</strong>: Increase momentum_decay to 0.3-0.5</p>
+<p><strong>Tuning Strategy:</strong> 1. Start with recommended values and run a short chain (500-1000 samples) 2. If chains diverge or parameters explode, reduce step size by factor of 10 3. If mixing is too slow, carefully increase step size by factor of 2 4. Always validate against HMC/NUTS results when possible</p>
 </section>
 <section id="current-limitations" class="level3">
 <h3 class="anchored" data-anchor-id="current-limitations">Current Limitations</h3>
@@ -1040,12 +1056,24 @@ SGLD estimates:</code></pre>
 <li><strong>Convergence</strong>: Typically requires longer chains</li>
 </ol>
 </section>
+<section id="convergence-diagnostics" class="level3">
+<h3 class="anchored" data-anchor-id="convergence-diagnostics">Convergence Diagnostics</h3>
+<p>Due to the high variance and slow convergence of stochastic gradient samplers, careful diagnostics are essential:</p>
+<ul>
+<li><strong>Visual inspection</strong>: Always check trace plots for all parameters</li>
+<li><strong>Effective sample size (ESS)</strong>: Expect lower ESS than HMC/NUTS</li>
+<li><strong>R-hat values</strong>: Should be &lt; 1.01 for all parameters</li>
+<li><strong>Long chains</strong>: Often need 5,000-10,000+ samples for convergence</li>
+<li><strong>Multiple chains</strong>: Run multiple chains with different initializations to verify convergence</li>
+</ul>
+</section>
 <section id="general-recommendations" class="level3">
 <h3 class="anchored" data-anchor-id="general-recommendations">General Recommendations</h3>
 <ul>
 <li><strong>Start conservatively</strong>: Use very small step sizes initially</li>
 <li><strong>Monitor convergence</strong>: Check trace plots and diagnostics carefully<br>
 </li>
+<li><strong>Increase samples if needed</strong>: Don’t hesitate to use 10,000+ samples if convergence is poor</li>
 <li><strong>Compare with HMC/NUTS</strong>: Validate results when possible</li>
 <li><strong>Consider alternatives</strong>: For most applications, HMC or NUTS will be more efficient</li>
 </ul>

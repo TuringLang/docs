@@ -1,6 +1,6 @@
 # Set up a temporary environment just to run this script
 using Pkg
-Pkg.activate(temp=true)
+Pkg.activate(temp = true)
 Pkg.add(["YAML", "TOML", "JSON", "HTTP"])
 import YAML
 import TOML
@@ -18,7 +18,10 @@ end
 
 function major_minor_patch_match(vs...)
     first = vs[1]
-    all(v.:major == first.:major && v.:minor == first.:minor && v.:patch == first.:patch for v in vs)
+    all(
+        v.:major == first.:major && v.:minor == first.:minor && v.:patch == first.:patch for
+        v in vs
+    )
 end
 
 """
@@ -34,7 +37,10 @@ function update_project_toml(filename, target_version::VersionNumber)
     open(filename, "w") do io
         for line in lines
             if occursin(r"^Turing\s*=\s*\"\d+\.\d+\"\s*$", line)
-                println(io, "Turing = \"$(target_version.:major).$(target_version.:minor)\"")
+                println(
+                    io,
+                    "Turing = \"$(target_version.:major).$(target_version.:minor)\"",
+                )
             else
                 println(io, line)
             end
@@ -54,7 +60,10 @@ function update_quarto_yml(filename, target_version::VersionNumber)
         for line in lines
             m = match(r"^(\s+)- text:\s*\"v\d+\.\d+\"\s*$", line)
             if m !== nothing
-                println(io, "$(m[1])- text: \"v$(target_version.:major).$(target_version.:minor)\"")
+                println(
+                    io,
+                    "$(m[1])- text: \"v$(target_version.:major).$(target_version.:minor)\"",
+                )
             else
                 println(io, line)
             end
@@ -108,7 +117,7 @@ if ENV["TARGET_IS_MAIN"] == "true"
         old_env = Pkg.project().path
         Pkg.activate(".")
         try
-            Pkg.add(name="Turing", version=latest_version)
+            Pkg.add(name = "Turing", version = latest_version)
         catch e
             # If the Manifest couldn't be updated, the error will be shown later
             println(e)
@@ -118,14 +127,20 @@ if ENV["TARGET_IS_MAIN"] == "true"
         manifest_toml = TOML.parsefile(MANIFEST_TOML_PATH)
         manifest_version = VersionNumber(manifest_toml["deps"]["Turing"][1]["version"])
         if !major_minor_patch_match(latest_version, manifest_version)
-            push!(errors, "Failed to update $(MANIFEST_TOML_PATH) to match latest Turing.jl version")
+            push!(
+                errors,
+                "Failed to update $(MANIFEST_TOML_PATH) to match latest Turing.jl version",
+            )
         end
     end
 
     if isempty(errors)
         println("All good")
     else
-        error("The following errors occurred during version checking: \n", join(errors, "\n"))
+        error(
+            "The following errors occurred during version checking: \n",
+            join(errors, "\n"),
+        )
     end
 
 else
@@ -135,10 +150,12 @@ else
     # work as it would involve paging through the list of releases). Instead,
     # we just check that the minor versions match.
     if !major_minor_match(quarto_version, project_version, manifest_version)
-        error("The minor versions of Turing.jl in _quarto.yml, Project.toml, and Manifest.toml are inconsistent:
-              - _quarto.yml: $quarto_version_str
-              - Project.toml: $project_version_str
-              - Manifest.toml: $manifest_version
-              ")
+        error(
+            "The minor versions of Turing.jl in _quarto.yml, Project.toml, and Manifest.toml are inconsistent:
+            - _quarto.yml: $quarto_version_str
+            - Project.toml: $project_version_str
+            - Manifest.toml: $manifest_version
+            ",
+        )
     end
 end

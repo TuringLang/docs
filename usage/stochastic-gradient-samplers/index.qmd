@@ -70,20 +70,26 @@ end
 model = gaussian_model(data)
 ```
 
-SGLD requires very small step sizes to ensure stability. We use a `PolynomialStepsize` that decreases over time. Note: Currently, `PolynomialStepsize` is the primary stepsize schedule available in Turing for SGLD:
+SGLD requires very small step sizes to ensure stability. We use a `PolynomialStepsize` that decreases over time. Note: Currently, `PolynomialStepsize` is the primary stepsize schedule available in Turing for SGLD.
+
+**Important Note on Convergence**: The examples below use longer chains (10,000-15,000 samples) with the first half discarded as burn-in to ensure proper convergence. This is typical for stochastic gradient samplers, which require more samples than standard HMC/NUTS to achieve reliable results:
 
 ```{julia}
 # SGLD with polynomial stepsize schedule
 # stepsize(t) = a / (b + t)^γ
-sgld_stepsize = Turing.PolynomialStepsize(0.0001, 10000, 0.55)
-chain_sgld = sample(model, SGLD(stepsize=sgld_stepsize), 5000)
+# Using smaller step size and longer chain for better convergence
+sgld_stepsize = Turing.PolynomialStepsize(0.00005, 20000, 0.55)
+chain_sgld = sample(model, SGLD(stepsize=sgld_stepsize), 10000)
 
-summarystats(chain_sgld)
+# Note: We use a longer chain (10000 samples) to ensure convergence
+# The first half can be considered burn-in
+summarystats(chain_sgld[5001:end])
 ```
 
 
 ```{julia}
-plot(chain_sgld)
+# Plot the second half of the chain to show converged behavior
+plot(chain_sgld[5001:end])
 ```
 
 ## SGHMC (Stochastic Gradient Hamiltonian Monte Carlo)
@@ -91,14 +97,16 @@ plot(chain_sgld)
 SGHMC extends HMC to the stochastic gradient setting by incorporating friction to counteract the noise from stochastic gradients:
 
 ```{julia}
-# SGHMC with very small learning rate
-chain_sghmc = sample(model, SGHMC(learning_rate=0.00001, momentum_decay=0.1), 5000)
+# SGHMC with very small learning rate and longer chain
+chain_sghmc = sample(model, SGHMC(learning_rate=0.000005, momentum_decay=0.2), 10000)
 
-summarystats(chain_sghmc)
+# Using the second half of the chain after burn-in
+summarystats(chain_sghmc[5001:end])
 ```
 
 ```{julia}
-plot(chain_sghmc)
+# Plot the second half of the chain to show converged behavior
+plot(chain_sghmc[5001:end])
 ```
 
 ## Comparison with Standard HMC
@@ -115,10 +123,11 @@ summarystats(chain_hmc)
 Compare the trace plots to see how the different samplers explore the posterior:
 
 ```{julia}
-p1 = plot(chain_sgld[:μ], label="SGLD", title="μ parameter traces")
+# Compare converged portions of the chains
+p1 = plot(chain_sgld[5001:end][:μ], label="SGLD (after burn-in)", title="μ parameter traces")
 hline!([true_μ], label="True value", linestyle=:dash, color=:red)
 
-p2 = plot(chain_sghmc[:μ], label="SGHMC")
+p2 = plot(chain_sghmc[5001:end][:μ], label="SGHMC (after burn-in)")
 hline!([true_μ], label="True value", linestyle=:dash, color=:red)
 
 p3 = plot(chain_hmc[:μ], label="HMC")
@@ -127,10 +136,10 @@ hline!([true_μ], label="True value", linestyle=:dash, color=:red)
 plot(p1, p2, p3, layout=(3,1), size=(800,600))
 ```
 
-The comparison shows that:
-- **SGLD** exhibits slower convergence and higher variance due to the injected noise, requiring longer chains to achieve stable estimates
-- **SGHMC** shows slightly better mixing than SGLD due to the momentum term, but still requires careful tuning
-- **HMC** converges quickly and efficiently explores the posterior, demonstrating why it's preferred for small to medium-sized problems
+The comparison shows that (using converged portions after burn-in):
+- **SGLD** exhibits slower convergence and higher variance due to the injected noise, requiring longer chains (10,000+ samples) and discarding burn-in to achieve stable estimates
+- **SGHMC** shows slightly better mixing than SGLD due to the momentum term, but still requires careful tuning and burn-in period
+- **HMC** converges quickly and efficiently explores the posterior from the start, demonstrating why it's preferred for small to medium-sized problems
 
 ## Bayesian Linear Regression Example
 
@@ -162,11 +171,11 @@ lr_model = linear_regression(X, y)
 Sample using the stochastic gradient methods:
 
 ```{julia}
-# Very conservative parameters for stability
-sgld_lr_stepsize = Turing.PolynomialStepsize(0.00005, 10000, 0.55)
-chain_lr_sgld = sample(lr_model, SGLD(stepsize=sgld_lr_stepsize), 5000)
+# Very conservative parameters for stability with longer chains
+sgld_lr_stepsize = Turing.PolynomialStepsize(0.00002, 30000, 0.55)
+chain_lr_sgld = sample(lr_model, SGLD(stepsize=sgld_lr_stepsize), 15000)
 
-chain_lr_sghmc = sample(lr_model, SGHMC(learning_rate=0.00005, momentum_decay=0.1), 5000)
+chain_lr_sghmc = sample(lr_model, SGHMC(learning_rate=0.000002, momentum_decay=0.3), 15000)
 
 chain_lr_hmc = sample(lr_model, HMC(0.01, 10), 1000)
 ```
@@ -178,13 +187,14 @@ println("True β values: ", true_β)
 println("True σ value: ", true_σ_noise)
 println()
 
-println("SGLD estimates:")
-summarystats(chain_lr_sgld)
+println("SGLD estimates (after burn-in):")
+summarystats(chain_lr_sgld[7501:end])
 ```
 
 The linear regression example demonstrates that stochastic gradient samplers can recover the true parameters, but:
-- They require significantly longer chains (5000 vs 1000 for HMC)
-- The estimates may have higher variance
+- They require significantly longer chains (15000 vs 1000 for HMC)
+- We discard the first half as burn-in to ensure convergence
+- The estimates may still have higher variance than HMC
 - Convergence diagnostics should be carefully examined before trusting the results
 
 ## Automatic Differentiation Backends

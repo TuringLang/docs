@@ -114,7 +114,9 @@ plot(chain_sghmc[5001:end])
 For comparison, let's sample the same model using standard HMC:
 
 ```{julia}
-chain_hmc = sample(model, HMC(0.01, 10), 1000)
+# Note: Using step size 0.05 instead of 0.01 for better exploration
+# Step size 0.01 can be too small for this simple model, leading to poor mixing
+chain_hmc = sample(model, HMC(0.05, 10), 1000)
 
 println("True values: μ = ", true_μ, ", σ = ", true_σ)
 summarystats(chain_hmc)
@@ -124,22 +126,35 @@ Compare the trace plots to see how the different samplers explore the posterior:
 
 ```{julia}
 # Compare converged portions of the chains
-p1 = plot(chain_sgld[5001:end][:μ], label="SGLD (after burn-in)", title="μ parameter traces")
+# Note: Due to poor convergence of stochastic gradient methods, we show their
+# full chains to illustrate the mixing issues
+p1 = plot(chain_sgld[:μ], label="SGLD (full chain)", title="μ parameter traces",
+          ylabel="SGLD values")
 hline!([true_μ], label="True value", linestyle=:dash, color=:red)
 
-p2 = plot(chain_sghmc[5001:end][:μ], label="SGHMC (after burn-in)")
+p2 = plot(chain_sghmc[:μ], label="SGHMC (full chain)", ylabel="SGHMC values")
 hline!([true_μ], label="True value", linestyle=:dash, color=:red)
 
-p3 = plot(chain_hmc[:μ], label="HMC")
+p3 = plot(chain_hmc[:μ], label="HMC", ylabel="HMC values")
 hline!([true_μ], label="True value", linestyle=:dash, color=:red)
 
 plot(p1, p2, p3, layout=(3,1), size=(800,600))
 ```
 
-The comparison shows that (using converged portions after burn-in):
-- **SGLD** exhibits slower convergence and higher variance due to the injected noise, requiring longer chains (10,000+ samples) and discarding burn-in to achieve stable estimates
-- **SGHMC** shows slightly better mixing than SGLD due to the momentum term, but still requires careful tuning and burn-in period
-- **HMC** converges quickly and efficiently explores the posterior from the start, demonstrating why it's preferred for small to medium-sized problems
+## Understanding the Results
+
+When examining the summary statistics, pay attention to these key diagnostics:
+
+- **ESS (Effective Sample Size)**: Should be > 100 for reliable inference. SGLD/SGHMC often show ESS < 50, indicating poor mixing
+- **R-hat**: Should be < 1.01. Values > 1.1 indicate convergence problems
+- **MCSE (Monte Carlo Standard Error)**: Should be small relative to posterior standard deviation
+
+The trace plots clearly illustrate the fundamental issues with stochastic gradient samplers:
+- **SGLD** shows extremely poor mixing with tiny, noisy steps that barely explore the parameter space
+- **SGHMC** exhibits similar problems with minimal exploration despite the momentum term
+- **HMC** demonstrates proper exploration of the posterior with good mixing and efficient sampling
+
+This visual comparison explains why the ESS values are so low for the stochastic gradient methods - they are effectively stuck in small regions of the parameter space, taking tiny steps that don't contribute to effective exploration.
 
 ## Bayesian Linear Regression Example
 
@@ -238,11 +253,18 @@ sgld_zygote = SGLD(stepsize=sgld_stepsize, adtype=AutoZygote())
 - **Recommended starting point**: `learning_rate=0.00001, momentum_decay=0.1`
 - **For high-dimensional problems**: Increase momentum_decay to 0.3-0.5
 
+**For HMC (comparison baseline):**
+- Start with step size 0.05-0.1 for simple models (2-3 parameters)
+- For complex models (>5 parameters), try step size 0.01-0.05
+- If you see poor mixing (low ESS), try increasing step size
+- If you see divergences or numerical issues, reduce step size
+
 **Tuning Strategy:**
-1. Start with recommended values and run a short chain (500-1000 samples)
-2. If chains diverge or parameters explode, reduce step size by factor of 10
-3. If mixing is too slow, carefully increase step size by factor of 2
-4. Always validate against HMC/NUTS results when possible
+1. **First establish HMC baseline**: Get HMC working with good ESS (>500) and R-hat < 1.01
+2. Start with recommended stochastic gradient values and run a short chain (500-1000 samples)
+3. If chains diverge or parameters explode, reduce step size by factor of 10
+4. If mixing is too slow, carefully increase step size by factor of 2
+5. Always validate against HMC/NUTS results when possible
 
 ### Current Limitations
 

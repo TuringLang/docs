@@ -15,7 +15,7 @@ Closing one of these may involve implementing new features, fixing bugs, or writ
 
 You can also join the `#turing` channel on the [Julia Slack](https://julialang.org/slack/) and say hello!
 
-If you are new to open-source software, please see [GitHub's introduction](https://guides.github.com/introduction/flow/) or [Julia's contribution guide](https://github.com/JuliaLang/julia/blob/master/CONTRIBUTING.md) on using version control for collaboration.
+If you are new to open source software, please see [GitHub's introduction](https://guides.github.com/introduction/flow/) or [Julia's contribution guide](https://github.com/JuliaLang/julia/blob/master/CONTRIBUTING.md) on using version control for collaboration.
 
 ### Documentation
 
@@ -47,7 +47,98 @@ This one would run all files with "optim" or "hmc" in their path, such as `test/
 julia --project=. -e 'import Pkg; Pkg.test(; test_args=ARGS)' -- optim hmc --skip ext
 ```
 
-Or otherwise, set the global `ARGS` variable, and call `include("test/runtests.jl")`. 
+Alternatively, set the global `ARGS` variable, and call `include("test/runtests.jl")`. 
+
+### Pull requests, versions, and releases
+
+We merge all code changes through pull requests on GitHub.
+To make a contribution to one of the Turing packages, fork it on GitHub, start a new branch on your fork, and add commits to it.
+Once you're done, open a pull request to the main repository under [TuringLang](https://github.com/TuringLang).
+Someone from the dev team will review your code (if they don't, ping `@TuringLang/maintainers` in a comment to get their attention) and check that the continuous integration tests pass (with some allowed exceptions, see below).
+If all looks good, we'll merge your PR with gratitude.
+If not, we'll help you fix it and then merge it with gratitude.
+
+Everything in this section about pull requests and branches applies to the Turing.jl and DynamicPPL.jl repositories.
+Most of it also applies to other repositories under the TuringLang ecosystem, though some do not bother with the `main`/`breaking` distinction or with a `HISTORY.md`.
+As at August 2025 we are slowly moving towards having all repos do the full process, so a new `HISTORY.md` in a repo that doesn't yet have one is always welcome.
+
+#### Branches
+
+Like Julia packages generally, Turing.jl follows [semantic versioning](https://semver.org/).
+Because of this, we have two persistently alive branches in our repository: `main` and `breaking`.
+All code that gets released as a new version of Turing gets merged into `main`, and a release is made from there.
+However, any breaking changes should first be merged into `breaking`.
+`breaking` will then periodically be merged into `main`.
+
+The idea is that `breaking` always contains commits that build towards the next breaking release in the semantic versioning sense.
+That is, if the changes you make might break or change the behaviour of correctly written code that uses Turing.jl, your PR should target the `breaking` branch, and your code should be merged into `breaking`.
+If your changes cause no such breakage for users, your PR should target `main`.
+Notably, any bug fixes should merge directly into `main`.
+
+This way we can frequently release new patch version from `main`, while developing breaking changes in parallel on `breaking`.
+E.g. if the current version is 0.19.3, and someone fixes a bug, we can merge the fix into `main` and release it as 0.19.4.
+Meanwhile, breaking changes can be developed and merged into `breaking`, which is building towards a release of 0.20.0.
+Multiple breaking changes may be accumulated into `breaking`, before finally the `breaking`-to-`main` merge is done, and 0.20.0 is released.
+On `breaking` the version number should then immediately be bumped to 0.21.
+
+We do not generally backport bug fixes, although we may consider doing so in special circumstances.
+
+#### Change history
+
+We keep a cumulative changelog in a file called `HISTORY.md` at the root of the repository.
+It should have an entry for every new breaking release, explaining everything our users need to know about the changes, such as what may have broken and how to fix things to work with the new version.
+Any major new features should also be described in `HISTORY.md`, as may any other changes that are useful for users to know about.
+Bug fixes generally don't need an entry in `HISTORY.md`.
+Any new breaking release must have an entry in `HISTORY.md`, entries for non-breaking releases are optional.
+
+#### Continuous integration (CI) tests
+
+We generally run the whole test suite of each repository in a GitHub action, typically for a few different versions of Julia, including the earliest supported version and the latest stable release.
+On some repositories we also run a few other checks in CI, such as code formatting and simple benchmarks.
+Generally all tests except those run on a prerelease version of Julia (e.g. a release candidate of an upcoming Julia release), and all code formatting checks, should pass before merging a PR.
+Exceptions can be made if the cause of the failure is known and unrelated to the PR.
+CI checks other than tests and formatting serve various purposes, and some of them can be allowed to fail.
+Some examples are
+
+  - Anything running on a prerelease of Julia. These inform us of trouble ahead when that prerelease becomes an actual release, but don't require fixing for a PR to be merged.
+  - Any code coverage checks. Code coverage numbers can be helpful in catching missing tests or cases where the tests don't test what they are intended to. However, we do not insist on any particular coverage figures, since they are not a very good metric of a test suite's extensiveness.
+  - The benchmarks on DynamicPPL repo. These should be investigated to understand why they fail. If the reason is a bug in the PR, an actual test should be added to the test suite to catch it. However, sometimes they fail for unrelated reasons.
+  - Occasionally CI failures are caused by bugs that require upstream fixes (such as for AD backends, or base Julia). Please ping a maintainer if you are unsure if this is the case. A good indicator for this is if the same test is failing on the base branch of your pull request.
+  - The CI check in the `docs` repo for whether the docs are built with the latest Turing.jl release. This test failing is a reminder that we should make a PR to update to the latest version, but does not need fixing when working on a PR that makes unrelated changes to the documentation.
+
+If you are ever unsure whether some CI check needs to pass, or if the reason why one is failing is mysterious or seems unrelated to the PR, ask a maintainer and they'll help you out.
+
+#### Please make mistakes
+
+Getting pull requests from outside the core developer team is one of the greatest joys of open source maintenance, and Turing's community of contributors is its greatest asset.
+If you are thinking of contributing, please do open a pull request, even an imperfect or half-finished one, or an issue to discuss it first if you prefer.
+You don't need to nail all of the above details on the first go, the dev team is very happy to help you figure out how to bump version numbers or whether you need to target `main` or `breaking`.
+
+#### For Turing.jl core developers
+
+If you are a core developer of TuringLang, two notes, in addition to the above, apply:
+
+1. You don't need to make your own fork of the package you are editing.
+Just make a new branch on the main repository, usually named `your-username/change-you-are-making` (we don't strictly enforce this convention though).
+You should definitely still make a branch and a PR, and never push directly to `main` or `breaking`.
+2. You can make a release of the package after your work is merged into `main`.
+This is done by leaving a comment on the latest commit on `main`, saying
+
+```
+@JuliaRegistrator register
+
+Release notes:
+[YOUR RELEASE NOTES HERE]
+```
+
+If you are making a breaking release, your release notes must also contain the string `Breaking changes` somewhere in them (this is mandated by the `@JuliaRegistrator` bot, described below).
+
+The `@JuliaRegistrator` bot will handle creating a pull request into the Julia central package repository and tagging a new release in the repository.
+The release notes should be a copy-paste of the notes written in `HISTORY.md` if such an entry exists, or otherwise (for a patch release) a short summary of changes.
+
+Even core devs should always merge all their code through pull requests into `main` or `breaking`.
+All code should generally be reviewed by another core developer and pass continuous integration (CI) checks.
+Exceptions can be made in some cases though, such as ignoring failing CI checks where the cause is known and not due to the current pull request, or skipping code review when the pull request author is an experienced developer of the package and the changes are trivial.
 
 ### Code Formatting
 

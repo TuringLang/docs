@@ -1,0 +1,28 @@
+#!/bin/bash
+# Add Jupyter notebook download links to rendered HTML files
+# This injects download links for .ipynb files into the HTML pages
+
+set -e
+
+echo "Adding notebook download links to HTML pages..."
+
+# Find all HTML files that have corresponding .ipynb files
+find _site/tutorials _site/usage _site/developers -name "index.html" 2>/dev/null | while read html_file; do
+    dir=$(dirname "$html_file")
+    ipynb_file="${dir}/index.ipynb"
+
+    # Check if the corresponding .ipynb file exists
+    if [ -f "$ipynb_file" ]; then
+        # Check if link is already present
+        if ! grep -q 'format-links.*ipynb' "$html_file"; then
+            # Add download link near the top of the content
+            # This uses sed to insert a link after the main article/content div opens
+            sed -i '' '/<main class="content"/a\
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="index.ipynb"><i class="bi bi-journal-code"></i>Jupyter</a></li></ul></div>
+' "$html_file"
+            echo "  ✓ Added notebook link to $html_file"
+        fi
+    fi
+done
+
+echo "Notebook links added successfully!"

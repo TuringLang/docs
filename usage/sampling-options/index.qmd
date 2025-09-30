@@ -1,0 +1,270 @@
+---
+title: "MCMC Sampling Options"
+engine: julia
+---
+
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate();
+```
+
+Markov chain Monte Carlo sampling in Turing.jl is performed using the `sample()` function.
+As described on the [Core Functionality page]({{< meta core-functionality >}}), single-chain and multiple-chain sampling can be done using, respectively,
+
+```julia
+sample(model, sampler, niters)
+sample(model, sampler, MCMCThreads(), niters, nchains)  # or MCMCSerial() or MCMCDistributed()
+```
+
+On top of this, both methods also accept a number of keyword arguments that allow you to control the sampling process.
+This page will detail these options.
+
+To begin, let's create a simple model:
+
+```{julia}
+using Turing
+
+@model function demo_model()
+    x ~ Normal()
+    y ~ Normal(x)
+    4.0 ~ Normal(y)
+    return nothing
+end
+```
+
+## Controlling logging
+
+Progress bars can be controlled with the `progress` keyword argument.
+The exact values that can be used depend on whether you are using single-chain or multi-chain sampling.
+
+For single-chain sampling, `progress=true` and `progress=false` enable and disable the progress bar, respectively.
+
+For multi-chain sampling, `progress` can take the following values:
+
+- `:none` or `false`: no progress bar
+- (default) `:overall` or `true`: creates one overall progress bar for all chains
+- `:perchain`: creates one overall progress bar, plus one extra progress bar per chain (note that this can lead to visual clutter if you have many chains)
+
+If you want to globally enable or disable the progress bar, you can use:
+
+```{julia}
+Turing.setprogress!(false);   # or true
+```
+
+(This handily also disables progress logging for the rest of this document.)
+
+For NUTS in particular, you can also specify `verbose=false` to disable the "Found initial step size" info message.
+
+## Switching the output type
+
+By default, the results of MCMC sampling are bundled up in an `MCMCChains.Chains` object.
+
+```{julia}
+chn = sample(demo_model(), HMC(0.1, 20), 5)
+typeof(chn)
+```
+
+If you wish to use a different chain format provided in another package, you can specify the `chain_type` keyword argument.
+You should refer to the documentation of the respective package for exact details.
+
+Another situation where specifying `chain_type` can be useful is when you want to obtain the raw MCMC outputs as a vector of transitions.
+This can be used for profiling or debugging purposes (often, chain construction can take a surprising amount of time compared to sampling, especially for very simple models).
+To do so, you can use `chain_type=Any` (i.e., do not convert the output to any specific chain format):
+
+```{julia}
+transitions = sample(demo_model(), MH(), 5; chain_type=Any)
+typeof(transitions)
+```
+
+## Specifying initial parameters
+
+In Turing.jl, initial parameters for MCMC sampling can be specified using the `initial_params` keyword argument.
+
+For single-chain sampling, the AbstractMCMC interface generally expects that you provide a completely flattened vector of parameters.
+
+```{julia}
+chn = sample(demo_model(), MH(), 5; initial_params=[1.0, -5.0])
+chn[:x][1], chn[:y][1]
+```
+
+::: {.callout-note}
+Note that a number of samplers use warm-up steps by default (see the [Thinning and Warmup section below](#thinning-and-warmup)), so `chn[:param][1]` may not correspond to the exact initial parameters you provided.
+`MH()` does not do this, which is why we use it here.
+:::
+
+Note that for Turing models, the use of `Vector` can be extremely error-prone as the order of parameters in the flattened vector is not always obvious (especially if there are parameters with non-trivial types).
+In general, parameters should be provided in the order they are defined in the model.
+A relatively 'safe' way of obtaining parameters in the correct order is to first generate a `VarInfo`, and then linearise that:
+
+```{julia}
+using DynamicPPL
+vi = VarInfo(demo_model())
+initial_params = vi[:]
+```
+
+To avoid this situation, you can also use `NamedTuple` to specify initial parameters.
+
+```{julia}
+chn = sample(demo_model(), MH(), 5; initial_params=(y=2.0, x=-6.0))
+chn[:x][1], chn[:y][1]
+```
+
+This works even for parameters with more complex types.
+
+```{julia}
+@model function demo_complex()
+    x ~ LKJCholesky(3, 0.5)
+    y ~ MvNormal(zeros(3), I)
+end
+init_x, init_y = rand(LKJCholesky(3, 0.5)), rand(MvNormal(zeros(3), I))
+chn = sample(demo_complex(), MH(), 5; initial_params=(x=init_x, y=init_y));
+```
+
+::: {.callout-important}
+## Upcoming changes in Turing v0.41
+
+In Turing v0.41, instead of providing _initial parameters_, users will have to provide what is conceptually an _initialisation strategy_.
+The keyword argument is still `initial_params`, but the permitted values will either be:
+
+- `InitFromPrior()`: generate initial parameters by sampling from the prior
+- `InitFromUniform(lower, upper)`: generate initial parameters by sampling uniformly from the given bounds in linked space
+- `InitFromParams(namedtuple_or_dict)`: use the provided initial parameters, supplied either as a `NamedTuple` or a `Dict{<:VarName}`
+
+Initialisation with `Vector` will be fully removed due to its inherent ambiguity.
+Initialisation with a raw `NamedTuple` will still be supported (it will simply be wrapped in `InitFromParams()`); but we expect to remove this eventually, so it will be more future-proof to use `InitFromParams()` directly.
+:::
+
+## Saving and resuming sampling
+
+By default, MCMC sampling starts from scratch, using the initial parameters provided.
+You can, however, resume sampling from a previous chain.
+This is useful to, for example, perform sampling in batches, or to inspect intermediate results.
+
+Firstly, the previous chain _must_ have been run using the `save_state=true` argument.
+
+```{julia}
+using Random
+rng = Xoshiro(468)
+
+chn1 = sample(rng, demo_model(), MH(), 5; save_state=true);
+```
+
+For `MCMCChains.Chains`, this results in the final sampler state being stored inside the chain metadata.
+You can access it using `DynamicPPL.loadstate`:
+
+```{julia}
+saved_state = DynamicPPL.loadstate(chn1)
+typeof(saved_state)
+```
+
+::: {.callout-note}
+You can also directly access the saved sampler state with `chn1.info.samplerstate`, but we recommend _not_ using this as it relies on the internal structure of `MCMCChains.Chains`.
+:::
+
+Sampling can then be resumed from this state by providing it as the `initial_state` keyword argument.
+
+```{julia}
+chn2 = sample(demo_model(), MH(), 5; initial_state=saved_state)
+```
+
+Note that the exact format saved in `chn.info.samplerstate`, and that expected by `initial_state`, depends on the invocation of `sample` used.
+For single-chain sampling, the saved state, and the required initial state, is just a single sampler state.
+For multiple-chain sampling, it is a vector of states, one per chain.
+
+This means that, for example, after sampling a single chain, you could sample three chains that branch off from that final state:
+
+```{julia}
+initial_states = fill(saved_state, 3)
+chn3 = sample(demo_model(), MH(), MCMCThreads(), 5, 3; initial_state=initial_states)
+```
+
+::: {.callout-note}
+## Initial states versus initial parameters
+
+The `initial_state` and `initial_params` keyword arguments are mutually exclusive.
+If both are provided, `initial_params` will be silently ignored.
+
+```{julia}
+chn2 = sample(rng, demo_model(), MH(), 5;
+    initial_state=saved_state, initial_params=(x=0.0, y=0.0)
+)
+chn2[:x][1], chn2[:y][1]
+```
+
+In general, the saved state will contain a set of parameters (which will be the last parameters in the previous chain).
+However, the saved state not only specifies parameters but also other internal variables required by the sampler.
+For example, the MH state contains a cached log-density of the current parameters, which is later used for calculating the acceptance ratio.
+
+Finally, note that the first sample in the resumed chain will not be the same as the last sample in the previous chain; it will be the sample immediately after that.
+
+```{julia}
+# In general these will not be the same (although it _could_ be if the MH step
+# was rejected -- that is why we seed the sampling in this section).
+chn1[:x][end], chn2[:x][1]
+```
+:::
+
+## Thinning and warmup
+
+The `num_warmup` and `discard_initial` keyword arguments can be used to control MCMC warmup.
+Both of these are integers, and respectively specify the number of warmup steps to perform, and the number of iterations at the start of the chain to discard.
+Note that the value of `discard_initial` should also include the `num_warmup` steps if you want the warmup steps to be discarded.
+
+Here are some examples of how these two keyword arguments interact:
+
+| `num_warmup=`  | `discard_initial=`   | Description                                                                                                             |
+| -------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 10             | 10                  | Perform 10 warmup steps, discard them; the chain starts from the first non-warmup step                                  |
+| 10             | 15                  | Perform 10 warmup steps, discard them and the next 5 steps; the chain starts from the 6th non-warmup step               |
+| 10             | 5                   | Perform 10 warmup steps, discard the first 5; the chain will contain 5 warmup steps followed by the rest of the chain   |
+| 0              | 10                  | No warmup steps, discard the first 10 steps; the chain starts from the 11th step                                        |
+| 0              | 0                   | No warmup steps, do not discard any steps; the chain starts from the 1st step (corresponding to the initial parameters) |
+
+Each sampler has its own default value for `num_warmup`, but `discard_initial` always defaults to `num_warmup`.
+
+Warmup steps and 'regular' non-warmup steps differ in that warmup steps call `AbstractMCMC.step_warmup`, whereas regular steps call `AbstractMCMC.step`.
+For all the samplers defined in Turing, these two functions are identical; however, they may in general differ for other samplers.
+Please consult the documentation of the respective sampler for details.
+
+A thinning factor can be specified using the `thinning` keyword argument.
+For example, `thinning=10` will keep every tenth sample, discarding the other nine.
+
+Note that thinning is not applied to the first `discard_initial` samples; it is only applied to the remaining samples.
+Thus, for example, if you use `discard_initial=50` and `thinning=10`, the chain will contain samples 51, 61, 71, and so on.
+
+## Performing model checks
+
+DynamicPPL by default performs a number of checks on the model before any sampling is done.
+This catches a number of potential errors in a model, such as having repeated variables (see [the DynamicPPL documentation](https://turinglang.org/DynamicPPL.jl/stable/api/#DynamicPPL.DebugUtils.check_model_and_trace) for details).
+
+If you wish to disable this you can pass `check_model=false` to `sample()`.
+
+
+## Callbacks
+
+The `callback` keyword argument can be used to specify a function that is called at the end of each sampler iteration.
+This function should have the signature `callback(rng, model, sampler, sample, iteration::Int; kwargs...)`.
+
+If you are performing multi-chain sampling, `kwargs` will additionally contain `chain_number::Int`, which ranges from 1 to the number of chains.
+
+The [TuringCallbacks.jl package](https://github.com/TuringLang/TuringCallbacks.jl) contains a `TensorBoardCallback`, which can be used to obtain live progress visualisations using [TensorBoard](https://www.tensorflow.org/tensorboard).
+
+## Automatic differentiation
+
+Finally, please note that for samplers which use automatic differentiation (e.g., HMC and NUTS), the AD type should be specified in the sampler constructor itself, rather than as a keyword argument to `sample()`.
+
+In other words, this is correct:
+
+```{julia}
+spl = NUTS(; adtype=AutoForwardDiff())
+chn = sample(demo_model(), spl, 10);
+```
+
+and not this:
+
+```julia
+spl = NUTS()
+chn = sample(demo_model(), spl, 10; adtype=AutoForwardDiff())
+```

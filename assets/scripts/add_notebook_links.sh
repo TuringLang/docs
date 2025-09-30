@@ -15,10 +15,10 @@ find _site/tutorials _site/usage _site/developers -name "index.html" 2>/dev/null
     if [ -f "$ipynb_file" ]; then
         # Check if link is already present
         if ! grep -q 'Download notebook' "$html_file"; then
-            # Add as a new <li> item in the toc-actions <ul>
-            # This appears alongside "Edit this page" and "Report an issue"
-            # We need to add it to BOTH occurrences (sidebar and mobile footer)
-            perl -i -pe 's/(<div class="toc-actions"><ul>)/$1<li><a href="index.ipynb" class="toc-action" download><i class="bi bi-journal-code"><\/i>Download notebook<\/a><\/li>/g' "$html_file"
+            # Insert the notebook link AFTER the "Report an issue" link
+            # This ensures it goes in the right place in the sidebar toc-actions
+            # The download="index.ipynb" attribute forces browser to download instead of navigate
+            perl -i -pe 's/(<a href="[^"]*issues\/new"[^>]*><i class="bi[^"]*"><\/i>Report an issue<\/a><\/li>)/$1<li><a href="index.ipynb" class="toc-action" download="index.ipynb"><i class="bi bi-journal-code"><\/i>Download notebook<\/a><\/li>/g' "$html_file"
             echo "  ✓ Added notebook link to $html_file"
         fi
     fi

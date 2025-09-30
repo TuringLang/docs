@@ -1,10 +1,13 @@
 #!/bin/bash
 # Generate Jupyter notebooks from .qmd files without re-executing code
-# This script converts rendered .qmd files to .ipynb format using quarto convert
+# This script converts .qmd files to .ipynb format with proper cell structure
 
 set -e
 
 echo "Generating Jupyter notebooks from .qmd files..."
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Find all .qmd files in tutorials, usage, and developers directories
 find tutorials usage developers -name "index.qmd" | while read qmd_file; do
@@ -13,8 +16,8 @@ find tutorials usage developers -name "index.qmd" | while read qmd_file; do
 
     echo "Converting $qmd_file to $ipynb_file"
 
-    # Convert qmd to ipynb without execution
-    quarto convert "$qmd_file"
+    # Convert qmd to ipynb using our custom Python script
+    python3 "${SCRIPT_DIR}/qmd_to_ipynb.py" "$qmd_file" "$ipynb_file"
 
     # Check if conversion was successful
     if [ -f "$ipynb_file" ]; then

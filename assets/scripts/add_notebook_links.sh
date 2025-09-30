@@ -1,6 +1,6 @@
 #!/bin/bash
 # Add Jupyter notebook download links to rendered HTML files
-# This injects download links for .ipynb files into the HTML pages
+# This adds a download link to the toc-actions section (next to "Edit this page" and "Report an issue")
 
 set -e
 
@@ -14,9 +14,11 @@ find _site/tutorials _site/usage _site/developers -name "index.html" 2>/dev/null
     # Check if the corresponding .ipynb file exists
     if [ -f "$ipynb_file" ]; then
         # Check if link is already present
-        if ! grep -q 'quarto-alternate-formats' "$html_file"; then
-            # Use perl for portable in-place editing (works on both Linux and macOS)
-            perl -i -pe 'BEGIN{undef $/;} s/(<main class="content"[^>]*>)/$1\n<div class="quarto-alternate-formats"><h2>Other Formats<\/h2><ul><li><a href="index.ipynb"><i class="bi bi-journal-code"><\/i>Jupyter<\/a><\/li><\/ul><\/div>\n/sm' "$html_file"
+        if ! grep -q 'Download notebook' "$html_file"; then
+            # Add as a new <li> item in the toc-actions <ul>
+            # This appears alongside "Edit this page" and "Report an issue"
+            # We need to add it to BOTH occurrences (sidebar and mobile footer)
+            perl -i -pe 's/(<div class="toc-actions"><ul>)/$1<li><a href="index.ipynb" class="toc-action" download><i class="bi bi-journal-code"><\/i>Download notebook<\/a><\/li>/g' "$html_file"
             echo "  ✓ Added notebook link to $html_file"
         fi
     fi

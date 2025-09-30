@@ -6,9 +6,6 @@ set -e
 
 echo "Generating Jupyter notebooks from .qmd files..."
 
-# Get the directory where this script is located
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 # Find all .qmd files in tutorials, usage, and developers directories
 find tutorials usage developers -name "index.qmd" | while read qmd_file; do
     dir=$(dirname "$qmd_file")
@@ -17,7 +14,8 @@ find tutorials usage developers -name "index.qmd" | while read qmd_file; do
     echo "Converting $qmd_file to $ipynb_file"
 
     # Convert qmd to ipynb using our custom Python script
-    python3 "${SCRIPT_DIR}/qmd_to_ipynb.py" "$qmd_file" "$ipynb_file"
+    # Use relative path from repo root (assets/scripts/qmd_to_ipynb.py)
+    python3 assets/scripts/qmd_to_ipynb.py "$qmd_file" "$ipynb_file"
 
     # Check if conversion was successful
     if [ -f "$ipynb_file" ]; then

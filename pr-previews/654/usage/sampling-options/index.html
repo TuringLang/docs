@@ -730,6 +730,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#controlling-logging" id="toc-controlling-logging" class="nav-link active" data-scroll-target="#controlling-logging">Controlling logging</a></li>
+  <li><a href="#ensuring-sampling-reproducibility" id="toc-ensuring-sampling-reproducibility" class="nav-link" data-scroll-target="#ensuring-sampling-reproducibility">Ensuring sampling reproducibility</a></li>
   <li><a href="#switching-the-output-type" id="toc-switching-the-output-type" class="nav-link" data-scroll-target="#switching-the-output-type">Switching the output type</a></li>
   <li><a href="#specifying-initial-parameters" id="toc-specifying-initial-parameters" class="nav-link" data-scroll-target="#specifying-initial-parameters">Specifying initial parameters</a></li>
   <li><a href="#saving-and-resuming-sampling" id="toc-saving-and-resuming-sampling" class="nav-link" data-scroll-target="#saving-and-resuming-sampling">Saving and resuming sampling</a></li>
@@ -804,21 +805,58 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>(This handily also disables progress logging for the rest of this document.)</p>
 <p>For NUTS in particular, you can also specify <code>verbose=false</code> to disable the “Found initial step size” info message.</p>
 </section>
+<section id="ensuring-sampling-reproducibility" class="level2">
+<h2 class="anchored" data-anchor-id="ensuring-sampling-reproducibility">Ensuring sampling reproducibility</h2>
+<p>Like many other Julia functions, a <code>Random.AbstractRNG</code> object can be passed as the first argument to <code>sample()</code> to ensure reproducibility of results.</p>
+<div id="8" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Random</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>chn1 <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">Xoshiro</span>(<span class="fl">468</span>), <span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>);</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>chn2 <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">Xoshiro</span>(<span class="fl">468</span>), <span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>);</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>(chn1[<span class="op">:</span>x] <span class="op">==</span> chn2[<span class="op">:</span>x], chn1[<span class="op">:</span>y] <span class="op">==</span> chn2[<span class="op">:</span>y])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>(true, true)</code></pre>
+</div>
+</div>
+<p>Alternatively, you can set the global RNG using <code>Random.seed!()</code>, although we recommend this less as it modifies global state.</p>
+<div id="10" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="bu">Random</span>.<span class="fu">seed!</span>(<span class="fl">468</span>)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>chn3 <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>);</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="bu">Random</span>.<span class="fu">seed!</span>(<span class="fl">468</span>)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>chn4 <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>);</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>(chn3[<span class="op">:</span>x] <span class="op">==</span> chn4[<span class="op">:</span>x], chn3[<span class="op">:</span>y] <span class="op">==</span> chn4[<span class="op">:</span>y])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>(true, true)</code></pre>
+</div>
+</div>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The outputs of pseudorandom number generators in the standard <code>Random</code> library are not guaranteed to be the same across different Julia versions or platforms. If you require absolute reproducibility, you should use <a href="https://github.com/JuliaRandom/StableRNGs.jl">the StableRNGs.jl package</a>.</p>
+</div>
+</div>
+</section>
 <section id="switching-the-output-type" class="level2">
 <h2 class="anchored" data-anchor-id="switching-the-output-type">Switching the output type</h2>
 <p>By default, the results of MCMC sampling are bundled up in an <code>MCMCChains.Chains</code> object.</p>
-<div id="8" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>chn <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), <span class="fu">HMC</span>(<span class="fl">0.1</span>, <span class="fl">20</span>), <span class="fl">5</span>)</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">typeof</span>(chn)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="12" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>chn <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), <span class="fu">HMC</span>(<span class="fl">0.1</span>, <span class="fl">20</span>), <span class="fl">5</span>)</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="fu">typeof</span>(chn)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>Chains{Float64, AxisArrays.AxisArray{Float64, 3, Array{Float64, 3}, Tuple{AxisArrays.Axis{:iter, StepRange{Int64, Int64}}, AxisArrays.Axis{:var, Vector{Symbol}}, AxisArrays.Axis{:chain, UnitRange{Int64}}}}, Missing, @NamedTuple{parameters::Vector{Symbol}, internals::Vector{Symbol}}, @NamedTuple{varname_to_symbol::OrderedDict{AbstractPPL.VarName, Symbol}, start_time::Float64, stop_time::Float64}}</code></pre>
 </div>
 </div>
 <p>If you wish to use a different chain format provided in another package, you can specify the <code>chain_type</code> keyword argument. You should refer to the documentation of the respective package for exact details.</p>
 <p>Another situation where specifying <code>chain_type</code> can be useful is when you want to obtain the raw MCMC outputs as a vector of transitions. This can be used for profiling or debugging purposes (often, chain construction can take a surprising amount of time compared to sampling, especially for very simple models). To do so, you can use <code>chain_type=Any</code> (i.e., do not convert the output to any specific chain format):</p>
-<div id="10" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>transitions <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>; chain_type<span class="op">=</span><span class="dt">Any</span>)</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">typeof</span>(transitions)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="14" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>transitions <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>; chain_type<span class="op">=</span><span class="dt">Any</span>)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">typeof</span>(transitions)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <div class="ansi-escaped-output">
 <pre>Vector{Transition{OrderedDict{VarName, Any}, Float64, @NamedTuple{}}}<span class="ansi-bright-black-fg"> (alias for </span><span class="ansi-bright-black-fg">Array{Turing.Inference.Transition{OrderedDict{AbstractPPL.VarName, Any}, Float64, @NamedTuple{}}, 1}</span><span class="ansi-bright-black-fg">)</span></pre>
@@ -830,9 +868,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="specifying-initial-parameters">Specifying initial parameters</h2>
 <p>In Turing.jl, initial parameters for MCMC sampling can be specified using the <code>initial_params</code> keyword argument.</p>
 <p>For single-chain sampling, the AbstractMCMC interface generally expects that you provide a completely flattened vector of parameters.</p>
-<div id="12" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>chn <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>; initial_params<span class="op">=</span>[<span class="fl">1.0</span>, <span class="op">-</span><span class="fl">5.0</span>])</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>chn[<span class="op">:</span>x][<span class="fl">1</span>], chn[<span class="op">:</span>y][<span class="fl">1</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="16" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>chn <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>; initial_params<span class="op">=</span>[<span class="fl">1.0</span>, <span class="op">-</span><span class="fl">5.0</span>])</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>chn[<span class="op">:</span>x][<span class="fl">1</span>], chn[<span class="op">:</span>y][<span class="fl">1</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>(1.0, -5.0)</code></pre>
 </div>
@@ -851,32 +889,32 @@ Note
 </div>
 </div>
 <p>Note that for Turing models, the use of <code>Vector</code> can be extremely error-prone as the order of parameters in the flattened vector is not always obvious (especially if there are parameters with non-trivial types). In general, parameters should be provided in the order they are defined in the model. A relatively ‘safe’ way of obtaining parameters in the correct order is to first generate a <code>VarInfo</code>, and then linearise that:</p>
-<div id="14" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">DynamicPPL</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>vi <span class="op">=</span> <span class="fu">VarInfo</span>(<span class="fu">demo_model</span>())</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>initial_params <span class="op">=</span> vi[<span class="op">:</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="18" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">DynamicPPL</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>vi <span class="op">=</span> <span class="fu">VarInfo</span>(<span class="fu">demo_model</span>())</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>initial_params <span class="op">=</span> vi[<span class="op">:</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>2-element Vector{Float64}:
- 0.6486070567394006
- 1.5751823322782312</code></pre>
+ -0.3483855030130556
+ -0.5612681142085717</code></pre>
 </div>
 </div>
 <p>To avoid this situation, you can also use <code>NamedTuple</code> to specify initial parameters.</p>
-<div id="16" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>chn <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>; initial_params<span class="op">=</span>(y<span class="op">=</span><span class="fl">2.0</span>, x<span class="op">=-</span><span class="fl">6.0</span>))</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>chn[<span class="op">:</span>x][<span class="fl">1</span>], chn[<span class="op">:</span>y][<span class="fl">1</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="20" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>chn <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>; initial_params<span class="op">=</span>(y<span class="op">=</span><span class="fl">2.0</span>, x<span class="op">=-</span><span class="fl">6.0</span>))</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>chn[<span class="op">:</span>x][<span class="fl">1</span>], chn[<span class="op">:</span>y][<span class="fl">1</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>(-6.0, 2.0)</code></pre>
 </div>
 </div>
 <p>This works even for parameters with more complex types.</p>
-<div id="18" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">demo_complex</span>()</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    x <span class="op">~</span> <span class="fu">LKJCholesky</span>(<span class="fl">3</span>, <span class="fl">0.5</span>)</span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    y <span class="op">~</span> <span class="fu">MvNormal</span>(<span class="fu">zeros</span>(<span class="fl">3</span>), I)</span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>init_x, init_y <span class="op">=</span> <span class="fu">rand</span>(<span class="fu">LKJCholesky</span>(<span class="fl">3</span>, <span class="fl">0.5</span>)), <span class="fu">rand</span>(<span class="fu">MvNormal</span>(<span class="fu">zeros</span>(<span class="fl">3</span>), I))</span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>chn <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_complex</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>; initial_params<span class="op">=</span>(x<span class="op">=</span>init_x, y<span class="op">=</span>init_y));</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="22" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">demo_complex</span>()</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    x <span class="op">~</span> <span class="fu">LKJCholesky</span>(<span class="fl">3</span>, <span class="fl">0.5</span>)</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    y <span class="op">~</span> <span class="fu">MvNormal</span>(<span class="fu">zeros</span>(<span class="fl">3</span>), I)</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>init_x, init_y <span class="op">=</span> <span class="fu">rand</span>(<span class="fu">LKJCholesky</span>(<span class="fl">3</span>, <span class="fl">0.5</span>)), <span class="fu">rand</span>(<span class="fu">MvNormal</span>(<span class="fu">zeros</span>(<span class="fl">3</span>), I))</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>chn <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_complex</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>; initial_params<span class="op">=</span>(x<span class="op">=</span>init_x, y<span class="op">=</span>init_y));</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <div class="callout callout-style-default callout-important callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -902,16 +940,15 @@ Note
 <h2 class="anchored" data-anchor-id="saving-and-resuming-sampling">Saving and resuming sampling</h2>
 <p>By default, MCMC sampling starts from scratch, using the initial parameters provided. You can, however, resume sampling from a previous chain. This is useful to, for example, perform sampling in batches, or to inspect intermediate results.</p>
 <p>Firstly, the previous chain <em>must</em> have been run using the <code>save_state=true</code> argument.</p>
-<div id="20" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Random</span></span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> <span class="fu">Xoshiro</span>(<span class="fl">468</span>)</span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>chn1 <span class="op">=</span> <span class="fu">sample</span>(rng, <span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>; save_state<span class="op">=</span><span class="cn">true</span>);</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="24" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> <span class="fu">Xoshiro</span>(<span class="fl">468</span>)</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>chn1 <span class="op">=</span> <span class="fu">sample</span>(rng, <span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>; save_state<span class="op">=</span><span class="cn">true</span>);</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>For <code>MCMCChains.Chains</code>, this results in the final sampler state being stored inside the chain metadata. You can access it using <code>DynamicPPL.loadstate</code>:</p>
-<div id="22" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>saved_state <span class="op">=</span> DynamicPPL.<span class="fu">loadstate</span>(chn1)</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="fu">typeof</span>(saved_state)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="26" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>saved_state <span class="op">=</span> DynamicPPL.<span class="fu">loadstate</span>(chn1)</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="fu">typeof</span>(saved_state)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>Turing.Inference.MHState{VarInfo{@NamedTuple{x::DynamicPPL.Metadata{Dict{VarName{:x, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{VarName{:x, typeof(identity)}}, Vector{Float64}}, y::DynamicPPL.Metadata{Dict{VarName{:y, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{VarName{:y, typeof(identity)}}, Vector{Float64}}}, DynamicPPL.AccumulatorTuple{3, @NamedTuple{LogPrior::LogPriorAccumulator{Float64}, LogJacobian::LogJacobianAccumulator{Float64}, LogLikelihood::LogLikelihoodAccumulator{Float64}}}}, Float64}</code></pre>
 </div>
@@ -930,16 +967,16 @@ Note
 </div>
 </div>
 <p>Sampling can then be resumed from this state by providing it as the <code>initial_state</code> keyword argument.</p>
-<div id="24" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>chn2 <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>; initial_state<span class="op">=</span>saved_state)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="28" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>chn2 <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>; initial_state<span class="op">=</span>saved_state)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>Chains MCMC chain (5×5×1 Array{Float64, 3}):
 
 Iterations        = 1:1:5
 Number of chains  = 1
 Samples per chain = 5
-Wall duration     = 0.07 seconds
-Compute duration  = 0.07 seconds
+Wall duration     = 0.08 seconds
+Compute duration  = 0.08 seconds
 parameters        = x, y
 internals         = lp, logprior, loglikelihood
 
@@ -948,9 +985,9 @@ Use `describe(chains)` for summary statistics and quantiles.</code></pre>
 </div>
 <p>Note that the exact format saved in <code>chn.info.samplerstate</code>, and that expected by <code>initial_state</code>, depends on the invocation of <code>sample</code> used. For single-chain sampling, the saved state, and the required initial state, is just a single sampler state. For multiple-chain sampling, it is a vector of states, one per chain.</p>
 <p>This means that, for example, after sampling a single chain, you could sample three chains that branch off from that final state:</p>
-<div id="26" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>initial_states <span class="op">=</span> <span class="fu">fill</span>(saved_state, <span class="fl">3</span>)</span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>chn3 <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fu">MCMCThreads</span>(), <span class="fl">5</span>, <span class="fl">3</span>; initial_state<span class="op">=</span>initial_states)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="30" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>initial_states <span class="op">=</span> <span class="fu">fill</span>(saved_state, <span class="fl">3</span>)</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>chn3 <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fu">MCMCThreads</span>(), <span class="fl">5</span>, <span class="fl">3</span>; initial_state<span class="op">=</span>initial_states)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <div class="ansi-escaped-output">
 <pre><span class="ansi-yellow-fg ansi-bold">┌ </span><span class="ansi-yellow-fg ansi-bold">Warning: </span>Only a single thread available: MCMC chains are not sampled in parallel
@@ -965,7 +1002,7 @@ Iterations        = 1:1:5
 Number of chains  = 3
 Samples per chain = 5
 Wall duration     = 0.05 seconds
-Compute duration  = 0.02 seconds
+Compute duration  = 0.03 seconds
 parameters        = x, y
 internals         = lp, logprior, loglikelihood
 
@@ -983,23 +1020,23 @@ Use `describe(chains)` for summary statistics and quantiles.</code></pre>
 </div>
 <div class="callout-body-container callout-body">
 <p>The <code>initial_state</code> and <code>initial_params</code> keyword arguments are mutually exclusive. If both are provided, <code>initial_params</code> will be silently ignored.</p>
-<div id="28" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>chn2 <span class="op">=</span> <span class="fu">sample</span>(rng, <span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>;</span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>    initial_state<span class="op">=</span>saved_state, initial_params<span class="op">=</span>(x<span class="op">=</span><span class="fl">0.0</span>, y<span class="op">=</span><span class="fl">0.0</span>)</span>
-<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>chn2[<span class="op">:</span>x][<span class="fl">1</span>], chn2[<span class="op">:</span>y][<span class="fl">1</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="32" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>chn2 <span class="op">=</span> <span class="fu">sample</span>(rng, <span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>;</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>    initial_state<span class="op">=</span>saved_state, initial_params<span class="op">=</span>(x<span class="op">=</span><span class="fl">0.0</span>, y<span class="op">=</span><span class="fl">0.0</span>)</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>chn2[<span class="op">:</span>x][<span class="fl">1</span>], chn2[<span class="op">:</span>y][<span class="fl">1</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>(-0.29864819524237707, 2.2292859419961677)</code></pre>
+<pre><code>(1.1066818838287173, 3.779628355048325)</code></pre>
 </div>
 </div>
 <p>In general, the saved state will contain a set of parameters (which will be the last parameters in the previous chain). However, the saved state not only specifies parameters but also other internal variables required by the sampler. For example, the MH state contains a cached log-density of the current parameters, which is later used for calculating the acceptance ratio.</p>
 <p>Finally, note that the first sample in the resumed chain will not be the same as the last sample in the previous chain; it will be the sample immediately after that.</p>
-<div id="30" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># In general these will not be the same (although it _could_ be if the MH step</span></span>
-<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="co"># was rejected -- that is why we seed the sampling in this section).</span></span>
-<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>chn1[<span class="op">:</span>x][<span class="kw">end</span>], chn2[<span class="op">:</span>x][<span class="fl">1</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="34" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># In general these will not be the same (although it _could_ be if the MH step</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="co"># was rejected -- that is why we seed the sampling in this section).</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>chn1[<span class="op">:</span>x][<span class="kw">end</span>], chn2[<span class="op">:</span>x][<span class="fl">1</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>(-0.2787323372767189, -0.29864819524237707)</code></pre>
+<pre><code>(-0.2787323372767189, 1.1066818838287173)</code></pre>
 </div>
 </div>
 </div>
@@ -1070,9 +1107,9 @@ Use `describe(chains)` for summary statistics and quantiles.</code></pre>
 <h2 class="anchored" data-anchor-id="automatic-differentiation">Automatic differentiation</h2>
 <p>Finally, please note that for samplers which use automatic differentiation (e.g., HMC and NUTS), the AD type should be specified in the sampler constructor itself, rather than as a keyword argument to <code>sample()</code>.</p>
 <p>In other words, this is correct:</p>
-<div id="32" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>spl <span class="op">=</span> <span class="fu">NUTS</span>(; adtype<span class="op">=</span><span class="fu">AutoForwardDiff</span>())</span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>chn <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), spl, <span class="fl">10</span>);</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="36" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>spl <span class="op">=</span> <span class="fu">NUTS</span>(; adtype<span class="op">=</span><span class="fu">AutoForwardDiff</span>())</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>chn <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), spl, <span class="fl">10</span>);</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <div class="ansi-escaped-output">
 <pre><span class="ansi-cyan-fg ansi-bold">┌ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Found initial step size
@@ -1082,8 +1119,8 @@ Use `describe(chains)` for summary statistics and quantiles.</code></pre>
 </div>
 </div>
 <p>and not this:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>spl <span class="op">=</span> <span class="fu">NUTS</span>()</span>
-<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>chn <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), spl, <span class="fl">10</span>; adtype<span class="op">=</span><span class="fu">AutoForwardDiff</span>())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>spl <span class="op">=</span> <span class="fu">NUTS</span>()</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>chn <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), spl, <span class="fl">10</span>; adtype<span class="op">=</span><span class="fu">AutoForwardDiff</span>())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
 </section>

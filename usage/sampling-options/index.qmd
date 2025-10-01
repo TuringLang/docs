@@ -57,6 +57,32 @@ Turing.setprogress!(false);   # or true
 
 For NUTS in particular, you can also specify `verbose=false` to disable the "Found initial step size" info message.
 
+## Ensuring sampling reproducibility
+
+Like many other Julia functions, a `Random.AbstractRNG` object can be passed as the first argument to `sample()` to ensure reproducibility of results.
+
+```{julia}
+using Random
+chn1 = sample(Xoshiro(468), demo_model(), MH(), 5);
+chn2 = sample(Xoshiro(468), demo_model(), MH(), 5);
+(chn1[:x] == chn2[:x], chn1[:y] == chn2[:y])
+```
+
+Alternatively, you can set the global RNG using `Random.seed!()`, although we recommend this less as it modifies global state.
+
+```{julia}
+Random.seed!(468)
+chn3 = sample(demo_model(), MH(), 5);
+Random.seed!(468)
+chn4 = sample(demo_model(), MH(), 5);
+(chn3[:x] == chn4[:x], chn3[:y] == chn4[:y])
+```
+
+::: {.callout-note}
+The outputs of pseudorandom number generators in the standard `Random` library are not guaranteed to be the same across different Julia versions or platforms.
+If you require absolute reproducibility, you should use [the StableRNGs.jl package](https://github.com/JuliaRandom/StableRNGs.jl).
+:::
+
 ## Switching the output type
 
 By default, the results of MCMC sampling are bundled up in an `MCMCChains.Chains` object.
@@ -145,7 +171,6 @@ This is useful to, for example, perform sampling in batches, or to inspect inter
 Firstly, the previous chain _must_ have been run using the `save_state=true` argument.
 
 ```{julia}
-using Random
 rng = Xoshiro(468)
 
 chn1 = sample(rng, demo_model(), MH(), 5; save_state=true);

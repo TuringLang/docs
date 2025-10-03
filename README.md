@@ -52,7 +52,7 @@ Then:
    ```
 
    This will build the entire documentation and place the output in the `_site` folder.
-   You can then view the rendered website by launching a HTTP server from that directory, e.g. using Python:
+   You can then view the rendered website by launching an HTTP server from that directory, e.g. using Python:
 
    ```bash
    cd _site

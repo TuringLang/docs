@@ -72,7 +72,7 @@ If you wish to speed up local rendering, there are two options available:
    ```
    quarto render path/to/index.qmd
    ```
-
+   
    (Note that `quarto preview` does not support this single-file rendering.)
 
 2. Download the most recent `_freeze` folder from the [GitHub releases of this repo](https://github.com/turinglang/docs/releases), and place it in the root of the project.
@@ -82,8 +82,7 @@ If you wish to speed up local rendering, there are two options available:
    Note that the validity of a `_freeze` folder depends on the Julia environment that it was created with, because different package versions may lead to different outputs.
    In the GitHub release, the `Manifest.toml` is also provided, and you should also download this and place it in the root directory of the docs.
    
-   If there isn't a suitably up-to-date `_freeze` folder in the releases, you can generate a new one by [triggering a run for the `create_release.yml` workflow](https://github.com/TuringLang/docs/actions/workflows/create_release.yml).
-   (You will need to have the appropriate permissions; please create an issue if you need help with this.)
+   If there isn't a suitably up-to-date `_freeze` folder in the releases, you can generate a new one by [triggering a run for the `create_release.yml` workflow](https://github.com/TuringLang/docs/actions/workflows/create_release.yml) (You will need to have the appropriate permissions; please create an issue if you need help with this).
 
 ## Troubleshooting build issues
 

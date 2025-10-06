@@ -15,7 +15,7 @@ class QmdToIpynb:
     def __init__(self, qmd_path: str):
         self.qmd_path = Path(qmd_path)
         self.cells: List[Dict[str, Any]] = []
-        self.kernel_name = "julia-1.11"  # Default kernel
+        self.kernel_name = "julia"  # Default kernel
 
     def parse(self) -> None:
         """Parse the .qmd file and extract cells."""
@@ -33,7 +33,7 @@ class QmdToIpynb:
                 if lines[i].strip().startswith('engine:'):
                     engine = lines[i].split(':', 1)[1].strip()
                     if engine == 'julia':
-                        self.kernel_name = "julia-1.11"
+                        self.kernel_name = "julia"
                     elif engine == 'python':
                         self.kernel_name = "python3"
                 i += 1
@@ -154,15 +154,14 @@ class QmdToIpynb:
             "cells": cells,
             "metadata": {
                 "kernelspec": {
-                    "display_name": "Julia 1.11",
+                    "display_name": "Julia",
                     "language": "julia",
                     "name": self.kernel_name
                 },
                 "language_info": {
                     "file_extension": ".jl",
                     "mimetype": "application/julia",
-                    "name": "julia",
-                    "version": "1.11.0"
+                    "name": "julia"
                 }
             },
             "nbformat": 4,

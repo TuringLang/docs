@@ -100,6 +100,6 @@ And also, kill any stray Quarto processes that are still running (sometimes it k
 pkill -9 -f quarto
 ```  
 
-## Licence  
+## License  
 
-This project is licensed under the MIT Licence - see the [Licence](Licence) file for details.
+This project is licensed under the MIT License - see the [License](License) file for details.

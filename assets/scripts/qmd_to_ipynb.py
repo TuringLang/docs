@@ -67,9 +67,18 @@ class QmdToIpynb:
                         code_lines.append(lines[i])
                     i += 1
 
-                # Add code cell (with options as comments at the top)
-                full_code = cell_options + code_lines
-                self._add_code_cell(full_code, lang)
+                # Check if this is the Pkg.instantiate() cell that we want to skip
+                code_content = '\n'.join(code_lines).strip()
+                is_pkg_instantiate = (
+                    'using Pkg' in code_content and
+                    'Pkg.instantiate()' in code_content and
+                    len(code_content.split('\n')) <= 3  # Only skip if it's just these lines
+                )
+
+                # Add code cell (with options as comments at the top) unless it's the Pkg.instantiate cell
+                if not is_pkg_instantiate:
+                    full_code = cell_options + code_lines
+                    self._add_code_cell(full_code, lang)
 
                 i += 1  # Skip closing ```
             else:
@@ -129,8 +138,20 @@ class QmdToIpynb:
 
     def to_notebook(self) -> Dict[str, Any]:
         """Convert parsed cells to Jupyter notebook format."""
+        # Add package activation cell at the top for Julia notebooks
+        cells = self.cells
+        if self.kernel_name.startswith("julia"):
+            pkg_cell = {
+                "cell_type": "code",
+                "execution_count": None,
+                "metadata": {},
+                "outputs": [],
+                "source": "using Pkg; Pkg.activate(; temp=true)"
+            }
+            cells = [pkg_cell] + self.cells
+
         notebook = {
-            "cells": self.cells,
+            "cells": cells,
             "metadata": {
                 "kernelspec": {
                     "display_name": "Julia 1.11",

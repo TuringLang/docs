@@ -37,7 +37,7 @@ find _site/tutorials _site/usage _site/developers -name "index.html" 2>/dev/null
 
             # Insert both download and Colab links AFTER the "Report an issue" link
             # The download="index.ipynb" attribute forces browser to download instead of navigate
-            perl -i -pe "s/(<a href=\"[^\"]*issues\/new\"[^>]*><i class=\"bi[^\"]*\"><\/i>Report an issue<\/a><\/li>)/\$1<li><a href=\"index.ipynb\" class=\"toc-action\" download=\"index.ipynb\"><i class=\"bi bi-journal-code\"><\/i>$DOWNLOAD_TEXT<\/a><\/li><li><a href=\"$colab_url\" class=\"toc-action\" target=\"_blank\" rel=\"noopener\"><i class=\"bi bi-google\"><\/i>$COLAB_TEXT<\/a><\/li>/g" "$html_file"
+            perl -i -pe 's/(<a href="[^"]*issues\/new"[^>]*><i class="bi[^"]*"><\/i>Report an issue<\/a><\/li>)/$1<li><a href="index.ipynb" class="toc-action" download="index.ipynb"><i class="bi bi-journal-code"><\/i>'"$DOWNLOAD_TEXT"'<\/a><\/li><li><a href="'"$colab_url"'" class="toc-action" target="_blank" rel="noopener"><i class="bi bi-google"><\/i>'"$COLAB_TEXT"'<\/a><\/li>/g' "$html_file"
             echo "  ✓ Added notebook links to $html_file"
         fi
     fi

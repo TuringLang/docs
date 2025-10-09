@@ -16,6 +16,28 @@ class QmdToIpynb:
         self.qmd_path = Path(qmd_path)
         self.cells: List[Dict[str, Any]] = []
         self.kernel_name = "julia"  # Default kernel
+        self.packages: set = set()  # Track packages found in using statements
+
+    def _extract_packages_from_line(self, line: str) -> None:
+        """Extract package names from a 'using' statement and add to self.packages."""
+        line = line.strip()
+        if not line.startswith('using '):
+            return
+
+        # Remove 'using ' prefix and any trailing semicolon/whitespace
+        remainder = line[6:].rstrip(';').strip()
+
+        # Handle 'using Package: item1, item2' format - extract just the package name
+        if ':' in remainder:
+            package = remainder.split(':')[0].strip()
+            if package and package != 'Pkg':
+                self.packages.add(package)
+        else:
+            # Handle 'using Package1, Package2, ...' format
+            packages = [pkg.strip() for pkg in remainder.split(',')]
+            for pkg in packages:
+                if pkg and pkg != 'Pkg':
+                    self.packages.add(pkg)
 
     def parse(self) -> None:
         """Parse the .qmd file and extract cells."""
@@ -113,6 +135,11 @@ class QmdToIpynb:
 
     def _add_code_cell(self, lines: List[str], lang: str) -> None:
         """Add a code cell."""
+        # Extract packages from Julia code cells
+        if lang == 'julia':
+            for line in lines:
+                self._extract_packages_from_line(line)
+
         content = '\n'.join(lines)
 
         # For non-Julia code blocks (like dot/graphviz), add as markdown with code formatting
@@ -141,12 +168,19 @@ class QmdToIpynb:
         # Add package activation cell at the top for Julia notebooks
         cells = self.cells
         if self.kernel_name.startswith("julia"):
+            # Build the source code for the setup cell
+            pkg_source_lines = ["using Pkg; Pkg.activate(; temp=true)"]
+
+            # Add Pkg.add() calls for each package found in the document
+            for package in sorted(self.packages):
+                pkg_source_lines.append(f'Pkg.add("{package}")')
+
             pkg_cell = {
                 "cell_type": "code",
                 "execution_count": None,
                 "metadata": {},
                 "outputs": [],
-                "source": "using Pkg; Pkg.activate(; temp=true)"
+                "source": "\n".join(pkg_source_lines)
             }
             cells = [pkg_cell] + self.cells
 

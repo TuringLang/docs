@@ -28,6 +28,9 @@ find _site/tutorials _site/usage _site/developers -name "index.html" 2>/dev/null
             relative_path="${html_file#_site/}"
             relative_path="${relative_path%/index.html}"
 
+            # Extract notebook name from parent folder
+            notebook_name=$(basename "$relative_path")
+
             # Construct Colab URL
             if [ -n "$COLAB_PATH_PREFIX" ]; then
                 colab_url="https://colab.research.google.com/github/${COLAB_REPO}/blob/${COLAB_BRANCH}/${COLAB_PATH_PREFIX}/${relative_path}/index.ipynb"
@@ -35,9 +38,9 @@ find _site/tutorials _site/usage _site/developers -name "index.html" 2>/dev/null
                 colab_url="https://colab.research.google.com/github/${COLAB_REPO}/blob/${COLAB_BRANCH}/${relative_path}/index.ipynb"
             fi
 
-            # Insert both download and Colab links AFTER the "Report an issue" link
-            # The download="index.ipynb" attribute forces browser to download instead of navigate
-            perl -i -pe 's|(<a href="[^"]*issues/new"[^>]*><i class="bi[^"]*"></i>Report an issue</a></li>)|$1<li><a href="index.ipynb" class="toc-action" download="index.ipynb"><i class="bi bi-journal-code"></i>'"$DOWNLOAD_TEXT"'</a></li><li><a href="'"$colab_url"'" class="toc-action" target="_blank" rel="noopener"><i class="bi bi-google"></i>'"$COLAB_TEXT"'</a></li>|g' "$html_file"
+            # Insert both download and Colab links BEFORE the "Edit this page" link
+            # The download attribute forces browser to download with custom filename instead of navigate
+            perl -i -pe 's|(<li><a href="[^"]*edit[^"]*"[^>]*><i class="bi[^"]*"></i>Edit this page</a></li>)|<li><a href="index.ipynb" class="toc-action" download="'"$notebook_name"'.ipynb"><i class="bi bi-journal-code"></i>'"$DOWNLOAD_TEXT"'</a></li><li><a href="'"$colab_url"'" class="toc-action" target="_blank" rel="noopener"><i class="bi bi-google"></i>'"$COLAB_TEXT"'</a></li>$1|g' "$html_file"
             echo "  ✓ Added notebook links to $html_file"
         fi
     fi

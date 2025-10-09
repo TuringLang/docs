@@ -1,0 +1,143 @@
+---
+title: Predictive Distributions
+engine: julia
+---
+
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate();
+```
+
+Standard MCMC sampling methods return values of the parameters of the model.
+However, it is often also useful to generate new data points using the model, given a distribution of the parameters.
+Turing.jl allows you to do this using the `predict` function, along with conditioning syntax.
+
+Consider the following simple model, where we observe some normally-distributed data `X` and want to learn about its mean `m`.
+
+```{julia}
+using Turing
+@model function f(N)
+    m ~ Normal()
+    X ~ filldist(Normal(m), N)
+end
+```
+
+Notice first how we have not specified `X` as an argument to the model.
+This allows us to use Turing's conditioning syntax to specify whether we want to provide observed data or not.
+
+::: {.callout-note}
+If you want to specify `X` as an argument to the model, then to mark it as being unobserved, you have to instantiate the model again with `X = missing` or `X = fill(missing, N)`.
+Whether you use `missing` or `fill(missing, N)` depends on whether `X` is treated as a single distribution (e.g. with `filldist` or `product_distribution`), or as multiple independent distributions (e.g. with `.~` or a for loop over `eeachindex(X)`).
+This is rather finicky, so we recommend using the current approach: conditioning and deconditioning `X` as a whole should work regardless of how `X` is defined in the model.
+:::
+
+```{julia}
+# Generate some synthetic data
+N = 5
+true_m = 3.0
+X = rand(Normal(true_m), N)
+
+# Instantiate the model with observed data
+model = f(N) | (; X = X)
+
+# Sample from the posterior
+chain = sample(model, NUTS(), 1_000; progress=false)
+mean(chain[:m])
+```
+
+## Posterior predictive distribution
+
+`chain[:m]` now contains samples from the posterior distribution of `m`.
+If we use these samples of the parameters to generate new data points, we obtain the *posterior predictive distribution*.
+Statistically, this is defined as
+
+$$
+p(\tilde{x} | \theta, \mathbf{X}) = \int p(\tilde{x} | \theta) p(\theta | \mathbf{X}) d\theta,
+$$
+
+where $\tilde{x}$ is the new data which you wish to draw, $\theta$ are the model parameters, and $\mathbf{X}$ is the observed data.
+$p(\tilde{x} | \theta)$ is the distribution of the new data given the parameters, which is specified in the Turing.jl model (the `X ~ ...` line); and $p(\theta | \mathbf{X})$ is the posterior distribution, as given by the Markov chain.
+
+To obtain samples of $\tilde{x}$, we need to first remove the observed data from the model (or 'decondition' it).
+This means that when the model is evaluated, it will sample a new value for `X`.
+
+```{julia}
+predictive_model = decondition(model)
+```
+
+::: {.callout-tip}
+## Selective deconditioning
+
+If you only want to decondition a single variable `X`, you can use `decondition(model, @varname(X))`.
+:::
+
+To demonstrate how this deconditioned model can generate new data, we can fix the value of `m` to be its mean and evaluate the model:
+
+```{julia}
+predictive_model_with_mean_m = predictive_model | (; m = mean(chain[:m]))
+rand(predictive_model_with_mean_m)
+```
+
+This has given us a single sample of `X` given the mean value of `m`.
+Of course, to take our Bayesian uncertainty into account, we want to use the full posterior distribution of `m`, not just its mean.
+To do so, we use `predict`, which _effectively_ does the same as above but for every sample in the chain:
+
+```{julia}
+predictive_samples = predict(predictive_model, chain)
+```
+
+::: {.callout-tip}
+## Reproducibility
+
+`predict`, like many other Julia functions, takes an optional `rng` as its first argument.
+This controls the generation of new `X` samples, and makes your results reproducible.
+:::
+
+::: {.callout-note}
+`predict` returns a Chains object itself, which will only contain the newly predicted variables.
+If you want to also retain the original parameters, you can use `predict(rng, predictive_model, chain; include_all=true)`.
+Note that the `include_all` keyword argument does not work unless you also pass an RNG as the first argument; you can use `Random.default_rng()` if you aren't fussed.
+(This will be fixed in the next release of Turing.)
+:::
+
+We can visualise the predictive distribution by combining all the samples and making a density plot:
+
+```{julia}
+using StatsPlots: density, density!, vline!
+
+predicted_X = vcat([predictive_samples[Symbol("X[$i]")] for i in 1:N]...)
+density(predicted_X, label="Posterior predictive")
+```
+
+## Prior predictive distribution
+
+Alternatively, if we use the prior distribution of the parameters, we obtain the *prior predictive distribution*:
+
+$$
+p(\tilde{x}) = \int p(\tilde{x} | \theta) p(\theta) d\theta,
+$$
+
+This is simpler, as there is no need to pass a chain in: we can sample from the deconditioned model directly, using Turing's `Prior` sampler.
+
+```{julia}
+prior_predictive_samples = sample(predictive_model, Prior(), 1_000; progress=false)
+```
+
+We can visualise the prior predictive distribution in the same way as before.
+Let's compare the two predictive distributions:
+
+```{julia}
+prior_predicted_X = vcat([prior_predictive_samples[Symbol("X[$i]")] for i in 1:N]...)
+density(prior_predicted_X, label="Prior predictive")
+density!(predicted_X, label="Posterior predictive")
+vline!([true_m], label="True mean", linestyle=:dash, color=:black)
+```
+
+We can see here that the prior predictive distribution is:
+
+1. Wider than the posterior predictive distribution;
+2. Centred on the prior mean of `m` (which is 0), rather than the posterior mean (which is close to the true mean of `3`).
+
+Both of these are because the posterior predictive distribution has been informed by the observed data.

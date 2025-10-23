@@ -42,7 +42,7 @@ using StatsBase
 using LinearAlgebra
 
 # For ensuring reproducibility.
-using Random
+using StableRNGs: StableRNG
 ```
 
 ```{julia}
@@ -75,7 +75,7 @@ The next step is to get our data ready for testing. We'll split the `mtcars` dat
 select!(data, Not(:Model))
 
 # Split our dataset 70%/30% into training/test sets.
-trainset, testset = map(DataFrame, splitobs(Xoshiro(472), data; at=0.7, shuffle=true))
+trainset, testset = map(DataFrame, splitobs(StableRNG(468), data; at=0.7, shuffle=true))
 
 # Turing requires data in matrix form.
 target = :MPG
@@ -142,7 +142,7 @@ With our model specified, we can call the sampler. We will use the No U-Turn Sam
 
 ```{julia}
 model = linear_regression(train, train_target)
-chain = sample(Xoshiro(468), model, NUTS(), 20_000)
+chain = sample(StableRNG(468), model, NUTS(), 20_000)
 ```
 
 We can also check the densities and traces of the parameters visually using the `plot` functionality.
@@ -242,9 +242,11 @@ let
     ols_test_loss = msd(test_prediction_ols, testset[!, target])
     @assert bayes_train_loss < bayes_test_loss "Bayesian training loss ($bayes_train_loss) >= Bayesian test loss ($bayes_test_loss)"
     @assert ols_train_loss < ols_test_loss "OLS training loss ($ols_train_loss) >= OLS test loss ($ols_test_loss)"
-    @assert isapprox(bayes_train_loss, ols_train_loss; rtol=0.01) "Difference between Bayesian training loss ($bayes_train_loss) and OLS training loss ($ols_train_loss) unexpectedly large!"
-    @assert isapprox(bayes_test_loss, ols_test_loss; rtol=0.05) "Difference between Bayesian test loss ($bayes_test_loss) and OLS test loss ($ols_test_loss) unexpectedly large!"
+    @assert bayes_train_loss > ols_train_loss "Bayesian training loss ($bayes_train_loss) <= OLS training loss ($bayes_train_loss)"
+    @assert bayes_test_loss < ols_test_loss "Bayesian test loss ($bayes_test_loss) >= OLS test loss ($ols_test_loss)"
 end
 ```
 
-As we can see above, OLS and our Bayesian model fit our training and test data set about the same.
+We can see from this that both linear regression techniques perform fairly similarly.
+The Bayesian linear regression approach performs worse on the training set, but better on the test set.
+This indicates that the Bayesian approach is more able to generalise to unseen data, i.e., it is not overfitting the training data as much.

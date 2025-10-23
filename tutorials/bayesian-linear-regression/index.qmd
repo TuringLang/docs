@@ -41,9 +41,8 @@ using StatsBase
 # Functionality for working with scaled identity matrices.
 using LinearAlgebra
 
-# Set a seed for reproducibility.
+# For ensuring reproducibility.
 using Random
-Random.seed!(0);
 ```
 
 ```{julia}
@@ -76,7 +75,7 @@ The next step is to get our data ready for testing. We'll split the `mtcars` dat
 select!(data, Not(:Model))
 
 # Split our dataset 70%/30% into training/test sets.
-trainset, testset = map(DataFrame, splitobs(data; at=0.7, shuffle=true))
+trainset, testset = map(DataFrame, splitobs(Xoshiro(472), data; at=0.7, shuffle=true))
 
 # Turing requires data in matrix form.
 target = :MPG
@@ -143,7 +142,7 @@ With our model specified, we can call the sampler. We will use the No U-Turn Sam
 
 ```{julia}
 model = linear_regression(train, train_target)
-chain = sample(model, NUTS(), 5_000)
+chain = sample(Xoshiro(468), model, NUTS(), 20_000)
 ```
 
 We can also check the densities and traces of the parameters visually using the `plot` functionality.
@@ -158,7 +157,7 @@ It looks like all parameters have converged.
 #| echo: false
 let
     ess_df = ess(chain)
-    @assert minimum(ess_df[:, :ess]) > 500 "Minimum ESS: $(minimum(ess_df[:, :ess])) - not > 700"
+    @assert minimum(ess_df[:, :ess]) > 500 "Minimum ESS: $(minimum(ess_df[:, :ess])) - not > 500"
     @assert mean(ess_df[:, :ess]) > 2_000 "Mean ESS: $(mean(ess_df[:, :ess])) - not > 2000"
     @assert maximum(ess_df[:, :ess]) > 3_500 "Maximum ESS: $(maximum(ess_df[:, :ess])) - not > 3500"
 end

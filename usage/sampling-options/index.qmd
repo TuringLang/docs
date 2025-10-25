@@ -108,10 +108,23 @@ typeof(transitions)
 
 In Turing.jl, initial parameters for MCMC sampling can be specified using the `initial_params` keyword argument.
 
-For **single-chain sampling**, the AbstractMCMC interface generally expects that you provide a completely flattened vector of parameters.
+::: {.callout-important}
+## New `initial_params` in Turing v0.41
+
+In Turing v0.41, the permitted values for `initial_params` are different. In particular, `Vector`s are no longer permitted, because they are semantically ambiguous (the way in which indices correspond to parameters relies on DynamicPPL internals). This page describes the new behaviour.
+:::
+
+For **single-chain sampling** with Turing, the `initial_params` keyword argument should be a `DynamicPPL.AbstractInitStrategy`.
+There are three main options, all of which are re-exported by Turing.
+
+- `InitFromPrior()`: generate initial parameters by sampling from the prior
+- `InitFromUniform(lower, upper)`: generate initial parameters by sampling uniformly from the given bounds in linked space
+- `InitFromParams(namedtuple_or_dict)`: use the provided initial parameters, supplied either as a `NamedTuple` or a `Dict{<:VarName}`
+
+If `initial_params` is unspecified, each sampler will use its own default initialisation strategy: for most samplers this is `InitFromPrior` but for Hamiltonian samplers it is `InitFromUniform(-2, 2)` (which mimics the behaviour of Stan).
 
 ```{julia}
-chn = sample(demo_model(), MH(), 5; initial_params=[1.0, -5.0])
+chn = sample(demo_model(), MH(), 5; initial_params=InitFromParams((x = 1.0, y = -5.0)))
 chn[:x][1], chn[:y][1]
 ```
 
@@ -120,24 +133,7 @@ Note that a number of samplers use warm-up steps by default (see the [Thinning a
 `MH()` does not do this, which is why we use it here.
 :::
 
-Note that for Turing models, the use of `Vector` can be extremely error-prone as the order of parameters in the flattened vector is not always obvious (especially if there are parameters with non-trivial types).
-In general, parameters should be provided in the order they are defined in the model.
-A relatively 'safe' way of obtaining parameters in the correct order is to first generate a `VarInfo`, and then linearise that:
-
-```{julia}
-using DynamicPPL
-vi = VarInfo(demo_model())
-initial_params = vi[:]
-```
-
-To avoid this situation, you can also use `NamedTuple` to specify initial parameters.
-
-```{julia}
-chn = sample(demo_model(), MH(), 5; initial_params=(y=2.0, x=-6.0))
-chn[:x][1], chn[:y][1]
-```
-
-This works even for parameters with more complex types.
+This approach scales for parameters with more complex types.
 
 ```{julia}
 @model function demo_complex()
@@ -145,35 +141,21 @@ This works even for parameters with more complex types.
     y ~ MvNormal(zeros(3), I)
 end
 init_x, init_y = rand(LKJCholesky(3, 0.5)), rand(MvNormal(zeros(3), I))
-chn = sample(demo_complex(), MH(), 5; initial_params=(x=init_x, y=init_y));
+chn = sample(demo_complex(), MH(), 5; initial_params=InitFromParams((x=init_x, y=init_y)));
 ```
 
 For **multiple-chain sampling**, the `initial_params` keyword argument should be a vector with length equal to the number of chains being sampled.
 Each element of this vector should be the initial parameters for the corresponding chain, as described above.
-Thus, for example, a vector of vectors, or a vector of `NamedTuple`s, can be used.
+Thus, for example, you can supply a vector of `AbstractInitStrategy` objects.
 If you want to use the same initial parameters for all chains, you can use `fill`:
 
 ```{julia}
-initial_params = fill((x=1.0, y=-5.0), 3)
+initial_params = fill(InitFromParams((x=1.0, y=-5.0)), 3)
 chn = sample(demo_model(), MH(), MCMCThreads(), 5, 3; initial_params=initial_params)
 chn[:x][1,:], chn[:y][1,:]
 ```
 
-::: {.callout-important}
-## Upcoming changes in Turing v0.41
-
-In Turing v0.41, instead of providing _initial parameters_, users will have to provide what is conceptually an _initialisation strategy_.
-The keyword argument is still `initial_params`, but the permitted values (for single-chain sampling) will either be:
-
-- `InitFromPrior()`: generate initial parameters by sampling from the prior
-- `InitFromUniform(lower, upper)`: generate initial parameters by sampling uniformly from the given bounds in linked space
-- `InitFromParams(namedtuple_or_dict)`: use the provided initial parameters, supplied either as a `NamedTuple` or a `Dict{<:VarName}`
-
-Initialisation with `Vector` will be fully removed due to its inherent ambiguity.
-Initialisation with a raw `NamedTuple` will still be supported (it will simply be wrapped in `InitFromParams()`); but we expect to remove this eventually, so it will be more future-proof to use `InitFromParams()` directly.
-
-For multiple chains, the same as above applies: the `initial_params` keyword argument should be a vector of initialisation strategies, one per chain.
-:::
+In Turing v0.41, initialisation with a raw `NamedTuple` is still supported (it will simply be wrapped in `InitFromParams()`); but we expect to remove this eventually, so it will likely be more future-proof to wrap this in `InitFromParams()` yourself.
 
 ## Saving and resuming sampling
 
@@ -190,10 +172,10 @@ chn1 = sample(rng, demo_model(), MH(), 5; save_state=true);
 ```
 
 For `MCMCChains.Chains`, this results in the final sampler state being stored inside the chain metadata.
-You can access it using `DynamicPPL.loadstate`:
+You can access it using `Turing.loadstate`:
 
 ```{julia}
-saved_state = DynamicPPL.loadstate(chn1)
+saved_state = Turing.loadstate(chn1)
 typeof(saved_state)
 ```
 
@@ -211,6 +193,13 @@ Note that the exact format saved in `chn.info.samplerstate`, and that expected b
 For single-chain sampling, the saved state, and the required initial state, is just a single sampler state.
 For multiple-chain sampling, it is a vector of states, one per chain.
 
+::: {.callout-warning}
+## `resume_from`
+
+The `resume_from` argument has been removed in Turing v0.41; please use `initial_state=loadstate(chn)` instead, as described here.
+In v0.41, `loadstate` is also exported from Turing rather than DynamicPPL.
+:::
+
 This means that, for example, after sampling a single chain, you could sample three chains that branch off from that final state:
 
 ```{julia}
@@ -226,7 +215,7 @@ If both are provided, `initial_params` will be silently ignored.
 
 ```{julia}
 chn2 = sample(rng, demo_model(), MH(), 5;
-    initial_state=saved_state, initial_params=(x=0.0, y=0.0)
+    initial_state=saved_state, initial_params=InitFromParams((x=0.0, y=0.0))
 )
 chn2[:x][1], chn2[:y][1]
 ```

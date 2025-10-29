@@ -49,7 +49,7 @@ latents = rand(Dict, model)
 Simply calling `rand(model)`, by default, returns a NamedTuple.
 This is fine for simple models where all variables on the left-hand side of tilde statements are standalone variables like `x`.
 However, if you have indices or fields such as `x[1]` or `x.a` on the left-hand side, then the NamedTuple will not be able to represent these variables properly.
-Feeding such a NamedTuple back into the model, as shown in the next section, will lead to errors.
+Feeding such a NamedTuple back into the model will lead to errors.
 
 In general, `Dict{VarName}` will always avoid such correctness issues.
 :::
@@ -84,10 +84,10 @@ returned(model, latents)
 
 The above functions are convenient, but for many 'serious' applications they might not be flexible enough.
 For example, if you wanted to obtain the return value _and_ the log joint, you would have to execute the model twice: once with `returned` and once with `logjoint`.
-If you want to avoid this duplicate work, you need to use a lower-level interface, which is `DynamicPPL.evaluate!!`.
 
+If you want to avoid this duplicate work, you need to use a lower-level interface, which is `DynamicPPL.evaluate!!`.
 At its core, `evaluate!!` takes a model and a VarInfo object, and returns a tuple of the return value and the new VarInfo.
-So before we get to `evaluate!!`, we need to understand what a VarInfo is.
+So, before we even get to `evaluate!!`, we need to understand what a VarInfo is.
 
 A VarInfo is a container that tracks the state of model execution, as well as any outputs related to its latent variables, such as log probabilities.
 DynamicPPL's source code contains many different kinds of VarInfos, each with different trade-offs.
@@ -115,7 +115,7 @@ DynamicPPL.getlogprior(v)
 
 What about the return value?
 Well, the VarInfo does not store this directly: recall that `evaluate!!` gives us back the return value separately from the updated VarInfo.
-So, let's call it.
+So, let's try calling it to see what happens.
 The default behaviour of `evaluate!!` is to use the parameter values stored in the VarInfo during model execution.
 That is, when it sees `x ~ Normal()`, it will use the value of `x` stored in `v`.
 We will see later how to change this behaviour.
@@ -133,8 +133,8 @@ vout[@varname(x)] == v[@varname(x)]
 
 which is in line with the statement above that by default `evaluate!!` uses the values stored in the VarInfo.
 
-At this point, the sharp reader will notice that we have not really solved the problem here.
-Although the call to `DynamicPPL.evaluate!!` does indeed only execute the model once, we also had to do this once at the beginning when constructing the VarInfo.
+At this point, the keen reader will notice that we have not really solved the problem here.
+Although the call to `DynamicPPL.evaluate!!` does indeed only execute the model once, we also had to do this once more at the beginning when constructing the VarInfo.
 
 Besides, we don't know how to control the parameter values used during model execution: they were simply whatever we got in the original VarInfo.
 
@@ -158,7 +158,7 @@ You can also provide an `AbstractRNG` as the first argument to `init!!` to contr
 :::
 
 Alternatively, to provide specific sets of values, we can use `InitFromParams(...)` to specify them.
-`InitFromParams` can wrap either a `NamedTuple` or an `AbstractDict{<:VarName}`, but for reasons explained above, `Dict` is generally much preferred.
+`InitFromParams` can wrap either a `NamedTuple` or an `AbstractDict{<:VarName}`, but `Dict` is generally much preferred as this guarantees correct behaviour even for complex variable names.
 
 ```{julia}
 retval, v_new = DynamicPPL.init!!(
@@ -181,11 +181,15 @@ If you have a loop in which you want to repeatedly evaluate a model with differe
  - First generate a VarInfo using `VarInfo(model)`;
  - Then call `DynamicPPL.init!!(model, v, InitFromParams(...))` to evaluate the model using those parameters.
 
-This costs an extra model evaluation at the very beginning to generate the VarInfo, but subsequent evaluations will be efficient.
+This requires you to pay a one-time cost at the very beginning to generate the VarInfo, but subsequent evaluations will be efficient.
+DynamicPPL uses this approach when implementing functions such as `predict(model, chain)`.
 
-For example, this is how functions like `predict(model, chain)` are implemented.
+::: {.callout-tip}
+If you want to avoid even the first model evaluation, you will need to read on to the 'Advanced' section below.
+However, for most applications this should not necessary.
+:::
 
-## `unflatten`
+## Parameters in the form of Vectors
 
 In general, one problem with `init!!` is that it is often slower than `evaluate!!`.
 This is primarily because it does more work: it has to not only read from the provided parameters, but also overwrite existing values in the VarInfo.
@@ -237,7 +241,7 @@ The inverse operation of `unflatten` is `DynamicPPL.getindex_internal(v, :)`:
 DynamicPPL.getindex_internal(v_unflattened, :)
 ```
 
-## LogDensityFunction
+## `LogDensityFunction`
 
 There is one place where `unflatten` is (unfortunately) quite indispensable, namely, the implementation of the LogDensityProblems.jl interface for Turing models.
 

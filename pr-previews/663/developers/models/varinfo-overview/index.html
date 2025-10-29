@@ -750,8 +750,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#passing-latent-values-into-a-model" id="toc-passing-latent-values-into-a-model" class="nav-link" data-scroll-target="#passing-latent-values-into-a-model">Passing latent values into a model</a></li>
   <li><a href="#varinfo" id="toc-varinfo" class="nav-link" data-scroll-target="#varinfo">VarInfo</a></li>
   <li><a href="#specifying-parameter-values" id="toc-specifying-parameter-values" class="nav-link" data-scroll-target="#specifying-parameter-values">Specifying parameter values</a></li>
-  <li><a href="#unflatten" id="toc-unflatten" class="nav-link" data-scroll-target="#unflatten"><code>unflatten</code></a></li>
-  <li><a href="#logdensityfunction" id="toc-logdensityfunction" class="nav-link" data-scroll-target="#logdensityfunction">LogDensityFunction</a></li>
+  <li><a href="#parameters-in-the-form-of-vectors" id="toc-parameters-in-the-form-of-vectors" class="nav-link" data-scroll-target="#parameters-in-the-form-of-vectors">Parameters in the form of Vectors</a></li>
+  <li><a href="#logdensityfunction" id="toc-logdensityfunction" class="nav-link" data-scroll-target="#logdensityfunction"><code>LogDensityFunction</code></a></li>
   <li><a href="#advanced-typed-and-untyped-varinfo" id="toc-advanced-typed-and-untyped-varinfo" class="nav-link" data-scroll-target="#advanced-typed-and-untyped-varinfo">Advanced: Typed and untyped VarInfo</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/TuringLang/docs/edit/main/developers/models/varinfo-overview/index.qmd" target="_blank" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/TuringLang/docs/issues/new" target="_blank" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
@@ -810,7 +810,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>(xplus1 = 0.195720859058524,)</code></pre>
+<pre><code>(xplus1 = 0.3052728587999989,)</code></pre>
 </div>
 </div>
 <p>and the latent variables using <code>rand()</code>:</p>
@@ -824,7 +824,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>Dict{VarName, Any} with 1 entry:
-  x =&gt; 1.13892</code></pre>
+  x =&gt; -1.15781</code></pre>
 </div>
 </div>
 <div class="callout callout-style-default callout-note callout-titled">
@@ -837,7 +837,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>Simply calling <code>rand(model)</code>, by default, returns a NamedTuple. This is fine for simple models where all variables on the left-hand side of tilde statements are standalone variables like <code>x</code>. However, if you have indices or fields such as <code>x[1]</code> or <code>x.a</code> on the left-hand side, then the NamedTuple will not be able to represent these variables properly. Feeding such a NamedTuple back into the model, as shown in the next section, will lead to errors.</p>
+<p>Simply calling <code>rand(model)</code>, by default, returns a NamedTuple. This is fine for simple models where all variables on the left-hand side of tilde statements are standalone variables like <code>x</code>. However, if you have indices or fields such as <code>x[1]</code> or <code>x.a</code> on the left-hand side, then the NamedTuple will not be able to represent these variables properly. Feeding such a NamedTuple back into the model will lead to errors.</p>
 <p>In general, <code>Dict{VarName}</code> will always avoid such correctness issues.</p>
 </div>
 </div>
@@ -856,14 +856,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>-1.5675031663671004</code></pre>
+<pre><code>-1.5892030481364472</code></pre>
 </div>
 </div>
 <p>One can check this against the expected log prior:</p>
 <div id="10" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">logpdf</span>(<span class="fu">Normal</span>(), latents[<span class="pp">@varname</span>(x)])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>-1.5675031663671004</code></pre>
+<pre><code>-1.5892030481364472</code></pre>
 </div>
 </div>
 <p>Likewise, you can evaluate the return value of the model given the latent variables:</p>
@@ -876,14 +876,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>(xplus1 = 2.138915829341596,)</code></pre>
+<pre><code>(xplus1 = -0.15781217382766743,)</code></pre>
 </div>
 </div>
 </section>
 <section id="varinfo" class="level2">
 <h2 class="anchored" data-anchor-id="varinfo">VarInfo</h2>
-<p>The above functions are convenient, but for many ‘serious’ applications they might not be flexible enough. For example, if you wanted to obtain the return value <em>and</em> the log joint, you would have to execute the model twice: once with <code>returned</code> and once with <code>logjoint</code>. If you want to avoid this duplicate work, you need to use a lower-level interface, which is <code>DynamicPPL.evaluate!!</code>.</p>
-<p>At its core, <code>evaluate!!</code> takes a model and a VarInfo object, and returns a tuple of the return value and the new VarInfo. So before we get to <code>evaluate!!</code>, we need to understand what a VarInfo is.</p>
+<p>The above functions are convenient, but for many ‘serious’ applications they might not be flexible enough. For example, if you wanted to obtain the return value <em>and</em> the log joint, you would have to execute the model twice: once with <code>returned</code> and once with <code>logjoint</code>.</p>
+<p>If you want to avoid this duplicate work, you need to use a lower-level interface, which is <code>DynamicPPL.evaluate!!</code>. At its core, <code>evaluate!!</code> takes a model and a VarInfo object, and returns a tuple of the return value and the new VarInfo. So, before we even get to <code>evaluate!!</code>, we need to understand what a VarInfo is.</p>
 <p>A VarInfo is a container that tracks the state of model execution, as well as any outputs related to its latent variables, such as log probabilities. DynamicPPL’s source code contains many different kinds of VarInfos, each with different trade-offs. The details of these are somewhat arcane and unfortunately cannot be fully abstracted away, mainly due to performance considerations.</p>
 <p>For the vast majority of users, it suffices to know that you can generate one of them for a model with the constructor <code>VarInfo([rng, ]model)</code>. Note that this construction executes the model once (in the process, sampling new parameter values from the prior).</p>
 <div id="14" class="cell" data-execution_count="1">
@@ -895,24 +895,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>VarInfo{@NamedTuple{x::DynamicPPL.Metadata{Dict{VarName{:x, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{VarName{:x, typeof(identity)}}, Vector{Float64}}}, DynamicPPL.AccumulatorTuple{3, @NamedTuple{LogPrior::LogPriorAccumulator{Float64}, LogJacobian::LogJacobianAccumulator{Float64}, LogLikelihood::LogLikelihoodAccumulator{Float64}}}}((x = DynamicPPL.Metadata{Dict{VarName{:x, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{VarName{:x, typeof(identity)}}, Vector{Float64}}(Dict(x =&gt; 1), [x], UnitRange{Int64}[1:1], [-0.5203439222492565], Normal{Float64}[Distributions.Normal{Float64}(μ=0.0, σ=1.0)], Bool[0]),), DynamicPPL.AccumulatorTuple{3, @NamedTuple{LogPrior::LogPriorAccumulator{Float64}, LogJacobian::LogJacobianAccumulator{Float64}, LogLikelihood::LogLikelihoodAccumulator{Float64}}}((LogPrior = DynamicPPL.LogPriorAccumulator(-1.054317431915543), LogJacobian = DynamicPPL.LogJacobianAccumulator(0.0), LogLikelihood = DynamicPPL.LogLikelihoodAccumulator(-4.095005276414056))))</code></pre>
+<pre><code>VarInfo{@NamedTuple{x::DynamicPPL.Metadata{Dict{VarName{:x, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{VarName{:x, typeof(identity)}}, Vector{Float64}}}, DynamicPPL.AccumulatorTuple{3, @NamedTuple{LogPrior::LogPriorAccumulator{Float64}, LogJacobian::LogJacobianAccumulator{Float64}, LogLikelihood::LogLikelihoodAccumulator{Float64}}}}((x = DynamicPPL.Metadata{Dict{VarName{:x, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{VarName{:x, typeof(identity)}}, Vector{Float64}}(Dict(x =&gt; 1), [x], UnitRange{Int64}[1:1], [0.45236330277074077], Normal{Float64}[Distributions.Normal{Float64}(μ=0.0, σ=1.0)], Bool[0]),), DynamicPPL.AccumulatorTuple{3, @NamedTuple{LogPrior::LogPriorAccumulator{Float64}, LogJacobian::LogJacobianAccumulator{Float64}, LogLikelihood::LogLikelihoodAccumulator{Float64}}}((LogPrior = DynamicPPL.LogPriorAccumulator(-1.0212548120514993), LogJacobian = DynamicPPL.LogJacobianAccumulator(0.0), LogLikelihood = DynamicPPL.LogLikelihoodAccumulator(-2.1165282065100177))))</code></pre>
 </div>
 </div>
 <p>(Don’t worry about the printout of the VarInfo object: we won’t need to understand its internal structure.) We can index into a VarInfo:</p>
 <div id="16" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>v[<span class="pp">@varname</span>(x)]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>-0.5203439222492565</code></pre>
+<pre><code>0.45236330277074077</code></pre>
 </div>
 </div>
 <p>To access the values of log-probabilities, DynamicPPL provides the <code>getlogprior</code>, <code>getloglikelihood</code>, and <code>getlogjoint</code> functions:</p>
 <div id="18" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>DynamicPPL.<span class="fu">getlogprior</span>(v)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>-1.054317431915543</code></pre>
+<pre><code>-1.0212548120514993</code></pre>
 </div>
 </div>
-<p>What about the return value? Well, the VarInfo does not store this directly: recall that <code>evaluate!!</code> gives us back the return value separately from the updated VarInfo. So, let’s call it. The default behaviour of <code>evaluate!!</code> is to use the parameter values stored in the VarInfo during model execution. That is, when it sees <code>x ~ Normal()</code>, it will use the value of <code>x</code> stored in <code>v</code>. We will see later how to change this behaviour.</p>
+<p>What about the return value? Well, the VarInfo does not store this directly: recall that <code>evaluate!!</code> gives us back the return value separately from the updated VarInfo. So, let’s try calling it to see what happens. The default behaviour of <code>evaluate!!</code> is to use the parameter values stored in the VarInfo during model execution. That is, when it sees <code>x ~ Normal()</code>, it will use the value of <code>x</code> stored in <code>v</code>. We will see later how to change this behaviour.</p>
 <div id="20" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>retval, vout <span class="op">=</span> DynamicPPL.<span class="fu">evaluate!!</span>(model, v)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
@@ -922,7 +922,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>((xplus1 = 0.4796560777507435,), VarInfo{@NamedTuple{x::DynamicPPL.Metadata{Dict{VarName{:x, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{VarName{:x, typeof(identity)}}, Vector{Float64}}}, DynamicPPL.AccumulatorTuple{3, @NamedTuple{LogPrior::LogPriorAccumulator{Float64}, LogJacobian::LogJacobianAccumulator{Float64}, LogLikelihood::LogLikelihoodAccumulator{Float64}}}}((x = DynamicPPL.Metadata{Dict{VarName{:x, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{VarName{:x, typeof(identity)}}, Vector{Float64}}(Dict(x =&gt; 1), [x], UnitRange{Int64}[1:1], [-0.5203439222492565], Normal{Float64}[Distributions.Normal{Float64}(μ=0.0, σ=1.0)], Bool[0]),), DynamicPPL.AccumulatorTuple{3, @NamedTuple{LogPrior::LogPriorAccumulator{Float64}, LogJacobian::LogJacobianAccumulator{Float64}, LogLikelihood::LogLikelihoodAccumulator{Float64}}}((LogPrior = DynamicPPL.LogPriorAccumulator(-1.054317431915543), LogJacobian = DynamicPPL.LogJacobianAccumulator(0.0), LogLikelihood = DynamicPPL.LogLikelihoodAccumulator(-4.095005276414056)))))</code></pre>
+<pre><code>((xplus1 = 1.4523633027707408,), VarInfo{@NamedTuple{x::DynamicPPL.Metadata{Dict{VarName{:x, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{VarName{:x, typeof(identity)}}, Vector{Float64}}}, DynamicPPL.AccumulatorTuple{3, @NamedTuple{LogPrior::LogPriorAccumulator{Float64}, LogJacobian::LogJacobianAccumulator{Float64}, LogLikelihood::LogLikelihoodAccumulator{Float64}}}}((x = DynamicPPL.Metadata{Dict{VarName{:x, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{VarName{:x, typeof(identity)}}, Vector{Float64}}(Dict(x =&gt; 1), [x], UnitRange{Int64}[1:1], [0.45236330277074077], Normal{Float64}[Distributions.Normal{Float64}(μ=0.0, σ=1.0)], Bool[0]),), DynamicPPL.AccumulatorTuple{3, @NamedTuple{LogPrior::LogPriorAccumulator{Float64}, LogJacobian::LogJacobianAccumulator{Float64}, LogLikelihood::LogLikelihoodAccumulator{Float64}}}((LogPrior = DynamicPPL.LogPriorAccumulator(-1.0212548120514993), LogJacobian = DynamicPPL.LogJacobianAccumulator(0.0), LogLikelihood = DynamicPPL.LogLikelihoodAccumulator(-2.1165282065100177)))))</code></pre>
 </div>
 </div>
 <p>So here in a single call we have obtained both the return value and an updated VarInfo <code>vout</code>, from which we can again extract log probabilities and variable values. We can see from this that the value of <code>vout[@varname(x)]</code> is the same as <code>v[@varname(x)]</code>:</p>
@@ -933,7 +933,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 <p>which is in line with the statement above that by default <code>evaluate!!</code> uses the values stored in the VarInfo.</p>
-<p>At this point, the sharp reader will notice that we have not really solved the problem here. Although the call to <code>DynamicPPL.evaluate!!</code> does indeed only execute the model once, we also had to do this once at the beginning when constructing the VarInfo.</p>
+<p>At this point, the keen reader will notice that we have not really solved the problem here. Although the call to <code>DynamicPPL.evaluate!!</code> does indeed only execute the model once, we also had to do this once more at the beginning when constructing the VarInfo.</p>
 <p>Besides, we don’t know how to control the parameter values used during model execution: they were simply whatever we got in the original VarInfo.</p>
 </section>
 <section id="specifying-parameter-values" class="level2">
@@ -949,7 +949,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>((xplus1 = 1.079445849237999,), VarInfo{@NamedTuple{x::DynamicPPL.Metadata{Dict{VarName{:x, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{VarName{:x, typeof(identity)}}, Vector{Float64}}}, DynamicPPL.AccumulatorTuple{3, @NamedTuple{LogPrior::LogPriorAccumulator{Float64}, LogJacobian::LogJacobianAccumulator{Float64}, LogLikelihood::LogLikelihoodAccumulator{Float64}}}}((x = DynamicPPL.Metadata{Dict{VarName{:x, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{VarName{:x, typeof(identity)}}, Vector{Float64}}(Dict(x =&gt; 1), [x], UnitRange{Int64}[1:1], [0.07944584923799894], Normal{Float64}[Distributions.Normal{Float64}(μ=0.0, σ=1.0)], Bool[0]),), DynamicPPL.AccumulatorTuple{3, @NamedTuple{LogPrior::LogPriorAccumulator{Float64}, LogJacobian::LogJacobianAccumulator{Float64}, LogLikelihood::LogLikelihoodAccumulator{Float64}}}((LogPrior = DynamicPPL.LogPriorAccumulator(-0.9220943546852463), LogJacobian = DynamicPPL.LogJacobianAccumulator(0.0), LogLikelihood = DynamicPPL.LogLikelihoodAccumulator(-2.763202656209248)))))</code></pre>
+<pre><code>((xplus1 = 1.0072388050558645,), VarInfo{@NamedTuple{x::DynamicPPL.Metadata{Dict{VarName{:x, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{VarName{:x, typeof(identity)}}, Vector{Float64}}}, DynamicPPL.AccumulatorTuple{3, @NamedTuple{LogPrior::LogPriorAccumulator{Float64}, LogJacobian::LogJacobianAccumulator{Float64}, LogLikelihood::LogLikelihoodAccumulator{Float64}}}}((x = DynamicPPL.Metadata{Dict{VarName{:x, typeof(identity)}, Int64}, Vector{Normal{Float64}}, Vector{VarName{:x, typeof(identity)}}, Vector{Float64}}(Dict(x =&gt; 1), [x], UnitRange{Int64}[1:1], [0.0072388050558645925], Normal{Float64}[Distributions.Normal{Float64}(μ=0.0, σ=1.0)], Bool[0]),), DynamicPPL.AccumulatorTuple{3, @NamedTuple{LogPrior::LogPriorAccumulator{Float64}, LogJacobian::LogJacobianAccumulator{Float64}, LogLikelihood::LogLikelihoodAccumulator{Float64}}}((LogPrior = DynamicPPL.LogPriorAccumulator(-0.9189647333539912), LogJacobian = DynamicPPL.LogJacobianAccumulator(0.0), LogLikelihood = DynamicPPL.LogLikelihoodAccumulator(-2.904487123242262)))))</code></pre>
 </div>
 </div>
 <p>This updates <code>v_new</code> with the new values that were sampled, and also means that log probabilities are computed using these new values.</p>
@@ -966,7 +966,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>You can also provide an <code>AbstractRNG</code> as the first argument to <code>init!!</code> to control the reproducibility of the sampling: here we have omitted it.</p>
 </div>
 </div>
-<p>Alternatively, to provide specific sets of values, we can use <code>InitFromParams(...)</code> to specify them. <code>InitFromParams</code> can wrap either a <code>NamedTuple</code> or an <code>AbstractDict{&lt;:VarName}</code>, but for reasons explained above, <code>Dict</code> is generally much preferred.</p>
+<p>Alternatively, to provide specific sets of values, we can use <code>InitFromParams(...)</code> to specify them. <code>InitFromParams</code> can wrap either a <code>NamedTuple</code> or an <code>AbstractDict{&lt;:VarName}</code>, but <code>Dict</code> is generally much preferred as this guarantees correct behaviour even for complex variable names.</p>
 <div id="26" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>retval, v_new <span class="op">=</span> DynamicPPL.<span class="fu">init!!</span>(</span>
 <span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>    model, v, <span class="fu">InitFromParams</span>(<span class="fu">Dict</span>(<span class="pp">@varname</span>(x) <span class="op">=&gt;</span> <span class="fl">3.0</span>))</span>
@@ -995,11 +995,23 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>First generate a VarInfo using <code>VarInfo(model)</code>;</li>
 <li>Then call <code>DynamicPPL.init!!(model, v, InitFromParams(...))</code> to evaluate the model using those parameters.</li>
 </ul>
-<p>This costs an extra model evaluation at the very beginning to generate the VarInfo, but subsequent evaluations will be efficient.</p>
-<p>For example, this is how functions like <code>predict(model, chain)</code> are implemented.</p>
+<p>This requires you to pay a one-time cost at the very beginning to generate the VarInfo, but subsequent evaluations will be efficient. DynamicPPL uses this approach when implementing functions such as <code>predict(model, chain)</code>.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Tip
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>If you want to avoid even the first model evaluation, you will need to read on to the ‘Advanced’ section below. However, for most applications this should not necessary.</p>
+</div>
+</div>
 </section>
-<section id="unflatten" class="level2">
-<h2 class="anchored" data-anchor-id="unflatten"><code>unflatten</code></h2>
+<section id="parameters-in-the-form-of-vectors" class="level2">
+<h2 class="anchored" data-anchor-id="parameters-in-the-form-of-vectors">Parameters in the form of Vectors</h2>
 <p>In general, one problem with <code>init!!</code> is that it is often slower than <code>evaluate!!</code>. This is primarily because it does more work: it has to not only read from the provided parameters, but also overwrite existing values in the VarInfo.</p>
 <div id="30" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Chairmarks</span>, <span class="bu">Logging</span></span>
@@ -1009,7 +1021,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">median</span>(<span class="pp">@be</span> DynamicPPL.<span class="fu">evaluate!!</span>(model, v_new))</span>
 <span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>371.329 ns (7 allocs: 288 bytes)</code></pre>
+<pre><code>368.062 ns (7 allocs: 288 bytes)</code></pre>
 </div>
 </div>
 <div id="32" class="cell" data-execution_count="1">
@@ -1017,7 +1029,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>    <span class="fu">median</span>(<span class="pp">@be</span> DynamicPPL.<span class="fu">init!!</span>(model, v_new, <span class="fu">InitFromParams</span>(<span class="fu">Dict</span>(<span class="pp">@varname</span>(x) <span class="op">=&gt;</span> <span class="fl">3.0</span>))))</span>
 <span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>495.100 ns (12 allocs: 624 bytes)</code></pre>
+<pre><code>491.917 ns (12 allocs: 624 bytes)</code></pre>
 </div>
 </div>
 <p>When evaluating models in tight loops, as is often the case in inference algorithms, this overhead can be quite unwanted. DynamicPPL provides a rather dangerous, but powerful, way to get around this, which is the <code>DynamicPPL.unflatten</code> function. <code>unflatten</code> allows you to directly modify the internal storage of a VarInfo, without having to go through <code>init!!</code> and model evaluation. Its input is a vector of parameters.</p>
@@ -1058,7 +1070,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </section>
 <section id="logdensityfunction" class="level2">
-<h2 class="anchored" data-anchor-id="logdensityfunction">LogDensityFunction</h2>
+<h2 class="anchored" data-anchor-id="logdensityfunction"><code>LogDensityFunction</code></h2>
 <p>There is one place where <code>unflatten</code> is (unfortunately) quite indispensable, namely, the implementation of the LogDensityProblems.jl interface for Turing models.</p>
 <p>The LogDensityProblems interface defines interface functions such as</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb39"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>LogDensityProblems.<span class="fu">logdensity</span>(f, x<span class="op">::</span><span class="dt">AbstractVector</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -1151,7 +1163,7 @@ Stacktrace:
  [6] <span class="ansi-bold">getindex</span><span class="ansi-bold">(</span><span class="ansi-bright-black-fg">vi</span>::VarInfo<span class="ansi-bright-black-fg">{DynamicPPL.Metadata{Dict{VarName, Int64}, Vector{Distribution}, Vector{VarName}, Vector{Real}}, DynamicPPL.AccumulatorTuple{3, @NamedTuple{LogPrior::LogPriorAccumulator{Float64}, LogJacobian::LogJacobianAccumulator{Float64}, LogLikelihood::LogLikelihoodAccumulator{Float64}}}}</span>, <span class="ansi-bright-black-fg">vn</span>::VarName<span class="ansi-bright-black-fg">{:x, typeof(identity)}</span><span class="ansi-bold">)</span>
 <span class="ansi-bright-black-fg">   @</span> <span class="ansi-magenta-fg">DynamicPPL</span> <span class="ansi-bright-black-fg">~/.julia/packages/DynamicPPL/kpBde/src/</span><span style="text-decoration:underline" class="ansi-bright-black-fg">varinfo.jl:1491</span>
  [7] top-level scope
-<span class="ansi-bright-black-fg">   @</span> <span class="ansi-bright-black-fg">~/work/docs/docs/developers/models/varinfo-overview/</span><span style="text-decoration:underline" class="ansi-bright-black-fg">index.qmd:317</span></pre>
+<span class="ansi-bright-black-fg">   @</span> <span class="ansi-bright-black-fg">~/work/docs/docs/developers/models/varinfo-overview/</span><span style="text-decoration:underline" class="ansi-bright-black-fg">index.qmd:321</span></pre>
 </div>
 </div>
 </div>
@@ -1238,7 +1250,7 @@ Stacktrace:
 <span id="cb55-2"><a href="#cb55-2" aria-hidden="true" tabindex="-1"></a>    <span class="fu">median</span>(<span class="pp">@be</span> DynamicPPL.<span class="fu">evaluate!!</span>(model, v_filled_untyped))</span>
 <span id="cb55-3"><a href="#cb55-3" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>2.095 μs (32 allocs: 1.328 KiB)</code></pre>
+<pre><code>2.079 μs (32 allocs: 1.328 KiB)</code></pre>
 </div>
 </div>
 <div id="58" class="cell" data-execution_count="1">
@@ -1246,7 +1258,7 @@ Stacktrace:
 <span id="cb57-2"><a href="#cb57-2" aria-hidden="true" tabindex="-1"></a>    <span class="fu">median</span>(<span class="pp">@be</span> DynamicPPL.<span class="fu">evaluate!!</span>(model, v_filled_typed))</span>
 <span id="cb57-3"><a href="#cb57-3" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>372.215 ns (7 allocs: 288 bytes)</code></pre>
+<pre><code>365.741 ns (7 allocs: 288 bytes)</code></pre>
 </div>
 </div>
 

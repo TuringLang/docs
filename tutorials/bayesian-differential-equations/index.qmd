@@ -328,17 +328,14 @@ The fit is pretty good even though the data was quite noisy to start.
 
 ## Scaling to Large Models: Adjoint Sensitivities
 
-DifferentialEquations.jl's efficiency for large stiff models has been shown in [multiple benchmarks](https://github.com/SciML/DiffEqBenchmarks.jl).
-To learn more about how to optimize solving performance for stiff problems you can take a look at the [docs](https://docs.sciml.ai/DiffEqDocs/stable/tutorials/advanced_ode_example/).
+Turing's gradient-based MCMC algorithms, such as NUTS, use ForwardDiff by default.
+This works well for small models, but for larger models with many parameters, reverse-mode automatic differentiation is often more efficient (see [the automatic differentiation page]({{< meta usage-automatic-differentiation >}}) for more information).
 
-_Sensitivity analysis_ is provided by the [SciMLSensitivity.jl package](https://docs.sciml.ai/SciMLSensitivity/stable/), which forms part of SciML's differential equation suite.
-The model sensitivities are the derivatives of the solution with respect to the parameters.
-Specifically, the local sensitivity of the solution to a parameter is defined by how much the solution would change if the parameter were changed by a small amount.
-Sensitivity analysis provides a cheap way to calculate the gradient of the solution which can be used in parameter estimation and other optimization tasks.
-The sensitivity analysis methods in SciMLSensitivity.jl are based on automatic differentiation (AD), and are compatible with many of Julia's AD backends.
+To use reverse-mode AD with differential equations, you need to first load the [SciMLSensitivity.jl package](https://docs.sciml.ai/SciMLSensitivity/stable/), which forms part of SciML's differential equation suite.
+Here, 'sensitivity' refers to the derivative of the solution of a differential equation with respect to its parameters.
 More details on the mathematical theory that underpins these methods can be found in [the SciMLSensitivity documentation](https://docs.sciml.ai/SciMLSensitivity/stable/sensitivity_math/).
 
-To enable sensitivity analysis, you will need to `import SciMLSensitivity`, and also use one of the AD backends that is compatible with SciMLSensitivity.jl when sampling.
+Once SciMLSensitivity has been loaded, you can use one of the AD backends which are compatible with SciMLSensitivity.jl.
 For example, if we wanted to use [Mooncake.jl](https://chalk-lab.github.io/Mooncake.jl/stable/), we could run:
 
 ```{julia}
@@ -352,7 +349,9 @@ adtype = AutoMooncake()
 sample(model, NUTS(; adtype=adtype), 1000; progress=false)
 ```
 
-In this case, SciMLSensitivity will automatically choose an appropriate sensitivity analysis algorithm for you.
+(If SciMLSensitivity is not loaded, the call to `sample` will error.)
+
+SciMLSensitivity has a number of sensitivity analysis algorithms: in this case it will automatically choose a default for you.
 You can also manually specify an algorithm by providing the `sensealg` keyword argument to the `solve` function; the existing algorithms are covered in [this page of the SciMLSensitivity docs](https://docs.sciml.ai/SciMLSensitivity/stable/manual/differential_equation_sensitivities/).
 
 For more examples of adjoint usage on large parameter models, consult the [DiffEqFlux documentation](https://docs.sciml.ai/DiffEqFlux/stable/).

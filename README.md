@@ -1,3 +1,11 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://turinglang.org/assets/logo/turing-logo-dark.svg">
+    <img src="https://turinglang.org/assets/logo/turing-logo-light.svg" alt="Turing.jl logo" width="300">
+  </picture>
+</p>
+<p align="center"><i>Bayesian inference with probabilistic programming</i></p>
+
 # Turing.jl Documentation and Tutorials
 
 **https://turinglang.org/docs/**

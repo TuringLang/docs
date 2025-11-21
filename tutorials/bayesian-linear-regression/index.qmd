@@ -12,7 +12,7 @@ using Pkg;
 Pkg.instantiate();
 ```
 
-Turing is powerful when applied to complex hierarchical models, but it can also be put to task at common statistical procedures, like [linear regression](https://en.wikipedia.org/wiki/Linear_regression).
+Turing is powerful when applied to complex hierarchical models, but it can also be applied to common statistical procedures, like [linear regression](https://en.wikipedia.org/wiki/Linear_regression).
 This tutorial covers how to implement a linear regression model in Turing.
 
 ## Set Up
@@ -26,7 +26,7 @@ using Turing
 # Package for loading the data set.
 using RDatasets
 
-# Package for visualization.
+# Package for visualisation.
 using StatsPlots
 
 # Functionality for splitting the data.
@@ -35,7 +35,7 @@ using MLUtils: splitobs
 # Functionality for constructing arrays with identical elements efficiently.
 using FillArrays
 
-# Functionality for normalizing the data and evaluating the model predictions.
+# Functionality for normalising the data and evaluating the model predictions.
 using StatsBase
 
 # Functionality for working with scaled identity matrices.
@@ -68,7 +68,7 @@ first(data, 6)
 size(data)
 ```
 
-The next step is to get our data ready for testing. We'll split the `mtcars` dataset into two subsets, one for training our model and one for evaluating our model. Then, we separate the targets we want to learn (`MPG`, in this case) and standardize the datasets by subtracting each column's means and dividing by the standard deviation of that column. The resulting data is not very familiar looking, but this standardization process helps the sampler converge far easier.
+The next step is to get our data ready for testing. We'll split the `mtcars` dataset into two subsets, one for training our model and one for evaluating our model. Then, we separate the targets we want to learn (`MPG`, in this case) and standardise the datasets by subtracting each column's mean and dividing by the standard deviation of that column. This [standardisation](https://en.wikipedia.org/wiki/Feature_scaling) ensures all features have similar scales (mean 0, standard deviation 1), which helps the sampler explore the parameter space more efficiently.
 
 ```{julia}
 # Remove the model column.
@@ -84,12 +84,12 @@ test = Matrix(select(testset, Not(target)))
 train_target = trainset[:, target]
 test_target = testset[:, target]
 
-# Standardize the features.
+# Standardise the features.
 dt_features = fit(ZScoreTransform, train; dims=1)
 StatsBase.transform!(dt_features, train)
 StatsBase.transform!(dt_features, test)
 
-# Standardize the targets.
+# Standardise the targets.
 dt_targets = fit(ZScoreTransform, train_target)
 StatsBase.transform!(dt_targets, train_target)
 StatsBase.transform!(dt_targets, test_target);
@@ -114,9 +114,9 @@ where $\alpha$ is an intercept term common to all observations, $\boldsymbol{\be
 For $\sigma^2$, we assign a prior of `truncated(Normal(0, 100); lower=0)`.
 This is consistent with [Andrew Gelman's recommendations](http://www.stat.columbia.edu/%7Egelman/research/published/taumain.pdf) on noninformative priors for variance.
 The intercept term ($\alpha$) is assumed to be normally distributed with a mean of zero and a variance of three.
-This represents our assumptions that miles per gallon can be explained mostly by our assorted variables, but a high variance term indicates our uncertainty about that.
+This represents our assumptions that miles per gallon can be explained mostly by our various variables, but a high variance term indicates our uncertainty about that.
 Each coefficient is assumed to be normally distributed with a mean of zero and a variance of 10.
-We do not know that our coefficients are different from zero, and we don't know which ones are likely to be the most important, so the variance term is quite high.
+We do not know that our coefficients are different from zero, and we do not know which ones are likely to be the most important, so the variance term is quite high.
 Lastly, each observation $y_i$ is distributed according to the calculated `mu` term given by $\alpha + \boldsymbol{\beta}^\mathsf{T}\boldsymbol{X_i}$.
 
 ```{julia}
@@ -175,17 +175,17 @@ using GLM
 train_with_intercept = hcat(ones(size(train, 1)), train)
 ols = lm(train_with_intercept, train_target)
 
-# Compute predictions on the training data set and unstandardize them.
+# Compute predictions on the training data set and unstandardise them.
 train_prediction_ols = GLM.predict(ols)
 StatsBase.reconstruct!(dt_targets, train_prediction_ols)
 
-# Compute predictions on the test data set and unstandardize them.
+# Compute predictions on the test data set and unstandardise them.
 test_with_intercept = hcat(ones(size(test, 1)), test)
 test_prediction_ols = GLM.predict(ols, test_with_intercept)
 StatsBase.reconstruct!(dt_targets, test_prediction_ols);
 ```
 
-The function below accepts a chain and an input matrix and calculates predictions. We use the samples of the model parameters in the chain starting with sample 200.
+The function below accepts a chain and an input matrix and calculates predictions. We use the samples starting from sample 200 onwards, discarding the initial samples as [burn-in](https://en.wikipedia.org/wiki/Markov_chain_Monte_Carlo) to allow the sampler to reach the typical set.
 
 ```{julia}
 # Make a prediction given an input vector.
@@ -196,10 +196,10 @@ function prediction(chain, x)
 end
 ```
 
-When we make predictions, we unstandardize them so they are more understandable.
+When we make predictions, we unstandardise them so they are more understandable.
 
 ```{julia}
-# Calculate the predictions for the training and testing sets and unstandardize them.
+# Calculate the predictions for the training and testing sets and unstandardise them.
 train_prediction_bayes = prediction(chain, train)
 StatsBase.reconstruct!(dt_targets, train_prediction_bayes)
 test_prediction_bayes = prediction(chain, test)
@@ -213,7 +213,7 @@ Now let's evaluate the loss for each method, and each prediction set. We will us
 $$
 \mathrm{MSE} = \frac{1}{n} \sum_{i=1}^n {(y_i - \hat{y_i})^2}
 $$
-where $y_i$ is the actual value (true MPG) and $\hat{y_i}$ is the predicted value using either OLS or Bayesian linear regression. A lower SSE indicates a closer fit to the data.
+where $y_i$ is the actual value (true MPG) and $\hat{y_i}$ is the predicted value using either OLS or Bayesian linear regression. A lower MSE indicates a closer fit to the data.
 
 ```{julia}
 println(

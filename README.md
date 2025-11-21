@@ -13,7 +13,7 @@
 ## Contributing
 
 The easiest way to contribute to the documentation is to simply open a pull request.
-A preview version of the documentation is built for PRs, so you can see how your changes look without having to build the entire site locally.
+A preview version of the documentation is built for pull requests, so you can see how your changes look without having to build the entire site locally.
 (Note that if you are editing a tutorial that takes a long time to run, this feedback may take a while.)
 
 The `main` branch contains the Quarto source code.
@@ -60,7 +60,7 @@ Then:
    ```
 
    This will build the entire documentation and place the output in the `_site` folder.
-   You can then view the rendered website by launching a HTTP server from that directory, e.g. using Python:
+   You can then view the rendered website by launching an HTTP server from that directory, e.g. using Python:
 
    ```bash
    cd _site
@@ -89,7 +89,7 @@ If you wish to speed up local rendering, there are two options available:
 
    Note that the validity of a `_freeze` folder depends on the Julia environment that it was created with, because different package versions may lead to different outputs.
    In the GitHub release, the `Manifest.toml` is also provided, and you should also download this and place it in the root directory of the docs.
-   
+
    If there isn't a suitably up-to-date `_freeze` folder in the releases, you can generate a new one by [triggering a run for the `create_release.yml` workflow](https://github.com/TuringLang/docs/actions/workflows/create_release.yml).
    (You will need to have the appropriate permissions; please create an issue if you need help with this.)
 
@@ -109,6 +109,6 @@ And also, kill any stray Quarto processes that are still running (sometimes it k
 pkill -9 -f quarto
 ```
 
-## License
+## Licence
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT Licence - see the [LICENSE](LICENSE) file for details.

@@ -14,8 +14,8 @@ Pkg.instantiate();
 
 A basic scientific problem is to mathematically model a system of interest, then compare this model to the observable reality around us.
 Such models often involve dynamical systems of differential equations.
-In practice, these equations often have unkown parameters we would like to estimate.
-The “forward problem” of simulation consists of solving the differential equations for a given set of parameters, while the “inverse problem," also known as parameter estimation, is the process of utilizing data to determine these model parameters.
+In practice, these equations often have unknown parameters we would like to estimate.
+The "[forward problem](https://en.wikipedia.org/wiki/Well-posed_problem)" of simulation consists of solving the differential equations for a given set of parameters, while the "[inverse problem](https://en.wikipedia.org/wiki/Inverse_problem)" of parameter estimation uses observed data to infer the unknown model parameters.
 Bayesian inference provides a robust approach to parameter estimation with quantified uncertainty.
 
 ```{julia}
@@ -78,9 +78,9 @@ plot(solve(prob, Tsit5()))
 We generate noisy observations to use for the parameter estimation tasks in this tutorial.
 With the [`saveat` argument](https://docs.sciml.ai/DiffEqDocs/stable/basics/common_solver_opts/) to the differential equation solver, we specify that the solution is stored only at `0.1` time units.
 
-To make the example more realistic, we generate data as random Poisson counts based on the "true" population densities of predator and prey from the simulation.
+To make the example more realistic, we generate data as random [Poisson](https://en.wikipedia.org/wiki/Poisson_distribution) counts based on the "true" population densities of predator and prey from the simulation.
 Poisson-distributed data are common in ecology (for instance, counts of animals detected by a camera trap).
-We'll assume that the rate $\lambda$, which parameterizes the Poisson distribution, is proportional to the underlying animal densities via a constant factor $q = 1.7$.
+We assume the Poisson rate parameter $\lambda$ is proportional to the underlying animal densities, with proportionality constant $q = 1.7$ (representing observation efficiency).
 
 
 ```{julia}
@@ -309,7 +309,7 @@ plot(chain_dde)
 ```
 
 Finally, we plot trajectories of 300 randomly selected samples from the posterior.
-Again, the dots indicate our observations, the colored lines are the "true" simulations without noise, and the gray lines are trajectories from the posterior samples.
+Again, the dots indicate our observations, the coloured lines are the "true" simulations without noise, and the gray lines are trajectories from the posterior samples.
 
 ```{julia}
 plot(; legend=false)
@@ -328,17 +328,14 @@ The fit is pretty good even though the data was quite noisy to start.
 
 ## Scaling to Large Models: Adjoint Sensitivities
 
-DifferentialEquations.jl's efficiency for large stiff models has been shown in [multiple benchmarks](https://github.com/SciML/DiffEqBenchmarks.jl).
-To learn more about how to optimize solving performance for stiff problems you can take a look at the [docs](https://docs.sciml.ai/DiffEqDocs/stable/tutorials/advanced_ode_example/).
+Turing's gradient-based MCMC algorithms, such as NUTS, use ForwardDiff by default.
+This works well for small models, but for larger models with many parameters, reverse-mode automatic differentiation is often more efficient (see [the automatic differentiation page]({{< meta usage-automatic-differentiation >}}) for more information).
 
-_Sensitivity analysis_ is provided by the [SciMLSensitivity.jl package](https://docs.sciml.ai/SciMLSensitivity/stable/), which forms part of SciML's differential equation suite.
-The model sensitivities are the derivatives of the solution with respect to the parameters.
-Specifically, the local sensitivity of the solution to a parameter is defined by how much the solution would change if the parameter were changed by a small amount.
-Sensitivity analysis provides a cheap way to calculate the gradient of the solution which can be used in parameter estimation and other optimization tasks.
-The sensitivity analysis methods in SciMLSensitivity.jl are based on automatic differentiation (AD), and are compatible with many of Julia's AD backends.
+To use reverse-mode AD with differential equations, you need to first load the [SciMLSensitivity.jl package](https://docs.sciml.ai/SciMLSensitivity/stable/), which forms part of SciML's differential equation suite.
+Here, 'sensitivity' refers to the derivative of the solution of a differential equation with respect to its parameters.
 More details on the mathematical theory that underpins these methods can be found in [the SciMLSensitivity documentation](https://docs.sciml.ai/SciMLSensitivity/stable/sensitivity_math/).
 
-To enable sensitivity analysis, you will need to `import SciMLSensitivity`, and also use one of the AD backends that is compatible with SciMLSensitivity.jl when sampling.
+Once SciMLSensitivity has been loaded, you can use one of the AD backends which are compatible with SciMLSensitivity.jl.
 For example, if we wanted to use [Mooncake.jl](https://chalk-lab.github.io/Mooncake.jl/stable/), we could run:
 
 ```{julia}
@@ -352,7 +349,9 @@ adtype = AutoMooncake()
 sample(model, NUTS(; adtype=adtype), 1000; progress=false)
 ```
 
-In this case, SciMLSensitivity will automatically choose an appropriate sensitivity analysis algorithm for you.
+(If SciMLSensitivity is not loaded, the call to `sample` will error.)
+
+SciMLSensitivity has a number of sensitivity analysis algorithms: in this case it will automatically choose a default for you.
 You can also manually specify an algorithm by providing the `sensealg` keyword argument to the `solve` function; the existing algorithms are covered in [this page of the SciMLSensitivity docs](https://docs.sciml.ai/SciMLSensitivity/stable/manual/differential_equation_sensitivities/).
 
 For more examples of adjoint usage on large parameter models, consult the [DiffEqFlux documentation](https://docs.sciml.ai/DiffEqFlux/stable/).

@@ -79,7 +79,7 @@ end
 model = initial_bad2() | (y = 50.0,)
 ```
 
-The problem here is that HMC attempts to find initial values for parameters inside the region of `[-2, 2]`, _after_ the parameters have been transformed to unconstrained space.
+The problem here is that HMC's default initialisation strategy is `InitFromUniform(-2, 2)`: in other words, it attempts to find initial values for transformed parameters inside the region of `[-2, 2]`.
 For a distribution of `Exponential(100)`, the appropriate transformation is `log(x)` (see the [variable transformation docs]({{< meta dev-transforms-distributions >}}) for more info).
 
 Thus, HMC attempts to find initial values of `log(x)` in the region of `[-2, 2]`, which corresponds to `x` in the region of `[exp(-2), exp(2)]` = `[0.135, 7.39]`.
@@ -94,11 +94,16 @@ logjoint(model, (x = exp(-2),))
 logjoint(model, (x = exp(2),))
 ```
 
-The most direct way of fixing this is to manually provide a set of initial parameters that are valid.
-For example, you can obtain a set of initial parameters with `rand(Vector, model)`, and then pass this as the `initial_params` keyword argument to `sample`:
+You can fix this by overriding the default initialisation strategy (discussed in more detail in [the sampling options page]({{< meta usage-sampling-options >}}#specifying-initial-parameters)).
 
 ```{julia}
-sample(model, NUTS(), 1000; initial_params=rand(Vector, model))
+# Use initial parameters drawn from the model's prior.
+sample(model, NUTS(), 1000; initial_params=InitFromPrior())
+```
+
+```{julia}
+# Use manually specified initial parameters (always in untransformed space).
+sample(model, NUTS(), 1000; initial_params=InitFromParams((x = 60.0,)))
 ```
 
 More generally, you may also consider reparameterising the model to avoid such issues.
@@ -126,7 +131,7 @@ When the log probability density of the model is calculated, `a` is sampled from
 However, `x` is _always_ a `Vector{Float64}`, and the call `x[1] = a` attempts to insert a `Dual` object into a `Vector{Float64}`, which is not allowed.
 
 ::: {.callout-note}
-In more depth: the basic premise of ForwardDiff is that functions have to accept `Real` parameters instead of `Float64` (since `Dual` is a subtype of `Real`).
+In more detail: the basic premise of ForwardDiff is that functions have to accept `Real` parameters instead of `Float64` (since `Dual` is a subtype of `Real`).
 Here, the line `x[1] = a` is equivalent to `setindex!(x, a, 1)`, and although the method `setindex!(::Vector{Float64}, ::Real, ...)` does exist, it attempts to convert the `Real` into a `Float64`, which is where it fails.
 :::
 
@@ -159,3 +164,5 @@ A better solution is to pass a type as a parameter to the model:
 end
 sample(forwarddiff_working2(), NUTS(; adtype=AutoForwardDiff()), 10)
 ```
+
+Alternatively, you can use a different AD backend such as Mooncake.jl which does not rely on dual numbers.

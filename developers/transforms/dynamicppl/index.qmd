@@ -67,7 +67,7 @@ Note that this acts on _all_ variables in the model, including unconstrained one
 vi_linked = DynamicPPL.link(vi, model)
 println("Transformed value: $(DynamicPPL.getindex_internal(vi_linked, vn_x))")
 println("Transformed logp: $(DynamicPPL.getlogp(vi_linked))")
-println("Transformed flag: $(DynamicPPL.istrans(vi_linked, vn_x))")
+println("Transformed flag: $(DynamicPPL.is_transformed(vi_linked, vn_x))")
 ```
 
 Indeed, we can see that the new logp value matches with
@@ -82,7 +82,7 @@ The reverse transformation, `invlink`, reverts all of the above steps:
 vi = DynamicPPL.invlink(vi_linked, model)  # Same as the previous vi
 println("Un-transformed value: $(DynamicPPL.getindex_internal(vi, vn_x))")
 println("Un-transformed logp: $(DynamicPPL.getlogp(vi))")
-println("Un-transformed flag: $(DynamicPPL.istrans(vi, vn_x))")
+println("Un-transformed flag: $(DynamicPPL.is_transformed(vi, vn_x))")
 ```
 
 ### Model and internal representations
@@ -104,7 +104,7 @@ Note that `vi_linked[vn_x]` can also be used as shorthand for `getindex(vi_linke
 We can see (for this linked varinfo) that there are _two_ differences between these outputs:
 
 1. _The internal representation has been transformed using the bijector (in this case, the log function)._
-   This means that the `istrans()` flag which we used above doesn't modify the model representation: it only tells us whether the internal representation has been transformed or not.
+   This means that the `is_transformed()` flag which we used above doesn't modify the model representation: it only tells us whether the internal representation has been transformed or not.
 
 2. _The internal representation is a vector, whereas the model representation is a scalar._
    This is because in DynamicPPL, _all_ internal values are vectorised (i.e. converted into some vector), regardless of distribution. On the other hand, since the model specifies a univariate distribution, the model representation is a scalar.
@@ -131,7 +131,7 @@ Before that, though, we will take a quick high-level look at how the HMC sampler
 While DynamicPPL provides the _functionality_ for transforming variables, the transformation itself happens at an even higher level, i.e. in the sampler itself.
 The HMC sampler in Turing.jl is in [this file](https://github.com/TuringLang/Turing.jl/blob/5b24cebe773922e0f3d5c4cb7f53162eb758b04d/src/mcmc/hmc.jl).
 In the first step of sampling, it calls `link` on the sampler.
-This transformation is preserved throughout the sampling process, meaning that `istrans()` always returns true.
+This transformation is preserved throughout the sampling process, meaning that `is_transformed()` always returns true.
 
 We can observe this by inserting print statements into the model.
 Here, `__varinfo__` is the internal symbol for the `VarInfo` object used in model evaluation:
@@ -145,7 +145,7 @@ setprogress!(false)
         println("-----------")
         println("model repn: $(DynamicPPL.getindex(__varinfo__, @varname(x)))")
         println("internal repn: $(DynamicPPL.getindex_internal(__varinfo__, @varname(x)))")
-        println("istrans: $(istrans(__varinfo__, @varname(x)))")
+        println("is_transformed: $(is_transformed(__varinfo__, @varname(x)))")
     end
 end
 
@@ -154,10 +154,10 @@ sample(demo2(), HMC(0.1, 3), 3);
 
 
 (Here, the check on `if x isa AbstractFloat` prevents the printing from occurring during computation of the derivative.)
-You can see that during the three sampling steps, `istrans` is always kept as `true`.
+You can see that during the three sampling steps, `is_transformed` is always kept as `true`.
 
 ::: {.callout-note}
-The first two model evaluations where `istrans` is `false` occur prior to the actual sampling.
+The first two model evaluations where `is_transformed` is `false` occur prior to the actual sampling.
 One occurs when the model is checked for correctness (using [`DynamicPPL.check_model_and_trace`](https://github.com/TuringLang/DynamicPPL.jl/blob/ba490bf362653e1aaefe298364fe3379b60660d3/src/debug_utils.jl#L582-L612)).
 The second occurs because the model is evaluated once to generate a set of initial parameters inside [DynamicPPL's implementation of `AbstractMCMC.step`](https://github.com/TuringLang/DynamicPPL.jl/blob/ba490bf362653e1aaefe298364fe3379b60660d3/src/sampler.jl#L98-L117).
 Both of these steps occur with all samplers in Turing.jl, so are not specific to the HMC example shown here.
@@ -169,7 +169,7 @@ The biggest prerequisite for this to work correctly is that the potential energy
 This is exactly the same as how we had to make sure to define `logq(y)` correctly in the toy HMC example above.
 
 Within Turing.jl, this is correctly handled because a statement like `x ~ LogNormal()` in the model definition above is translated into `assume(LogNormal(), @varname(x), __varinfo__)`, defined [here](https://github.com/TuringLang/DynamicPPL.jl/blob/ba490bf362653e1aaefe298364fe3379b60660d3/src/context_implementations.jl#L225-L229).
-If you follow the trail of function calls, you can verify that the `assume` function does indeed check for the presence of the `istrans` flag and adds the Jacobian term accordingly.
+If you follow the trail of function calls, you can verify that the `assume` function does indeed check for the presence of the `is_transformed` flag and adds the Jacobian term accordingly.
 
 ## A deeper dive into DynamicPPL's internal machinery
 
@@ -234,7 +234,7 @@ DynamicPPL.getindex_internal(vi_linked, vn_x)
 ```
 
 The purpose of having all of these machinery is to allow other parts of DynamicPPL, such as the tilde pipeline, to handle transformed variables correctly.
-The following diagram shows how `assume` first checks whether the variable is transformed (using `istrans`), and then applies the appropriate transformation function.
+The following diagram shows how `assume` first checks whether the variable is transformed (using `is_transformed`), and then applies the appropriate transformation function.
 
 <!-- 'wrappingWidth' setting required because of https://github.com/mermaid-js/mermaid-cli/issues/112#issuecomment-2352670995 -->
 ```{mermaid}
@@ -246,7 +246,7 @@ graph TD
     A["x ~ LogNormal()"]:::boxStyle
     B["vn = <span style='color:#3B6EA8 !important;'>@varname</span>(x)<br>dist = LogNormal()<br>x, vi = ..."]:::boxStyle
     C["assume(vn, dist, vi)"]:::boxStyle
-    D(["<span style='color:#3B6EA8 !important;'>if</span> istrans(vi, vn)"]):::boxStyle
+    D(["<span style='color:#3B6EA8 !important;'>if</span> is_transformed(vi, vn)"]):::boxStyle
     E["f = from_internal_transform(vi, vn, dist)"]:::boxStyle
     F["f = from_linked_internal_transform(vi, vn, dist)"]:::boxStyle
     G["<span style='color:#3B6EA8 !important;'>x, logjac = with_logabsdet_jacobian(f, getindex_internal(vi, vn, dist))</span>"]:::boxStyle
@@ -267,7 +267,7 @@ graph TD
 
 Here, `with_logabsdet_jacobian` is defined [in the ChangesOfVariables.jl package](https://juliamath.github.io/ChangesOfVariables.jl/stable/api/#ChangesOfVariables.with_logabsdet_jacobian), and returns both the effect of the transformation `f` as well as the log Jacobian term.
 
-Because we chose `f` appropriately, we find here that `x` is always the model representation; furthermore, if the variable was _not_ linked (i.e. `istrans` was false), the log Jacobian term will be zero.
+Because we chose `f` appropriately, we find here that `x` is always the model representation; furthermore, if the variable was _not_ linked (i.e. `is_transformed` was false), the log Jacobian term will be zero.
 However, if it was linked, then the Jacobian term would be appropriately included, making sure that sampling proceeds correctly.
 
 ## Why do we need to do this at runtime?

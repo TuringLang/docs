@@ -1,0 +1,237 @@
+---
+title: Threadsafe Evaluation
+engine: julia
+julia:
+  exeflags: 
+    - "--threads=4"
+---
+
+A common technique to speed up Julia code is to use multiple threads to run computations in parallel.
+The Julia manual [has a section on multithreading](https://docs.julialang.org/en/v1/manual/multi-threading), which is a good introduction to the topic.
+
+We assume that the reader is familiar with some threading constructs in Julia, and the general concept of data races.
+This page specificaly discusses Turing's support for threadsafe model evaluation.
+
+:::{.callout-note}
+Please note that this is a rapidly-moving topic, and things may change in future releases of Turing.
+If you are ever unsure about what works and doesn't, please don't hesitate to ask on Slack or Discourse (links can be found at the footer of this site)!
+:::
+
+## MCMC sampling
+
+For complete clarity, this page has nothing to do with parallel sampling of MCMC chains using
+
+```julia
+sample(model, sampler, MCMCThreads(), N, nchains)
+```
+
+That parallelisation exists outside of the model evaluation, and thus is independent of the model contents.
+This page only discusses threading _inside_ Turing models.
+
+## Threading in Turing models
+
+Given that Turing models mostly contain 'plain' Julia code, one might expect that all threading constructs such as `Threads.@threads` or `Threads.@spawn` can be used inside Turing models.
+
+This is, to some extent, true: for example, you can use threading constructs to speed up deterministic computations.
+For example, here we use parallelism to speed up a transformation of `x`:
+
+```julia
+@model function f(y)
+    x ~ dist
+    x_transformed = similar(x)
+    Threads.@threads for i in eachindex(x)
+        x_transformed[i] = some_expensive_function(x[i])
+    end
+    y ~ some_likelihood(x_transformed)
+end
+```
+
+In general, for code that does not involve tilde-statements (`x ~ dist`), threading works exactly as it does in regular Julia code.
+
+**However, extra care must be taken when using tilde-statements (`x ~ dist`) inside threaded blocks.**
+The reason for this is because tilde-statements modify the internal VarInfo object used for model evaluation.
+Essentially, `x ~ dist` expands to something like
+
+```julia
+x, __varinfo__ = DynamicPPL.tilde_assume!!(..., __varinfo__)
+```
+
+and writing into `__varinfo__` is, _in general_, not threadsafe.
+Thus, parallelising tilde-statements can lead to data races [as described in the Julia manual](https://docs.julialang.org/en/v1/manual/multi-threading/#Using-@threads-without-data-races).
+
+## Threaded tilde-statements
+
+**As of version 0.41, Turing only supports the use of tilde-statements inside threaded blocks when these are observations (i.e., likelihood terms).**
+
+This means that the following code is safe to use:
+
+```{julia}
+using Turing 
+
+@model function threaded_obs(N)
+    x ~ Normal()
+    y = Vector{Float64}(undef, N)
+    Threads.@threads for i in 1:N
+        y[i] ~ Normal(x)
+    end
+end
+
+N = 100
+y = randn(N)
+model = threaded_obs(N) | (; y = y)
+```
+
+Evaluating this model is threadsafe, in that Turing guarantees to provide the correct result in functions such as:
+
+```{julia}
+logjoint(model, (; x = 0.0))
+```
+
+(we can compare with the true value)
+
+```{julia}
+logpdf(Normal(), 0.0) + sum(logpdf.(Normal(0.0), y))
+```
+
+When sampling, you must disable model checking, but otherwise results will be correct:
+
+```{julia}
+sample(model, NUTS(), 100; check_model=false, progress=false)
+```
+
+::: {.callout-warning}
+## Upcoming changes
+
+In the next release of Turing, if you use tilde-observations inside threaded blocks, you will have to declare this upfront using:
+
+```julia
+model = threaded_obs() | (; y = randn(N))
+threadsafe_model = setthreadsafe(model, true)
+```
+
+Then you can sample from `threadsafe_model` as before.
+
+The reason for this change is because threadsafe evaluation comes with a performance cost, which can sometimes be substantial.
+In the past, threadsafe evaluation was always enabled, i.e., this cost was *always* incurred whenever Julia was launched with more than one thread.
+However, this is not an appropriate way to determine whether threadsafe evaluation is needed!
+:::
+
+**On the other hand, parallelising the sampling of latent values is not supported.**
+Attempting to do this will either error or give wrong results.
+
+```{julia}
+#| error: true
+@model function threaded_assume_bad(N)
+    x = Vector{Float64}(undef, N)
+    Threads.@threads for i in 1:N
+        x[i] ~ Normal()
+    end
+    return x
+end
+
+model = threaded_assume_bad(100)
+
+# This will throw an error (and probably a different error
+# each time it's run...)
+model()
+```
+
+**Note, in particular, that this means that you cannot use `predict` to sample new data in parallel.**
+That is, even for `threaded_obs` where `y` was originally an observed term, you _cannot_ do:
+
+```{julia}
+#| error: true
+model = threaded_obs(N) | (; y = y)
+chn = sample(model, NUTS(), 100; check_model=false, progress=false)
+
+pmodel = threaded_obs(N)  # don't condition on data
+predict(pmodel, chn)
+```
+
+
+:::{.callout-note}
+## Threaded `predict`
+
+Support for the above call to `predict` may land in the near future, with [this pull request](https://github.com/TuringLang/DynamicPPL.jl/pull/1130).
+:::
+
+## Alternatives to threaded observation
+
+An alternative to using threaded observations is to manually calculate the log-likelihood term (which can be parallelised using any of Julia's standard mechanisms), and then _outside_ of the threaded block, [add it to the model using `@addlogprob!`]({{< meta usage-modifying-logprob >}}).
+
+For example:
+
+```{julia}
+# Note that `y` has to be passed as an argument; you can't
+# condition on it because otherwise `y[i]` won't be defined.
+@model function threaded_obs_addlogprob(N, y)
+    x ~ Normal()
+
+    # Instead of this:
+    # Threads.@threads for i in 1:N
+    #     y[i] ~ Normal(x)
+    # end
+
+    # Do this instead:
+    lls = map(1:N) do i
+        Threads.@spawn begin
+            logpdf(Normal(x), y[i])
+        end
+    end
+    @addlogprob! sum(fetch.(lls))
+end
+```
+
+In a similar way, you can also use your favourite parallelism package, such as `FLoops.jl` or `OhMyThreads.jl`.
+See [this Discourse post](https://discourse.julialang.org/t/parallelism-within-turing-jl-model/54064/9) for some examples.
+
+We make no promises about the use of tilde-statements _with_ these packages (indeed it will most likely error), but as long as you use them to only parallelise regular Julia code (i.e., not tilde-statements), they will work as intended.
+
+One benefit of rewriting the model this way is that sampling from this model with `MCMCThreads()` will always be reproducible.
+
+```{julia}
+using Random
+N = 100
+y = randn(N)
+model = threaded_obs_addlogprob(N, y)
+nuts_kwargs = (check_model=false, progress=false, verbose=false)
+
+chain1 = sample(Xoshiro(468), model, NUTS(), MCMCThreads(), 100, 4; nuts_kwargs...)
+chain2 = sample(Xoshiro(468), model, NUTS(), MCMCThreads(), 100, 4; nuts_kwargs...)
+mean(chain1[:x]), mean(chain2[:x])  # should be identical
+```
+
+In contrast, the original `threaded_obs` (which used tilde inside `Threads.@threads`) is not reproducible when using `MCMCThreads()`.
+
+```{julia}
+model = threaded_obs(N) | (; y = y)
+chain1 = sample(Xoshiro(468), model, NUTS(), MCMCThreads(), 100, 4; nuts_kwargs...)
+chain2 = sample(Xoshiro(468), model, NUTS(), MCMCThreads(), 100, 4; nuts_kwargs...)
+mean(chain1[:x]), mean(chain2[:x])  # oops!
+```
+
+## AD support
+
+Finally, if you are [using Turing with automatic differentiation]({{< meta usage-automatic-differentiation >}}), you also need to keep track of which AD backends support threadsafe evaluation.
+
+ForwardDiff is the only AD backend that we find to work reliably with threaded model evaluation.
+
+In particular:
+
+ - ReverseDiff sometimes gives right results, but quite often gives incorrect gradients.
+ - Mooncake [currently does not support multithreading at all](https://github.com/chalk-lab/Mooncake.jl/issues/570).
+ - Enzyme [mostly gives the right result, but sometimes gives incorrect gradients](https://github.com/TuringLang/DynamicPPL.jl/issues/1131).
+
+## Under the hood
+
+:::{.callout-note}
+This part will likely only be of interest to DynamicPPL developers and the very curious user.
+:::
+
+TODO: Something about metadata, accumulators, and TSVI.
+
+TODO: Say how OnlyAccsVarInfo and FastLDF changes this.
+
+Essentially, `predict(model, chn)` SHOULD work after #1130 because that uses OAVI, which doesn't have Metadata. It uses VAIMAcc to accumulate the values, but that is threadsafe as long as TSVI is used.
+
+FastLDF, _once constructed_, also works with threaded assume. The only problem is that to get the ranges and linked status it has to first generate a VarInfo, which cannot be done. But if there's a way to either manually provide the ranges OR use an accumulator instead to get the ranges/linked status, then it would straight up enable threaded assume with NUTS / any sampler that only uses FastLDF.

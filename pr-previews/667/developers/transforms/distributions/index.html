@@ -1,0 +1,1552 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.26">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Distributions and the Jacobian – Turing.jl</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2" crossorigin="anonymous"></script><script src="../../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../../">
+<link href="../../../developers/transforms/bijectors/index.html" rel="next">
+<link href="../../../developers/contexts/submodel-condition/index.html" rel="prev">
+<link href="../../..//assets/favicon.ico" rel="icon">
+<script src="../../../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../../../site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="../../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../../site_libs/quarto-html/quarto-syntax-highlighting-597958c53c93a607afca12fd375c57ed.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../../../site_libs/quarto-html/quarto-syntax-highlighting-dark-7ac2f9da8c2617a4fdd15004b4601015.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="../../../site_libs/quarto-html/quarto-syntax-highlighting-597958c53c93a607afca12fd375c57ed.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="../../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../../site_libs/bootstrap/bootstrap-11b631f8e41212a46423af8963954d92.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../../../site_libs/bootstrap/bootstrap-dark-366abff0a71b610777fe05ea6ef19494.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../../../site_libs/bootstrap/bootstrap-11b631f8e41212a46423af8963954d92.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<style>html{ scroll-behavior: smooth; }</style>
+<script src="https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js" integrity="sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx" crossorigin="anonymous"></script>
+
+<script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
+<style>
+  a {
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+</style>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<meta property="og:title" content="The Turing Language">
+<meta property="og:description" content="Turing.jl is a probabilistic programming language and Bayesian modelling framework for the Julia programming language.">
+<meta property="og:image" content="https://turinglang.org/docs/assets/images/turing-text-logo.jpg">
+<meta property="og:site_name" content="Turing.jl">
+<meta property="og:image:alt" content="Turing.jl Logo">
+<meta property="og:locale" content="en_GB">
+<meta name="twitter:title" content="Distributions and the Jacobian – Turing.jl">
+<meta name="twitter:description" content="Turing.jl is a probabilistic programming language and Bayesian modelling framework for the Julia programming language.">
+<meta name="twitter:image" content="https://turinglang.org/docs/developers/transforms/distributions/data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAoQAAAHMCAIAAADDNi6EAAAABmJLR0QA/wD/AP+gvaeTAAAgAElEQVR4nO3deXhTdf7o8e9J0p2lZSurLAWmCPJQFrGI7Agoytw77OrDMj8FFNABQRmvMg6KMiPLOGyjw4P+uIogmyDKyA4CioCALBWVls2WpdAlTZr13D8y0x9XgZxCTj9N+n791Ry+TT5pEt49OWmi6bquAACAHIv0AAAAVHTEGAAAYcQYAABhxBgAAGHEGAAAYcQYAABhxBgAAGHEGAAAYcQYAABhkjG22+0ej0dwAAAAygNN8O0w/CHP7Rt2/aJJ54o1Xfpul5cXBwXF2fSVAghh8MRHx8vPQWCKCgo6Dl8jKtOayOL4y4e+2LZwqpVq5o9FW6Ix1S4KO0tZTNvlKC8Xu/t7Rn7/f6QDwMzcEuFBZfLlXFgr/21/zayuPLLzV0ul9kj4WZ4TIWL0t5SHDMGAEAYMQYAQBgxBgBAGDEGAECY5Au4AJjH5/MdPXrUyKtIrl275pf7qwoAihgDkWrLli2/HTQsrk7joCv97mKn01kGIwG4GWIMhBO73f79998bWZmRkRHTqse10cuDL83O0P7a404nA3AHiDEQTmbPmTtr/juxSbWCrnTmZvvqtymDkQDcOWIMhBOvz+fs+oyzz+TgS9f/2Xb2oPkTAQgBXk0NAIAwYgwAgDCepgYAhNLZs2e9Xq/0FKFXt27d2NhYk86cGAMAQubcuXOpqal333239CAhlp2dPWnSpMmTDbxc47YQYwBAyHg8npSUlAMHDkgPEmJ/vOfb+9jBg3imDEAAMJKEWO73d6xY8eRI0eWbFm8eHHt2rVr1KgxcuRIt9sd2Lhz585mzZpVq1atW7duFy5cCO24AABEnlLE+MUXX0xISMjJyQmcPHXq1EsvvbR3796ff/753LlzCxYsUEp5PJ7hw4fPnTs3Nze3Y8eOzz33nClTAwAQQYzGeO/evZmZmcOHDy/Z8sEHHwwYMKBJkybR0dETJkxYtmyZUmrbtm1VqlTp37+/pmmTJk365JNPCgsLTRkcAIBIYegFXA6H4+mnn16zZs22bdtKNmZmZpa8Xq558+aZmZmBjc2bNw9sTE5Ojo+PP3fu3M1eVldcXHzmzJmDB/9JkGJiYkpKSm3fU0AAAhThmL88ssvjxw5skmTJtfHuKioqOQvruLi4ux2u67rRUVFMTExJWvi4+PtdvvNzjYrK+vLL7/cvXt34GTDhg3/ve/Bx1G13Wn06nziW/hoKioSHqESON2u5Uy6y8djdCVXlRUdIvHNUxV/h9TDofj1/8/f/jRinmL/ln2w/Tq1mXmqy+H6tzcbrfxe/71t5TFYomPj7/1+uAxzsnJeffdd1988cVZs2Z98803mZmZ8+fPHz9+fHJy8tWrVwNrcnNza9eurWna9Rv9fv/Vq1dr1659s3NOTU0dNmzY6NGjg1+t6+i6brFYEhISSvVdkFKpUiXpESJKdHS07ACa0hISErhZBZXzH358fLymab/YuOPLfd/EtFT39C3TUS5nFn66zGCM3W73d999d/To0aZNmz7wwAM3XBMdHV2qH36pFgePcVxc3EsvvfTr7R07dly6dGng6127dnXs2FEpde+9944fP764uDg2Nnb/v01a9asV6+e8WkAAJGpTqpq0bNML7HSUXV8mcG1b7755qpVqzweT7du3W4WY1MFfwFX1apVX/iPvn37Nm7cePz48UqpwYMHnz179rnnnluwYMHMmTMD70vSvHnznj17Dho0aMmSJb/e+nTJlitVpNvxIAABjgdrtXrVrl9/sDJ69cubJp0yal1CuvvHL06NGBAwdKDVa6N/3o3LnzxIkTA1/HxcXt27cvOTn5/Pnz/rXv9LT0wPbP/zww379+n3/fdvvPFGyWIAAMRFR0fPmjVry5YtgZPz58/7LPPZEcKKN3bYaampqamppacTE5OnjZt2i/WxMTEPP300yEYDQCAUBs3btw777zz4IMP+ny+995779NPP5WeSCneDhMAUKEMGzZs9+7dP/888aNG+vXr9+qVSvpiZTigyIAABVKXFzc8OHD33/b179z711FPS4/wbMQYAVCxjxozp2bOn2+1euXJlYIvb7S4qKnI6nS6X69q1a/Hx8de/Z0YZ4GlqAEDFkpqampKS8thjj8XFxQW2fPHFF+3bt1+7du3OnTvbt2+/YsWKMh6JPWMAgLmibda4TW9G73u3LC/U53LG1Kl+w38qKir68ccf/GPf5Rs6d+/f/+/ctqtBsgxgAAc82Y/n9GPTE8+LpQu+FbQH700Udz5szp06dPixYtyn6kmyHGAABzJSUltWvXTnqKf0tLS1u4cGHbtm2lB/n/EGMAQAXym9/8RnqEG+A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">
+<meta name="twitter:creator" content="@Hong_Ge2">
+<meta name="twitter:site" content="@TuringLang">
+<meta name="twitter:card" content="summary_large_image">
+</head>
+
+<body class="nav-sidebar floating nav-fixed quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="https://turinglang.org/" class="navbar-brand navbar-brand-logo">
+    <img src="https://turinglang.org/assets/logo/turing-logo-light.svg" alt="" class="navbar-logo light-content">
+    <img src="https://turinglang.org/assets/logo/turing-logo-dark.svg" alt="" class="navbar-logo dark-content">
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../../getting-started/"> 
+<span class="menu-text">Get Started</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../../tutorials/"> 
+<span class="menu-text">Tutorials</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../../faq/"> 
+<span class="menu-text">FAQ</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://turinglang.org/library/"> 
+<span class="menu-text">Libraries</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://turinglang.org/news/"> 
+<span class="menu-text">News</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://turinglang.org/team/"> 
+<span class="menu-text">Team</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-v0.41" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">v0.41</span>
+    </a>
+    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="nav-menu-v0.41">    
+        <li>
+    <a class="dropdown-item" href="https://turinglang.org/docs/changelog.html">
+ <span class="dropdown-text">Changelog</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="https://turinglang.org/docs/versions.html">
+ <span class="dropdown-text">All Versions</span></a>
+  </li>  
+    </ul>
+  </li>
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools tools-wide">
+    <a href="https://x.com/TuringLang" title="Turing Twitter" class="quarto-navigation-tool px-1" aria-label="Turing Twitter"><i class="bi bi-twitter-x"></i></a>
+    <a href="https://discourse.julialang.org/c/domain/probprog/48" title="Turing Discourse" class="quarto-navigation-tool px-1" aria-label="Turing Discourse"><i class="bi bi-chat-dots"></i></a>
+    <a href="https://julialang.slack.com/archives/CCYDC34A0" title="Turing Slack" class="quarto-navigation-tool px-1" aria-label="Turing Slack"><i class="bi bi-slack"></i></a>
+    <a href="https://github.com/TuringLang" title="Turing GitHub" class="quarto-navigation-tool px-1" aria-label="Turing GitHub"><i class="bi bi-github"></i></a>
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="Toggle dark mode"><i class="bi"></i></a>
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../../developers/contributing/index.html">Developers</a></li><li class="breadcrumb-item"><a href="../../../developers/transforms/distributions/index.html">Variable Transformations</a></li><li class="breadcrumb-item"><a href="../../../developers/transforms/distributions/index.html">Distributions and the Jacobian</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header">
+      <a href="../../../index.html" class="sidebar-logo-link">
+      <img src="https://turinglang.org/assets/logo/turing-logo-light.svg" alt="" class="sidebar-logo light-content py-0 d-lg-inline d-none">
+      <img src="https://turinglang.org/assets/logo/turing-logo-dark.svg" alt="" class="sidebar-logo dark-content py-0 d-lg-inline d-none">
+      </a>
+      </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../getting-started/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Getting Started</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../core-functionality/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Core Functionality</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false">
+ <span class="menu-text">User Guide</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/automatic-differentiation/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Automatic Differentiation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/sampling-options/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MCMC Sampling Options</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/submodels/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Submodels</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/custom-distribution/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Custom Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/probability-interface/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Querying Model Probabilities</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/modifying-logprob/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Modifying the Log Probability</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/tracking-extra-quantities/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tracking Extra Quantities</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/predictive-distributions/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Predictive Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/mode-estimation/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Mode Estimation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/threadsafe-evaluation/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Threadsafe Evaluation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/performance-tips/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Performance Tips</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/sampler-visualisation/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sampler Visualization</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/dynamichmc/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Using DynamicHMC</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/external-samplers/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Using External Samplers</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/troubleshooting/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Troubleshooting</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
+ <span class="menu-text">Tutorials</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/coin-flipping/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduction: Coin Flipping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/gaussian-mixture-models/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Gaussian Mixture Models</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/bayesian-logistic-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Logistic Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/bayesian-neural-networks/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Neural Networks</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/hidden-markov-models/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Hidden Markov Models</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/bayesian-linear-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Linear Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/infinite-mixture-models/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Infinite Mixture Models</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/bayesian-poisson-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Poisson Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/multinomial-logistic-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multinomial Logistic Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/variational-inference/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variational Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/bayesian-differential-equations/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Differential Equations</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/probabilistic-pca/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Probabilistic PCA</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/bayesian-time-series-analysis/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Time Series Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/gaussian-processes-introduction/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Gaussian Processes: Introduction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/gaussian-process-latent-variable-models/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Gaussian Process Latent Variable Models</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+ <span class="menu-text">Developers</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/contributing/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Contributing</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">DynamicPPL’s Compiler</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/compiler/model-manual/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Manually Defining a Model</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/compiler/minituring-compiler/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A Mini Turing Implementation I: Compiler</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/compiler/minituring-contexts/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A Mini Turing Implementation II: Contexts</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/compiler/design-overview/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Turing Compiler Design (Outdated)</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
+ <span class="menu-text">DynamicPPL Models</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/models/varinfo-overview/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Evaluation of DynamicPPL Models with VarInfo</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">DynamicPPL Contexts</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/contexts/submodel-condition/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Conditioning and fixing in submodels</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="true">
+ <span class="menu-text">Variable Transformations</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/transforms/distributions/index.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Distributions and the Jacobian</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/transforms/bijectors/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bijectors in MCMC</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/transforms/dynamicppl/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variable transformations in DynamicPPL</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false">
+ <span class="menu-text">Inference in Detail</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/inference/variational-inference/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variational Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/inference/implementing-samplers/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Implementing Samplers</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../faq/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Frequently Asked Questions</span></a>
+  </div>
+</li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of Contents</h2>
+   
+  <ul>
+  <li><a href="#sampling-from-a-distribution" id="toc-sampling-from-a-distribution" class="nav-link active" data-scroll-target="#sampling-from-a-distribution">Sampling from a distribution</a></li>
+  <li><a href="#sampling-from-a-transformed-distribution" id="toc-sampling-from-a-transformed-distribution" class="nav-link" data-scroll-target="#sampling-from-a-transformed-distribution">Sampling from a transformed distribution</a></li>
+  <li><a href="#the-derivative" id="toc-the-derivative" class="nav-link" data-scroll-target="#the-derivative">The derivative</a></li>
+  <li><a href="#the-jacobian" id="toc-the-jacobian" class="nav-link" data-scroll-target="#the-jacobian">The Jacobian</a>
+  <ul class="collapse">
+  <li><a href="#an-example-the-boxmuller-transform" id="toc-an-example-the-boxmuller-transform" class="nav-link" data-scroll-target="#an-example-the-boxmuller-transform">An example: the Box–Muller transform</a></li>
+  </ul></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/TuringLang/docs/edit/main/developers/transforms/distributions/index.qmd" target="_blank" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/TuringLang/docs/issues/new" target="_blank" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../../developers/contributing/index.html">Developers</a></li><li class="breadcrumb-item"><a href="../../../developers/transforms/distributions/index.html">Variable Transformations</a></li><li class="breadcrumb-item"><a href="../../../developers/transforms/distributions/index.html">Distributions and the Jacobian</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">Distributions and the Jacobian</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>This series of articles will seek to motivate the <a href="https://github.com/TuringLang/Bijectors.jl/">Bijectors.jl package</a>, which provides the tools for transforming distributions in the Turing.jl probabilistic programming language.</p>
+<p>It assumes:</p>
+<ul>
+<li>some basic knowledge of probability distributions (the notions of sampling from them and calculating the probability density function for a given distribution); and</li>
+<li>some calculus (the chain and product rules for differentiation, and changes of variables in integrals).</li>
+</ul>
+<div id="4" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> <span class="bu">Random</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">Random</span>.<span class="fu">seed!</span>(<span class="fl">468</span>);</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Distributions</span>: Normal, LogNormal, logpdf, Distributions</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Plots</span>: histogram</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<section id="sampling-from-a-distribution" class="level2">
+<h2 class="anchored" data-anchor-id="sampling-from-a-distribution">Sampling from a distribution</h2>
+<p>To sample from a distribution (as defined in <a href="https://juliastats.org/Distributions.jl/">Distributions.jl</a>), we can use the <code>rand</code> function. Let’s sample from a normal distribution and then plot a histogram of the samples.</p>
+<div id="6" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>samples <span class="op">=</span> <span class="fu">rand</span>(<span class="fu">Normal</span>(), <span class="fl">5000</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">histogram</span>(samples, bins<span class="op">=</span><span class="fl">50</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAoQAAAHMCAIAAADDNi6EAAAABmJLR0QA/wD/AP+gvaeTAAAgAElEQVR4nO3deXhTdf7o8e9J0p2lZSurLAWmCPJQFrGI7Agoytw77OrDMj8FFNABQRmvMg6KMiPLOGyjw4P+uIogmyDKyA4CioCALBWVls2WpdAlTZr13D8y0x9XgZxCTj9N+n791Ry+TT5pEt49OWmi6bquAACAHIv0AAAAVHTEGAAAYcQYAABhxBgAAGHEGAAAYcQYAABhxBgAAGHEGAAAYcQYAABhkjG22+0ej0dwAAAAygNN8O0w//CHP7Rt2/aJJ54o1Xfpul5cXBwXF2fSVAghh8MRHx8vPQWCKCgo6Dl8jKtOayOL4y4e+2LZwqpVq5o9FW6Ix1S4KO0tZTNvlKC8Xu/t7Rn7/f6QDwMzcEuFBZfLlXFgr/21/zayuPLLzV0ul9kj4WZ4TIWL0t5SHDMGAEAYMQYAQBgxBgBAGDEGAECY5Au4AJjH5/MdPXrUyKtIrl275pf7qwoAihgDkWrLli2/HTQsrk7joCv97mKn01kGIwG4GWIMhBO73f79998bWZmRkRHTqse10cuDL83O0P7a404nA3AHiDEQTmbPmTtr/juxSbWCrnTmZvvqtymDkQDcOWIMhBOvz+fs+oyzz+TgS9f/2Xb2oPkTAQgBXk0NAIAwYgwAgDCepgYAhNLZs2e9Xq/0FKFXt27d2NhYk86cGAMAQubcuXOpqal333239CAhlp2dPWnSpMmTDbxc47YQYwBAyHg8npSUlAMHDkgPEmJ//vOfb+9jBg3imDEAAMJKEWO73d6xY8eRI0eWbFm8eHHt2rVr1KgxcuRIt9sd2Lhz585mzZpVq1atW7duFy5cCO24AABEnlLE+MUXX0xISMjJyQmcPHXq1EsvvbR3796ff/753LlzCxYsUEp5PJ7hw4fPnTs3Nze3Y8eOzz33nClTAwAQQYzGeO/evZmZmcOHDy/Z8sEHHwwYMKBJkybR0dETJkxYtmyZUmrbtm1VqlTp37+/pmmTJk365JNPCgsLTRkcAIBIYegFXA6H4+mnn16zZs22bdtKNmZmZpa8Xq558+aZmZmBjc2bNw9sTE5Ojo+PP3fu3M1eVldcXHzmzJmDB//9JkGJiYkpKSm3fU0AAAhThmL88ssvjxw5skmTJtfHuKioqOQvruLi4ux2u67rRUVFMTExJWvi4+PtdvvNzjYrK+vLL7/cvXt34GTDhg3//ve/Bx1G13Wn06nziW/hoKioSHqESON2u5Uy6y8djdCVXlRUdIvHNUxV/h9TDofj1/8/f/jRinmL/ln2w/Tq1mXmqy+H6tzcbrfxe/71t5TFYomPj7/1+uAxzsnJeffdd1988cVZs2Z98803mZmZ8+fPHz9+fHJy8tWrVwNrcnNza9eurWna9Rv9fv/Vq1dr1659s3NOTU0dNmzY6NGjg1+t6+i6brFYEhISSvVdkFKpUiXpESJKdHS07ACa0hISErhZBZXzH358fLymab/YuOPLfd/EtFT39C3TUS5nFn66zGCM3W73d999d/To0aZNmz7wwAM3XBMdHV2qH36pFgePcVxc3EsvvfTr7R07dly6dGng6127dnXs2FEpde+9944fP764uDg2Nnb//v01a9asV6+e8WkAAJGpTqpq0bNML7HSUXV8mcG1b7755qpVqzweT7du3W4WY1MFfwFX1apVX/iPvn37Nm7cePz48UqpwYMHnz179rnnnluwYMHMmTMD70vSvHnznj17Dho0aMmSJb///e+nTJlitVpNvxIAABjgdrtXrVrl9/sDJ69cubJp0yal1CuvvHL06NGBAwdKDVa6N/3o3LnzxIkTA1/HxcXt27cvOTn5/Pnz//rXv9LT0wPbP/zww379+n3//fdvvPFGyWIAAMRFR0fPmjVry5YtgZPz58//7LPPZEcKKN3bYaampqamppacTE5OnjZt2i/WxMTEPP300yEYDQCAUBs3btw777zz4IMP+ny+995779NPP5WeSCneDhMAUKEMGzZs9+7dP//888aNG+vXr9+qVSvpiZTigyIAABVKXFzc8OHD33///b179z711FPS4/wbMQYAVCxjxozp2bOn2+1euXJlYIvb7S4qKnI6nS6X69q1a/Hx8de/Z0YZ4GlqAEDFkpqampKS8thjj8XFxQW2fPHFF+3bt1+7du3OnTvbt2+/YsWKMh6JPWMAgLmibda4TW9G73u3LC/U53LG1Kl+w38qKir68ccf//GPf5Rs6d+/f//+/ctqtBsgxgAAc82Y/n9GPTE8+LpQu+FbQH700Udz5szp06dPixYtyn6kmyHGAABzJSUltWvXTnqKf0tLS1u4cGHbtm2lB/n/EGMAQAXym9/8RnqEG+AFXAAACCPGAAAII8YAAAjjmDEAIJTy8/M//vhj6SlC7Pjx42lpaeadPzEGAIRMrVq1unbtGnkx1jTt/vvvN+/8iTEAIGQqVaq0bNky6SnCD8eMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQxqc2ASgFv9e9a9euxMREI4s7d+4cGxtr9khABCDGAErBUVT4+1nvW6ODJ9b149cfL1380EMPlcFUQLgjxgBKxVIwfLGqXCvousSlj/n9/jIYCIgAHDMGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgfoQjIO3bs2MmTJ42szMjIUKqN2fMAKGPEGJA37g8vHMkpslWpGXRl4YndqhcxBiINMQbkef16Yb+XVfMuQVdqsx8sg3kAlDGOGQMAIIwYAwAgjBgDACCMGAMAIIwYAwAgjBgDACCMGAMAIIwYAwAgjBgDACCMGAMAIIwYAwAgjBgDACCMGAMAIIwYAwAgjBgDACCMGAMAIIwYAwAgzCY9AIDI5HPkf/nll06n08jie++9t2HDhmaPBJRbxBiAKZwXM+d95o85kBt0pevsd88P7fPan18tg6mA8okYAzCHZnF1e8bV+uHgK/81RymH+QMB5RfHjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEMbbYQJmWb9+fU5OjpGVly9fNnsYAOUZMQbMMnzEaG/rR5Q1+KPMc/ZcGcwDoNwixoCJXEP/pqLigi6zHdvqL4NpAJRXHDMGAEAYe8YApDmufXvo+DvvvGNkbatWrTp16mT2REAZI8YApJ0/tinv/FbHN0EX+vOy2yWt3bf18zIYCihLxBiAOF1v/bBrwJ+CLzy1Wz/wV9PHAcocx4wBABBGjAEAEEaMAQAQRowBABBGjAEAEGY0xjk5OQcPHjx37pdv2peZmXn06FGfz3f9xkuXLh06dMjhcIRmRgAAIpqhGE+bNq1Lly5Tp05NT0/v379/cXFxYPuTTz7Zq1evp59+Oi0treSd7t95553WrVu/8MILzZo1279/v1mDAwAQKQzFePr06adOndq6devp06czMzPXrFmjlNqzZ8/mzZuPHDny5Zdftm/ffs6cOUqpgoKCqVOnbt++ffPmza+++uqUKVPMHR8AgPBnKMaxsbGBL2w2W3R0dEJCglJq3bp1AwYMqFSpklLqscceW7t2rVJqy5YtzZo1a9GihVJq6NChe/bsuXLlilmzAwAQEYy+A9e2bdsWLFhw/PjxRx999JFHHlFKnT9/vl27doF/bdCgQeBw8oULF+66667AxkqVKiUlJV24cKFGjRo3PM/c3Nzt27e7XK7AyeTk5MA535qu6x6Px+PxGJwcgir4LaXr0hNEosD/ANJTiKngj6kwcv0tpWmazRaktkZjnJqaOm7cuJMnT7755pvDhg1LS0vz+XwWy793rK1Wq9/v13Xd5/NpmlbyXVar1ev13uw8nU6n0+n86aefAicdDscvXgh2Q4FLMbIS4rilDKPbRulKr8h3Kh5T4eL6WyqUMa5bt27dunV79eqVlZW1ZMmS+fPn16lTJycnJ/Cv2dnZderU0TTt+o0ulys3N7devXo3O8/69eunpaWNHj3a4AwBuq77/f6SZ85Rnnm93op8S133e2nwteaNEWEsmqUi36kq+GMqjJT2ljJ0zPj6Z0VOnTpVq1YtpVSfPn0+++yzwI7v+vXr+/btq5Tq3r37kSNHsrOzlVKff/55y5Yta9euXaorAABARWNoz7hHjx41atSoXr36kSNHPB7P+++/r5Tq27fvnDlzevTo0aRJk82bN+/evVspVatWrWeffbZbt249evRYt27dP//5T3PHBwAg/BmK8caNG7/++uv8/Pwnn3yyQ4cOgUPFFotl06ZNO3bsKCwsnDdvXmJiYmDxa6+9NmDAgKysrBdeeKFRo0bmjQ4AQGQwFOMqVar07t37Bt9ss/Xq1evX2zt06NChQ4c7HQ0AgIqB96YGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAECYTXoAADDMZc8+mzlr1iwja2vVqjVq1CizJwJCghgDCB+XT5/PL37xG1/wlT5v/PbniTHCBTEGEE4s1er5+04Jvs5TrLb/zfxxgNDgmDEAAMKIMQAAwogxAADCiDEAAMKIMQAAwogxAADCiDEAAMKIMQAAwogxAADCiDEAAMKIMQAAwogxAADCiDEAAMKIMQAAwogxAADCiDEAAMKIMQAAwogxAADCiDEAAMKIMQAAwogxAADCiDEAAMJs0gMA4aS4uPhPM14vdnuMLHYbWwYAxBgohQsXLvxt8T+Lu08wtNpDjAEYQoyB0olNrFHcd4qhpRteM3kWABGCY8YAAAgjxgAACCPGAAAII8YAAAgjxgAACCPGAAAII8YAAAgjxgAACONNPwBEIl33eDzPTXnRyNqYKNufXn4pLi7O7KGAmyHGACKR1+Vxu/52saGRtXGfv/7k6JFNmzY1eyjgZogxgAhlsaku/2VkYcyeRWbPAtwax4wBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBmM7KouLh4586dZ86cueuuu3r37m21Wku2f/LJJ3a7vV+/fnXr1g1s1HX9iy++OHPmzH333de6dWuzBgcAIFIY2jPu3bv322+/ferUqVdffbVr164ul0sp5fV6u3bt+sEHHxw7dqxNmzYnT54MLJ44ceIf//jHrKyshx56aOXKlSbODgBARDC0Z7x+/fqkpCSllMfjadq06c6dOx988MENGza43e5169ZZLJbKlSu/9dZbS5YsuXDhwnvvvZeVlVW9evUuXbpMmjRp0KBBmqaZfC0AAAhjhvaMAyVWSlmtVp/PFxMTo5Tavn173759LRaLUqpfv35bt25VSu3atatt27bVq1dXSvXs2fPHH3/Mzs42a3YAACKCoT3jErNmzWrYsOEDDzyglMrOzk5PTw9sT05OzsnJ0XU9JyenVq1agY1RUVHVqlX7+eefSw4n/0JWVtbhw4f37NkTOFm3bt1p06YFnUHXdYfDwd52WHA4HIFf1yKG0+nUdTPO2JQzhUG6Uk6n0+FwSA8SXOQ9piLV9beUpmlxcXG3Xl+KGC9btmzJkiU7duwIXEB0dLTX6w38k9vtjomJ0TQtOjra4/GUfIvb7Y6Njb3ZGSYlJdWvX7979+6BkzVr1rzF4hK6rvv9fiMrIc7r9UbYLRV4WsgE/HIpSVMqJiYmLO6rkfeYilTX31JG9h6NxnjlypXTp0/funVr/fr1A1saNGhw5syZwNdnzpwJbL9+Y35+fkFBQb169W52nlWrVk1LSxs8eLDBGQJ0XbdYLPxuGBbC5ZY6efLka2/N8xvYO7UXFrhcbvMnQlkLl/tquMyJ0t5ShmK8Zs2ayZMnb968uXHjxiUbBw4cOGDAgBkzZlSrVm3p0qUDBw5USvXq1WvkyJGHDh1q27bte++916NHj5LjzUC5dfjw4bVf/+Ds/FTwpa7jFvdX5k8EoGIxFONp06ZduXKlU6dOgZOzZ88eNWpU+/btH3/88VatWiUlJVWrVm3x4sVKqfj4+IULF/br169+/fp5eXnr1q0zcXYgdGy1Gqn2vwu+7vvqat//NX8cABWLoRh///33N9w+a9asF198saioqOS5a6XU0KFDH3300UuXLjVo0KDk7UEAAMDNlO7V1L+WlJT06yei4+PjGzVqdIfnDABABcELAQAAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBGjAEAEEaMAQAQRowBABBmkx4AMMvyFSvnLXrXyMrcSzme6m3MngfllrPg2sDHR8XExgZdGWW1zp/9Zps23FsQYsQYEWvXnq/2R92tWvcLvnTbIpvPZ/5EKKc8bteRlqNVYp2gK+O2/e3EiRPEGCFHjBHRav9GtegZfNnhDcp5zfxpUI6lpKtaKUFX2Q5/XAazoALimDEAAMKIMQAAwogxAADCiDEAAMKIMQAAwogxAADCiDEAAMKIMQAAwogxAADCiDEAAMKIMQAAwogxAADCiDEAAMKIMQAAwogxAADCiDEAAMKIMQAAwogxAADCiDEAAMJs0gMAQNjw5Pz00szDsxcvNbJ4wpMjRj7xuNkjITIQYwAwymu/ltX2d1mt+gRf+u0nX+0/SIxhEDEGgNKo0Vg1bBt82ZlDSp0yfxpECI4ZAwAgjBgDACCMGAMAIIwYAwAgjBgDACCMGAMAIIwYAwAgjBgDACCMGAMAIIwYAwAgjBgDACCMGAMAIIwYAwAgjBgDACCMj1BEmBn77OTN23YaWXk194rqOdXseQDgzhFjhJnde78+fd+zqnbzoCut7z9ZBvMAwJ0jxghDdVLVXW2CrtKi48pgFgC4cxwzBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAECYoY9QzM/P37dv3/Hjx5s2bTpgwICS7ZmZmQsXLszPzx8yZEjPnj0DGwsLC+fNm5eVlXX//fePGjVK0zRTBgcAIFIYivHq1as//PDD4uLievXqlcTYbrd37tx5zJgxbdu2feyxx5YvX969e3el1KBBg6pXrz5w4MCZM2devHhx2rRpJo6PSJHerdel3DwjKy/8nG32MABQxgzFePTo0aNHj54zZ87XX39dsnH58uUtW7Z85ZVXlFK5ublz587t3r37sWPH9u/ff/HixaioqIYNGz788MNTpkyx2QxdCiqyA1/t9U4/bGSl9S/dTJ4FAMra7Wfy4MGDnTp1CnzdqVOnN954Qyl16NCh9u3bR0VFKaXS0tLy8vLOnz/fqFGjUIyKSKZpmqrZ2NBSCwc+AESa24/x5cuXW7RoEfi6WrVqly5d0nX90qVLSUlJgY2aplWrVu3ixYs3i/GxY8c++uijGTNmBE62atVq+fLlQS9X13Wn06nr+m1PjjJTVFQU+jM1fMuH0V1ED6dhhYXRT8rj9djt9tCepymPKZjg+lvKYrHEx8ffev3tx7hKlSolF2a326tWrappWtWqVR0OR8mawsLCxMTEm51Dampq3759Bw0aFDhZuXLlSpUqBb1cXdctFktCQsJtT46yZOQ2LR3DO8ZhtAethdOwwsLoJxVliwr9/d+MxxTMUapb6vZj3KRJk4yMjMDXGRkZKSkpgY0nT54MbLxw4YLb7a5fv/5NL9tmq1mzZpMmTW57BgAAIoChvzN2Op2nT5++evWq3W4/ffr0tWvXlFJPPPHEp59++u233+bl5c2ZM2fkyJFKqW7duvl8vmXLlrlcrtdff33QoEHswgIAcGuGYnzkyJHBgwdv2rTp4sWLgwcPXrVqlVKqUaNGixYtGjZsWOvWrdPT05966imllNVqXbVq1cKFCxs2bHjx4sW5c+eaOz4AAOHP0NPU991334EDB369fciQIUOGDPnFxnbt2u3bty8EowFA+Pr55H9v+Gjd+vVG1vZ58MH3311k9kQoz/gLYAAwQVGuu8WDFx95JfjK7JPf7P2L+QOhXCPGAGAKLa6Kob+eLy4wfxaUd3xQBAAAwogxAADCiDEAAMKIMQAAwogxAADCiDEAAMKIMQAAwogxAADCiDEAAMKIMQAAwogxAADCiDEAAMKIMQAAwogxAADCiDEAAMKIMQAAwogxAADCiDEAAMKIMQAAwogxAADCiDEAAMKIMQAAwogxAADCiDEAAMKIMQAAwmzSAyBiZWVlpXXo6HZ7jCz2er1mzwMA5RYxhlmuXbumV2/oePpTQ6sn1Td5HAAov4gxTKRZbSo+SXoKACjvOGYMAIAwYgwAgDCepgYAUXnZ3x87HF+1mpG1NWvVOvNDhtkToewRYwAQVVyoVW/ofGGHkbXZLzQ2eRrIIMYAIM1i5aWOFRzHjAEAEEaMAQAQRowBABDGMWMACBtevzL4umub1Xr4wNdNmjQxeySEBDEGgLCh+zzOGZlGViYuejQvL8/seRAqxBgAwoqx111rVv57DyccMwYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMUbprF692mKxaAa0bdvWbi+SnhcAwoBNegCEmdzc3Ng+E5y/eyv40v0r9E1/MX8iAAh77BkDACCMGAMAIIwYAwAgjBgDACCMGANABCrMzmrXrp2RP3ywWm0ff/yx9LwVHa+mBoAIpCulXv5a3ZUWdGXM6ilXr141fyLcCnvGUEqpCZOmGPkNWtO0MWPHejwe6XkBIKKwZwyllLp8NU/913+rjkODL10yUunmDwQAFQl7xgAACCPGAAAII8YAAAgjxgAACCPGAAAII8YAAAgjxgAACCPGAAAII8YAAAjjHbgAAIZs3Ljxt//7d7aY+KArdd3fomWrb7/6sgymigzEOJK1TX/gxLHvNC348x8un18N71IGIwEIXwUFBXH3Dy8c/o/gSy+fzn1/kPkTRQ5iHMly8wpc075StVKCrrTNaO8tg4EAlD+e0988M/Efz02ZFnyly2Fp/7syGKkCIsYAULH5vL7Bs31dnwy+cvlzmvOa+QNVRLyACwAAYcQYAABhxBgAAGHEGAAAYcQYAABhvJo6zHg8nspVEzVbjJHFLp9u9jwAcAMFl879cCKuSjUja3WvqzA/LyoqyuyhyjNibK5r10L8ZwAul0uLii2enWNksWVyPWoMQIC32FKtQfEbp4ysjX2+jtfrJcZh5ty5c/v27RsyZIj0IMEtXrx4wrN/sMXEBV3p87i8bldMQpWgK3Xld7vD5v05dJ1fBsIDtxRE6Xl5ecXFxUHX2Wy2ypUrl8FAd27p0qVjx441/htG6GP8ww8/PP/886dPn+7cufNf//rXSpUqhfb8jxw5snLlyrCIsd1u1/s+X/zIK8GXbltgO/hx8ZQdwVc68tSURnc6WVnhv3gAQbmczsbN79Y0LehKj9O++Yt/tWnTJuhKTdMSExNDMd1tmj179uDBg5OTkw2uD3GMdV3/7W9/O2rUqPnz50+dOnXKlCmLFi0K7UUAACKJrpTrL2dUVPAnEaP+2KzPw49YbdFBV3pdzrfnzRk3blwoBiwLIY7xnj17CgsLJ0+erGnazJkz77nnnjlz5sTFBf8Rm6SoqMjtdhtZGRsbKzgnACAoXVm84z/xNA/+qTbWDTMuX75s8FU7VatWtViE/7YoxDHOyMho3bp14NmGxo0ba5p2/vz5Zs2a3XCx3++/cuVKZmZm4GR8fHx0dPDfd+x2u8fjMfIjLigoSGnazOf1GJncaos6dPCAkaMRfr/f4M129epV5XYph4F7g8uh+7yGVjoLlFKGViqldF0VFxharPuVu8jQSq9b9xQbWukuUn6f0VGV8SulDF4p3e9Tboehs/W4lNdtaGVxodJLdaXyVFTwI2G68qviQkNn6/Mot9PYlSpWXo+xK1WgdL0UV8pZoKwGjoT5/cpl7E7l8yiPsSsVkY8Ul1035ZGiG7xTReQjRT+1e/r6HdOnTzdy4f9ryPAli+YbWWmc3+/Pz88PRC0mJiY+PsjnTmqhPar31ltvffPNNytWrAicrFev3po1azp27HjDxffcc8/x48dLTlqtViMHmH0+n9vtNrIXq+t6gdOljF0/3efRdL+hlbpu5NjGvxfbYgwt1XVdU5oytlbTNGO3mm6L1ryGnhjQLVbl9xm7eL+uWYys1HVdGf5J6ZrF6M/fFq28bkNnq1l03W/4SmnGfv66rgxfKatN8xl6tV0prpTxAUpxpZSqlWJLrG1koffsUVVcaOjyrVHK5wntnSoiHyml+j+FR0roHylKRcfGxVlD/AKXoqKi+Pj4wA2bkJDw3XffJSUl3WJ9iPeMa9SokZ+fX3IyLy+vZs2aN1v83XffhfbSAQAIRyF+lvyee+759ttvfT6fUurEiRMxMTH169cP7UUAABBhQhzjdu3apaSkTJ48ee/evRMnThwzZoyRw8AAAFRkIXpEoDIAAAP6SURBVD5mrJS6dOnS66+//sMPP3Tp0mXy5MkV/E1VAAAIKvQxBgAApcKnNgEAIMz6pz/9SXqGO+J2u9esWWOz2WrUqCE9C26sqKho48aNGzduPH36dEpKCi8jKFf8fv/q1as3bNig63rDhg2lx8FNZWVlrV69eseOHU6ns3HjxtLjIAiXy7V27dqoqKjq1asbWR/2e8avv/76qFGjNmzYID0Iburxxx9ftmyZw+FYtWpV69atQ/5JVrgTY8eOnTt3rqZpI0aMWLJkifQ4uLFr166lp6cfPHjQbrePHTt24sSJ0hMhiBkzZowaNerTTz81uD68jxkfPXr0mWeeqV27dseOHZ9//nnpcXBjDoej5N1nOnToMH78+BEjRsiOhIDz58+npqaeP38+MTFx165dI0aM+Omnn8TfFxC/5vP5vF5vTEyM+s8bHRYWFgZOohw6cuTIhAkTatSo0blz50mTJhn5ljB+1Hm93nHjxi1evNhqtUrPglspKbGu6w6Ho0qV4J8UibKxd+/etLS0wIfbdO7c+eLFi2fPnpUeCjdgtVpL0utwOGJjY/lDlXLr9tpUrj/P2O12X7169RcbSw4Pz5o1q3fv3i1btpQYDb90+fLlwJu9XK9GjRo22//cx95+++3o6Oj+/fuX7Wi4qZycnJIXW1gslurVq2dnZzdq1Eh0KNyK2+2eMGHCSy+9xBMY5dbMmTP79u179913l+q7ynWMDx48+OvnM1NSUj7//POMjIxVq1Z99dVXIoPh1wYMGHDlypVfbFy7dm3Jb0srVqyYN2/e9u3b+Y2+/IiLi7v+Y82Ki4uDvp09BHm93uHDhzdp0mTKlCnSs+DGjh8//sknn+zbt6+031iuY5yenn7q1Kkb/tOuXbsyMjLq1KmjlCoqKlq/fv2PP/64ePHish0Q/2Pv3r23+Ne1a9dOnTp1y5Yt7HWVKw0aNCj52LT8/Pz8/Hzev7bc8vl8I0aM0DRt6dKl7BaXW7t27Tpx4kTt2rXVf/6Q5KefflqwYEHQbwzvF3AFDB06tH379ryAq9zatGnTU089tWnTptI+bwOzud3uBg0arFy5smvXrm+99daWLVs2bdokPRRuQNf1MWPGXL58eeXKlTy3FC4GDRqUnp5u8AVc5XrP2KCEhITY2FjpKXBTb7/9tt1u79y5c+DktGnTeJKtnIiOjl66dOmwYcMSEhKio6PXrFkjPRFu7Ny5c6tWrVJKJScnB7YcOnSI55nKuVK1KRL2jAHcCa/XW1hYeOsPWwVgKmIMAIAwXgUAAIAwYgwAgDBiDACAMGIMAIAwYgwAgDBiDACAMGIMAIAwYgwAgDBiDACAMGIMAIAwYgwAgLD/B7I4/vUJF9W9AAAAAElFTkSuQmCC">
+</div>
+</div>
+<p>(Calling <code>Normal()</code> without any arguments, as we do here, gives us a normal distribution with mean 0 and standard deviation 1.) If you want to know the log probability density of observing any of the samples, you can use <code>logpdf</code>:</p>
+<div id="8" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"sample: </span><span class="sc">$</span>(samples[<span class="fl">1</span>])<span class="st">"</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"logpdf: </span><span class="sc">$</span>(<span class="fu">logpdf</span>(<span class="fu">Normal</span>(), samples[<span class="fl">1</span>]))<span class="st">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>sample: 0.04374853981619864
+logpdf: -0.9198955005726975</code></pre>
+</div>
+</div>
+<p>The probability density function for the normal distribution with mean 0 and standard deviation 1 is</p>
+<p><span class="math display">\[p(x) = \frac{1}{\sqrt{2\pi}} \exp{\left(-\frac{x^2}{2}\right)},\]</span></p>
+<p>so we could also have calculated this manually using:</p>
+<div id="10" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">log</span>(<span class="fl">1</span> <span class="op">/</span> <span class="fu">sqrt</span>(<span class="fl">2</span>π) <span class="op">*</span> <span class="fu">exp</span>(<span class="op">-</span>samples[<span class="fl">1</span>]<span class="op">^</span><span class="fl">2</span> <span class="op">/</span> <span class="fl">2</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>-0.9198955005726974</code></pre>
+</div>
+</div>
+<p>(or more efficiently, <code>-(samples[1]^2 + log2π) / 2</code>, where <code>log2π</code> is from the <a href="https://github.com/JuliaMath/IrrationalConstants.jl">IrrationalConstants.jl package</a>).</p>
+</section>
+<section id="sampling-from-a-transformed-distribution" class="level2">
+<h2 class="anchored" data-anchor-id="sampling-from-a-transformed-distribution">Sampling from a transformed distribution</h2>
+<p>Say that <span class="math inline">\(x\)</span> is distributed according to <code>Normal()</code>, and we want to draw samples of <span class="math inline">\(y = \exp(x)\)</span>. Now, <span class="math inline">\(y\)</span> is itself a random variable, and like any other random variable, will have a probability distribution, which we’ll call <span class="math inline">\(q(y)\)</span>.</p>
+<p>In this specific case, the distribution of <span class="math inline">\(y\)</span> is known as a <a href="https://en.wikipedia.org/wiki/Log-normal_distribution">log-normal distribution</a>. For the purposes of this tutorial, let’s implement our own <code>MyLogNormal</code> distribution that we can sample from. (Distributions.jl already defines its own <code>LogNormal</code>, so we have to use a different name.) To do this, we need to overload <code>Base.rand</code> for our new distribution.</p>
+<div id="12" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> MyLogNormal <span class="op">&lt;:</span><span class="dt"> Distributions.ContinuousUnivariateDistribution</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    μ<span class="op">::</span><span class="dt">Float64</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    σ<span class="op">::</span><span class="dt">Float64</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="fu">MyLogNormal</span>() <span class="op">=</span> <span class="fu">MyLogNormal</span>(<span class="fl">0.0</span>, <span class="fl">1.0</span>)</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="bu">Base</span>.<span class="fu">rand</span>(rng<span class="op">::</span><span class="dt">Random.AbstractRNG</span>, d<span class="op">::</span><span class="dt">MyLogNormal</span>)</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">exp</span>(<span class="fu">rand</span>(rng, <span class="fu">Normal</span>(d.μ, d.σ)))</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>Now we can do the same as above:</p>
+<div id="14" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>samples_lognormal <span class="op">=</span> <span class="fu">rand</span>(<span class="fu">MyLogNormal</span>(), <span class="fl">5000</span>)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Cut off the tail for clearer visualisation</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="fu">histogram</span>(samples_lognormal, bins<span class="op">=</span><span class="fl">0</span><span class="op">:</span><span class="fl">0.1</span><span class="op">:</span><span class="fl">5</span>; xlims<span class="op">=</span>(<span class="fl">0</span>, <span class="fl">5</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<img src="data:image/png;base64,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">
+</div>
+</div>
+<p>How do we implement <code>logpdf</code> for our new distribution, though? Or in other words, if we observe a sample <span class="math inline">\(y\)</span>, how do we know what the probability of drawing that sample was?</p>
+<p>Naively, we might think to just un-transform the variable <code>y</code> by reversing the exponential, i.e.&nbsp;taking the logarithm. We could then use the <code>logpdf</code> of the original distribution of <code>x</code>.</p>
+<div id="16" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">naive_logpdf</span>(d<span class="op">::</span><span class="dt">MyLogNormal</span>, y) <span class="op">=</span> <span class="fu">logpdf</span>(<span class="fu">Normal</span>(d.μ, d.σ), <span class="fu">log</span>(y))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>naive_logpdf (generic function with 1 method)</code></pre>
+</div>
+</div>
+<p>We can compare this function against the logpdf implemented in Distributions.jl:</p>
+<div id="18" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Sample   : </span><span class="sc">$</span>(samples_lognormal[<span class="fl">1</span>])<span class="st">"</span>)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Expected : </span><span class="sc">$</span>(<span class="fu">logpdf</span>(<span class="fu">LogNormal</span>(), samples_lognormal[<span class="fl">1</span>]))<span class="st">"</span>)</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Actual   : </span><span class="sc">$</span>(<span class="fu">naive_logpdf</span>(<span class="fu">MyLogNormal</span>(), samples_lognormal[<span class="fl">1</span>]))<span class="st">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Sample   : 2.2331001636281114
+Expected : -2.0450477723405234
+Actual   : -1.2416569444078478</code></pre>
+</div>
+</div>
+<p>Clearly this approach is not quite correct!</p>
+</section>
+<section id="the-derivative" class="level2">
+<h2 class="anchored" data-anchor-id="the-derivative">The derivative</h2>
+<p>The reason why this doesn’t work is because transforming a (continuous) distribution causes probability density to be stretched and otherwise moved around. For example, in the normal distribution, half of the probability density is between <span class="math inline">\(-\infty\)</span> and <span class="math inline">\(0\)</span>, and half is between <span class="math inline">\(0\)</span> and <span class="math inline">\(\infty\)</span>. When exponentiated (i.e.&nbsp;in the log-normal distribution), the first half of the density is mapped to the interval <span class="math inline">\((0, 1)\)</span>, and the second half to <span class="math inline">\((1, \infty)\)</span>.</p>
+<p>This ‘explanation’ on its own does not really mean much, though. A perhaps more useful approach is to not talk about <em>probability densities</em>, but instead to make it more concrete by relating them to actual <em>probabilities</em>. If we think about the normal distribution as a continuous curve, what the probability density function <span class="math inline">\(p(x)\)</span> really tells us is that: for any two points <span class="math inline">\(a\)</span> and <span class="math inline">\(b\)</span> (where <span class="math inline">\(a \leq b\)</span>), the probability of drawing a sample between <span class="math inline">\(a\)</span> and <span class="math inline">\(b\)</span> is the corresponding area under the curve, i.e.</p>
+<p><span class="math display">\[\int_a^b p(x) \, \mathrm{d}x.\]</span></p>
+<p>For example, if <span class="math inline">\((a, b) = (-\infty, \infty)\)</span>, then the probability of drawing a sample between <span class="math inline">\(a\)</span> and <span class="math inline">\(b\)</span> is 1.</p>
+<p>Let’s say that the probability density function of the log-normal distribution is <span class="math inline">\(q(y)\)</span>. Then, the area under the curve between the two points <span class="math inline">\(\exp(a)\)</span> and <span class="math inline">\(\exp(b)\)</span> is:</p>
+<p><span class="math display">\[\int_{\exp(a)}^{\exp(b)} q(y) \, \mathrm{d}y.\]</span></p>
+<p>This integral should be equal to the one above, because the probability of drawing from <span class="math inline">\([a, b]\)</span> in the original distribution should be the same as the probability of drawing from <span class="math inline">\([\exp(a), \exp(b)]\)</span> in the transformed distribution. The question we have to solve here is: how do we find a function <span class="math inline">\(q(y)\)</span> such that this equality holds?</p>
+<p>We can approach this by making the substitution <span class="math inline">\(y = \exp(x)\)</span> in the first integral (see <a href="https://en.wikipedia.org/wiki/Integration_by_substitution">Wikipedia</a> for a refresher on substitutions in integrals, if needed). We have that:</p>
+<p><span class="math display">\[\frac{\mathrm{d}y}{\mathrm{d}x} = \exp(x) = y \implies \mathrm{d}x = \frac{1}{y}\,\mathrm{d}y\]</span></p>
+<p>and so</p>
+<p><span class="math display">\[\int_{x=a}^{x=b} p(x) \, \mathrm{d}x
+  = \int_{y=\exp(a)}^{y=\exp(b)} p(\log(y)) \frac{1}{y} \,\mathrm{d}y
+  = \int_{\exp(a)}^{\exp(b)} q(y) \, \mathrm{d}y,
+\]</span></p>
+<p>from which we can read off <span class="math inline">\(q(y) = p(\log(y)) / y\)</span>.</p>
+<p>In contrast, when we implemented <code>naive_logpdf</code></p>
+<div id="20" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">naive_logpdf</span>(d<span class="op">::</span><span class="dt">MyLogNormal</span>, y) <span class="op">=</span> <span class="fu">logpdf</span>(<span class="fu">Normal</span>(d.μ, d.σ), <span class="fu">log</span>(y))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>naive_logpdf (generic function with 1 method)</code></pre>
+</div>
+</div>
+<p>that was the equivalent of saying that <span class="math inline">\(q(y) = p(\log(y))\)</span>. We left out a factor of <span class="math inline">\(1/y\)</span>!</p>
+<p>Indeed, now we can define the correct <code>logpdf</code> function. Since everything is a logarithm here, instead of multiplying by <span class="math inline">\(1/y\)</span> we subtract <span class="math inline">\(\log(y)\)</span>:</p>
+<div id="22" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>Distributions.<span class="fu">logpdf</span>(d<span class="op">::</span><span class="dt">MyLogNormal</span>, y) <span class="op">=</span> <span class="fu">logpdf</span>(<span class="fu">Normal</span>(d.μ, d.σ), <span class="fu">log</span>(y)) <span class="op">-</span> <span class="fu">log</span>(y)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>and check that it works:</p>
+<div id="24" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Sample   : </span><span class="sc">$</span>(samples_lognormal[<span class="fl">1</span>])<span class="st">"</span>)</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Expected : </span><span class="sc">$</span>(<span class="fu">logpdf</span>(<span class="fu">LogNormal</span>(), samples_lognormal[<span class="fl">1</span>]))<span class="st">"</span>)</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Actual   : </span><span class="sc">$</span>(<span class="fu">logpdf</span>(<span class="fu">MyLogNormal</span>(), samples_lognormal[<span class="fl">1</span>]))<span class="st">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Sample   : 2.2331001636281114
+Expected : -2.0450477723405234
+Actual   : -2.0450477723405234</code></pre>
+</div>
+</div>
+<p>The same process can be applied to any kind of (invertible) transformation. If we have some transformation from <span class="math inline">\(x\)</span> to <span class="math inline">\(y\)</span>, and the probability density functions of <span class="math inline">\(x\)</span> and <span class="math inline">\(y\)</span> are <span class="math inline">\(p(x)\)</span> and <span class="math inline">\(q(y)\)</span> respectively, then we have a general formula that:</p>
+<p><span class="math display">\[q(y) = p(x) \left| \frac{\mathrm{d}x}{\mathrm{d}y} \right|.\]</span></p>
+<p>In this case, we had <span class="math inline">\(y = \exp(x)\)</span>, so <span class="math inline">\(\mathrm{d}x/\mathrm{d}y = 1/y\)</span>. (This equation is (11.5) in Bishop’s textbook.)</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The absolute value here takes care of the case where <span class="math inline">\(f\)</span> is a decreasing function, i.e., <span class="math inline">\(f(x) &gt; f(y)\)</span> when <span class="math inline">\(x &lt; y\)</span>. You can try this out with the transformation <span class="math inline">\(y = -\exp(x)\)</span>. If <span class="math inline">\(a &lt; b\)</span>, then <span class="math inline">\(-\exp(a) &gt; -\exp(b)\)</span>, and so you will have to swap the integration limits to ensure that the integral comes out positive.</p>
+</div>
+</div>
+<p>Note that <span class="math inline">\(\mathrm{d}y/\mathrm{d}x\)</span> is equal to <span class="math inline">\((\mathrm{d}x/\mathrm{d}y)^{-1}\)</span>, so the formula above can also be written as:</p>
+<p><span class="math display">\[q(y) \left| \frac{\mathrm{d}y}{\mathrm{d}x} \right| = p(x).\]</span></p>
+</section>
+<section id="the-jacobian" class="level2">
+<h2 class="anchored" data-anchor-id="the-jacobian">The Jacobian</h2>
+<p>In general, we may have transforms that act on multivariate distributions: for example, something mapping <span class="math inline">\(p(x_1, x_2)\)</span> to <span class="math inline">\(q(y_1, y_2)\)</span>. In this case, we need to extend the rule above by introducing what is known as the Jacobian matrix:</p>
+<p>In this case, the rule above has to be extended by replacing the derivative <span class="math inline">\(\mathrm{d}x/\mathrm{d}y\)</span> with the determinant of the inverse Jacobian matrix:</p>
+<p><span class="math display">\[\mathbf{J} = \begin{pmatrix}
+\partial y_1/\partial x_1 &amp; \partial y_1/\partial x_2 \\
+\partial y_2/\partial x_1 &amp; \partial y_2/\partial x_2
+\end{pmatrix}.\]</span></p>
+<p>This allows us to write the direct generalisation as:</p>
+<p><span class="math display">\[q(y_1, y_2) \left| \det(\mathbf{J}) \right| = p(x_1, x_2),\]</span></p>
+<p>or equivalently,</p>
+<p><span class="math display">\[q(y_1, y_2) = p(x_1, x_2) \left| \det(\mathbf{J}^{-1}) \right|.\]</span></p>
+<p>where <span class="math inline">\(\mathbf{J}^{-1}\)</span> is the inverse of the Jacobian matrix. This is the same as equation (11.9) in Bishop.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Instead of inverting the original Jacobian matrix to get <span class="math inline">\(\mathbf{J}^{-1}\)</span>, we could also use the Jacobian of the inverse function:</p>
+<p><span class="math display">\[\mathbf{J}_\text{inv} = \begin{pmatrix}
+\partial x_1/\partial y_1 &amp; \partial x_1/\partial y_2 \\
+\partial x_2/\partial y_1 &amp; \partial x_2/\partial y_2
+\end{pmatrix}.\]</span></p>
+<p>As it turns out, these are entirely equivalent: the Jacobian of the inverse function is the inverse of the original Jacobian matrix.</p>
+</div>
+</div>
+<p>The rest of this section will be devoted to an example to show that this works, and contains some slightly less pretty mathematics. If you are already suitably convinced by this stage, then you can skip the rest of this section. (Or if you prefer something more formal, the Wikipedia article on integration by substitution <a href="https://en.wikipedia.org/wiki/Integration_by_substitution#Substitution_for_multiple_variables">discusses the multivariate case as well</a>.)</p>
+<section id="an-example-the-boxmuller-transform" class="level3">
+<h3 class="anchored" data-anchor-id="an-example-the-boxmuller-transform">An example: the Box–Muller transform</h3>
+<p>A motivating example where one might like to use a Jacobian is the <a href="https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform">Box–Muller transform</a>, which is a technique for sampling from a normal distribution.</p>
+<p>The Box–Muller transform works by first sampling two random variables from the uniform distribution between 0 and 1:</p>
+<p><span class="math display">\[\begin{align}
+x_1 &amp;\sim U(0, 1) \\
+x_2 &amp;\sim U(0, 1).
+\end{align}\]</span></p>
+<p>Both of these have a probability density function of <span class="math inline">\(p(x) = 1\)</span> for <span class="math inline">\(0 &lt; x \leq 1\)</span>, and 0 otherwise. Because they are independent, we can write that</p>
+<p><span class="math display">\[p(x_1, x_2) = p(x_1) p(x_2) = \begin{cases}
+1 &amp; \text{if } 0 &lt; x_1 \leq 1 \text{ and } 0 &lt; x_2 \leq 1, \\
+0 &amp; \text{otherwise}.
+\end{cases}\]</span></p>
+<p>The next step is to perform the transforms</p>
+<p><span class="math display">\[\begin{align}
+y_1 &amp;= \sqrt{-2 \log(x_1)} \cos(2\pi x_2); \\
+y_2 &amp;= \sqrt{-2 \log(x_1)} \sin(2\pi x_2),
+\end{align}\]</span></p>
+<p>and it turns out that with these transforms, both <span class="math inline">\(y_1\)</span> and <span class="math inline">\(y_2\)</span> are independent and normally distributed with mean 0 and standard deviation 1, i.e.</p>
+<p><span class="math display">\[q(y_1, y_2) = \frac{1}{2\pi} \exp{\left(-\frac{y_1^2}{2}\right)} \exp{\left(-\frac{y_2^2}{2}\right)}.\]</span></p>
+<p>How can we show that this is the case?</p>
+<p>There are many ways to work out the required calculus. Some are more elegant and some rather less so! One of the less headache-inducing ways is to define the intermediate variables:</p>
+<p><span class="math display">\[r = \sqrt{-2 \log(x_1)}; \quad \theta = 2\pi x_2,\]</span></p>
+<p>from which we can see that <span class="math inline">\(y_1 = r\cos\theta\)</span> and <span class="math inline">\(y_2 = r\sin\theta\)</span>, and hence</p>
+<p><span class="math display">\[\begin{align}
+x_1 &amp;= \exp{\left(-\frac{r^2}{2}\right)} = \exp{\left(-\frac{y_1^2}{2}\right)}\exp{\left(-\frac{y_2^2}{2}\right)}; \\
+x_2 &amp;= \frac{\theta}{2\pi} = \frac{1}{2\pi} \, \arctan\left(\frac{y_2}{y_1}\right).
+\end{align}\]</span></p>
+<p>This lets us obtain the requisite partial derivatives in a way that doesn’t involve <em>too</em> much algebra. As an example, we have</p>
+<p><span class="math display">\[\frac{\partial x_1}{\partial y_1} = -y_1 \exp{\left(-\frac{y_1^2}{2}\right)}\exp{\left(-\frac{y_2^2}{2}\right)} = -y_1 x_1,\]</span></p>
+<p>(where we used the product rule), and</p>
+<p><span class="math display">\[\frac{\partial x_2}{\partial y_1} = \frac{1}{2\pi} \left(\frac{1}{1 + (y_2/y_1)^2}\right) \left(-\frac{y_2}{y_1^2}\right),\]</span></p>
+<p>(where we used the chain rule, and the derivative <span class="math inline">\(\mathrm{d}(\arctan(a))/\mathrm{d}a = 1/(1 + a^2)\)</span>).</p>
+<p>Putting together the Jacobian matrix, we have:</p>
+<p><span class="math display">\[\mathbf{J} = \begin{pmatrix}
+-y_1 x_1 &amp; -y_2 x_1 \\
+-cy_2/y_1^2 &amp; c/y_1 \\
+\end{pmatrix},\]</span></p>
+<p>where <span class="math inline">\(c = [2\pi(1 + (y_2/y_1)^2)]^{-1}\)</span>. The determinant of this matrix is</p>
+<p><span class="math display">\[\begin{align}
+\det(\mathbf{J}) &amp;= -cx_1 - cx_1(y_2/y_1)^2 \\
+&amp;= -cx_1\left[1 + \left(\frac{y_2}{y_1}\right)^2\right] \\
+&amp;= -\frac{1}{2\pi} x_1 \\
+&amp;= -\frac{1}{2\pi}\exp{\left(-\frac{y_1^2}{2}\right)}\exp{\left(-\frac{y_2^2}{2}\right)},
+\end{align}\]</span></p>
+<p>Coming right back to our probability density, we have that</p>
+<p><span class="math display">\[\begin{align}
+q(y_1, y_2) &amp;= p(x_1, x_2) \cdot |\det(\mathbf{J})| \\
+&amp;= \frac{1}{2\pi}\exp{\left(-\frac{y_1^2}{2}\right)}\exp{\left(-\frac{y_2^2}{2}\right)},
+\end{align}\]</span></p>
+<p>as desired.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>We haven’t yet explicitly accounted for the fact that <span class="math inline">\(p(x_1, x_2)\)</span> is 0 if either <span class="math inline">\(x_1\)</span> or <span class="math inline">\(x_2\)</span> are outside the range <span class="math inline">\((0, 1]\)</span>. For example, if this constraint on <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span> were to result in inaccessible values of <span class="math inline">\(y_1\)</span> or <span class="math inline">\(y_2\)</span>, then <span class="math inline">\(q(y_1, y_2)\)</span> should be 0 for those values. Formally, for the transformation <span class="math inline">\(f: X \to Y\)</span> where <span class="math inline">\(X\)</span> is the unit square (i.e.&nbsp;<span class="math inline">\(0 &lt; x_1, x_2 \leq 1\)</span>), <span class="math inline">\(q(y_1, y_2)\)</span> should only take the above value for the <a href="https://en.wikipedia.org/wiki/Image_(mathematics)">image</a> of <span class="math inline">\(f\)</span>, and anywhere outside of the image it should be 0.</p>
+<p>In our case, the <span class="math inline">\(\log(x_1)\)</span> term in the transform varies between 0 and <span class="math inline">\(\infty\)</span>, and the <span class="math inline">\(\cos(2\pi x_2)\)</span> term ranges from <span class="math inline">\(-1\)</span> to <span class="math inline">\(1\)</span>. Hence <span class="math inline">\(y_1\)</span>, which is the product of these two terms, ranges from <span class="math inline">\(-\infty\)</span> to <span class="math inline">\(\infty\)</span>, and likewise for <span class="math inline">\(y_2\)</span>. So the image of <span class="math inline">\(f\)</span> is the entire real plane, and we don’t have to worry about this.</p>
+</div>
+</div>
+<p>Having seen the theory that underpins how distributions can be transformed, let’s now turn to how this is implemented in the Turing ecosystem.</p>
+
+
+</section>
+</section>
+
+<a onclick="window.scrollTo(0, 0); return false;" role="button" id="quarto-back-to-top"><i class="bi bi-arrow-up"></i> Back to top</a></main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/turinglang\.org\/docs");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../../../developers/contexts/submodel-condition/index.html" class="pagination-link" aria-label="Conditioning and fixing in submodels">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Conditioning and fixing in submodels</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../../../developers/transforms/bijectors/index.html" class="pagination-link" aria-label="Bijectors in MCMC">
+        <span class="nav-page-text">Bijectors in MCMC</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/TuringLang/docs/edit/main/developers/transforms/distributions/index.qmd" target="_blank" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/TuringLang/docs/issues/new" target="_blank" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer><footer class="custom-footer">
+  <div class="footer-container">
+    <div class="footer-grid">
+      <div class="footer-links-wrapper">
+        <div class="footer-column footer-explore">
+          <h5>Explore</h5>
+          <a href="https://turinglang.org/docs/getting-started/">Get Started</a>
+          <a href="https://turinglang.org/docs/tutorials/">Tutorials</a>
+          <a href="https://turinglang.org/docs/faq/">FAQ</a>
+          <a href="https://turinglang.org/library/">Libraries</a>
+          <a href="https://turinglang.org/news/">News</a>
+          <a href="https://turinglang.org/team/">Team</a>
+        </div>
+
+        <div class="footer-column footer-connect">
+          <h5>Connect</h5>
+          <a href="https://github.com/TuringLang" target="_blank" rel="noopener"><i class="bi bi-github"></i> GitHub</a>
+          <a href="https://x.com/TuringLang" target="_blank" rel="noopener"><i class="bi bi-twitter-x"></i> Twitter</a>
+          <a href="https://julialang.slack.com/archives/CCYDC34A0" target="_blank" rel="noopener"><i class="bi bi-slack"></i> Slack</a>
+          <a href="https://discourse.julialang.org/c/domain/probprog/48" target="_blank" rel="noopener"><i class="bi bi-chat-dots"></i> Discourse</a>
+        </div>
+      </div>
+
+      <div class="footer-column footer-brands">
+        <h5>Supported by leading researchers</h5>
+        <p>Turing.jl is developed by researchers and engineers at the following research institutions.</p>
+        <div class="logo-grid">
+          <a href="https://mlg.eng.cam.ac.uk/" class="partner-logo" target="_blank" rel="noopener">
+            <img src="../../../assets/images/brands/university-cambridge-logo-black-example-640x132.png" alt="University of Cambridge Logo" class="brands-light-mode-logo">
+            <img src="../../../assets/images/brands/university-cambridge-logo-white-example-640x133.png" alt="University of Cambridge Logo Dark" class="brands-dark-mode-logo">
+          </a>
+          <a href="https://www.turing.ac.uk/" class="partner-logo" target="_blank" rel="noopener">
+            <img src="../../../assets/images/brands/Turing_Logo_1000x400px_Black.webp" alt="The Alan Turing Institute Logo" class="brands-light-mode-logo">
+            <img src="../../../assets/images/brands/Turing_Logo_1000x400px_White.webp" alt="The Alan Turing Institute Logo Dark" class="brands-dark-mode-logo">
+          </a>
+        </div>
+      </div>
+
+    </div>
+    <div class="footer-bottom">
+      <p>Turing.jl was created by <a href="https://mlg.eng.cam.ac.uk/hong/" target="_blank" rel="noopener">Hong Ge</a>, and maintained by the core <a href="https://turinglang.org/team/" target="_blank" rel="noopener">team</a> of developers and <a href="https://github.com/TuringLang/Turing.jl/graphs/contributors" target="_blank" rel="noopener">contributors</a>.<br>© 2025 The Turing Project Contributors. <a href="https://github.com/TuringLang/Turing.jl/blob/main/LICENCE" target="_blank" rel="noopener">MIT License</a>.</p>
+      <a href="https://github.com/TuringLang/docs/" target="_blank" rel="noopener" class="footer-source-link"><i class="bi bi-github"></i> Website Source</a>
+    </div>
+  </div>
+</footer>
+
+
+
+
+<script src="../../../site_libs/quarto-html/zenscroll-min.js"></script>
+</body></html>

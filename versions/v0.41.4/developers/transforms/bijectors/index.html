@@ -1,0 +1,1660 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.26">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Bijectors in MCMC – Turing.jl</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2" crossorigin="anonymous"></script><script src="../../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../../">
+<link href="../../../developers/transforms/dynamicppl/index.html" rel="next">
+<link href="../../../developers/transforms/distributions/index.html" rel="prev">
+<link href="../../..//assets/favicon.ico" rel="icon">
+<script src="../../../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../../../site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="../../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../../site_libs/quarto-html/quarto-syntax-highlighting-597958c53c93a607afca12fd375c57ed.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../../../site_libs/quarto-html/quarto-syntax-highlighting-dark-7ac2f9da8c2617a4fdd15004b4601015.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="../../../site_libs/quarto-html/quarto-syntax-highlighting-597958c53c93a607afca12fd375c57ed.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="../../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../../site_libs/bootstrap/bootstrap-11b631f8e41212a46423af8963954d92.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../../../site_libs/bootstrap/bootstrap-dark-366abff0a71b610777fe05ea6ef19494.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../../../site_libs/bootstrap/bootstrap-11b631f8e41212a46423af8963954d92.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<style>html{ scroll-behavior: smooth; }</style>
+<script src="https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js" integrity="sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx" crossorigin="anonymous"></script>
+
+<script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
+<style>
+  a {
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+</style>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<meta property="og:title" content="The Turing Language">
+<meta property="og:description" content="Turing.jl is a probabilistic programming language and Bayesian modelling framework for the Julia programming language.">
+<meta property="og:image" content="https://turinglang.org/docs/assets/images/turing-text-logo.jpg">
+<meta property="og:site_name" content="Turing.jl">
+<meta property="og:image:alt" content="Turing.jl Logo">
+<meta property="og:locale" content="en_GB">
+<meta name="twitter:title" content="Bijectors in MCMC – Turing.jl">
+<meta name="twitter:description" content="Turing.jl is a probabilistic programming language and Bayesian modelling framework for the Julia programming language.">
+<meta name="twitter:image" content="https://turinglang.org/docs/developers/transforms/bijectors/data:image/png;base64,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Y8aMKS0t7dy5c2Vl5bhx41asWJGWlnbbbbclJydfffXVIf4UAABo2wKKcU5Oju+NYcOGrVq1qqKionv37s8/yiRYvGjBmjlHrnnXdeeeWV++67b926dWPHjp09e7ZSauHChc8/zwxBgDAv0DvMz5y5Mju3buXLFmSlZXVrVs3pVRJScnQoUN9/zp06NB9+/Yppfbv399ycMiQIfv37w/BzgAARJSAbhkrpdavX799+/bDhw8vX77cbDYrpU6cOJGUlOT716SkpBMnTiilTp482XIwOTn5+PHjfk6zoqKib9++vlNTSi1YsGDevHmt+zSM0djYKL0ClFLK6XSazeaYmBjpRYzg9rhFzlfTJM5UBXiumtPpbGhoCO02bUpUXSnC3JmlMJvNCQkJ/j8q0BgvXrx48eLFX331VWZm5uWXXz5gwICOHTvW19f7/rWurq5Tp05KqbMe/D7p6elvvPFGenq6792kpKSWMIet9u3bS68AFRMTEz0/d6yWQK+kwWUySZypCvBcTXFxcVwZvy2qrhThrxUXznOLX7du3bp373706FGl1KWXXlpSUuI7fuDAgUsvvdR38MCBA985+H1MJlNSUlLHfwv/EgMAEAr6/9NdV1eXn58/YsSIuLi4TZs2ff3111dccYVS6vbbb3/kkUeysrLKysq2bt26d+9epVR2dvbQoUNnzZqVlpa2YsWK5cuXh/wzAACgjdOPscVi2b1794svvujxePr3719UVNSlSxel1MyZM7/++utp06Z16NBh/fr13bt3V0r16tXr5ZdffuihhxobG+++++4pU6aE/DMAAKCN049xu3bt8vLyzvpPubm5ubm53zk4YcKECRMmBGE1AACiA3fTAgAgjBgDACCMGAMAIIwYAwAgTOb5BACg1bwN1e+/77H49GdHDlypP9nOwDCBDEG0Ma4Kw+9dtK2oTzW/5jnq4P3/POLZ5583JitgPNBjAG0OSbvsFucI27TmdqxStMqDNkHOF/cZwwAgDBiDACAMGIMAIAwYgwAgDBiDACAMGIMAIAwYgwAgDBiDACAMGIMAIAwYgwAgDBiDACAMGIMAIAwYgwAgDBiDACAMF5CEUCEqq18/8jf5i1cpDuYNfyKG6dMNmAj4PsQYwAR6pvD+xzxn33TQ2essvSzA+uIMWQRYwARy9RtgLrqdp2hg39R/i9IesA34v7j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pLS6WXilLffp5Fu92emJgouEyUq62tXbx48dNPP92Kj+U+47Orqqo682BqaqrZbN61a9eBAwdWrlz54osvGr9YtHG5XNXV1d85aLVav/3kbs3Nzffcc88DDzxgtXJ5NkhVVdW3vwVdunSprKz0VRlS8vPz/nPf956663Si0SvefPm5ebmtu7VGPnhdRcQIG4AAAHUSURBVBYej+eqq6468/jOnTvbt29/55135ufnB/FJquHHp59+euYPl549e27fvt33tsfjmTVrVteuXfnVnJFsNtu3n1je4XCE7Su9R4l33313/vz5b7/9NreMpWzfvr2qqmrWrFmt+3DuMz43hw4d6tevn+/i7nQ6m5ubL7300pKSEum9opTX683Ozm5oaNiwYQO/ozbSrl27pk2bVl5ebjKZnE5nSkrK3/+9549e0rvFaU++OCDm266acuWLUOHDpXeJXrdf/9q1atio2NVUrV1dXZbLalS5cuXLgwwA8nxq23evXqt956iwdwSdE07c477zx27NiWLVt46JDBvF7vD3/4w2effXbixIl5eXlr1qzZtWuX9FJRateuXVOnTs3Pz295+VqIGzx48Lk+gItfU7deXFzcd14nC0aqrKzMz89XSqWnp/uOFBcX9+rVS3SpaGE2m9esWXPrrbcuWLDAZDL5vhEQkZeX53Q6W37u33bbba17ABGCKDEx0XcTOXDcMgbQSh6Pp66uLjk5mYdQAOeJGAMAIIy/MwYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBA2P8CvlPNILPFhkUAAAAASUVORK5CYII=">
+<meta name="twitter:creator" content="@Hong_Ge2">
+<meta name="twitter:site" content="@TuringLang">
+<meta name="twitter:card" content="summary_large_image">
+</head>
+
+<body class="nav-sidebar floating nav-fixed quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="https://turinglang.org/" class="navbar-brand navbar-brand-logo">
+    <img src="https://turinglang.org/assets/logo/turing-logo-light.svg" alt="" class="navbar-logo light-content">
+    <img src="https://turinglang.org/assets/logo/turing-logo-dark.svg" alt="" class="navbar-logo dark-content">
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../../getting-started/"> 
+<span class="menu-text">Get Started</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../../tutorials/"> 
+<span class="menu-text">Tutorials</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../../faq/"> 
+<span class="menu-text">FAQ</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://turinglang.org/library/"> 
+<span class="menu-text">Libraries</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://turinglang.org/news/"> 
+<span class="menu-text">News</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://turinglang.org/team/"> 
+<span class="menu-text">Team</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-v0.41" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">v0.41</span>
+    </a>
+    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="nav-menu-v0.41">    
+        <li>
+    <a class="dropdown-item" href="https://turinglang.org/docs/changelog.html">
+ <span class="dropdown-text">Changelog</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="https://turinglang.org/docs/versions.html">
+ <span class="dropdown-text">All Versions</span></a>
+  </li>  
+    </ul>
+  </li>
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools tools-wide">
+    <a href="https://x.com/TuringLang" title="Turing Twitter" class="quarto-navigation-tool px-1" aria-label="Turing Twitter"><i class="bi bi-twitter-x"></i></a>
+    <a href="https://discourse.julialang.org/c/domain/probprog/48" title="Turing Discourse" class="quarto-navigation-tool px-1" aria-label="Turing Discourse"><i class="bi bi-chat-dots"></i></a>
+    <a href="https://julialang.slack.com/archives/CCYDC34A0" title="Turing Slack" class="quarto-navigation-tool px-1" aria-label="Turing Slack"><i class="bi bi-slack"></i></a>
+    <a href="https://github.com/TuringLang" title="Turing GitHub" class="quarto-navigation-tool px-1" aria-label="Turing GitHub"><i class="bi bi-github"></i></a>
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="Toggle dark mode"><i class="bi"></i></a>
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../../developers/contributing/index.html">Developers</a></li><li class="breadcrumb-item"><a href="../../../developers/transforms/distributions/index.html">Variable Transformations</a></li><li class="breadcrumb-item"><a href="../../../developers/transforms/bijectors/index.html">Bijectors in MCMC</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header">
+      <a href="../../../index.html" class="sidebar-logo-link">
+      <img src="https://turinglang.org/assets/logo/turing-logo-light.svg" alt="" class="sidebar-logo light-content py-0 d-lg-inline d-none">
+      <img src="https://turinglang.org/assets/logo/turing-logo-dark.svg" alt="" class="sidebar-logo dark-content py-0 d-lg-inline d-none">
+      </a>
+      </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../getting-started/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Getting Started</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../core-functionality/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Core Functionality</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false">
+ <span class="menu-text">User Guide</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/automatic-differentiation/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Automatic Differentiation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/sampling-options/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MCMC Sampling Options</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/submodels/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Submodels</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/custom-distribution/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Custom Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/probability-interface/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Querying Model Probabilities</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/modifying-logprob/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Modifying the Log Probability</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/tracking-extra-quantities/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tracking Extra Quantities</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/predictive-distributions/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Predictive Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/mode-estimation/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Mode Estimation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/performance-tips/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Performance Tips</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/sampler-visualisation/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sampler Visualization</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/dynamichmc/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Using DynamicHMC</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/external-samplers/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Using External Samplers</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../usage/troubleshooting/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Troubleshooting</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
+ <span class="menu-text">Tutorials</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/coin-flipping/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduction: Coin Flipping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/gaussian-mixture-models/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Gaussian Mixture Models</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/bayesian-logistic-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Logistic Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/bayesian-neural-networks/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Neural Networks</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/hidden-markov-models/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Hidden Markov Models</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/bayesian-linear-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Linear Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/infinite-mixture-models/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Infinite Mixture Models</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/bayesian-poisson-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Poisson Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/multinomial-logistic-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multinomial Logistic Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/variational-inference/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variational Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/bayesian-differential-equations/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Differential Equations</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/probabilistic-pca/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Probabilistic PCA</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/bayesian-time-series-analysis/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Time Series Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/gaussian-processes-introduction/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Gaussian Processes: Introduction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../tutorials/gaussian-process-latent-variable-models/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Gaussian Process Latent Variable Models</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+ <span class="menu-text">Developers</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/contributing/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Contributing</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">DynamicPPL’s Compiler</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/compiler/model-manual/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Manually Defining a Model</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/compiler/minituring-compiler/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A Mini Turing Implementation I: Compiler</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/compiler/minituring-contexts/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A Mini Turing Implementation II: Contexts</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/compiler/design-overview/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Turing Compiler Design (Outdated)</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
+ <span class="menu-text">DynamicPPL Models</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/models/varinfo-overview/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Evaluation of DynamicPPL Models with VarInfo</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">DynamicPPL Contexts</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/contexts/submodel-condition/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Conditioning and fixing in submodels</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="true">
+ <span class="menu-text">Variable Transformations</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/transforms/distributions/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Distributions and the Jacobian</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/transforms/bijectors/index.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Bijectors in MCMC</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/transforms/dynamicppl/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variable transformations in DynamicPPL</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false">
+ <span class="menu-text">Inference in Detail</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/inference/variational-inference/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variational Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../developers/inference/implementing-samplers/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Implementing Samplers</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../faq/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Frequently Asked Questions</span></a>
+  </div>
+</li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of Contents</h2>
+   
+  <ul>
+  <li><a href="#bijectors.jl" id="toc-bijectors.jl" class="nav-link active" data-scroll-target="#bijectors.jl">Bijectors.jl</a></li>
+  <li><a href="#the-case-for-bijectors-in-mcmc" id="toc-the-case-for-bijectors-in-mcmc" class="nav-link" data-scroll-target="#the-case-for-bijectors-in-mcmc">The case for bijectors in MCMC</a>
+  <ul class="collapse">
+  <li><a href="#metropolis-with-rejection" id="toc-metropolis-with-rejection" class="nav-link" data-scroll-target="#metropolis-with-rejection">Metropolis with rejection</a></li>
+  <li><a href="#metropolis-with-transformation" id="toc-metropolis-with-transformation" class="nav-link" data-scroll-target="#metropolis-with-transformation">Metropolis with transformation</a></li>
+  <li><a href="#which-one-is-better" id="toc-which-one-is-better" class="nav-link" data-scroll-target="#which-one-is-better">Which one is better?</a></li>
+  <li><a href="#what-happens-without-the-jacobian" id="toc-what-happens-without-the-jacobian" class="nav-link" data-scroll-target="#what-happens-without-the-jacobian">What happens without the Jacobian?</a></li>
+  </ul></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/TuringLang/docs/edit/main/developers/transforms/bijectors/index.qmd" target="_blank" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/TuringLang/docs/issues/new" target="_blank" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../../developers/contributing/index.html">Developers</a></li><li class="breadcrumb-item"><a href="../../../developers/transforms/distributions/index.html">Variable Transformations</a></li><li class="breadcrumb-item"><a href="../../../developers/transforms/bijectors/index.html">Bijectors in MCMC</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">Bijectors in MCMC</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>All the above has been purely a mathematical discussion of how distributions can be transformed. Now, we turn to their implementation in Julia, specifically using the <a href="https://github.com/TuringLang/Bijectors.jl">Bijectors.jl package</a>.</p>
+<section id="bijectors.jl" class="level2">
+<h2 class="anchored" data-anchor-id="bijectors.jl">Bijectors.jl</h2>
+<div id="4" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> <span class="bu">Random</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">Random</span>.<span class="fu">seed!</span>(<span class="fl">468</span>);</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Distributions</span>: Normal, LogNormal, logpdf</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Statistics</span>: mean, var</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Plots</span>: histogram</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>A <em>bijection</em> between two sets (<a href="https://en.wikipedia.org/wiki/Bijection">Wikipedia</a>) is, essentially, a one-to-one mapping between the elements of these sets. That is to say, if we have two sets <span class="math inline">\(X\)</span> and <span class="math inline">\(Y\)</span>, then a bijection maps each element of <span class="math inline">\(X\)</span> to a unique element of <span class="math inline">\(Y\)</span>. To return to our univariate example, where we transformed <span class="math inline">\(x\)</span> to <span class="math inline">\(y\)</span> using <span class="math inline">\(y = \exp(x)\)</span>, the exponentiation function is a bijection because every value of <span class="math inline">\(x\)</span> maps to one unique value of <span class="math inline">\(y\)</span>. The input set (the domain) is <span class="math inline">\((-\infty, \infty)\)</span>, and the output set (the codomain) is <span class="math inline">\((0, \infty)\)</span>. (Here, <span class="math inline">\((a, b)\)</span> denotes the open interval from <span class="math inline">\(a\)</span> to <span class="math inline">\(b\)</span> but excluding <span class="math inline">\(a\)</span> and <span class="math inline">\(b\)</span> themselves.)</p>
+<p>Since bijections are a one-to-one mapping between elements, we can also reverse the direction of this mapping to create an inverse function. In the case of <span class="math inline">\(y = \exp(x)\)</span>, the inverse function is <span class="math inline">\(x = \log(y)\)</span>.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Technically, the bijections in Bijectors.jl are functions <span class="math inline">\(f: X \to Y\)</span> for which:</p>
+<ul>
+<li><span class="math inline">\(f\)</span> is continuously differentiable, i.e.&nbsp;the derivative <span class="math inline">\(\mathrm{d}f(x)/\mathrm{d}x\)</span> exists and is continuous (over the domain of interest <span class="math inline">\(X\)</span>);</li>
+<li>If <span class="math inline">\(f^{-1}: Y \to X\)</span> is the inverse of <span class="math inline">\(f\)</span>, then that is also continuously differentiable (over <em>its</em> own domain, i.e.&nbsp;<span class="math inline">\(Y\)</span>).</li>
+</ul>
+<p>The technical mathematical term for this is a diffeomorphism (<a href="https://en.wikipedia.org/wiki/Diffeomorphism">Wikipedia</a>), but we call them ‘bijectors’.</p>
+<p>When thinking about continuous differentiability, it’s important to be conscious of the domains or codomains that we care about. For example, taking the inverse function <span class="math inline">\(\log(y)\)</span> from above, its derivative is <span class="math inline">\(1/y\)</span>, which is not continuous at <span class="math inline">\(y = 0\)</span>. However, we specified that the bijection <span class="math inline">\(y = \exp(x)\)</span> maps values of <span class="math inline">\(x \in (-\infty, \infty)\)</span> to <span class="math inline">\(y \in (0, \infty)\)</span>, so the point <span class="math inline">\(y = 0\)</span> is not within the domain of the inverse function.</p>
+</div>
+</div>
+<p>Specifically, one of the primary purposes of Bijectors.jl is to construct <em>bijections which map constrained distributions to unconstrained ones</em>. For example, the log-normal distribution which we saw in <a href="../../../developers/transforms/distributions">the previous page</a> is constrained: its <em>support</em>, i.e.&nbsp;the range over which <span class="math inline">\(p(x) &gt; 0\)</span>, is <span class="math inline">\((0, \infty)\)</span>. However, we can transform that to an unconstrained distribution (the normal distribution) using the transformation <span class="math inline">\(y = \log(x)\)</span>.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Bijectors.jl, as well as DynamicPPL (which we’ll come to later), can work with a much broader class of bijective transformations of variables, not just ones that go to the entire real line. But for the purposes of MCMC, unconstraining is the most common transformation, so we’ll stick with that terminology.</p>
+</div>
+</div>
+<p>The <code>bijector</code> function, when applied to a distribution, returns a bijection <span class="math inline">\(f\)</span> that can be used to map the constrained distribution to an unconstrained one. Unsurprisingly, for the log-normal distribution, the bijection is (a broadcasted version of) the <span class="math inline">\(\log\)</span> function.</p>
+<div id="6" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> <span class="bu">Bijectors</span> as B</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>f <span class="op">=</span> B.<span class="fu">bijector</span>(<span class="fu">LogNormal</span>())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>(::Base.Fix1{typeof(broadcast), typeof(log)}) (generic function with 1 method)</code></pre>
+</div>
+</div>
+<p>We can apply this transformation to samples from the original distribution, for example:</p>
+<div id="8" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>samples_lognormal <span class="op">=</span> <span class="fu">rand</span>(<span class="fu">LogNormal</span>(), <span class="fl">5</span>)</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>samples_normal <span class="op">=</span> <span class="fu">f</span>(samples_lognormal)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>5-element Vector{Float64}:
+  0.07200886749732066
+ -0.07404375655951738
+  0.6327762377562545
+ -0.9799776018729268
+  1.6115229499167665</code></pre>
+</div>
+</div>
+<p>We can also obtain the inverse of a bijection, <span class="math inline">\(f^{-1}\)</span>:</p>
+<div id="10" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>f_inv <span class="op">=</span> B.<span class="fu">inverse</span>(f)</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="fu">f_inv</span>(samples_normal) <span class="op">==</span> samples_lognormal</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>true</code></pre>
+</div>
+</div>
+<p>We know that the transformation <span class="math inline">\(y = \log(x)\)</span> changes the log-normal distribution to the normal distribution. Bijectors.jl also gives us a way to access that transformed distribution:</p>
+<div id="12" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>transformed_dist <span class="op">=</span> B.<span class="fu">transformed</span>(<span class="fu">LogNormal</span>(), f)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>Bijectors.UnivariateTransformed{Distributions.LogNormal{Float64}, Base.Fix1{typeof(broadcast), typeof(log)}}(
+dist: Distributions.LogNormal{Float64}(μ=0.0, σ=1.0)
+transform: Base.Fix1{typeof(broadcast), typeof(log)}(broadcast, log)
+)</code></pre>
+</div>
+</div>
+<p>This type doesn’t immediately look like a <code>Normal()</code>, but it behaves in exactly the same way. For example, we can sample from it and plot a histogram:</p>
+<div id="14" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>samples_plot <span class="op">=</span> <span class="fu">rand</span>(transformed_dist, <span class="fl">5000</span>)</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="fu">histogram</span>(samples_plot, bins<span class="op">=</span><span class="fl">50</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<img src="data:image/png;base64,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Y8aMKS0t7dy5c2Vl5bhx41asWJGWlnbbbbclJydfffXVIf4UAABo2wKKcU5Oju+NYcOGrVq1qqKionv37s8///yiRYvGjBmjlHrnnXdeeeWV++67b926dWPHjp09e7ZSauHChc8//zwxBgDAv0DvMz5y5Mju3buXLFmSlZXVrVs3pVRJScnQoUN9/zp06NB9+/Yppfbv399ycMiQIfv37w/BzgAARJSAbhkrpdavX799+/bDhw8vX77cbDYrpU6cOJGUlOT716SkpBMnTiilTp482XIwOTn5+PHjfk6zoqKib9++vlNTSi1YsGDevHmt+zSM0djYKL0ClFLK6XSazeaYmBjpRYzg9rhFzlfTJM5UBXiumtPpbGhoCO02bUpUXSnC3JmlMJvNCQkJ/j8q0BgvXrx48eLFX331VWZm5uWXXz5gwICOHTvW19f7/rWurq5Tp05KqbMe/D7p6elvvPFGenq6792kpKSWMIet9u3bS68AFRMTEz0/d6yWQK+kwWUySZypCvBcTXFxcVwZvy2qrhThrxUXznOLX7du3bp373706FGl1KWXXlpSUuI7fuDAgUsvvdR38MCBA985+H1MJlNSUlLHfwv/EgMAEAr6/9NdV1eXn58/YsSIuLi4TZs2ff3111dccYVS6vbbb3/kkUeysrLKysq2bt26d+9epVR2dvbQoUNnzZqVlpa2YsWK5cuXh/wzAACgjdOPscVi2b1794svvujxePr3719UVNSlSxel1MyZM7/++utp06Z16NBh/fr13bt3V0r16tXr5ZdffuihhxobG+++++4pU6aE/DMAAKCN049xu3bt8vLyzvpPubm5ubm53zk4YcKECRMmBGE1AACiA3fTAgAgjBgDACCMGAMAIIwYAwAgTOb5BACg1bwN1e+//77H49GdHDlypP9nOwDCBDEG0Ma4Kw+9dtK2oTzW/5jnq4P3/POLZ5583JitgPNBjAG0OSbvsFucI27TmdqxStMqDNkHOF/cZwwAgDBiDACAMGIMAIAwYgwAgDBiDACAMGIMAIAwYgwAgDBiDACAMGIMAIAwYgwAgDBiDACAMGIMAIAwYgwAgDBiDACAMF5CEUCEqq18/8jf5i1cpDuYNfyKG6dMNmAj4PsQYwAR6pvD+xzxn33TQ2essvSzA+uIMWQRYwARy9RtgLrqdp2hg39R//i9IesA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usj3W7iBAwcqpUpLS6WXilLffp5Fu92emJgouEyUq62tXbx48dNPP92Kj+U+47Orqqo682BqaqrZbN61a9eBAwdWrlz54osvGr9YtHG5XNXV1d85aLVav/3kbs3Nzffcc88DDzxgtXJ5NkhVVdW3vwVdunSprKz0VRlS8vPz//nPf956663Si0SvefPm5ebmtu7VGPnhdRcQIG4AAAHUSURBVBYej+eqq6468/jOnTvbt29/55135ufnB/FJquHHp59+euYPl549e27fvt33tsfjmTVrVteuXfnVnJFsNtu3n1je4XCE7Su9R4l33313/vz5b7/9NreMpWzfvr2qqmrWrFmt+3DuMz43hw4d6tevn+/i7nQ6m5ubL7300pKSEum9opTX683Ozm5oaNiwYQO/ozbSrl27pk2bVl5ebjKZnE5nSkrK3//+9549e0rvFaU++OCDm266acuWLUOHDpXeJXrdf//9q1atio2NVUrV1dXZbLalS5cuXLgwwA8nxq23evXqt956iwdwSdE07c477zx27NiWLVt46JDBvF7vD3/4w2effXbixIl5eXlr1qzZtWuX9FJRateuXVOnTs3Pz295+VqIGzx48Lk+gItfU7deXFzcd14nC0aqrKzMz89XSqWnp/uOFBcX9+rVS3SpaGE2m9esWXPrrbcuWLDAZDL5vhEQkZeX53Q6W37u33bbba17ABGCKDEx0XcTOXDcMgbQSh6Pp66uLjk5mYdQAOeJGAMAIIy/MwYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBAGDEGAEAYMQYAQBgxBgBA2P8CvlPNILPFhkUAAAAASUVORK5CYII=">
+</div>
+</div>
+<p>We can also obtain the logpdf of the transformed distribution and check that it is the same as that of a normal distribution:</p>
+<div id="16" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Sample:   </span><span class="sc">$</span>(samples_plot[<span class="fl">1</span>])<span class="st">"</span>)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Expected: </span><span class="sc">$</span>(<span class="fu">logpdf</span>(<span class="fu">Normal</span>(), samples_plot[<span class="fl">1</span>]))<span class="st">"</span>)</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Actual:   </span><span class="sc">$</span>(<span class="fu">logpdf</span>(transformed_dist, samples_plot[<span class="fl">1</span>]))<span class="st">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Sample:   -0.2031149013821452
+Expected: -0.9395663647864121
+Actual:   -0.9395663647864121</code></pre>
+</div>
+</div>
+<p>Given the discussion in the previous sections, you might not be surprised to find that the logpdf of the transformed distribution is implemented using the Jacobian of the transformation. In particular, it <a href="https://github.com/TuringLang/Bijectors.jl/blob/f52a9c52ede1f43155239447601387eb1dafe394/src/Bijectors.jl#L242-L255">directly uses</a> the formula</p>
+<p><span class="math display">\[\log(q(\mathbf{y})) = \log(p(\mathbf{x})) - \log(|\det(\mathbf{J})|).\]</span></p>
+<p>You can access <span class="math inline">\(\log(|\det(\mathbf{J})|)\)</span> (evaluated at the point <span class="math inline">\(\mathbf{x}\)</span>) using the <code>logabsdetjac</code> function:</p>
+<div id="18" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Reiterating the setup, just to be clear</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>original_dist <span class="op">=</span> <span class="fu">LogNormal</span>()</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> <span class="fu">rand</span>(original_dist)</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>f <span class="op">=</span> B.<span class="fu">bijector</span>(original_dist)</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>y <span class="op">=</span> <span class="fu">f</span>(x)</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>transformed_dist <span class="op">=</span> B.<span class="fu">transformed</span>(<span class="fu">LogNormal</span>(), f)</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"log(q(y))     : </span><span class="sc">$</span>(<span class="fu">logpdf</span>(transformed_dist, y))<span class="st">"</span>)</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"log(p(x))     : </span><span class="sc">$</span>(<span class="fu">logpdf</span>(original_dist, x))<span class="st">"</span>)</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"log(|det(J)|) : </span><span class="sc">$</span>(B.<span class="fu">logabsdetjac</span>(f, x))<span class="st">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>log(q(y))     : -0.9258400203646245
+log(p(x))     : -0.8083539602557612
+log(|det(J)|) : 0.11748606010886327</code></pre>
+</div>
+</div>
+<p>from which you can see that the equation above holds. There are more functions available in the Bijectors.jl API; for full details do check out the <a href="https://turinglang.org/Bijectors.jl/stable/">documentation</a>. For example, <code>logpdf_with_trans</code> can directly give us <span class="math inline">\(\log(q(\mathbf{y}))\)</span> without going through the effort of constructing the bijector:</p>
+<div id="20" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>B.<span class="fu">logpdf_with_trans</span>(original_dist, x, <span class="cn">true</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>-0.9258400203646245</code></pre>
+</div>
+</div>
+</section>
+<section id="the-case-for-bijectors-in-mcmc" class="level2">
+<h2 class="anchored" data-anchor-id="the-case-for-bijectors-in-mcmc">The case for bijectors in MCMC</h2>
+<p>Constraints pose a challenge for many numerical methods such as optimisation, and sampling is no exception to this. The problem is that for any value <span class="math inline">\(x\)</span> outside of the support of a constrained distribution, <span class="math inline">\(p(x)\)</span> will be zero, and the logpdf will be <span class="math inline">\(-\infty\)</span>. Thus, any term that involves some ratio of probabilities (or equivalently, the logpdf) will be infinite.</p>
+<section id="metropolis-with-rejection" class="level3">
+<h3 class="anchored" data-anchor-id="metropolis-with-rejection">Metropolis with rejection</h3>
+<p>To see the practical impact of this on sampling, let’s attempt to sample from a log-normal distribution using a random walk Metropolis algorithm.</p>
+<p>One way of handling constraints is to simply reject any steps that would take us out of bounds. This is a barebones implementation which does precisely that:</p>
+<div id="22" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Take a step where the proposal is a normal distribution centred around</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="co"># the current value. Return the new value, plus a flag to indicate whether</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="co"># the new value was in bounds.</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">mh_step</span>(logp, x, in_bounds)</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    x_proposed <span class="op">=</span> <span class="fu">rand</span>(<span class="fu">Normal</span>(x, <span class="fl">1</span>))</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">in_bounds</span>(x_proposed) <span class="op">||</span> <span class="cf">return</span> (x, <span class="cn">false</span>)  <span class="co"># bounds check</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    acceptance_logp <span class="op">=</span> <span class="fu">logp</span>(x_proposed) <span class="op">-</span> <span class="fu">logp</span>(x)</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="cf">if</span> <span class="fu">log</span>(<span class="fu">rand</span>()) <span class="op">&lt;</span> acceptance_logp</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>        (x_proposed, <span class="cn">true</span>)  <span class="co"># successful step</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>        (x, <span class="cn">true</span>)  <span class="co"># failed step</span></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Run a random walk Metropolis sampler.</span></span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a><span class="co"># `logp`      : a function that takes `x` and returns the log pdf of the</span></span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a><span class="co">#               distribution we're trying to sample from (up to a constant</span></span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a><span class="co">#               additive factor)</span></span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a><span class="co"># `n_samples` : the number of samples to draw</span></span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a><span class="co"># `in_bounds` : a function that takes `x` and returns whether `x` is within</span></span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a><span class="co">#               the support of the distribution</span></span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a><span class="co"># `x0`        : the initial value</span></span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Returns a vector of samples, plus the number of times we went out of bounds.</span></span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">mh</span>(logp, n_samples, in_bounds; x0<span class="op">=</span><span class="fl">1.0</span>)</span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a>    samples <span class="op">=</span> [x0]</span>
+<span id="cb17-26"><a href="#cb17-26" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> x0</span>
+<span id="cb17-27"><a href="#cb17-27" aria-hidden="true" tabindex="-1"></a>    n_out_of_bounds <span class="op">=</span> <span class="fl">0</span></span>
+<span id="cb17-28"><a href="#cb17-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="fl">2</span><span class="op">:</span>n_samples</span>
+<span id="cb17-29"><a href="#cb17-29" aria-hidden="true" tabindex="-1"></a>        x, inb <span class="op">=</span> <span class="fu">mh_step</span>(logp, x, in_bounds)</span>
+<span id="cb17-30"><a href="#cb17-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> !inb</span>
+<span id="cb17-31"><a href="#cb17-31" aria-hidden="true" tabindex="-1"></a>            n_out_of_bounds <span class="op">+=</span> <span class="fl">1</span></span>
+<span id="cb17-32"><a href="#cb17-32" aria-hidden="true" tabindex="-1"></a>        <span class="cf">end</span></span>
+<span id="cb17-33"><a href="#cb17-33" aria-hidden="true" tabindex="-1"></a>        <span class="fu">push!</span>(samples, x)</span>
+<span id="cb17-34"><a href="#cb17-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb17-35"><a href="#cb17-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (samples, n_out_of_bounds)</span>
+<span id="cb17-36"><a href="#cb17-36" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>mh (generic function with 1 method)</code></pre>
+</div>
+</div>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>In the MH algorithm, we technically do not need to explicitly check the proposal, because for any <span class="math inline">\(x \leq 0\)</span>, we have that <span class="math inline">\(p(x) = 0\)</span>; thus, the acceptance probability will be zero. However, doing so here allows us to track how often this happens, and also illustrates the general principle of handling constraints by rejection.</p>
+</div>
+</div>
+<p>Now to actually perform the sampling:</p>
+<div id="24" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">logp</span>(x) <span class="op">=</span> <span class="fu">logpdf</span>(<span class="fu">LogNormal</span>(), x)</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>samples, n_out_of_bounds <span class="op">=</span> <span class="fu">mh</span>(logp, <span class="fl">10000</span>, x <span class="op">-&gt;</span> x <span class="op">&gt;</span> <span class="fl">0</span>)</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="fu">histogram</span>(samples, bins<span class="op">=</span><span class="fl">0</span><span class="op">:</span><span class="fl">0.1</span><span class="op">:</span><span class="fl">5</span>; xlims<span class="op">=</span>(<span class="fl">0</span>, <span class="fl">5</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAoQAAAHMCAIAAADDNi6EAAAABmJLR0QA/wD/AP+gvaeTAAAgAElEQVR4nO3deXxTdb7/8e9p0hXK1pbFsgoKKAgUCgpuSDsyIiCKMKLiTwYERmGuIg5zR0FlUBgE1AEUQX8oo7IIKIiyFBEQkV1AVgsFWloWu7dpmu3cP+J0HKUnKU3yadPX8+EfafLxnHdO0r45OcmJpuu6AgAAckKkAwAAUNNRxgAACKOMAQAQRhkDACCMMgYAQBhlDACAMMoYAABhlDEAAMIoYwAAhEmWcVFRkd1uFwwAAEBVoAmeDnP8+PFdu3Z97LHH/L2iixcv9n9iorVhe4MZe1H+Q12bTH72z/4OE0gOh8PlcoWFhUkHCWYWiyUqKko6RTBjC/sbW9jfvNnC5sBEuSKHwxGYPePi4uKTh/fn/++7RkMHPtuz+9MAhAkkXdc597hfsYUDwOVySUcIcmxhf/NmC3PMGAAAYZQxAADCKGMAAIRRxgAACKOMAQAQRhkDACCMMgYAQBhlDACAMMoYAABhlDEAAMIoYwAAhEmemxoAEHzOnTvncDikU/jeNddcExER4aeFU8YAAJ9JT09v167dDTfcIB3Ex7Kysp555pkJEyb4afmUMQDAZ+x2e+vWrffu3SsdxMdefvllv37NIMeMAQAQRhkDACCMl6kroKCg4McffzSe0TStU6dOJpMpMJEAAEGAMq6A1994c8bb70c0amEwU3Lm8NoVH/Xp0ydgqQAA1R1lXAEOh8NyywhL32cNZsIm39D33gHm0HCDGaet5PLFC3Xr1vV1QABAtUQZ+5hL1xxjljtu/J3BTPTktlarlTIGUEN8tHTZ628tCvx6k+68/ZWXXgj8eq8CZQwA8K+vv9m5J/xG1bFvQNd6Oa3w8yVelrHNZjt8+PChQ4fatGlz2223+Tvab1HGAAD/a9JOtQ/sm2lqH1JHlng5O3369E8++cRut995550iZcxHmwAANYXNZvvkk09cLpf7x59++mn9+vVKqcmTJx86dGjw4MFSwShjAEBNERYWNmPGjJSUFPePc+fO/eKLL2QjuVHGAIAaZOzYse+8845Syul0Ll68+IknnpBOpBRlDACoUR566KHt27dnZmauW7euadOmHTp0kE6kFG/gAgDUKJGRkcOGDXv//fe//fbbKrJbrChjAEBNM3r06D59+thstuXLl7uvsdlsxcXFJSUlpaWlubm5UVFR4eFG527yOV6mBgDULO3atWvduvXDDz8cGRnpvmbjxo3dunVbvXr11q1bu3XrtmzZsgBHYs8YAOBfYWZT5PrpYTsXBnKlztKS8CYxV7ypuLg4NTV1wYIFZdfce++99957b6CiXQFlDADwr6lTnn/80WGBX2/jxo1/e+XSpUtnz5599913t2/fPvCRykMZAwD8q379+l27dpVO8bMuXbrMnz8/ISFBOsh/oYwBADVI27ZtpSNcAW/gAgBAGGUMAIAwyhgAAGEcMwYA+FJ+fv6KFSukU/jYkSNHunTp4r/lU8YAAJ9p2LDhHXfcEXxlrGlar169/Ld8yhgA4DO1a9desmSJdIrqh2PGAAAIo4wBABBGGQMAIIwyBgBAGGUMAIAwyhgAAGF8tOnfss9+8+3OrrcnG4xknjujuo0IWCIAQA1BGf9b/sWiOs333/F3gxHtX08GLA4AoOagjP9Di6qnWhh+w2V4dKCyAABqEI4ZAwAgjDIGAEAYZQwAgDDKGAAAYZQxAADCKGMAAIRRxgAACKOMAQAQRhkDACCMMgYAQFgFToe5Z8+ekydPNmnSpFevXuHh4Uopu92+efPmvLy85OTkmJiYssmdO3eePn26R48ebdq08X1kAACCi1d7xrquP/roo8OHD9+6deusWbO++eYbpZTT6UxOTp45c2ZKSkqHDh1OnTrlHp40adLIkSN37tx52223rVmzxo/ZAQAICl7tGa9atero0aMHDhyIiIgou/LLL7/Mzs4+cOCA2WyeNGnSzJkz33777QsXLsybNy81NbVRo0bJycnPP//8gAED/BYeAIBg4NWe8eLFi0eNGrV169YPP/zw/Pnz7is3bdp0zz33mM1mpVT//v03btyolNq6dWvnzp0bNWqklPr9739/7NixrKwsv4UHACAYeLVnfPr06X/+8589e/asVavW008/vW7dusTExKysrJtvvtk90Lhx48zMTF3Xs7Ky3E2slAoLC4uJicnMzGzSpMkVF5uenn748OHvvvvO/WOrVq0mTJhQ6Xt0BaWlpUr3PObFiDe8WYxeWlpqtVp9s8Ly2e12l8ul6z66Z/gNXdetVqvJZJIOEsysVqv7H/3wE7awv5WWltauXdt4xqsHQNO07t27L1y4UCkVExMzffr0lStX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">
+</div>
+</div>
+<p>How do we know that this has sampled correctly? For one, we can check that the mean of the samples are what we expect them to be. From <a href="https://en.wikipedia.org/wiki/Log-normal_distribution">Wikipedia</a>, the mean of a log-normal distribution is given by <span class="math inline">\(\exp[\mu + (\sigma^2/2)]\)</span>. For our log-normal distribution, we set <span class="math inline">\(\mu = 0\)</span> and <span class="math inline">\(\sigma = 1\)</span>, so:</p>
+<div id="26" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"expected mean: </span><span class="sc">$</span>(<span class="fu">exp</span>(<span class="fl">0</span> <span class="op">+</span> (<span class="fl">1</span><span class="op">^</span><span class="fl">2</span><span class="op">/</span><span class="fl">2</span>)))<span class="st">"</span>)</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  actual mean: </span><span class="sc">$</span>(<span class="fu">mean</span>(samples))<span class="st">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>expected mean: 1.6487212707001282
+  actual mean: 1.3347941996487</code></pre>
+</div>
+</div>
+</section>
+<section id="metropolis-with-transformation" class="level3">
+<h3 class="anchored" data-anchor-id="metropolis-with-transformation">Metropolis with transformation</h3>
+<p>The issue with this is that many of the sampling steps are unproductive, in that they bring us to the region of <span class="math inline">\(x \leq 0\)</span> and get rejected:</p>
+<div id="28" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"went out of bounds </span><span class="sc">$</span>n_out_of_bounds<span class="st">/10000 times"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>went out of bounds 1870/10000 times</code></pre>
+</div>
+</div>
+<p>And this could have been even worse if we had chosen a wider proposal distribution in the Metropolis step, or if the support of the distribution was narrower! In general, we probably don’t want to have to re-parameterise our proposal distribution each time we sample from a distribution with different constraints.</p>
+<p>This is where the transformation functions from Bijectors.jl come in: we can use them to map the distribution to an unconstrained one and sample from <em>that</em> instead. Since the sampler only ever sees an unconstrained distribution, it doesn’t have to worry about checking for bounds.</p>
+<p>To make this happen, instead of passing <span class="math inline">\(\log(p(x))\)</span> to the sampler, we pass <span class="math inline">\(\log(q(y))\)</span>. This can be obtained using the <code>Bijectors.logpdf_with_trans</code> function that was introduced above.</p>
+<div id="30" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>d <span class="op">=</span> <span class="fu">LogNormal</span>()</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>f <span class="op">=</span> B.<span class="fu">bijector</span>(d)     <span class="co"># Transformation function</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>f_inv <span class="op">=</span> B.<span class="fu">inverse</span>(f)  <span class="co"># Inverse transformation function</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">logq</span>(y)</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> <span class="fu">f_inv</span>(y)</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> B.<span class="fu">logpdf_with_trans</span>(d, x, <span class="cn">true</span>)</span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>samples_transformed, n_oob_transformed <span class="op">=</span> <span class="fu">mh</span>(logq, <span class="fl">10000</span>, x <span class="op">-&gt;</span> <span class="cn">true</span>);</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>Now, this process gives us samples that have been transformed, so we need to un-transform them to get the samples from the original distribution:</p>
+<div id="32" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>samples_untransformed <span class="op">=</span> <span class="fu">f_inv</span>(samples_transformed)</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="fu">histogram</span>(samples_untransformed, bins<span class="op">=</span><span class="fl">0</span><span class="op">:</span><span class="fl">0.1</span><span class="op">:</span><span class="fl">5</span>; xlims<span class="op">=</span>(<span class="fl">0</span>, <span class="fl">5</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<img src="data:image/png;base64,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">
+</div>
+</div>
+<p>We can check the mean of the samples too, to see that it is what we expect:</p>
+<div id="34" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"expected mean: </span><span class="sc">$</span>(<span class="fu">exp</span>(<span class="fl">0</span> <span class="op">+</span> (<span class="fl">1</span><span class="op">^</span><span class="fl">2</span><span class="op">/</span><span class="fl">2</span>)))<span class="st">"</span>)</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  actual mean: </span><span class="sc">$</span>(<span class="fu">mean</span>(samples_untransformed))<span class="st">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>expected mean: 1.6487212707001282
+  actual mean: 1.7184757306010636</code></pre>
+</div>
+</div>
+<p>On top of that, we can also verify that we don’t ever go out of bounds:</p>
+<div id="36" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"went out of bounds </span><span class="sc">$</span>n_oob_transformed<span class="st">/10000 times"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>went out of bounds 0/10000 times</code></pre>
+</div>
+</div>
+</section>
+<section id="which-one-is-better" class="level3">
+<h3 class="anchored" data-anchor-id="which-one-is-better">Which one is better?</h3>
+<p>In the subsections above, we’ve seen two different methods of sampling from a constrained distribution:</p>
+<ol type="1">
+<li>Sample directly from the distribution and reject any samples outside of its support.</li>
+<li>Transform the distribution to an unconstrained one and sample from that instead.</li>
+</ol>
+<p>(Note that both of these methods are applicable to other samplers as well, such as Hamiltonian Monte Carlo.)</p>
+<p>Of course, a natural question to then ask is which one of these is better!</p>
+<p>One option might be look at the sample means above to see which one is ‘closer’ to the expected mean. However, that’s not a very robust method because the sample mean is itself random, and if we were to use a different random seed we might well reach a different conclusion.</p>
+<p>Another possibility we could look at the number of times the sample was rejected. Does a lower rejection rate (as in the transformed case) imply that the method is better? As it happens, this might seem like an intuitive conclusion, but it’s not necessarily the case: for example, the sampling in unconstrained space could be much less efficient, such that even though we’re not <em>rejecting</em> samples, the ones that we do get are overly correlated and thus not representative of the distribution.</p>
+<p>A robust comparison would involve performing both methods many times and seeing how <em>reliable</em> the sample mean is.</p>
+<div id="38" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">get_sample_mean</span>(; transform)</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> transform</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>       <span class="co"># Sample from transformed distribution</span></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>       samples <span class="op">=</span> <span class="fu">f_inv</span>(<span class="fu">first</span>(<span class="fu">mh</span>(logq, <span class="fl">10000</span>, x <span class="op">-&gt;</span> <span class="cn">true</span>)))</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>       <span class="co"># Sample from original distribution and reject if out of bounds</span></span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>       samples <span class="op">=</span> <span class="fu">first</span>(<span class="fu">mh</span>(logp, <span class="fl">10000</span>, x <span class="op">-&gt;</span> x <span class="op">&gt;</span> <span class="fl">0</span>))</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="fu">mean</span>(samples)</span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>get_sample_mean (generic function with 1 method)</code></pre>
+</div>
+</div>
+<div id="40" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>means_with_rejection <span class="op">=</span> [<span class="fu">get_sample_mean</span>(; transform<span class="op">=</span><span class="cn">false</span>) for _ <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">1000</span>]</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="fu">mean</span>(means_with_rejection), <span class="fu">var</span>(means_with_rejection)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>(1.652032684314151, 0.30454613712270745)</code></pre>
+</div>
+</div>
+<div id="42" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb34"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>means_with_transformation <span class="op">=</span> [<span class="fu">get_sample_mean</span>(; transform<span class="op">=</span><span class="cn">true</span>) for _ <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">1000</span>]</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="fu">mean</span>(means_with_transformation), <span class="fu">var</span>(means_with_transformation)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>(1.6489347143276902, 0.003945513418875533)</code></pre>
+</div>
+</div>
+<p>We can see from this small study that although both methods give us the correct mean (on average), the method with the transformation is more reliable, in that the variance is much lower!</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Alternatively, we could also try to directly measure how correlated the samples are. One way to do this is to calculate the <em>effective sample size</em> (ESS), which is described in <a href="https://mc-stan.org/docs/reference-manual/analysis.html#effective-sample-size.section">the Stan documentation</a>, and implemented in <a href="https://github.com/TuringLang/MCMCChains.jl/">MCMCChains.jl</a>. A larger ESS implies that the samples are less correlated, and thus more representative of the underlying distribution:</p>
+<div id="44" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb36"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">MCMCChains</span>: Chains, ess</span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>rejection <span class="op">=</span> <span class="fu">first</span>(<span class="fu">mh</span>(logp, <span class="fl">10000</span>, x <span class="op">-&gt;</span> x <span class="op">&gt;</span> <span class="fl">0</span>))</span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>transformation <span class="op">=</span> <span class="fu">f_inv</span>(<span class="fu">first</span>(<span class="fu">mh</span>(logq, <span class="fl">10000</span>, x <span class="op">-&gt;</span> <span class="cn">true</span>)))</span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>chn <span class="op">=</span> <span class="fu">Chains</span>(<span class="fu">hcat</span>(rejection, transformation), [<span class="op">:</span>rejection, <span class="op">:</span>transformation])</span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a><span class="fu">ess</span>(chn)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div class="ansi-escaped-output">
+<pre>ESS
+
+ <span class="ansi-bold">     parameters  </span><span class="ansi-bold">       ess  </span><span class="ansi-bold"> ess_per_sec
+ </span><span class="ansi-bright-black-fg ansi-bold">         Symbol  </span><span class="ansi-bright-black-fg ansi-bold">   Float64  </span><span class="ansi-bright-black-fg ansi-bold">     Missing
+
+       rejection    503.4349       missing
+  transformation   1106.6909       missing
+
+</span></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section id="what-happens-without-the-jacobian" class="level3">
+<h3 class="anchored" data-anchor-id="what-happens-without-the-jacobian">What happens without the Jacobian?</h3>
+<p>In the transformation method above, we used <code>Bijectors.logpdf_with_trans</code> to calculate the log probability density of the transformed distribution. This function makes sure to include the Jacobian term when performing the transformation, and this is what makes sure that when we un-transform the samples, we get the correct distribution.</p>
+<p>The next code block shows what happens if we don’t include the Jacobian term. In this <code>logq_wrong</code>, we’ve un-transformed <code>y</code> to <code>x</code> and calculated the logpdf with respect to its original distribution. This is exactly the same mistake that we made at the start of this article with <code>naive_logpdf</code>.</p>
+<div id="46" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb37"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">logq_wrong</span>(y)</span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> <span class="fu">f_inv</span>(y)</span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="fu">logpdf</span>(d, x)  <span class="co"># no Jacobian term!</span></span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>samples_questionable, _ <span class="op">=</span> <span class="fu">mh</span>(logq_wrong, <span class="fl">100000</span>, x <span class="op">-&gt;</span> <span class="cn">true</span>)</span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>samples_questionable_untransformed <span class="op">=</span> <span class="fu">f_inv</span>(samples_questionable)</span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"mean: </span><span class="sc">$</span>(<span class="fu">mean</span>(samples_questionable_untransformed))<span class="st">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>mean: 0.5919166187308191</code></pre>
+</div>
+</div>
+<p>You can see that even though we used ten times more samples, the mean is quite wrong, which implies that our samples are not being drawn from the correct distribution.</p>
+<p>In the next page, we’ll see how to use these transformations in the context of a probabilistic programming language, paying particular attention to their handling in DynamicPPL.</p>
+
+
+</section>
+</section>
+
+<a onclick="window.scrollTo(0, 0); return false;" role="button" id="quarto-back-to-top"><i class="bi bi-arrow-up"></i> Back to top</a></main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/turinglang\.org\/docs");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../../../developers/transforms/distributions/index.html" class="pagination-link" aria-label="Distributions and the Jacobian">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Distributions and the Jacobian</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../../../developers/transforms/dynamicppl/index.html" class="pagination-link" aria-label="Variable transformations in DynamicPPL">
+        <span class="nav-page-text">Variable transformations in DynamicPPL</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/TuringLang/docs/edit/main/developers/transforms/bijectors/index.qmd" target="_blank" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/TuringLang/docs/issues/new" target="_blank" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer><footer class="custom-footer">
+  <div class="footer-container">
+    <div class="footer-grid">
+      <div class="footer-links-wrapper">
+        <div class="footer-column footer-explore">
+          <h5>Explore</h5>
+          <a href="https://turinglang.org/docs/getting-started/">Get Started</a>
+          <a href="https://turinglang.org/docs/tutorials/">Tutorials</a>
+          <a href="https://turinglang.org/docs/faq/">FAQ</a>
+          <a href="https://turinglang.org/library/">Libraries</a>
+          <a href="https://turinglang.org/news/">News</a>
+          <a href="https://turinglang.org/team/">Team</a>
+        </div>
+
+        <div class="footer-column footer-connect">
+          <h5>Connect</h5>
+          <a href="https://github.com/TuringLang" target="_blank" rel="noopener"><i class="bi bi-github"></i> GitHub</a>
+          <a href="https://x.com/TuringLang" target="_blank" rel="noopener"><i class="bi bi-twitter-x"></i> Twitter</a>
+          <a href="https://julialang.slack.com/archives/CCYDC34A0" target="_blank" rel="noopener"><i class="bi bi-slack"></i> Slack</a>
+          <a href="https://discourse.julialang.org/c/domain/probprog/48" target="_blank" rel="noopener"><i class="bi bi-chat-dots"></i> Discourse</a>
+        </div>
+      </div>
+
+      <div class="footer-column footer-brands">
+        <h5>Supported by leading researchers</h5>
+        <p>Turing.jl is developed by researchers and engineers at the following research institutions.</p>
+        <div class="logo-grid">
+          <a href="https://mlg.eng.cam.ac.uk/" class="partner-logo" target="_blank" rel="noopener">
+            <img src="../../../assets/images/brands/university-cambridge-logo-black-example-640x132.png" alt="University of Cambridge Logo" class="brands-light-mode-logo">
+            <img src="../../../assets/images/brands/university-cambridge-logo-white-example-640x133.png" alt="University of Cambridge Logo Dark" class="brands-dark-mode-logo">
+          </a>
+          <a href="https://www.turing.ac.uk/" class="partner-logo" target="_blank" rel="noopener">
+            <img src="../../../assets/images/brands/Turing_Logo_1000x400px_Black.webp" alt="The Alan Turing Institute Logo" class="brands-light-mode-logo">
+            <img src="../../../assets/images/brands/Turing_Logo_1000x400px_White.webp" alt="The Alan Turing Institute Logo Dark" class="brands-dark-mode-logo">
+          </a>
+        </div>
+      </div>
+
+    </div>
+    <div class="footer-bottom">
+      <p>Turing.jl was created by <a href="https://mlg.eng.cam.ac.uk/hong/" target="_blank" rel="noopener">Hong Ge</a>, and maintained by the core <a href="https://turinglang.org/team/" target="_blank" rel="noopener">team</a> of developers and <a href="https://github.com/TuringLang/Turing.jl/graphs/contributors" target="_blank" rel="noopener">contributors</a>.<br>© 2025 The Turing Project Contributors. <a href="https://github.com/TuringLang/Turing.jl/blob/main/LICENCE" target="_blank" rel="noopener">MIT License</a>.</p>
+      <a href="https://github.com/TuringLang/docs/" target="_blank" rel="noopener" class="footer-source-link"><i class="bi bi-github"></i> Website Source</a>
+    </div>
+  </div>
+</footer>
+
+
+
+
+<script src="../../../site_libs/quarto-html/zenscroll-min.js"></script>
+</body></html>

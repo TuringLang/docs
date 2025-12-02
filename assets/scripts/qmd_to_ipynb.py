@@ -19,7 +19,32 @@ class QmdToIpynb:
         self.packages: set = set()  # Track packages found in using statements
 
     def _extract_packages_from_line(self, line: str) -> None:
-        """Extract package names from a 'using' statement and add to self.packages."""
+        # This is a crude parser that attempts to detect all possible patterns
+        # of package imports. It would be 'more correct' to either use a proper
+        # parsing library or indeed to use JuliaSyntax.jl to parse the code,
+        # but that's left as a future improvement.
+        #
+        # This is BNF(ish) for Julia import statements:
+        #    stmt ::= "using"  packageAndItem ("," packageAndItem)*
+        #           | "import" importItem     ("," importItem)*
+        #    
+        #    packageAndItem ::= modulePath ( ":" itemList )?
+        #    
+        #    importItem ::= modulePath ( "as" identifier )?
+        #                   ( ":" itemList )?
+        #    
+        #    modulePath ::= package ( "." identifier )*
+        #    
+        #    itemList ::= identifier ( "," identifier )*
+        #
+        #    package ::= identifier
+        #    
+        #    identifier ::= [A-Za-z][A-Za-z0-9]*
+        # We don't care about anything except `package` here.
+        statements = [s.strip() for s in line.split(";")]
+        for stmt in statements:
+            if stmt.startswith('using'):
+
         line = line.strip()
         if not line.startswith('using '):
             return

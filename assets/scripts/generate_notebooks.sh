@@ -13,9 +13,9 @@ find tutorials usage developers -name "index.qmd" | while read qmd_file; do
 
     echo "Converting $qmd_file to $ipynb_file"
 
-    # Convert qmd to ipynb using our custom Python script
+    # Convert qmd to ipynb
     # Use relative path from repo root (assets/scripts/qmd_to_ipynb.py)
-    python3 assets/scripts/qmd_to_ipynb.py "$qmd_file" "$ipynb_file"
+    julia --project=assets/scripts/notebooks assets/scripts/notebooks/make_notebooks.jl "$qmd_file" "$ipynb_file"
 
     # Check if conversion was successful
     if [ -f "$ipynb_file" ]; then

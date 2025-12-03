@@ -52,6 +52,37 @@ function JSON.lower(nb::Notebook)
 end
 
 """
+    fix_callouts(md_content::AbstractString)::String
+
+Convert Quarto callouts in `md_content` to blockquotes.
+"""
+function fix_callouts(md_content::AbstractString)::String
+    # Quarto callouts look like, for example, `::: {.callout-note}`
+    # There isn't a good Jupyter equivalent, so we'll just use blockquotes.
+    # https://github.com/quarto-dev/quarto-cli/issues/1167
+    callout_regex = r"^:::\s*\{\.callout-\w+\}.*$"
+    callout_end_regex = r"^:::\s*$"
+    new_lines = String[]
+    in_callout = false
+    for line in split(md_content, '\n')
+        if in_callout
+            if occursin(callout_end_regex, line)
+                in_callout = false
+            else
+                push!(new_lines, "> " * line)
+            end
+        else
+            if occursin(callout_regex, line)
+                in_callout = true
+            else
+                push!(new_lines, line)
+            end
+        end
+    end
+    return join(new_lines, '\n')
+end
+
+"""
     parse_cells(qmd_path::String)::Notebook
 
 Parse a .qmd file. Returns a vector of `Cell` objects representing the code and markdown
@@ -78,7 +109,7 @@ function parse_cells(qmd_path::String)::Notebook
     for (i, md_content) in enumerate(markdown_cell_contents)
         md_content = strip(md_content)
         if !isempty(md_content)
-            push!(cells, MarkdownCell(md_content))
+            push!(cells, MarkdownCell(fix_callouts(md_content)))
         end
         if i <= length(code_cell_contents)
             match = code_cell_contents[i]

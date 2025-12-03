@@ -143,14 +143,48 @@ function convert_qmd_to_ipynb(in_qmd_path::String, out_ipynb_path::String)
     @info "converting $in_qmd_path to $out_ipynb_path..."
     notebook = parse_cells(in_qmd_path)
     JSON.json(out_ipynb_path, notebook; pretty=true)
-    @info "done."
+    @info " - done."
+end
+
+function add_ipynb_link_to_html(html_path::String, ipynb_path::String)
+    PATH_PREFIX = get(ENV, "PATH_PREFIX", "")
+    COLAB_URL = "https://colab.research.google.com/github/TuringLang/docs/blob/gh-pages$PATH_PREFIX/$ipynb_path"
+    SUGGESTED_FILENAME = basename(dirname(ipynb_path)) * ".ipynb"
+    @info "adding link to ipynb notebook in $html_path... with PATH_PREFIX='$PATH_PREFIX'"
+    if !isfile(html_path)
+        @info " - HTML file $html_path does not exist; skipping"
+        return
+    end
+    html_content = read(html_path, String)
+    if occursin("colab.research.google.com", html_content)
+        @info " - colab link already present; skipping"
+        return
+    end
+    # The line to edit looks like this:
+    # <div class="toc-actions"><ul><li><a href="https://github.com/TuringLang/docs/edit/main/getting-started/index.qmd" target="_blank" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/TuringLang/docs/issues/new" target="_blank" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+    # We want to insert two new list items at the end of the ul.
+    lines = split(html_content, '\n')
+    new_lines = map(lines) do line
+        if occursin(r"^<div class=\"toc-actions\">", line)
+            insertion = (
+                "<li><a href=\"index.ipynb\" target=\"_blank\" class=\"toc-action\" download=\"$SUGGESTED_FILENAME\"><i class=\"bi bi-journal-code\"></i>Download notebook</a></li>" *
+                "<li><a href=\"$COLAB_URL\" target=\"_blank\" class=\"toc-action\"><i class=\"bi bi-google\"></i>Open in Colab</a></li>"
+            )
+            return replace(line, r"</ul>" => "$insertion</ul>")
+        else
+            return line
+        end
+    end
+    new_html_content = join(new_lines, '\n')
+    write(html_path, new_html_content)
+    @info " - done."
 end
 
 function main(args)
     if length(args) == 0
-        # Get the list of .qmd files from the _quarto.yml file. This conveniently
-        # also checks that we are at the repo root.
-        try
+        # Get the list of .qmd files from the _quarto.yml file. This conveniently also
+        # checks that we are at the repo root.
+        qmd_files = try
             quarto_config = split(read("_quarto.yml", String), '\n')
             qmd_files = String[]
             for line in quarto_config
@@ -159,13 +193,7 @@ function main(args)
                     push!(qmd_files, m.captures[1])
                 end
             end
-            for file in qmd_files
-                dir = "_site/" * dirname(file)
-                base = replace(basename(file), r"\.qmd$" => ".ipynb")
-                isdir(dir) || mkpath(dir)  # mkpath is essentially mkdir -p
-                out_ipynb_path = joinpath(dir, base)
-                convert_qmd_to_ipynb(file, out_ipynb_path)
-            end
+            qmd_files
         catch e
             if e isa SystemError
                 error("Could not find _quarto.yml; please run this script from the repo root.")
@@ -173,10 +201,22 @@ function main(args)
                 rethrow(e)
             end
         end
-
+        for file in qmd_files
+            # Convert qmd to ipynb
+            dir = "_site/" * dirname(file)
+            ipynb_base = replace(basename(file), r"\.qmd$" => ".ipynb")
+            isdir(dir) || mkpath(dir)  # mkpath is essentially mkdir -p
+            out_ipynb_path = joinpath(dir, ipynb_base)
+            convert_qmd_to_ipynb(file, out_ipynb_path)
+            # Add a link in the corresponding html file
+            html_base = replace(basename(file), r"\.qmd$" => ".html")
+            out_html_path = joinpath(dir, html_base)
+            add_ipynb_link_to_html(out_html_path, out_ipynb_path)
+        end
     elseif length(args) == 2
         in_qmd_path, out_ipynb_path = args
         convert_qmd_to_ipynb(in_qmd_path, out_ipynb_path)
+        add_ipynb_link_to_html(replace(out_ipynb_path, r"\.ipynb$" => ".html"), out_ipynb_path)
     end
 end
 @main

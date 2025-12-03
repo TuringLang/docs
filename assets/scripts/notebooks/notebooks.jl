@@ -147,9 +147,14 @@ function convert_qmd_to_ipynb(in_qmd_path::String, out_ipynb_path::String)
 end
 
 function add_ipynb_link_to_html(html_path::String, ipynb_path::String)
-    PATH_PREFIX = get(ENV, "PATH_PREFIX", "")
-    COLAB_URL = "https://colab.research.google.com/github/TuringLang/docs/blob/gh-pages$PATH_PREFIX/$ipynb_path"
+    # this would look like "getting-started.ipynb" and is used when downloading a notebook
     SUGGESTED_FILENAME = basename(dirname(ipynb_path)) * ".ipynb"
+    # The Colab URL needs to look like
+    # https://colab.research.google.com/github/TuringLang/docs/blob/gh-pages/path/to/notebook.ipynb
+    # Because ipynb_path has `_site/` prefix, we need to strip that off.
+    ipynb_path_no_site = replace(ipynb_path, r"^_site/" => "")
+    PATH_PREFIX = get(ENV, "PATH_PREFIX", "")
+    COLAB_URL = "https://colab.research.google.com/github/TuringLang/docs/blob/gh-pages$PATH_PREFIX/$ipynb_path_no_site"
     @info "adding link to ipynb notebook in $html_path... with PATH_PREFIX='$PATH_PREFIX'"
     if !isfile(html_path)
         @info " - HTML file $html_path does not exist; skipping"

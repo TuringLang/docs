@@ -60,7 +60,7 @@ function fix_callouts(md_content::AbstractString)::String
     # Quarto callouts look like, for example, `::: {.callout-note}`
     # There isn't a good Jupyter equivalent, so we'll just use blockquotes.
     # https://github.com/quarto-dev/quarto-cli/issues/1167
-    callout_regex = r"^:::\s*\{\.callout-\w+\}.*$"
+    callout_regex = r"^:::\s*\{\.callout-.+\}.*$"
     callout_end_regex = r"^:::\s*$"
     new_lines = String[]
     in_callout = false
@@ -116,9 +116,15 @@ function parse_cells(qmd_path::String)::Notebook
             lang = match.captures[1]
             code = strip(match.captures[2])
             if lang == "julia"
-                cell = JuliaCodeCell(code)
-                push!(cells, cell)
-                union!(packages, extract_imports(cell))
+                if occursin(r"#|\s*eval:\s*false", code)
+                    # This is a code cell that is not meant to be executed.
+                    push!(cells, MarkdownCell("```julia\n$code\n```"))
+                    continue
+                else
+                    cell = JuliaCodeCell(code)
+                    push!(cells, cell)
+                    union!(packages, extract_imports(cell))
+                end
             else
                 # There are some code cells that are not Julia for example
                 # dot and mermaid. You can see what cells there are with

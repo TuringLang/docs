@@ -175,11 +175,6 @@ function mean_ribbon(samples)
     return m, (m - low, up - m)
 end
 
-function get_decomposition(model, x, cyclic_features, chain, op)
-    chain_params = get_sections(chain, :parameters)
-    return returned(model(x, cyclic_features, op), chain_params)
-end
-
 function plot_fit(x, y, decomp, ymax)
     trend = mapreduce(x -> x.trend, hcat, decomp)
     cyclic = mapreduce(x -> x.cyclic, hcat, decomp)
@@ -219,8 +214,9 @@ function plot_fit(x, y, decomp, ymax)
     return trend_plt, cyclic_plt
 end
 
-chain = sample(decomp_model(x, cyclic_features, +) | (; y=yf), NUTS(), 2000, progress=false)
-yf_samples = predict(decomp_model(x, cyclic_features, +), chain)
+model = decomp_model(x, cyclic_features, +) | (; y = yf)
+chain = sample(model, NUTS(), 2000, progress=false)
+yf_samples = predict(decondition(model), chain)
 m, conf = mean_ribbon(yf_samples)
 predictive_plt = plot(
     t,
@@ -233,7 +229,7 @@ predictive_plt = plot(
 )
 scatter!(predictive_plt, t, yf .+ yf_max; color=2, label="Data", legend=:topleft)
 
-decomp = get_decomposition(decomp_model, x, cyclic_features, chain, +)
+decomp = returned(model, chain)
 decomposed_plt = plot_fit(t, yf, decomp, yf_max)
 plot(predictive_plt, decomposed_plt...; layout=(3, 1), size=(700, 1000))
 ```
@@ -308,8 +304,9 @@ scatter!(t, yf; color=2, label="Data")
 ```
 
 ```{julia}
-chain = sample(decomp_model(x, cyclic_features, .*) | (; y=yg), NUTS(), 2000, progress=false)
-yg_samples = predict(decomp_model(x, cyclic_features, .*), chain)
+model = decomp_model(x, cyclic_features, .*) | (; y = yg)
+chain = sample(model, NUTS(), 2000, progress=false)
+yg_samples = predict(decondition(model), chain)
 m, conf = mean_ribbon(yg_samples)
 predictive_plt = plot(
     t,
@@ -322,7 +319,7 @@ predictive_plt = plot(
 )
 scatter!(predictive_plt, t, yg; color=2, label="Data", legend=:topleft)
 
-decomp = get_decomposition(decomp_model, x, cyclic_features, chain, .*)
+decomp = returned(model, chain)
 decomposed_plt = plot_fit(t, yg, decomp, 0)
 plot(predictive_plt, decomposed_plt...; layout=(3, 1), size=(700, 1000))
 ```
@@ -337,14 +334,15 @@ let
 end
 ```
 
-The model fits! What about the infered cyclic components?
+The model fits!
+What about the inferred cyclic components?
 
 ```{julia}
 βc = Array(group(chain, :βc))
 plot_cyclic_features(βc[:, begin:num_freqs, :], βc[:, (num_freqs + 1):end, :])
 ```
 
-While multiplicative model fits to the data, it does not recover the true parameters for this dataset.
+While a multiplicative model does manage to fit the data, it does not recover the true parameters for this dataset.
 
 # Wrapping up
 

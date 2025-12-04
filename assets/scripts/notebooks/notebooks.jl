@@ -116,7 +116,7 @@ function parse_cells(qmd_path::String)::Notebook
             lang = match.captures[1]
             code = strip(match.captures[2])
             if lang == "julia"
-                if "#| eval: false" in code
+                if occursin(r"#|\s*eval:\s*false", code)
                     # This is a code cell that is not meant to be executed.
                     push!(cells, MarkdownCell("```julia\n$code\n```"))
                     continue

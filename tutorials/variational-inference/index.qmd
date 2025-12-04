@@ -20,12 +20,12 @@ Let's start with a minimal example.
 Consider a `Turing.Model`, which we denote as `model`.
 Approximating the posterior associated with `model` via VI is as simple as
 
-```{julia}
-#| eval: false
+```julia
 m = model(data...)               # instantiate model on the data
 q_init = q_fullrank_gaussian(m)  # initial variational approximation
 vi(m, q_init, 1000) # perform VI with the default algorithm on `m` for 1000 iterations
 ```
+
 Thus, it's no more work than standard MCMC sampling in Turing.
 The default algorithm uses stochastic gradient descent to minimise the (exclusive) [KL divergence](https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence).
 This approach is commonly referred to as *automatic differentiation variational inference* (ADVI)[^KTRGB2017], *stochastic gradient VI*[^TL2014], and *black-box variational inference*[^RGB2014] with the reparameterization gradient[^KW2014][^RMW2014][^TL2014].
@@ -240,10 +240,16 @@ Our implementation supports any optimiser that implements the [Optimisers.jl](ht
 For instance, let's try using `Optimisers.Adam`[^KB2014], which is a popular choice.
 Since `AdvancedVI` does not implement a proximal operator for `Optimisers.Adam`, we must use the `AdvancedVI.ClipScale()` projection operator, which ensures that the scale matrix of the variational approximation is positive definite.
 (See the paper by J. Domke 2020[^D2020] for more detail about the use of a projection operator.)
+
 ```{julia}
 using Optimisers
 
-_, _, info_adam, _ = vi(m, q_init, n_iters; show_progress=false, callback=callback, optimizer=Optimisers.Adam(3e-3), operator=ClipScale());
+_, _, info_adam, _ = vi(
+    m, q_init, n_iters;
+    show_progress=false,
+    callback=callback,
+    algorithm=KLMinRepGradDescent(AutoForwardDiff(); optimizer=Optimisers.Adam(3e-3), operator=ClipScale())
+);
 ```
 
 ```{julia}
@@ -252,6 +258,7 @@ elbo_adam = [i.elbo_avg for i in info_adam[iters]]
 Plots.plot(iters, elbo_mf, xlabel="Iterations", ylabel="ELBO", label="DoWG")
 Plots.plot!(iters, elbo_adam, xlabel="Iterations", ylabel="ELBO", label="Adam")
 ```
+
 Compared to the default option `AdvancedVI.DoWG()`, we can see that `Optimisers.Adam(3e-3)` is converging more slowly.
 With more step size tuning, it is possible that `Optimisers.Adam` could perform better or equal.
 That is, most common optimisers require some degree of tuning to perform better or comparably to `AdvancedVI.DoWG()` or `AdvancedVI.DoG()`, which do not require much tuning at all.
@@ -261,6 +268,7 @@ Due to this fact, they are referred to as parameter-free optimizers.
 So far, we have only used the mean-field Gaussian family.
 This, however, approximates the posterior covariance with a diagonal matrix.
 To model the full covariance matrix, we can use the *full-rank* Gaussian family[^TL2014][^KTRGB2017]:
+
 ```{julia}
 q_init_fr = q_fullrank_gaussian(m);
 ```
@@ -273,6 +281,7 @@ The term *full-rank* might seem a bit peculiar since covariance matrices are alw
 This term, however, traditionally comes from the fact that full-rank families use full-rank factors in addition to the diagonal of the covariance.
 
 In contrast to the mean-field family, the full-rank family will often result in more computation per optimisation step and slower convergence, especially in high dimensions:
+
 ```{julia}
 q_fr, _, info_fr, _ = vi(m, q_init_fr, n_iters; show_progress=false, callback)
 
@@ -281,12 +290,14 @@ Plots.plot(elbo_mf, xlabel="Iterations", ylabel="ELBO", label="Mean-Field", ylim
 elbo_fr = [i.elbo_avg for i in info_fr[iters]]
 Plots.plot!(elbo_fr, xlabel="Iterations", ylabel="ELBO", label="Full-Rank", ylims=(-200, Inf))
 ```
+
 However, we can see that the full-rank families achieve a higher ELBO in the end.
 Due to the relationship between the ELBO and the Kullback-Leibler divergence, this indicates that the full-rank covariance is much more accurate.
 This trade-off between statistical accuracy and optimisation speed is often referred to as the *statistical-computational trade-off*.
 The fact that we can control this trade-off through the choice of variational family is a strength, rather than a limitation, of variational inference.
 
 We can also visualise the covariance matrix.
+
 ```{julia}
 heatmap(cov(rand(q_fr, 100_000), dims=2))
 ```

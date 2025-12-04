@@ -18,12 +18,13 @@ In this tutorial, we'll go through step-by-step how to implement a "simple" samp
 
 In particular, we're going to implement a version of **Metropolis-adjusted Langevin (MALA)**.
 
-Note that we will implement this sampler in the [AbstractMCMC.jl](https://github.com/TuringLang/AbstractMCMC.jl) framework, completely "ignoring" Turing.jl until the very end of the tutorial, at which point we'll use a single line of code to make the resulting sampler available to Turing.jl. This is to really drive home the point that one can implement samplers in a way that is accessible to all of Turing.jl's users without having to use Turing.jl yourself.
-
+Note that we will implement this sampler in the [AbstractMCMC.jl](https://github.com/TuringLang/AbstractMCMC.jl) framework, completely "ignoring" Turing.jl until the very end of the tutorial, at which point we'll use a single line of code to make the resulting sampler available to Turing.jl.
+This is to really drive home the point that one can implement samplers in a way that is accessible to all of Turing.jl's users without having to use Turing.jl yourself.
 
 ## Quick overview of MALA
 
-We can view MALA as a single step of the leapfrog integrator with resampling of momentum $p$ at every step.[^2] To make that statement a bit more concrete, we first define the *extended* target $\bar{\gamma}(x, p)$ as
+We can view MALA as a single step of the leapfrog integrator with resampling of momentum $p$ at every step.[^2]
+To make that statement a bit more concrete, we first define the *extended* target $\bar{\gamma}(x, p)$ as
 
 \begin{equation*}
 \log \bar{\gamma}(x, p) \propto \log \gamma(x) + \log \gamma_{\mathcal{N}(0, M)}(p)
@@ -73,16 +74,16 @@ i.e. we accept the proposal $\tilde{x}$ with probability $\alpha$ and reject it,
 
 There are a few things we need from the "target" / "model" / density that we want to sample from:
 
-1.  We need access to log-density *evaluations* $\log \gamma(x)$ so we can compute the acceptance ratio involving $\log \bar{\gamma}(x, p)$.
-2.  We need access to log-density *gradients* $\nabla \log \gamma(x)$ so we can compute the Leapfrog steps $L_{\epsilon}(x, p)$.
-3.  We also need access to the "size" of the model so we can determine the size of $M$.
+1. We need access to log-density *evaluations* $\log \gamma(x)$ so we can compute the acceptance ratio involving $\log \bar{\gamma}(x, p)$.
+2. We need access to log-density *gradients* $\nabla \log \gamma(x)$ so we can compute the Leapfrog steps $L_{\epsilon}(x, p)$.
+3. We also need access to the "size" of the model so we can determine the size of $M$.
 
 Luckily for us, there is a package called [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) which provides an interface for *exactly* this!
 
 To demonstrate how one can implement the "[LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) interface"[^1] we will use a simple Gaussian model as an example:
 
 ```{julia}
-using LogDensityProblems: LogDensityProblems;
+using LogDensityProblems: LogDensityProblems
 
 # Let's define some type that represents the model.
 struct IsotropicNormalModel{M<:AbstractVector{<:Real}}
@@ -98,15 +99,16 @@ function LogDensityProblems.logdensity(model::IsotropicNormalModel, x::AbstractV
 end
 ```
 
-This gives us all of the properties we want for our MALA sampler with the exception of the computation of the *gradient* $\nabla \log \gamma(x)$. There is the method `LogDensityProblems.logdensity_and_gradient` which should return a 2-tuple where the first entry is the evaluation of the logdensity $\log \gamma(x)$ and the second entry is the gradient $\nabla \log \gamma(x)$. 
+This gives us all of the properties we want for our MALA sampler with the exception of the computation of the *gradient* $\nabla \log \gamma(x)$.
+There is the method `LogDensityProblems.logdensity_and_gradient` which should return a 2-tuple where the first entry is the evaluation of the logdensity $\log \gamma(x)$ and the second entry is the gradient $\nabla \log \gamma(x)$. 
 
-There are two ways to "implement" this method: 1) we implement it by hand, which is feasible in the case of our `IsotropicNormalModel`, or b) we defer the implementation of this to an automatic differentiation backend.
+There are two ways to "implement" this method: 1) we implement it by hand, which is feasible in the case of our `IsotropicNormalModel`, or 2) we defer the implementation of this to an automatic differentiation backend.
 
 To implement it by hand we can simply do
 
 ```{julia}
 # Tell LogDensityProblems.jl that first-order, i.e. gradient information, is available.
-LogDensityProblems.capabilities(model::IsotropicNormalModel) = LogDensityProblems.LogDensityOrder{1}()
+LogDensityProblems.capabilities(::Type{<:IsotropicNormalModel}) = LogDensityProblems.LogDensityOrder{1}()
 
 # Implement `logdensity_and_gradient`.
 function LogDensityProblems.logdensity_and_gradient(model::IsotropicNormalModel, x)
@@ -131,7 +133,7 @@ To defer it to an automatic differentiation backend, we can do
 
 ```{julia}
 # Tell LogDensityProblems.jl we only have access to 0-th order information.
-LogDensityProblems.capabilities(model::IsotropicNormalModel) = LogDensityProblems.LogDensityOrder{0}()
+LogDensityProblems.capabilities(::Type{<:IsotropicNormalModel}) = LogDensityProblems.LogDensityOrder{0}()
 
 # Use `LogDensityProblemsAD`'s `ADgradient` in combination with some AD backend to implement `logdensity_and_gradient`.
 using LogDensityProblemsAD, ADTypes, ForwardDiff
@@ -141,14 +143,18 @@ LogDensityProblems.logdensity(model_with_grad, x_example)
 
 We'll continue with the second approach in this tutorial since this is typically what one does in practice, because there are better hobbies to spend time on than deriving gradients by hand.
 
-At this point, one might wonder how we're going to tie this back to Turing.jl in the end. Effectively, when working with inference methods that only require log-density evaluations and / or higher-order information of the log-density, Turing.jl actually converts the user-provided `Model` into an object implementing the above methods for [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl). As a result, most samplers provided by Turing.jl are actually implemented to work with [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl), enabling their use both *within* Turing.jl and *outside* of Turing.jl! Moreover, there exists similar conversions for Stan through BridgeStan and Stan[LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl), which means that a sampler supporting the [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) interface can easily be used on both Turing.jl *and* Stan models (in addition to user-provided models, as our `IsotropicNormalModel` above)!
-
+At this point, one might wonder how we're going to tie this back to Turing.jl in the end.
+Effectively, when working with inference methods that only require log-density evaluations and / or higher-order information of the log-density, Turing.jl actually converts the user-provided `Model` into an object implementing the above methods for [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl).
+As a result, most samplers provided by Turing.jl are actually implemented to work with [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl), enabling their use both *within* Turing.jl and *outside* of Turing.jl!
+Moreover, there exists similar conversions for Stan through BridgeStan and Stan[LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl), which means that a sampler supporting the [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) interface can easily be used on both Turing.jl *and* Stan models (in addition to user-provided models, as our `IsotropicNormalModel` above)!
 
 ## Implementing MALA in [AbstractMCMC.jl](https://github.com/TuringLang/AbstractMCMC.jl)
 
 Now that we've established that a model implementing the [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) interface provides us with all the information we need from $\log \gamma(x)$, we can address the question: given an object that implements the [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) interface, how can we define a sampler for it?
 
-We're going to do this by making our sampler a sub-type of `AbstractMCMC.AbstractSampler` in addition to implementing a few methods from [AbstractMCMC.jl](https://github.com/TuringLang/AbstractMCMC.jl). Why? Because it gets us *a lot* of functionality for free, as we will see later.
+We're going to do this by making our sampler a sub-type of `AbstractMCMC.AbstractSampler` in addition to implementing a few methods from [AbstractMCMC.jl](https://github.com/TuringLang/AbstractMCMC.jl).
+Why?
+Because it gets us *a lot* of functionality for free, as we will see later.
 
 Moreover, [AbstractMCMC.jl](https://github.com/TuringLang/AbstractMCMC.jl) provides a very natural interface for MCMC algorithms.
 
@@ -165,7 +171,11 @@ struct MALA{T,A} <: AbstractMCMC.AbstractSampler
 end
 ```
 
-Notice how we've added the suffix `_init` to both the stepsize and the covariance matrix. We've done this because a `AbstractMCMC.AbstractSampler` should be *immutable*. Of course there might be many scenarios where we want to allow something like the stepsize and / or the covariance matrix to vary between iterations, e.g. during the burn-in / adaptation phase of the sampling process we might want to adjust the parameters using statistics computed from these initial iterations. But information which can change between iterations *should not go in the sampler itself*! Instead, this information should go in the sampler *state*.
+Notice how we've added the suffix `_init` to both the stepsize and the covariance matrix.
+We've done this because a `AbstractMCMC.AbstractSampler` should be *immutable*.
+Of course there might be many scenarios where we want to allow something like the stepsize and / or the covariance matrix to vary between iterations, e.g. during the burn-in / adaptation phase of the sampling process we might want to adjust the parameters using statistics computed from these initial iterations.
+But information which can change between iterations *should not go in the sampler itself*!
+Instead, this information should go in the sampler *state*.
 
 The sampler state should at the very least contain all the necessary information to perform the next MCMC iteration, but usually contains further information, e.g. quantities and statistics useful for evaluating whether the sampler has converged.
 
@@ -175,14 +185,16 @@ We will use the following sampler state for our `MALA` sampler:
 struct MALAState{A<:AbstractVector{<:Real}}
     "current position"
     x::A
+    "whether the proposal was accepted"
+    accepted::Bool
 end
 ```
 
-This might seem overly redundant: we're defining a type `MALAState` and it only contains a simple vector of reals.
-In this particular case we indeed could have dropped this and simply used a `AbstractVector{<:Real}` as our sampler state, but typically, as we will see later, one wants to include other quantities in the sampler state.
-For example, if we also wanted to adapt the parameters of our `MALA`, e.g. alter the stepsize depending on acceptance rates, in which case we should also put `ϵ` in the state, but for now we'll keep things simple.
+If we also wanted to adapt the parameters of our `MALA`, e.g. alter the stepsize depending on acceptance rates, we could also put `ϵ` in the state, but for now we'll keep things simple.
 
-Moreover, we also want a _sample_ type, which is a type meant for "public consumption", i.e. the end-user. This is generally going to contain a subset of the information present in the state. But in such a simple scenario as this, we similarly only have a `AbstractVector{<:Real}`:
+Moreover, we also want a _sample_ type, which is a type meant for "public consumption", i.e. the end-user.
+This is generally going to contain a subset of the information present in the state.
+But in such a simple scenario as this, we similarly only have a `AbstractVector{<:Real}`:
 
 ```{julia}
 struct MALASample{A<:AbstractVector{<:Real}}
@@ -220,7 +232,8 @@ Moreover, there is a specific `AbstractMCMC.AbstractModel` which is used to indi
 
 Since, as we discussed earlier, in our case we're indeed going to work with types that support the [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) interface, we'll define `AbstractMCMC.step` for such a `AbstractMCMC.LogDensityModel`.
 
-Note that `AbstractMCMC.LogDensityModel` has no other purpose; it has a single field called `logdensity`, and it does nothing else. But by wrapping the model in `AbstractMCMC.LogDensityModel`, it allows samplers that want to work with [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) to define their `AbstractMCMC.step` on this type without running into method ambiguities.
+Note that `AbstractMCMC.LogDensityModel` has no other purpose; it has a single field called `logdensity`, and it does nothing else.
+But by wrapping the model in `AbstractMCMC.LogDensityModel`, it allows samplers that want to work with [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) to define their `AbstractMCMC.step` on this type without running into method ambiguities.
 
 All in all, that means that the signature for our `AbstractMCMC.step` is going to be the following:
 
@@ -277,10 +290,10 @@ function AbstractMCMC.step(
     logα = logp̃ - logp
     state_new = if log(rand(rng)) < logα
         # Accept.
-        MALAState(x̃)
+        MALAState(x̃, true)
     else
         # Reject.
-        MALAState(x)
+        MALAState(x, false)
     end
     # Return the "sample" and the sampler state.
     return MALASample(state_new.x), state_new
@@ -314,7 +327,7 @@ using Random, LinearAlgebra
 
 rng = Random.default_rng()
 sampler = MALA(1, I)
-state = MALAState(zeros(LogDensityProblems.dimension(model)))
+state = MALAState(zeros(LogDensityProblems.dimension(model)), true)
 
 x_next, state_next = AbstractMCMC.step(
     rng,
@@ -381,7 +394,7 @@ function AbstractMCMC.step(
     # Let's just create the initial state by sampling using  a Gaussian.
     x = randn(rng, LogDensityProblems.dimension(model))
 
-    return MALASample(x), MALAState(x)
+    return MALASample(x), MALAState(x, true)
 end
 ```
 
@@ -397,19 +410,30 @@ hcat(mean(samples_matrix; dims=2), std(samples_matrix; dims=2))
 
 As we promised, all of this hassle of implementing our `MALA` sampler in a way that uses [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) and [AbstractMCMC.jl](https://github.com/TuringLang/AbstractMCMC.jl) gets us something more than *just* an "automatic" implementation of `AbstractMCMC.sample`.
 
-It also enables use with Turing.jl through the `externalsampler`, but we need to do one final thing first: we need to tell Turing.jl how to extract a vector of parameters from the "sample" returned in our implementation of `AbstractMCMC.step`. In our case, the "sample" is a `MALASample`, so we just need the following line:
+It also enables use with Turing.jl through the `externalsampler`, but we need to do one final thing first: we need to tell Turing.jl how to extract a vector of parameters from the state returned in our implementation of `AbstractMCMC.step`.
+In our case, the state is a `MALAState`, so we just need the following line:
 
 ```{julia}
-using Turing
-using DynamicPPL
+# Overload the `getparams` method for our "state" type.
+AbstractMCMC.getparams(state::MALAState) = state.x
+```
 
-# Overload the `getparams` method for our "sample" type, which is just a vector.
-Turing.Inference.getparams(::DynamicPPL.Model, sample::MALASample) = sample.x
+Optionally, we can also implement `AbstractMCMC.getstats` which instead returns a NamedTuple of statistics about the current state.
+When sampling with Turing, these statistics will be included in the output chain.
+
+```{julia}
+AbstractMCMC.getstats(state::MALAState) = (accepted=state.accepted,)
 ```
 
 And with that, we're good to go!
 
+::: {.callout-note}
+Up until Turing.jl v0.41, you would have needed to define `Turing.Inference.getparams(::MALASample)`. This has been changed in favour of the AbstractMCMC interface, which means that you no longer need to depend on Turing.jl to implement an external sampler.
+:::
+
 ```{julia}
+using Turing
+
 # Our previous model defined as a Turing.jl model.
 @model mvnormal_model() = x ~ MvNormal([-5., 0., 5.], I)
 # Instantiate our model.
@@ -424,7 +448,8 @@ Pretty neat, eh?
 
 ### Models with constrained parameters
 
-One thing we've sort of glossed over in all of the above is that MALA, at least how we've implemented it, requires $x$ to live in $\mathbb{R}^d$ for some $d > 0$. If some of the parameters were in fact constrained, e.g. we were working with a `Beta` distribution which has support on the interval $(0, 1)$, *not* on $\mathbb{R}^d$, we could easily end up outside of the valid range $(0, 1)$.
+One thing we've sort of glossed over in all of the above is that MALA, at least how we've implemented it, requires $x$ to live in $\mathbb{R}^d$ for some $d > 0$.
+If some of the parameters were in fact constrained, e.g. we were working with a `Beta` distribution which has support on the interval $(0, 1)$, *not* on $\mathbb{R}^d$, we could easily end up outside of the valid range $(0, 1)$.
 
 ```{julia}
 @model beta_model() = x ~ Beta(3, 3)
@@ -432,19 +457,31 @@ turing_model = beta_model()
 chain = sample(turing_model, externalsampler(sampler), 10_000; progress=false)
 ```
 
-Yep, that still works, but only because Turing.jl actually *transforms* the `turing_model` from constrained to unconstrained, so that the `sampler` provided to `externalsampler` is actually always working in unconstrained space! This is not always desirable, so we can turn this off:
+In fact, this still works, because by default Turing.jl will transform the constrained parameters to an unconstrained space before passing them to the `externalsampler`.
+If this is undesirable, you can pass the `unconstrained` keyword argument to `externalsampler`:
 
 ```{julia}
-chain = sample(turing_model, externalsampler(sampler; unconstrained=false), 10_000; progress=false)
+chain_constrained = sample(turing_model, externalsampler(sampler; unconstrained=false), 10_000; progress=false)
 ```
 
-The fun thing is that this still sort of works because
+In fact, this still sort of works because `logpdf` doesn't error when evaluating outside of the support of the distribution, but instead returns `-Inf`:
 
 ```{julia}
 logpdf(Beta(3, 3), 10.0)
 ```
 
-and so the samples that fall outside of the range are always rejected. But do notice how much worse all the diagnostics are, e.g. `ess_tail` is very poor compared to when we use `unconstrained=true`. Moreover, in more complex cases this won't just result in a "nice" `-Inf` log-density value, but instead will error:
+and so the samples that fall outside of the range are always rejected.
+But do notice how much worse all the diagnostics are, e.g. `ess_tail` is very poor compared to when we use `unconstrained=true`:
+
+```{julia}
+ess(chain)
+```
+
+```{julia}
+ess(chain_constrained)
+```
+
+Moreover, in more complex cases this won't just result in a "nice" `-Inf` log-density value, but instead will error:
 
 ```{julia}
 #| error: true
@@ -456,18 +493,25 @@ end
 sample(demo(), externalsampler(sampler; unconstrained=false), 10_000; progress=false)
 ```
 
-As expected, we run into a `DomainError` at some point, while if we set `unconstrained=true`, letting Turing.jl transform the model to an unconstrained form behind the scenes, everything works as expected:
+As expected, we run into a `DomainError` at some point.
+This would not have happened  while if we set `unconstrained=true`, letting Turing.jl transform the model to an unconstrained form behind the scenes, everything works as expected:
 
 ```{julia}
 sample(demo(), externalsampler(sampler; unconstrained=true), 10_000; progress=false)
 ```
 
-Neat!
+If you have implemented a sampler and you know for sure that your sampler _cannot_ work with unconstrained parameters, you can disable the default behaviour by overloading the following method:
 
-Similarly, which automatic differentiation backend one should use can be specified through the `adtype` keyword argument too. For example, if we want to use [ReverseDiff.jl](https://github.com/JuliaDiff/ReverseDiff.jl) instead of the default [ForwardDiff.jl](https://github.com/JuliaDiff/ForwardDiff.jl):
+```julia
+# This cell isn't actually run; it's just a demonstration.
+AbstractMCMC.requires_unconstrained_space(::MALA) = false
+```
+
+Similarly, which automatic differentiation backend one should use can be specified through the `adtype` keyword argument too.
+For example, if we want to use [ReverseDiff.jl](https://github.com/JuliaDiff/ReverseDiff.jl) instead of the default [ForwardDiff.jl](https://github.com/JuliaDiff/ForwardDiff.jl):
 
 ```{julia}
-using ReverseDiff: ReverseDiff
+import ReverseDiff
 # Specify that we want to use `AutoReverseDiff`.
 sample(
     demo(),
@@ -476,8 +520,6 @@ sample(
     progress=false
 )
 ```
-
-Double-neat.
 
 ## Summary
 

@@ -47,7 +47,7 @@ To understand more about how Turing determines whether a variable is treated as 
 
 ## Can I use parallelism / threads in my model?
 
-Yes, but with important caveats! There are two types of parallelism to consider:
+Yes, but with some important caveats:
 
 ### 1. Parallel Sampling (Multiple Chains)
 Turing.jl fully supports sampling multiple chains in parallel:
@@ -58,16 +58,24 @@ Turing.jl fully supports sampling multiple chains in parallel:
 See the [Core Functionality guide]({{<meta core-functionality>}}#sampling-multiple-chains) for examples.
 
 ### 2. Threading Within Models
-Using threads inside your model (e.g., `Threads.@threads`) requires more care:
+
+Using threads inside your model (e.g., `Threads.@threads`) requires more care.
+In particular, only threaded **observe** statements are safe to use; threaded **assume** statements can lead to crashes or incorrect results.
+Please see the [Threadsafe Evaluation page]({{< meta usage-threadsafe-evaluation >}}) for complete details.
 
 ```julia
 @model function f(y)
     x = Vector{Float64}(undef, length(y))
     Threads.@threads for i in eachindex(y)
-        x[i] ~ Normal()  # UNSAFE: `assume` statements in @threads can crash!
-        y[i] ~ Normal(x[i])  # `observe` statements are okay
+        # This would be unsafe!
+        # x[i] ~ Normal()
+        # This is safe:
+        y[i] ~ Normal()
     end
 end
+# If you have parallel tilde-statements or `@addlogprob!` in a model, 
+# you must mark the model as threadsafe:
+model = setthreadsafe(f(y), true)
 ```
 
 **Important limitations:**
@@ -75,8 +83,6 @@ end
 - **Observe statements**: Generally safe to use in threaded loops
 - **Assume statements** (sampling statements): Often crash unpredictably or produce incorrect results
 - **AD backend compatibility**: Many AD backends don't support threading. Check the [multithreaded column in ADTests](https://turinglang.org/ADTests/) for compatibility
-
-For safe parallelism within models, consider vectorised operations instead of explicit threading.
 
 ## How do I check the type stability of my Turing model?
 

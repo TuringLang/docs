@@ -126,50 +126,24 @@ This sequence of events is summed up in the following diagram, where `f(..., arg
 In the final part of this article, we will take a more in-depth look at the internal DynamicPPL machinery that allows us to convert between representations and obtain the correct probability densities.
 Before that, though, we will take a quick high-level look at how the HMC sampler in Turing.jl uses the functions introduced so far.
 
-## Case study: HMC in Turing.jl
+## HMC in Turing.jl
 
 While DynamicPPL provides the _functionality_ for transforming variables, the transformation itself happens at an even higher level, i.e. in the sampler itself.
 The HMC sampler in Turing.jl is in [this file](https://github.com/TuringLang/Turing.jl/blob/5b24cebe773922e0f3d5c4cb7f53162eb758b04d/src/mcmc/hmc.jl).
+
 In the first step of sampling, it calls `link` on the sampler.
-This transformation is preserved throughout the sampling process, meaning that `is_transformed()` always returns true.
-
-We can observe this by inserting print statements into the model.
-Here, `__varinfo__` is the internal symbol for the `VarInfo` object used in model evaluation:
-
-```{julia}
-setprogress!(false)
-
-@model function demo2()
-    x ~ LogNormal()
-    if x isa AbstractFloat
-        println("-----------")
-        println("model repn: $(DynamicPPL.getindex(__varinfo__, @varname(x)))")
-        println("internal repn: $(DynamicPPL.getindex_internal(__varinfo__, @varname(x)))")
-        println("is_transformed: $(is_transformed(__varinfo__, @varname(x)))")
-    end
-end
-
-sample(demo2(), HMC(0.1, 3), 3);
-```
-
-
-(Here, the check on `if x isa AbstractFloat` prevents the printing from occurring during computation of the derivative.)
-You can see that during the three sampling steps, `is_transformed` is always kept as `true`.
-
-::: {.callout-note}
-The first two model evaluations where `is_transformed` is `false` occur prior to the actual sampling.
-One occurs when the model is checked for correctness (using [`DynamicPPL.check_model_and_trace`](https://github.com/TuringLang/DynamicPPL.jl/blob/ba490bf362653e1aaefe298364fe3379b60660d3/src/debug_utils.jl#L582-L612)).
-The second occurs because the model is evaluated once to generate a set of initial parameters inside [DynamicPPL's implementation of `AbstractMCMC.step`](https://github.com/TuringLang/DynamicPPL.jl/blob/ba490bf362653e1aaefe298364fe3379b60660d3/src/sampler.jl#L98-L117).
-Both of these steps occur with all samplers in Turing.jl, so are not specific to the HMC example shown here.
-:::
-
 What this means is that from the perspective of the HMC sampler, it _never_ sees the constrained variable: it always thinks that it is sampling from an unconstrained distribution.
 
 The biggest prerequisite for this to work correctly is that the potential energy term in the Hamiltonian—or in other words, the model log density—must be programmed correctly to include the Jacobian term.
 This is exactly the same as how we had to make sure to define `logq(y)` correctly in the toy HMC example above.
 
-Within Turing.jl, this is correctly handled because a statement like `x ~ LogNormal()` in the model definition above is translated into `assume(LogNormal(), @varname(x), __varinfo__)`, defined [here](https://github.com/TuringLang/DynamicPPL.jl/blob/ba490bf362653e1aaefe298364fe3379b60660d3/src/context_implementations.jl#L225-L229).
-If you follow the trail of function calls, you can verify that the `assume` function does indeed check for the presence of the `is_transformed` flag and adds the Jacobian term accordingly.
+Within Turing.jl, this is correctly handled by calling
+
+```julia
+x, inv_logjac = with_logabsdet_jacobian(y, inverse_transform)
+```
+
+and then passing `inv_logjac` to DynamicPPL's `LogJacobianAccumulator`.
 
 ## A deeper dive into DynamicPPL's internal machinery
 

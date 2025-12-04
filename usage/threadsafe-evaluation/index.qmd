@@ -6,6 +6,13 @@ julia:
     - "--threads=4"
 ---
 
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate();
+```
+
 A common technique to speed up Julia code is to use multiple threads to run computations in parallel.
 The Julia manual [has a section on multithreading](https://docs.julialang.org/en/v1/manual/multi-threading), which is a good introduction to the topic.
 
@@ -17,16 +24,9 @@ Please note that this is a rapidly-moving topic, and things may change in future
 If you are ever unsure about what works and doesn't, please don't hesitate to ask on [Slack](https://julialang.slack.com/archives/CCYDC34A0) or [Discourse](https://discourse.julialang.org/c/domain/probprog/48)
 :::
 
-## MCMC sampling
-
-For complete clarity, this page has nothing to do with parallel sampling of MCMC chains using
-
-```julia
-sample(model, sampler, MCMCThreads(), N, nchains)
+```{julia}
+println("This notebook is being run with $(Threads.nthreads()) threads.")
 ```
-
-That parallelisation exists outside of the model evaluation, and thus is independent of the model contents.
-This page only discusses threading _inside_ Turing models.
 
 ## Threading in Turing models
 
@@ -35,8 +35,10 @@ Given that Turing models mostly contain 'plain' Julia code, one might expect tha
 This is, to some extent, true: for example, you can use threading constructs to speed up deterministic computations.
 For example, here we use parallelism to speed up a transformation of `x`:
 
-```julia
-@model function f(y)
+```{julia}
+using Turing
+
+@model function parallel(y)
     x ~ dist
     x_transformed = similar(x)
     Threads.@threads for i in eachindex(x)
@@ -48,8 +50,11 @@ end
 
 In general, for code that does not involve tilde-statements (`x ~ dist`), threading works exactly as it does in regular Julia code.
 
-**However, extra care must be taken when using tilde-statements (`x ~ dist`) inside threaded blocks.**
-The reason for this is because tilde-statements modify the internal VarInfo object used for model evaluation.
+**However, extra care must be taken when using tilde-statements (`x ~ dist`), or `@addlogprob!`, inside threaded blocks.**
+
+::: {.callout-note}
+## Why are tilde-statements special?
+Tilde-statements are expanded by the `@model` macro into something that modifies the internal VarInfo object used for model evaluation.
 Essentially, `x ~ dist` expands to something like
 
 ```julia
@@ -58,16 +63,17 @@ x, __varinfo__ = DynamicPPL.tilde_assume!!(..., __varinfo__)
 
 and writing into `__varinfo__` is, _in general_, not threadsafe.
 Thus, parallelising tilde-statements can lead to data races [as described in the Julia manual](https://docs.julialang.org/en/v1/manual/multi-threading/#Using-@threads-without-data-races).
+:::
 
-## Threaded tilde-statements
+## Threaded observations
 
-**As of version 0.41, Turing only supports the use of tilde-statements inside threaded blocks when these are observations (i.e., likelihood terms).**
+**As of version 0.42, Turing only supports the use of tilde-statements inside threaded blocks when these are observations (i.e., likelihood terms).**
+
+However, such models **must** be marked by the user as requiring threadsafe evaluation, using `setthreadsafe`.
 
 This means that the following code is safe to use:
 
 ```{julia}
-using Turing 
-
 @model function threaded_obs(N)
     x ~ Normal()
     y = Vector{Float64}(undef, N)
@@ -78,13 +84,14 @@ end
 
 N = 100
 y = randn(N)
-model = threaded_obs(N) | (; y = y)
+threadunsafe_model = threaded_obs(N) | (; y = y)
+threadsafe_model = setthreadsafe(threadunsafe_model, true)
 ```
 
 Evaluating this model is threadsafe, in that Turing guarantees to provide the correct result in functions such as:
 
 ```{julia}
-logjoint(model, (; x = 0.0))
+logjoint(threadsafe_model, (; x = 0.0))
 ```
 
 (we can compare with the true value)
@@ -93,28 +100,35 @@ logjoint(model, (; x = 0.0))
 logpdf(Normal(), 0.0) + sum(logpdf.(Normal(0.0), y))
 ```
 
-When sampling, you must disable model checking, but otherwise results will be correct:
+Note that if you do not use `setthreadsafe`, the above code may give wrong results, or even error:
 
 ```{julia}
-sample(model, NUTS(), 100; check_model=false, progress=false)
+logjoint(threadunsafe_model, (; x = 0.0))
+```
+
+You can sample from this model and safely use functions such as `predict` or `returned`, as long as the model is always marked as threadsafe:
+
+```{julia}
+model = setthreadsafe(threaded_obs(N) | (; y = y), true)
+chn = sample(model, NUTS(), 100; check_model=false, progress=false)
+```
+
+```{julia}
+pmodel = setthreadsafe(threaded_obs(N), true)  # don't condition on data
+predict(pmodel, chn)
 ```
 
 ::: {.callout-warning}
-## Upcoming changes
+## Previous versions
 
-Starting from DynamicPPL 0.39, if you use tilde-statements or `@addlogprob!` inside threaded blocks, you will have to declare this upfront using:
+Up until Turing v0.41, you did not need to use `setthreadsafe` to enable threadsafe evaluation, and it was automatically enabled whenever Julia was launched with more than one thread.
 
-```julia
-model = threaded_obs() | (; y = randn(N))
-threadsafe_model = setthreadsafe(model, true)
-```
+There were several reasons for changing this: one major one is because threadsafe evaluation comes with a performance cost, which can sometimes be substantial (see below).
 
-Then you can sample from `threadsafe_model` as before.
-
-The reason for this change is because threadsafe evaluation comes with a performance cost, which can sometimes be substantial.
-In the past, threadsafe evaluation was always enabled, i.e., this cost was *always* incurred whenever Julia was launched with more than one thread.
-However, this is not an appropriate way to determine whether threadsafe evaluation is needed!
+Furthermore, the number of threads is not an appropriate way to determine whether threadsafe evaluation is needed!
 :::
+
+## Threaded assumptions / sampling latent values
 
 **On the other hand, parallelising the sampling of latent values is not supported.**
 Attempting to do this will either error or give wrong results.
@@ -136,24 +150,71 @@ model = threaded_assume_bad(100)
 model()
 ```
 
-**Note, in particular, that this means that you cannot currently use `predict` to sample new data in parallel.**
+## When is threadsafe evaluation really needed?
 
-:::{.callout-note}
-## Threaded `predict`
+You only need to enable threadsafe evaluation if you are using tilde-statements or `@addlogprob!` inside threaded blocks.
 
-Support for threaded `predict` will be added in DynamicPPL 0.39 (see [this pull request](https://github.com/TuringLang/DynamicPPL.jl/pull/1130)).
-:::
+Specifically, you do *not* need to enable threadsafe evaluation if:
 
-That is, even for `threaded_obs` where `y` was originally an observed term, you _cannot_ do:
+- You have parallelism inside the model, but it does not involve tilde-statements or `@addlogprob!`.
+
+  ```julia
+  @model function parallel_no_tilde(y)
+      x ~ Normal()
+      fy = similar(y)
+      Threads.@threads for i in eachindex(y)
+          fy[i] = some_expensive_function(x, y[i])
+      end
+  end
+  # This does not need setthreadsafe
+  model = parallel_no_tilde(y)
+  ```
+
+- You are sampling from a model using `MCMCThreads()`, but the model itself does not contain any parallel tilde-statements or `@addlogprob!`.
+
+  ```julia
+  @model function no_parallel(y)
+      x ~ Normal()
+      y ~ Normal(x)
+  end
+
+  # This does not need setthreadsafe
+  model = no_parallel(1.0)
+  chn = sample(model, NUTS(), MCMCThreads(), 100)
+  ```
+
+## Performance considerations
+
+As described above, one of the major considerations behind the introduction of `setthreadsafe` is that threadsafe evaluation comes with a performance cost.
+
+Consider a simple model that does not use threading:
 
 ```{julia}
-#| error: true
-model = threaded_obs(N) | (; y = y)
-chn = sample(model, NUTS(), 100; check_model=false, progress=false)
-
-pmodel = threaded_obs(N)  # don't condition on data
-predict(pmodel, chn)
+@model function gdemo()
+    s ~ InverseGamma(2, 3)
+    m ~ Normal(0, sqrt(s))
+    1.5 ~ Normal(m, sqrt(s))
+    2.0 ~ Normal(m, sqrt(s))
+end
+model_no_threadsafe = gdemo()
+model_threadsafe = setthreadsafe(gdemo(), true)
 ```
+
+One can see that evaluation of the threadsafe model is substantially slower:
+
+```{julia}
+using Chairmarks, DynamicPPL
+
+function benchmark_eval(m)
+    vi = VarInfo(m)
+    display(median(@be DynamicPPL.evaluate!!($m, $vi)))
+end
+
+benchmark_eval(model_no_threadsafe)
+benchmark_eval(model_threadsafe)
+```
+
+In previous versions of Turing, this cost would **always** be incurred whenever Julia was launched with multiple threads, even if the model did not use any threading at all!
 
 ## Alternatives to threaded observation
 
@@ -198,8 +259,10 @@ On the other hand, one benefit of rewriting the model this way is that sampling 
 using Random
 N = 100
 y = randn(N)
+# Note that since `@addlogprob!` is outside of the threaded block, we don't
+# need to use `setthreadsafe`.
 model = threaded_obs_addlogprob(N, y)
-nuts_kwargs = (check_model=false, progress=false, verbose=false)
+nuts_kwargs = (progress=false, verbose=false)
 
 chain1 = sample(Xoshiro(468), model, NUTS(), MCMCThreads(), 1000, 4; nuts_kwargs...)
 chain2 = sample(Xoshiro(468), model, NUTS(), MCMCThreads(), 1000, 4; nuts_kwargs...)
@@ -210,8 +273,8 @@ In contrast, the original `threaded_obs` (which used tilde inside `Threads.@thre
 (In principle, we would like to fix this bug, but we haven't yet investigated where it stems from.)
 
 ```{julia}
-model = threaded_obs(N) | (; y = y)
-nuts_kwargs = (check_model=false, progress=false, verbose=false)
+model = setthreadsafe(threaded_obs(N) | (; y = y), true)
+nuts_kwargs = (progress=false, verbose=false)
 chain1 = sample(Xoshiro(468), model, NUTS(), MCMCThreads(), 1000, 4; nuts_kwargs...)
 chain2 = sample(Xoshiro(468), model, NUTS(), MCMCThreads(), 1000, 4; nuts_kwargs...)
 mean(chain1[:x]), mean(chain2[:x])  # oops!
@@ -258,13 +321,13 @@ As it happens, much of what is needed in DynamicPPL can be constructed such that
 For example, as long as there is no need to *sample* new values of random variables, it is actually fine to completely omit the metadata object.
 This is the case for `LogDensityFunction`: since values are provided as the input vector, there is no need to store it in metadata.
 We need only calculate the associated log-prior probability, which is stored in an accumulator.
-Thus, starting from DynamicPPL v0.39, `LogDensityFunction` itself will in fact be completely threadsafe.
+Thus, since DynamicPPL v0.39, `LogDensityFunction` itself is completely threadsafe.
 
 Technically speaking, this is achieved using `OnlyAccsVarInfo`, which is a subtype of `VarInfo` that only contains accumulators, and no metadata at all.
 It implements enough of the `VarInfo` interface to be used in model evaluation, but will error if any functions attempt to modify or read its metadata.
 
 There is currently an ongoing push to use `OnlyAccsVarInfo` in as many settings as we possibly can.
-For example, this is why `predict` will be threadsafe in DynamicPPL v0.39: instead of modifying metadata to store the predicted values, we store them inside a `ValuesAsInModelAccumulator` instead, and combine them at the end of evaluation.
+For example, this is why `predict` is threadsafe in DynamicPPL v0.39: instead of modifying metadata to store the predicted values, we store them inside a `ValuesAsInModelAccumulator` instead, and combine them at the end of evaluation.
 
 However, propagating these changes up to Turing will require a substantial amount of additional work, since there are many places in Turing which currently rely on a full VarInfo (with metadata).
 See, e.g., [this PR](https://github.com/TuringLang/DynamicPPL.jl/pull/1154) for more information.

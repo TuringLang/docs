@@ -265,18 +265,11 @@ We should like `myprefix(big_ctx, @varname(x))` to return `@varname(a.b.x)`.
 Consider the following naive implementation, which mirrors a lot of code in the tilde-pipeline:
 
 ```{julia}
-using DynamicPPL: NodeTrait, IsLeaf, IsParent, childcontext, AbstractContext
+using DynamicPPL: childcontext, AbstractContext, AbstractParentContext
 using AbstractPPL: AbstractPPL
 
-function myprefix(ctx::DynamicPPL.AbstractContext, vn::VarName)
-    return myprefix(NodeTrait(ctx), ctx, vn)
-end
-function myprefix(::IsLeaf, ::AbstractContext, vn::VarName)
-    return vn
-end
-function myprefix(::IsParent, ctx::AbstractContext, vn::VarName)
-    return myprefix(childcontext(ctx), vn)
-end
+myprefix(::AbstractContext, vn::VarName) = vn
+myprefix(ctx::AbstractParentContext, vn::VarName) = myprefix(childcontext(ctx), vn)
 function myprefix(ctx::DynamicPPL.PrefixContext, vn::VarName)
     # The functionality to actually manipulate the VarNames is in AbstractPPL
     new_vn = AbstractPPL.prefix(vn, ctx.vn_prefix)

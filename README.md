@@ -95,19 +95,15 @@ If you wish to speed up local rendering, there are two options available:
 
 ## Troubleshooting build issues
 
-As described in the [Quarto docs](https://quarto.org/docs/computations/julia.html#using-the-julia-engine), Quarto's Julia engine uses a worker process behind the scenes.
+Quarto's Julia engine uses a separate worker process behind the scenes.
 Sometimes this can result in issues with old package code not being unloaded (e.g. when package versions are upgraded).
-If you find that Quarto's execution is failing with errors that aren't reproducible via a normal REPL, try adding the `--execute-daemon-restart` flag to the `quarto render` command:
+If you find that Quarto's execution is failing with errors that aren't reproducible via a normal REPL, try running:
 
 ```bash
-quarto render /path/to/index.qmd --execute-daemon-restart
+quarto call engine julia kill
 ```
 
-And also, kill any stray Quarto processes that are still running (sometimes it keeps running in the background):
-
-```bash
-pkill -9 -f quarto
-```
+before rerunning the build (see [the Quarto docs](https://quarto.org/docs/computations/julia.html#quarto-call-engine-julia-commands) for more information).
 
 ## Licence
 

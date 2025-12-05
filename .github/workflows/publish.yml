@@ -90,9 +90,6 @@ jobs:
         env:
           PATH_PREFIX: /versions/${{ env.version }}
 
-      - name: Rename original search index
-        run: mv _site/search.json _site/search_original.json
-
       - name: Save _freeze folder
         id: cache-save
         if: ${{ !cancelled() }}
@@ -110,18 +107,8 @@ jobs:
           path: ${{ steps.julia-cache.outputs.cache-paths }}
           key: ${{ steps.julia-cache.outputs.cache-key }}
 
-      - name: Fetch search_original.json from main site
-        run: curl -O https://raw.githubusercontent.com/TuringLang/turinglang.github.io/gh-pages/search_original.json
-
-      - name: Convert main site search index URLs to relative URLs
-        run: |
-          jq 'map(
-                if .href then .href = "../" + .href else . end |
-                if .objectID then .objectID = "../" + .objectID else . end)' search_original.json > fixed_main_search.json
-
-      - name: Merge both search index
-        run: |
-          jq -s '.[0] + .[1]' _site/search_original.json fixed_main_search.json > _site/search.json
+      - name: Augment search index with package APIs
+        run: julia --project=assets/scripts/search assets/scripts/search/search.jl
 
       - name: Checkout gh-pages branch
         uses: actions/checkout@v4

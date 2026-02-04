@@ -1,0 +1,226 @@
+---
+title: VarNamedTuple
+engine: julia
+---
+
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate();
+```
+
+::: {.callout-warning}
+# This page refers to a future version of DynamicPPL.jl
+
+The changes on this page are being implemented in DynamicPPL v0.40.
+They are not currently available in released versions of DynamicPPL.jl and Turing.jl.
+The documentation is being written in advance to minimise the delay between the release of the new version and the availability of documentation.
+
+Please see [this PR](https://github.com/TuringLang/DynamicPPL.jl/pull/1164) and [this milestone](https://github.com/TuringLang/DynamicPPL.jl/milestone/1) for ongoing progress.
+:::
+
+```{julia}
+using DynamicPPL
+if pkgversion(DynamicPPL) >= v"0.40"
+    error("This page needs to be updated")
+end
+```
+
+In many places Turing.jl uses a custom data structure, `VarNamedTuple`, to represent mappings of `VarName`s to arbitrary values.
+
+This completely replaces the usage of `NamedTuple`s or `OrderedDict{VarName}` in previous versions.
+
+::: {.callout-note}
+## A refresher on `VarName`s
+
+A `VarName` is an object that represents an expression on the left-hand side of a tilde-statement.
+For example, `x`, `x[1]`, and `x.a` are all valid `VarName`s.
+
+`VarName`s can be constructed using the `@varname` macro:
+
+```{julia}
+using AbstractPPL # Reexported by DynamicPPL and Turing too
+
+@varname(x), @varname(x[1]), @varname(x.a)
+```
+
+For a more detailed explanation of `VarName`s, see the [AbstractPPL documentation](https://turinglang.org/AbstractPPL.jl/stable/varname/).
+:::
+
+Currently, `VarNamedTuple` is defined in DynamicPPL.jl; it may be moved to AbstractPPL.jl in the future once its functionality has stabilised.
+
+## Using `VarNamedTuple`s
+
+Very often, `VarNamedTuple`s are constructed automatically inside Turing.jl models, and you do not need to create them yourself.
+Here is a simple example of a `VarNamedTuple` created automatically by Turing.jl when running mode estimation:
+
+```julia
+using Turing
+
+@model function demo_model()
+    x = Vector{Float64}(undef, 2)
+    x[1] ~ Normal()
+    x[2] ~ Beta(2, 2)
+    y ~ Normal(x[1] + x[2], 1)
+end
+model = demo_model() | (; y = 1.0)
+
+res = maximum_a_posteriori(model)
+
+# This is a VarNamedTuple.
+res.params
+```
+
+As far as using `VarNamedTuple`s goes, they behave very similarly to `Dict{VarName}`s.
+You can access the stored values using `getindex`:
+
+```julia
+res.params[@varname(x[1])]
+```
+
+The nice thing about `VarNamedTuple`s is that they contain knowledge about the structure of the variables inside them (which is stored during the model evaluation).
+For example, this particular `VarNamedTuple` knows that `x` is a length-2 vector, so you can access
+
+```julia
+res.params[@varname(x)]
+```
+
+even though `x` itself was never on the left-hand side of a tilde-statement (only `x[1]` and `x[2]` were).
+This is not possible with a `Dict{VarName}`.
+You can even do things like:
+
+```julia
+res.params[@varname(x[end])]
+```
+
+and it will work 'as expected'.
+
+Put simply, indexing into a variable in a `VarNamedTuple` mimics indexing into the original variable itself as far as possible.
+
+## Creating `VarNamedTuple`s
+
+If you only ever need to _read_ from a `VarNamedTuple`, then the above section would suffice.
+However, there are also some cases where we ask users to construct a `VarNamedTuple`.
+
+Some cases where Turing users may need to construct a `VarNamedTuple`s include the following:
+
+- Providing initial parameters for MCMC sampling or optimisation;
+- Providing parameters to condition models on, or to fix.
+
+::: {.callout-note}
+## A deeper dive into `VarNamedTuple`s
+
+If you are developing against Turing or DynamicPPL (e.g. if you are writing custom inference algorithms), you will also probably need to create `VarNamedTuple`s.
+In this case you will likely have to understand their lower-level APIs.
+We strongly recommend reading [the DynamicPPL docs](https://turinglang.org/DynamicPPL.jl/stable/vnt/motivation/), where we explain the design and implementation of `VarNamedTuple`s in *much* more detail.
+:::
+
+To create a `VarNamedTuple`, you _can_ use the `VarNamedTuple` constructor directly:
+
+```julia
+VarNamedTuple(x = 1, y = "a", z = [1, 2, 3])
+```
+
+However, this direct constructor only works for variables that are top-level symbols.
+If you have `VarName`s that contain indexing or field access, we recommend using the `@vnt` macro, which is exported from DynamicPPL and Turing.
+
+```julia
+using Turing
+
+vnt = @vnt begin
+    x := 1
+    y.a.b := "a"
+    z[1] := 10
+end
+```
+
+Here, each line with `:=` indicates that we are setting that `VarName` to the corresponding value.
+You can have any valid `VarName` on the left-hand side.
+(Note that you must use colon-equals; we reserve the syntax `x = y` for future use.)
+
+### `GrowableArray`s
+
+In the above example, `vnt` is a `VarNamedTuple` with three entries.
+However, you may have noticed the warning issued about a `GrowableArray`.
+What does that mean?
+
+The problem with the above call is that when setting `z[1]`, the `VarNamedTuple` does not yet know what `z` is *supposed* to be.
+It is *probably* a vector, but in principle it could be a matrix (where `z[1]` is using linear indexing).
+Furthermore, we don't know what *type* of array it is.
+It could be `Base.Array`, or it could be some custom array type, like `OffsetArray`.
+
+`GrowableArray` is DynamicPPL's way of representing an array whose size and type are not yet known.
+When you set `z[1] := 10`, DynamicPPL creates a one-dimensional `GrowableArray` for `z`, which can then be 'grown' as more entries are set.
+However, this is a heuristic, and may not always be correct; hence the warning.
+
+### Templating
+
+To avoid this, we strongly recommend that whenever you have variables that are arrays or structs, you provide a 'template' for them.
+A template is an array that has the same type and shape as the variable that will eventually be used in the model.
+
+For example, if your model looks like this:
+
+```julia
+@model function demo_template()
+    # ...
+    z = zeros(2, 2, 2)
+    z[1] ~ Normal()
+    # ...
+end
+```
+
+then the template for `z` should be _any_ `Base.Array{T,3}` of size `(2, 2, 2)`.
+(The element type does not matter, as it will be inferred from the values you set.)
+
+To specify a template, you can use the `@template` macro inside the `@vnt` block.
+The following example, for example, says that `z` inside the model will be a 3-dimensional `Base.Array` of size `(2, 2, 2)`.
+The fact that it contains zeros is irrelevant, so you can provide any template that is structurally the same.
+
+```julia
+vnt = @vnt begin
+    @template z = zeros(2, 2, 2)
+    z[1] := 1.0
+end
+```
+
+Notice now that the created VarNamedTuple knows that `z` is a 3-dimensional array, so no warnings are issued.
+Furthermore, you can now index into it as if it were a 3D array:
+
+```julia
+vnt[@varname(z[1, 1, 1])]
+```
+
+(With a `GrowableArray`, this would have errored.)
+
+When setting a template, you can use any valid Julia expression on the right-hand side (such as variables from the surrounding scope).
+Any expressions in templates are only evaluated once.
+
+You can also omit the right-hand side, in which case the template will be assumed to be the variable with that name:
+
+```julia
+# Declare this variable outside.
+z = zeros(2, 2, 2)
+
+# The following is equivalent to `@template z = z`.
+vnt = @vnt begin
+    @template z
+    z[1] := 1.0
+end
+```
+
+Multiple templates can also be set on the same line, using space-separated assignments: `@template x = expr1 y = expr2 ...`.
+
+### Nested values
+
+If you have nested structs or arrays, you need to provide templates for the *top-level symbol*.
+
+```julia
+vnt = @vnt begin
+    @template y = (a = zeros(2), b = zeros(3))
+    y.a[1] := 1.0
+    y.b[2] := 2.0
+end
+```
+
+This restriction will probably be lifted in future versions; for example if you are trying to set a value `y.a[1]`, you could provide a template for `y.a` without providing one for `y`.

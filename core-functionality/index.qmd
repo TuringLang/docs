@@ -540,19 +540,17 @@ For more details of compositional sampling in Turing.jl, please see [the corresp
 
 ### Working with `filldist` and `arraydist`
 
-Turing provides `filldist(dist::Distribution, n::Int)` and `arraydist(dists::AbstractVector{<:Distribution})` as a simplified interface to construct product distributions, e.g., to model a set of variables that share the same structure but vary by group.
-
-#### Constructing product distributions with filldist
+Turing.jl provides convenience wrappers `filldist(dist::Distribution, n::Int)` and `arraydist(dists::AbstractVector{<:Distribution})` to construct product distributions, e.g., to model a set of variables that share the same structure but vary by group.
 
 The function `filldist` provides a general interface to construct product distributions over distributions of the same type and parameterisation.
-Note that, in contrast to the product distribution interface provided by Distributions.jl (`Product`), `filldist` supports product distributions over univariate or multivariate distributions.
 
-Example usage:
+In general, `filldist(dist, sz1, sz2, ...)` constructs a product distribution over an array of size `(sz1, sz2, ...)`, where each element is distributed according to `dist`.
+However, `filldist` also uses FillArrays.jl to provide an efficient representation of the product distribution.
 
 ```{julia}
 @model function demo(x, g)
     k = length(unique(g))
-    a ~ filldist(Exponential(), k) # = Product(fill(Exponential(), k))
+    a ~ filldist(Exponential(), k)
     mu = a[g]
     for i in eachindex(x)
         x[i] ~ Normal(mu[i])
@@ -561,12 +559,7 @@ Example usage:
 end
 ```
 
-#### Constructing product distributions with `arraydist`
-
-The function `arraydist` provides a general interface to construct product distributions over distributions of varying type and parameterisation.
-Note that in contrast to the product distribution interface provided by Distributions.jl (`Product`), `arraydist` supports product distributions over univariate or multivariate distributions.
-
-Example usage:
+`arraydist` is completely semantically equivalent to [`Distributions.product_distribution`](https://juliastats.org/Distributions.jl/stable/product/), although may have slightly improved performance in some cases.
 
 ```{julia}
 @model function demo(x, g)
@@ -582,14 +575,17 @@ end
 
 ### Working with MCMCChains.jl
 
-Turing.jl wraps its samples using `MCMCChains.Chain` so that all the functions working for `MCMCChains.Chain` can be re-used in Turing.jl. Two typical functions are `MCMCChains.describe` and `MCMCChains.plot`, which can be used as follows for an obtained chain `chn`. For more information on `MCMCChains`, please see the [GitHub repository](https://github.com/TuringLang/MCMCChains.jl).
+Turing.jl wraps its samples using `MCMCChains.Chains` so that all the functions working for `MCMCChains.Chain` can be re-used in Turing.jl.
+Two typical functions are `MCMCChains.describe` and `MCMCChains.plot`, which can be used as follows for an obtained chain `chn`.
+For more information on `MCMCChains`, please see the [GitHub repository](https://github.com/TuringLang/MCMCChains.jl).
 
 ```{julia}
 describe(chn) # Lists statistics of the samples.
 plot(chn) # Plots statistics of the samples.
 ```
 
-There are numerous functions in addition to `describe` and `plot` in the `MCMCChains` package, such as those used in convergence diagnostics. For more information on the package, please see the [GitHub repository](https://github.com/TuringLang/MCMCChains.jl).
+There are numerous functions in addition to `describe` and `plot` in the `MCMCChains` package, such as those used in convergence diagnostics.
+For more information on the package, please see the [GitHub repository](https://github.com/TuringLang/MCMCChains.jl).
 
 ### Changing Default Settings
 
@@ -606,15 +602,12 @@ For more information on Turing's automatic differentiation backend, please see t
 
 #### Progress Logging
 
-`Turing.jl` uses ProgressLogging.jl to log the sampling progress. Progress
-logging is enabled as default but might slow down inference. It can be turned on
-or off by setting the keyword argument `progress` of `sample` to `true` or `false`.
+`Turing.jl` uses ProgressLogging.jl to log the sampling progress.
+Progress logging is enabled as default but might slow down inference.
+It can be turned on or off by setting the keyword argument `progress` of `sample`; see the [Sampling Options]{{<meta usage-sampling-options>}} page for more details.
 Moreover, you can enable or disable progress logging globally by calling `setprogress!(true)` or `setprogress!(false)`, respectively.
 
-Turing uses heuristics to select an appropriate visualisation backend. If you
-use Jupyter notebooks, the default backend is
-[ConsoleProgressMonitor.jl](https://github.com/tkf/ConsoleProgressMonitor.jl).
-In all other cases, progress logs are displayed with
-[TerminalLoggers.jl](https://github.com/c42f/TerminalLoggers.jl). Alternatively,
-if you provide a custom visualisation backend, Turing uses it instead of the
-default backend.
+Turing uses heuristics to select an appropriate visualisation backend.
+If you use Jupyter notebooks, the default backend is [ConsoleProgressMonitor.jl](https://github.com/tkf/ConsoleProgressMonitor.jl).
+In all other cases, progress logs are displayed with [TerminalLoggers.jl](https://github.com/c42f/TerminalLoggers.jl).
+Alternatively, if you provide a custom visualisation backend, Turing uses it instead of the default backend.

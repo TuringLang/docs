@@ -19,22 +19,17 @@ To demonstrate mode estimation, let us load Turing and declare a model:
 ```{julia}
 using Turing
 
-@model function gdemo(x)
-    s² ~ InverseGamma(2, 3)
-    m ~ Normal(0, sqrt(s²))
-
-    for i in eachindex(x)
-        x[i] ~ Normal(m, sqrt(s²))
-    end
+@model function normal_model(y)
+    x ~ Normal()
+    y ~ Normal(x)
+    return nothing
 end
 ```
 
 Once the model is defined, we can construct a model instance as we normally would:
 
 ```{julia}
-# Instantiate the gdemo model with our data.
-data = [1.5, 2.0]
-model = gdemo(data)
+model = normal_model(2.0)
 ```
 
 Finding the maximum a posteriori or maximum likelihood parameters is as simple as
@@ -47,16 +42,19 @@ mle_estimate = maximum_likelihood(model)
 map_estimate = maximum_a_posteriori(model)
 ```
 
-The estimates are returned as instances of the `ModeResult` type. It has the fields `values` for the parameter values found and `lp` for the log probability at the optimum, as well as `f` for the objective function and `optim_result` for more detailed results of the optimisation procedure.
+The estimates are returned as instances of the `ModeResult` type.
+It has the fields `params` (which stores a mapping of `VarName`s to the parameter values found) and `lp` for the log probability at the optimum.
+For mode information, please see the docstring of `ModeResult`.
 
 ```{julia}
-@show mle_estimate.values
+@show mle_estimate.params
 @show mle_estimate.lp;
 ```
 
 ## Controlling the optimisation process
 
-Under the hood `maximum_likelihood` and `maximum_a_posteriori` use the [Optimisation.jl](https://github.com/SciML/Optimisation.jl) package, which provides a unified interface to many other optimisation packages. By default Turing typically uses the [LBFGS](https://en.wikipedia.org/wiki/Limited-memory_BFGS) method from [Optim.jl](https://github.com/JuliaNLSolvers/Optim.jl) to find the mode estimate, but we can easily change that:
+Under the hood `maximum_likelihood` and `maximum_a_posteriori` use the [Optimisation.jl](https://github.com/SciML/Optimisation.jl) package, which provides a unified interface to many other optimisation packages.
+By default Turing uses the [LBFGS](https://en.wikipedia.org/wiki/Limited-memory_BFGS) method from [Optim.jl](https://github.com/JuliaNLSolvers/Optim.jl) to find the mode estimate, but we can easily change that:
 
 ```{julia}
 using OptimizationOptimJL: NelderMead
@@ -68,31 +66,31 @@ using OptimizationNLopt: NLopt.LD_TNEWTON_PRECOND_RESTART
 
 The above are just two examples, Optimisation.jl supports [many more](https://docs.sciml.ai/Optimisation/stable/).
 
-We can also help the optimisation by giving it a starting point we know is close to the final solution, or by specifying an automatic differentiation method
+We can also help the optimisation by giving it a starting point we know is close to the final solution (`initial_params`), or by specifying an automatic differentiation method (`adtype`).
 
 ```{julia}
+using OptimizationOptimJL: LBFGS
 import Mooncake
 
-maximum_likelihood(
-    model, NelderMead(); initial_params=[0.1, 2], adtype=AutoMooncake()
-)
+maximum_likelihood(model, LBFGS(); initial_params=[0.1], adtype=AutoMooncake())
 ```
 
 When providing values to arguments like `initial_params` the parameters are typically specified in the order in which they appear in the code of the model, so in this case first `s²` then `m`. More precisely it's the order returned by `Turing.Inference.getparams(model, DynamicPPL.VarInfo(model))`.
 
 ::: {.callout-note}
-## Initialisation strategies and consistency with MCMC sampling
+## Upcoming changes to the optimisation API
 
-Since Turing v0.41, for MCMC sampling, the `initial_params` argument must be a `DynamicPPL.AbstractInitStrategy` as described in [the sampling options page]({{< meta usage-sampling-options >}}#specifying-initial-parameters)).
-The optimisation interface has not yet been updated to use this; thus, initial parameters are still specified as Vectors.
-We expect that this will be changed in the near future.
+In Turing v0.43, the `initial_params` argument for optimisation will be changed to be a `DynamicPPL.AbstractInitStrategy` as described in [the sampling options page]({{< meta usage-sampling-options >}}#specifying-initial-parameters)).
+
+Furthermore, constraints must be specified as (ideally) a [`VarNamedTuple`]({{< meta usage-varnamedtuple >}}).
+All constraints specified will be interpreted as being in untransformed space.
 :::
 
 We can also do constrained optimisation, by providing either intervals within which the parameters must stay, or constraint functions that they need to respect.
-For instance, here's how one can find the MLE with the constraint that the variance must be less than 0.01 and the mean must be between -1 and 1.:
+For instance, here's how one can find the MLE with the constraint that `x` must be between `0.0` and `0.2`:
 
 ```{julia}
-maximum_likelihood(model; lb=[0.0, -1.0], ub=[0.01, 1.0])
+maximum_likelihood(model; lb=[0.0], ub=[0.2])
 ```
 
 The arguments for lower (`lb`) and upper (`ub`) bounds follow the arguments of `Optimisation.OptimizationProblem`, as do other parameters for providing [constraints](https://docs.sciml.ai/Optimisation/stable/tutorials/constraints/), such as `cons`.

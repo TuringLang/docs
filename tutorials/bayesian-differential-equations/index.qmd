@@ -18,9 +18,14 @@ In practice, these equations often have unknown parameters we would like to esti
 The "[forward problem](https://en.wikipedia.org/wiki/Well-posed_problem)" of simulation consists of solving the differential equations for a given set of parameters, while the "[inverse problem](https://en.wikipedia.org/wiki/Inverse_problem)" of parameter estimation uses observed data to infer the unknown model parameters.
 Bayesian inference provides a robust approach to parameter estimation with quantified uncertainty.
 
+[DifferentialEquations.jl](https://docs.sciml.ai/DiffEqDocs/stable/) is the main Julia package for numerically solving differential equations.
+Its functionality is completely interoperable with Turing.jl, which means that we can directly simulate differential equations inside a Turing `@model`.
+DifferentialEquations.jl itself is an extremely large package.
+To avoid loading parts that we don't need, for now we'll only load a sub-component of it, OrdinaryDiffEq.jl.
+
 ```{julia}
 using Turing
-using DifferentialEquations
+using OrdinaryDiffEq
 # Load StatsPlots for visualizations and diagnostics.
 using StatsPlots
 using LinearAlgebra
@@ -98,9 +103,6 @@ A Stan implementation of this problem with slightly different priors can be foun
 For this tutorial, though, we will stick with simulated data.
 
 ## Direct Handling of Bayesian Estimation with Turing
-
-[DifferentialEquations.jl](https://docs.sciml.ai/DiffEqDocs/stable/) is the main Julia package for numerically solving differential equations.
-Its functionality is completely interoperable with Turing.jl, which means that we can directly simulate differential equations inside a Turing `@model`.
 
 For the purposes of this tutorial, we choose priors for the parameters that are quite close to the ground truth.
 As justification, we can imagine we have preexisting estimates for the biological rates.
@@ -240,11 +242,15 @@ $$
 where $\tau$ is a (positive) delay and $x(t-\tau)$ is the variable $x$ at an earlier time point $t - \tau$.
 
 The initial-value problem of the delayed system can be implemented as a `DDEProblem`.
+To use this, we'll have to load a different sub-package of the SciML ecosystem, [DelayDiffEq.jl](https://docs.sciml.ai/DelayDiffEq/stable/).
+
 As described in the [DDE example](https://diffeq.sciml.ai/stable/tutorials/dde_example/), here the function `h` is the history function that can be used to obtain a state at an earlier time point.
 Again we use parameters $\alpha = 1.5$, $\beta = 1$, $\gamma = 3$, and $\delta = 1$ and initial conditions $x(0) = y(0) = 1$.
 Moreover, we assume $x(t) = 1$ for $t < 0$.
 
 ```{julia}
+using DelayDiffEq
+
 function delay_lotka_volterra(du, u, h, p, t)
     # Model parameters.
     α, β, γ, δ = p

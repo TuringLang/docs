@@ -757,8 +757,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">Table of Contents</h2>
    
   <ul>
-  <li><a href="#controlling-the-optimisation-process" id="toc-controlling-the-optimisation-process" class="nav-link active" data-scroll-target="#controlling-the-optimisation-process">Controlling the optimisation process</a></li>
-  <li><a href="#analyzing-your-mode-estimate" id="toc-analyzing-your-mode-estimate" class="nav-link" data-scroll-target="#analyzing-your-mode-estimate">Analyzing your mode estimate</a></li>
+  <li><a href="#controlling-the-optimisation-process" id="toc-controlling-the-optimisation-process" class="nav-link active" data-scroll-target="#controlling-the-optimisation-process">Controlling the optimisation process</a>
+  <ul class="collapse">
+  <li><a href="#solvers" id="toc-solvers" class="nav-link" data-scroll-target="#solvers">Solvers</a></li>
+  <li><a href="#initial-parameters" id="toc-initial-parameters" class="nav-link" data-scroll-target="#initial-parameters">Initial parameters</a></li>
+  <li><a href="#ad-backend" id="toc-ad-backend" class="nav-link" data-scroll-target="#ad-backend">AD backend</a></li>
+  <li><a href="#linked-vs-unlinked-optimisation" id="toc-linked-vs-unlinked-optimisation" class="nav-link" data-scroll-target="#linked-vs-unlinked-optimisation">Linked vs unlinked optimisation</a></li>
+  <li><a href="#box-constraints" id="toc-box-constraints" class="nav-link" data-scroll-target="#box-constraints">Box constraints</a></li>
+  <li><a href="#solver-options" id="toc-solver-options" class="nav-link" data-scroll-target="#solver-options">Solver options</a></li>
+  <li><a href="#reproducibility" id="toc-reproducibility" class="nav-link" data-scroll-target="#reproducibility">Reproducibility</a></li>
+  </ul></li>
+  <li><a href="#analysing-your-mode-estimate" id="toc-analysing-your-mode-estimate" class="nav-link" data-scroll-target="#analysing-your-mode-estimate">Analysing your mode estimate</a></li>
   <li><a href="#sampling-with-the-mapmle-as-initial-states" id="toc-sampling-with-the-mapmle-as-initial-states" class="nav-link" data-scroll-target="#sampling-with-the-mapmle-as-initial-states">Sampling with the MAP/MLE as initial states</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/TuringLang/docs/edit/main/usage/mode-estimation/index.qmd" target="_blank" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/TuringLang/docs/issues/new" target="_blank" class="toc-action"><i class="bi empty"></i>Report an issue</a></li><li><a href="index.ipynb" target="_blank" class="toc-action" download="mode-estimation.ipynb"><i class="bi bi-journal-code"></i>Download notebook</a></li><li><a href="https://colab.research.google.com/github/TuringLang/docs/blob/gh-pages/pr-previews/682/usage/mode-estimation/index.ipynb" target="_blank" class="toc-action"><i class="bi bi-google"></i>Open in Colab</a></li></ul></div></nav>
@@ -786,8 +795,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<p>After defining a statistical model, in addition to sampling from its distributions, one may be interested in finding the parameter values that maximise for instance the posterior distribution density function or the likelihood. This is called mode estimation. Turing provides support for two mode estimation techniques, <a href="https://en.wikipedia.org/wiki/Maximum_likelihood_estimation">maximum likelihood estimation</a> (MLE) and <a href="https://en.wikipedia.org/wiki/Maximum_a_posteriori_estimation">maximum a posteriori</a> (MAP) estimation.</p>
-<p>To demonstrate mode estimation, let us load Turing and declare a model:</p>
+<p>After defining a statistical model, in addition to sampling from its distributions, one may be interested in finding the parameter values that maximise (for instance) the posterior density, or the likelihood. This is called mode estimation.</p>
+<p>Turing provides support for two mode estimation techniques, <a href="https://en.wikipedia.org/wiki/Maximum_likelihood_estimation">maximum likelihood estimation</a> (MLE) and <a href="https://en.wikipedia.org/wiki/Maximum_a_posteriori_estimation">maximum a posteriori</a> (MAP) estimation.</p>
+<p>We begin by defining a simple model to work with:</p>
 <div id="4" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Turing</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
@@ -807,13 +817,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <pre><code>DynamicPPL.Model{typeof(normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}(normal_model, (y = 2.0,), NamedTuple(), DynamicPPL.DefaultContext())</code></pre>
 </div>
 </div>
-<p>Finding the maximum a posteriori or maximum likelihood parameters is as simple as</p>
+<p>In its simplest form, finding the maximum a posteriori or maximum likelihood parameters is just a function call:</p>
 <div id="8" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate a MLE estimate.</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>mle_estimate <span class="op">=</span> <span class="fu">maximum_likelihood</span>(model)</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate a MAP estimate.</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>map_estimate <span class="op">=</span> <span class="fu">maximum_a_posteriori</span>(model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>mle_estimate <span class="op">=</span> <span class="fu">maximum_likelihood</span>(model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-bold">ModeResult</span>
+  ├ estimator    : Turing.Optimisation.MLE
+  ├ lp           : -0.9189385332046728
+  ├ params       : VarNamedTuple with 1 entry
+  │                └ x =&gt; 2.0
+  │ linked       : true
+  └ (2 more fields: optim_result, ldf)</pre>
+</div>
+</div>
+</div>
+<div id="10" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate a MAP estimate.</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>map_estimate <span class="op">=</span> <span class="fu">maximum_a_posteriori</span>(model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <div class="ansi-escaped-output">
 <pre><span class="ansi-bold">ModeResult</span>
@@ -826,132 +848,217 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 </div>
-<p>The estimates are returned as instances of the <code>ModeResult</code> type. It has the fields <code>params</code> (which stores a mapping of <code>VarName</code>s to the parameter values found) and <code>lp</code> for the log probability at the optimum. For mode information, please see the docstring of <code>ModeResult</code>.</p>
-<div id="10" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@show</span> mle_estimate.params</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="pp">@show</span> mle_estimate.lp;</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>mle_estimate.params = VarNamedTuple(x = 2.0,)
-mle_estimate.lp = -0.9189385332046728</code></pre>
+<p>The estimates are returned as instances of the <code>ModeResult</code> type. It has the fields <code>params</code> (a <code>VarNamedTuple</code> mapping <code>VarName</code>s to the parameter values found) and <code>lp</code> for the log probability at the optimum. For more information, please see the docstring of <code>ModeResult</code>.</p>
+<p>You can access individual parameter values by indexing into the <code>params</code> field with <code>VarName</code>s:</p>
+<div id="12" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>map_estimate.params[<span class="pp">@varname</span>(x)]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>1.0</code></pre>
+</div>
+</div>
+<p>If you need a vectorised form of the parameters, you can use <code>vector_names_and_params</code>, which return a tuple of two vectors: one of <code>VarName</code>s and one of the corresponding parameter values. (Note that these values are <em>always</em> returned in untransformed space.)</p>
+<div id="14" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">vector_names_and_params</span>(map_estimate)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>([x], [1.0])</code></pre>
+</div>
+</div>
+<p>The <code>optim_result</code> field (which is not printed by default) contains the original result from the underlying optimisation solver, which is useful for diagnosing convergence issues and accessing solver-specific information:</p>
+<div id="16" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>map_estimate.optim_result</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>retcode: Success
+u: 1-element Vector{Float64}:
+ 1.0</code></pre>
 </div>
 </div>
 <section id="controlling-the-optimisation-process" class="level2">
 <h2 class="anchored" data-anchor-id="controlling-the-optimisation-process">Controlling the optimisation process</h2>
-<p>Under the hood <code>maximum_likelihood</code> and <code>maximum_a_posteriori</code> use the <a href="https://github.com/SciML/Optimisation.jl">Optimisation.jl</a> package, which provides a unified interface to many other optimisation packages. By default Turing uses the <a href="https://en.wikipedia.org/wiki/Limited-memory_BFGS">LBFGS</a> method from <a href="https://github.com/JuliaNLSolvers/Optim.jl">Optim.jl</a> to find the mode estimate, but we can easily change that:</p>
-<div id="12" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">OptimizationOptimJL</span>: NelderMead</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="pp">@show</span> <span class="fu">maximum_likelihood</span>(model, <span class="fu">NelderMead</span>())</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">OptimizationNLopt</span>: NLopt.LD_TNEWTON_PRECOND_RESTART</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="pp">@show</span> <span class="fu">maximum_likelihood</span>(model, <span class="fu">LD_TNEWTON_PRECOND_RESTART</span>());</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
+<section id="solvers" class="level3">
+<h3 class="anchored" data-anchor-id="solvers">Solvers</h3>
+<p>Under the hood, <code>maximum_likelihood</code> and <code>maximum_a_posteriori</code> use the <a href="https://github.com/SciML/Optimization.jl">Optimization.jl</a> package, which provides a unified interface to many other optimisation packages. By default Turing uses the <a href="https://en.wikipedia.org/wiki/Limited-memory_BFGS">LBFGS</a> method from <a href="https://docs.sciml.ai/Optimization/stable/optimization_packages/optim/">Optim.jl</a> to find the mode estimate, but we can change that to any other solver by passing it as the second argument:</p>
+<div id="18" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">OptimizationOptimJL</span>: NelderMead</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="fu">maximum_likelihood</span>(model, <span class="fu">NelderMead</span>())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
 <div class="ansi-escaped-output">
-<pre>maximum_likelihood(model, NelderMead()) = Turing.Optimisation.ModeResult{Turing.Optimisation.MLE, DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{Float64}}, Float64, DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}, SciMLBase.OptimizationSolution{Float64, 1, Vector{Float64}, OptimizationBase.OptimizationCache{Optim.NelderMead{Optim.AffineSimplexer, Optim.AdaptiveParameters}, true, SciMLBase.OptimizationFunction{true, ADTypes.AutoForwardDiff{nothing, Nothing}, Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, typeof(SciMLBase.DEFAULT_OBSERVED_NO_TIME), Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing}, OptimizationBase.ReInitCache{Vector{Float64}, SciMLBase.NullParameters}, Nothing, Nothing, Nothing, Nothing, Nothing, Bool, OptimizationOptimJL.var"#5#7", Nothing, OptimizationBase.OptimizationVerbosity{SciMLLogging.InfoLevel, SciMLLogging.WarnLevel, SciMLLogging.WarnLevel, SciMLLogging.WarnLevel, SciMLLogging.WarnLevel, SciMLLogging.WarnLevel, SciMLLogging.WarnLevel, SciMLLogging.WarnLevel, SciMLLogging.WarnLevel, SciMLLogging.WarnLevel, SciMLLogging.WarnLevel, SciMLLogging.CustomLevel}}, Optim.NelderMead{Optim.AffineSimplexer, Optim.AdaptiveParameters}, Float64, Optim.MultivariateOptimizationResults{Optim.NelderMead{Optim.AffineSimplexer, Optim.AdaptiveParameters}, Vector{Float64}, Float64, Float64, Vector{Optim.OptimizationState{Float64, Optim.NelderMead{Optim.AffineSimplexer, Optim.AdaptiveParameters}}}, @NamedTuple{x_converged::Bool, f_converged::Bool, g_converged::Bool, f_limit_reached::Bool, g_limit_reached::Bool, h_limit_reached::Bool, time_limit::Bool, callback::Bool, f_increased::Bool, ls_failed::Bool, iterations::Bool, small_trustregion_radius::Bool}}, SciMLBase.OptimizationStats}}(Turing.Optimisation.MLE(), VarNamedTuple(x = 2.000034487915368,), -0.918938533799381, true, DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}(DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}(Main.Notebook.normal_model, (y = 2.0,), NamedTuple(), DynamicPPL.DefaultContext()), nothing, DynamicPPL.LinkAll(), DynamicPPL.getloglikelihood, VarNamedTuple(x = DynamicPPL.RangeAndLinked(1:1, true),), nothing, 1, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}((LogLikelihood = DynamicPPL.LogLikelihoodAccumulator(0.0), OptimConstraintCheck = Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}(VarNamedTuple(), VarNamedTuple())))), retcode: Success
-u: [2.000034487915368]
-Final objective value:     0.918938533799381
-)
-<span class="ansi-yellow-fg ansi-bold">┌ </span><span class="ansi-yellow-fg ansi-bold">Warning: </span>Verbosity toggle: missing_second_order_ad 
-<span class="ansi-yellow-fg ansi-bold">│ </span> The selected optimization algorithm requires second order derivatives, but `SecondOrder` ADtype was not provided. So a `SecondOrder` with ADTypes.AutoForwardDiff() for both inner and outer will be created, this can be suboptimal and not work in some cases so an explicit `SecondOrder` ADtype is recommended.
-<span class="ansi-yellow-fg ansi-bold">└ </span><span class="ansi-bright-black-fg">@ OptimizationBase ~/.julia/packages/OptimizationBase/ImNXa/src/cache.jl:73</span>
-maximum_likelihood(model, LD_TNEWTON_PRECOND_RESTART()) = Turing.Optimisation.ModeResult{Turing.Optimisation.MLE, DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{Float64}}, Float64, DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}, SciMLBase.OptimizationSolution{Float64, 1, Vector{Float64}, OptimizationBase.OptimizationCache{NLopt.Algorithm, true, SciMLBase.OptimizationFunction{true, ADTypes.AutoForwardDiff{nothing, Nothing}, Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, OptimizationBase.var"#14#44"{SciMLBase.NullParameters, DifferentiationInterfaceForwardDiffExt.ForwardDiffGradientPrep{Tuple{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ADTypes.AutoForwardDiff{nothing, Nothing}, Vector{Float64}, Tuple{DifferentiationInterface.Constant{SciMLBase.NullParameters}}}, ForwardDiff.GradientConfig{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, Float64}, Float64, 1, Vector{ForwardDiff.Dual{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, Float64}, Float64, 1}}}, Tuple{Nothing}}, SciMLBase.OptimizationFunction{true, ADTypes.AutoForwardDiff{nothing, Nothing}, Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, typeof(SciMLBase.DEFAULT_OBSERVED_NO_TIME), Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing}, ADTypes.AutoForwardDiff{nothing, Nothing}}, Nothing, OptimizationBase.var"#20#50"{SciMLBase.NullParameters, DifferentiationInterface.HVPGradientHessianPrep{Tuple{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, DifferentiationInterface.SecondOrder{ADTypes.AutoForwardDiff{nothing, Nothing}, ADTypes.AutoForwardDiff{nothing, Nothing}}, Vector{Float64}, Tuple{DifferentiationInterface.Constant{SciMLBase.NullParameters}}}, DifferentiationInterface.BatchSizeSettings{1, true, true}, Vector{Tuple{Vector{Float64}}}, Vector{Tuple{Vector{Float64}}}, Tuple{Vector{Float64}}, DifferentiationInterface.ForwardOverAnythingHVPPrep{Tuple{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, DifferentiationInterface.SecondOrder{ADTypes.AutoForwardDiff{nothing, Nothing}, ADTypes.AutoForwardDiff{nothing, Nothing}}, Vector{Float64}, Tuple{Vector{Float64}}, Tuple{DifferentiationInterface.Constant{SciMLBase.NullParameters}}}, Vector{Float64}, Tuple{DifferentiationInterfaceForwardDiffExt.ForwardDiffGradientPrep{Tuple{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ADTypes.AutoForwardDiff{nothing, Nothing}, Vector{ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}}, Tuple{DifferentiationInterface.Constant{SciMLBase.NullParameters}}}, ForwardDiff.GradientConfig{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}, 1, Vector{ForwardDiff.Dual{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}, 1}}}, Tuple{Nothing}}}, Tuple{DifferentiationInterfaceForwardDiffExt.ForwardDiffGradientPrep{Tuple{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ADTypes.AutoForwardDiff{nothing, Nothing}, Vector{ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}}, Tuple{DifferentiationInterface.Constant{SciMLBase.NullParameters}}}, ForwardDiff.GradientConfig{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}, 1, Vector{ForwardDiff.Dual{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}, 1}}}, Tuple{Nothing}}}, DifferentiationInterfaceForwardDiffExt.ForwardDiffOneArgPushforwardPrep{Tuple{typeof(DifferentiationInterface.shuffled_gradient), ADTypes.AutoForwardDiff{nothing, Nothing}, Vector{Float64}, Tuple{Vector{Float64}}, Tuple{DifferentiationInterface.FunctionContext{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}}, DifferentiationInterface.ConstantOrCache{DifferentiationInterfaceForwardDiffExt.ForwardDiffGradientPrep{Tuple{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ADTypes.AutoForwardDiff{nothing, Nothing}, Vector{ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}}, Tuple{DifferentiationInterface.Constant{SciMLBase.NullParameters}}}, ForwardDiff.GradientConfig{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}, 1, Vector{ForwardDiff.Dual{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}, 1}}}, Tuple{Nothing}}}, DifferentiationInterface.Constant{ADTypes.AutoForwardDiff{nothing, Nothing}}, DifferentiationInterface.Constant{DifferentiationInterface.Rewrap{1, Tuple{typeof(DifferentiationInterface.constant_maker)}}}, DifferentiationInterface.Constant{SciMLBase.NullParameters}}}, ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Vector{ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}}, NTuple{5, Nothing}}, DifferentiationInterfaceForwardDiffExt.ForwardDiffTwoArgPushforwardPrep{Tuple{typeof(DifferentiationInterface.shuffled_gradient!), Vector{Float64}, ADTypes.AutoForwardDiff{nothing, Nothing}, Vector{Float64}, Tuple{Vector{Float64}}, Tuple{DifferentiationInterface.FunctionContext{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}}, DifferentiationInterface.ConstantOrCache{DifferentiationInterfaceForwardDiffExt.ForwardDiffGradientPrep{Tuple{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ADTypes.AutoForwardDiff{nothing, Nothing}, Vector{ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}}, Tuple{DifferentiationInterface.Constant{SciMLBase.NullParameters}}}, ForwardDiff.GradientConfig{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}, 1, Vector{ForwardDiff.Dual{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}, 1}}}, Tuple{Nothing}}}, DifferentiationInterface.Constant{ADTypes.AutoForwardDiff{nothing, Nothing}}, DifferentiationInterface.Constant{DifferentiationInterface.Rewrap{1, Tuple{typeof(DifferentiationInterface.constant_maker)}}}, DifferentiationInterface.Constant{SciMLBase.NullParameters}}}, ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Vector{ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}}, Vector{ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}}, NTuple{5, Nothing}}}, DifferentiationInterfaceForwardDiffExt.ForwardDiffGradientPrep{Tuple{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ADTypes.AutoForwardDiff{nothing, Nothing}, Vector{Float64}, Tuple{DifferentiationInterface.Constant{SciMLBase.NullParameters}}}, ForwardDiff.GradientConfig{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, Float64}, Float64, 1, Vector{ForwardDiff.Dual{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, Float64}, Float64, 1}}}, Tuple{Nothing}}}, SciMLBase.OptimizationFunction{true, ADTypes.AutoForwardDiff{nothing, Nothing}, Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, typeof(SciMLBase.DEFAULT_OBSERVED_NO_TIME), Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing}, DifferentiationInterface.SecondOrder{ADTypes.AutoForwardDiff{nothing, Nothing}, ADTypes.AutoForwardDiff{nothing, Nothing}}}, Nothing, OptimizationBase.var"#26#56"{SciMLBase.NullParameters, DifferentiationInterface.ForwardOverAnythingHVPPrep{Tuple{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, DifferentiationInterface.SecondOrder{ADTypes.AutoForwardDiff{nothing, Nothing}, ADTypes.AutoForwardDiff{nothing, Nothing}}, Vector{Float64}, Tuple{Vector{Float64}}, Tuple{DifferentiationInterface.Constant{SciMLBase.NullParameters}}}, Vector{Float64}, Tuple{DifferentiationInterfaceForwardDiffExt.ForwardDiffGradientPrep{Tuple{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ADTypes.AutoForwardDiff{nothing, Nothing}, Vector{ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}}, Tuple{DifferentiationInterface.Constant{SciMLBase.NullParameters}}}, ForwardDiff.GradientConfig{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}, 1, Vector{ForwardDiff.Dual{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}, 1}}}, Tuple{Nothing}}}, Tuple{DifferentiationInterfaceForwardDiffExt.ForwardDiffGradientPrep{Tuple{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ADTypes.AutoForwardDiff{nothing, Nothing}, Vector{ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}}, Tuple{DifferentiationInterface.Constant{SciMLBase.NullParameters}}}, ForwardDiff.GradientConfig{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}, 1, Vector{ForwardDiff.Dual{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}, 1}}}, Tuple{Nothing}}}, DifferentiationInterfaceForwardDiffExt.ForwardDiffOneArgPushforwardPrep{Tuple{typeof(DifferentiationInterface.shuffled_gradient), ADTypes.AutoForwardDiff{nothing, Nothing}, Vector{Float64}, Tuple{Vector{Float64}}, Tuple{DifferentiationInterface.FunctionContext{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}}, DifferentiationInterface.ConstantOrCache{DifferentiationInterfaceForwardDiffExt.ForwardDiffGradientPrep{Tuple{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ADTypes.AutoForwardDiff{nothing, Nothing}, Vector{ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}}, Tuple{DifferentiationInterface.Constant{SciMLBase.NullParameters}}}, ForwardDiff.GradientConfig{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}, 1, Vector{ForwardDiff.Dual{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}, 1}}}, Tuple{Nothing}}}, DifferentiationInterface.Constant{ADTypes.AutoForwardDiff{nothing, Nothing}}, DifferentiationInterface.Constant{DifferentiationInterface.Rewrap{1, Tuple{typeof(DifferentiationInterface.constant_maker)}}}, DifferentiationInterface.Constant{SciMLBase.NullParameters}}}, ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Vector{ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient), Float64}, Float64, 1}}, NTuple{5, Nothing}}, DifferentiationInterfaceForwardDiffExt.ForwardDiffTwoArgPushforwardPrep{Tuple{typeof(DifferentiationInterface.shuffled_gradient!), Vector{Float64}, ADTypes.AutoForwardDiff{nothing, Nothing}, Vector{Float64}, Tuple{Vector{Float64}}, Tuple{DifferentiationInterface.FunctionContext{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}}, DifferentiationInterface.ConstantOrCache{DifferentiationInterfaceForwardDiffExt.ForwardDiffGradientPrep{Tuple{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ADTypes.AutoForwardDiff{nothing, Nothing}, Vector{ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}}, Tuple{DifferentiationInterface.Constant{SciMLBase.NullParameters}}}, ForwardDiff.GradientConfig{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}, 1, Vector{ForwardDiff.Dual{ForwardDiff.Tag{Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}}, ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}, 1}}}, Tuple{Nothing}}}, DifferentiationInterface.Constant{ADTypes.AutoForwardDiff{nothing, Nothing}}, DifferentiationInterface.Constant{DifferentiationInterface.Rewrap{1, Tuple{typeof(DifferentiationInterface.constant_maker)}}}, DifferentiationInterface.Constant{SciMLBase.NullParameters}}}, ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Vector{ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}}, Vector{ForwardDiff.Dual{ForwardDiff.Tag{typeof(DifferentiationInterface.shuffled_gradient!), Float64}, Float64, 1}}, NTuple{5, Nothing}}}, SciMLBase.OptimizationFunction{true, ADTypes.AutoForwardDiff{nothing, Nothing}, Turing.Optimisation.var"#6#7"{DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}}, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, typeof(SciMLBase.DEFAULT_OBSERVED_NO_TIME), Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing}, DifferentiationInterface.SecondOrder{ADTypes.AutoForwardDiff{nothing, Nothing}, ADTypes.AutoForwardDiff{nothing, Nothing}}}, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, typeof(SciMLBase.DEFAULT_OBSERVED_NO_TIME), Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing}, OptimizationBase.ReInitCache{Vector{Float64}, SciMLBase.NullParameters}, Nothing, Nothing, Nothing, Nothing, Nothing, Bool, OptimizationNLopt.var"#2#4", Nothing, OptimizationBase.OptimizationVerbosity{SciMLLogging.InfoLevel, SciMLLogging.WarnLevel, SciMLLogging.WarnLevel, SciMLLogging.WarnLevel, SciMLLogging.WarnLevel, SciMLLogging.WarnLevel, SciMLLogging.WarnLevel, SciMLLogging.WarnLevel, SciMLLogging.WarnLevel, SciMLLogging.WarnLevel, SciMLLogging.WarnLevel, SciMLLogging.CustomLevel}}, NLopt.Algorithm, Float64, NLopt.Opt, SciMLBase.OptimizationStats}}(Turing.Optimisation.MLE(), VarNamedTuple(x = 2.0,), -0.9189385332046728, true, DynamicPPL.LogDensityFunction{DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}, Nothing, DynamicPPL.LinkAll, typeof(DynamicPPL.getloglikelihood), DynamicPPL.VarNamedTuples.VarNamedTuple{(:x,), Tuple{DynamicPPL.RangeAndLinked}}, Nothing, Vector{Float64}, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}}(DynamicPPL.Model{typeof(Main.Notebook.normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}(Main.Notebook.normal_model, (y = 2.0,), NamedTuple(), DynamicPPL.DefaultContext()), nothing, DynamicPPL.LinkAll(), DynamicPPL.getloglikelihood, VarNamedTuple(x = DynamicPPL.RangeAndLinked(1:1, true),), nothing, 1, DynamicPPL.AccumulatorTuple{2, @NamedTuple{LogLikelihood::DynamicPPL.LogLikelihoodAccumulator{Float64}, OptimConstraintCheck::Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}}}((LogLikelihood = DynamicPPL.LogLikelihoodAccumulator(0.0), OptimConstraintCheck = Turing.Optimisation.ConstraintCheckAccumulator{DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}, DynamicPPL.VarNamedTuples.VarNamedTuple{(), Tuple{}}}(VarNamedTuple(), VarNamedTuple())))), retcode: Success
-u: [2.0]
-Final objective value:     0.9189385332046728
-)
-</pre>
+<pre><span class="ansi-bold">ModeResult</span>
+  ├ estimator    : Turing.Optimisation.MLE
+  ├ lp           : -0.918938534692022
+  ├ params       : VarNamedTuple with 1 entry
+  │                └ x =&gt; 1.99994545920342
+  │ linked       : true
+  └ (2 more fields: optim_result, ldf)</pre>
 </div>
 </div>
 </div>
-<p>The above are just two examples, Optimisation.jl supports <a href="https://docs.sciml.ai/Optimisation/stable/">many more</a>.</p>
-<p>We can also help the optimisation by giving it a starting point we know is close to the final solution (<code>initial_params</code>), or by specifying an automatic differentiation method (<code>adtype</code>).</p>
-<div id="14" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">OptimizationOptimJL</span>: LBFGS</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> <span class="bu">Mooncake</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="fu">maximum_likelihood</span>(model, <span class="fu">LBFGS</span>(); initial_params<span class="op">=</span>[<span class="fl">0.1</span>], adtype<span class="op">=</span><span class="fu">AutoMooncake</span>())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-error">
+<p>Optimization.jl supports <a href="https://docs.sciml.ai/Optimization/stable/">many more solvers</a>; please see its documentation for details.</p>
+</section>
+<section id="initial-parameters" class="level3">
+<h3 class="anchored" data-anchor-id="initial-parameters">Initial parameters</h3>
+<p>We can help the optimisation by giving it a starting point we know is close to the final solution. Initial parameters are specified using <code>InitFromParams</code>, and must be provided in model space (i.e.&nbsp;untransformed):</p>
+<div id="20" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>params <span class="op">=</span> <span class="fu">VarNamedTuple</span>(; x<span class="op">=</span><span class="fl">0.5</span>)</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="fu">maximum_likelihood</span>(model; initial_params<span class="op">=</span><span class="fu">InitFromParams</span>(params))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
 <div class="ansi-escaped-output">
-<pre>ArgumentError: `initial_params` must be an `DynamicPPL.AbstractInitStrategy`. Using a vector of parameters for `initial_params` is no longer supported. Please see https://turinglang.org/docs/usage/sampling-options/#specifying-initial-parameters for details on how to update your code.
-Stacktrace:
- [1] <span class="ansi-bold">_convert_initial_params</span><span class="ansi-bold">(</span>::Vector<span class="ansi-bright-black-fg">{Float64}</span><span class="ansi-bold">)</span>
-<span class="ansi-bright-black-fg">   @</span> <span class="ansi-magenta-fg">Turing</span> <span class="ansi-bright-black-fg">~/.julia/packages/Turing/H4T0b/src/</span><span style="text-decoration:underline" class="ansi-bright-black-fg">common.jl:23</span>
- [2] <span class="ansi-bold">estimate_mode</span><span class="ansi-bold">(</span><span class="ansi-bright-black-fg">rng</span>::Random.TaskLocalRNG, <span class="ansi-bright-black-fg">model</span>::DynamicPPL.Model<span class="ansi-bright-black-fg">{typeof(normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}</span>, <span class="ansi-bright-black-fg">estimator</span>::MLE, <span class="ansi-bright-black-fg">solver</span>::LBFGS<span class="ansi-bright-black-fg">{Nothing, LineSearches.InitialStatic{Float64}, LineSearches.HagerZhang{Float64, Base.RefValue{Bool}}, Returns{Nothing}}</span>; <span class="ansi-bright-black-fg">link</span>::Bool, <span class="ansi-bright-black-fg">initial_params</span>::Vector<span class="ansi-bright-black-fg">{Float64}</span>, <span class="ansi-bright-black-fg">lb</span>::VarNamedTuple<span class="ansi-bright-black-fg">{(), Tuple{}}</span>, <span class="ansi-bright-black-fg">ub</span>::VarNamedTuple<span class="ansi-bright-black-fg">{(), Tuple{}}</span>, <span class="ansi-bright-black-fg">adtype</span>::AutoMooncake<span class="ansi-bright-black-fg">{Nothing}</span>, <span class="ansi-bright-black-fg">check_model</span>::Bool, <span class="ansi-bright-black-fg">check_constraints_at_runtime</span>::Bool, <span class="ansi-bright-black-fg">solve_kwargs</span>::@Kwargs<span class="ansi-bright-black-fg">{}</span><span class="ansi-bold">)</span>
-<span class="ansi-bright-black-fg">   @</span> <span class="ansi-magenta-fg">Turing.Optimisation</span> <span class="ansi-bright-black-fg">~/.julia/packages/Turing/H4T0b/src/optimisation/</span><span style="text-decoration:underline" class="ansi-bright-black-fg">Optimisation.jl:358</span>
- [3] <span class="ansi-bold">maximum_likelihood</span><span class="ansi-bold">(</span><span class="ansi-bright-black-fg">rng</span>::Random.TaskLocalRNG, <span class="ansi-bright-black-fg">model</span>::DynamicPPL.Model<span class="ansi-bright-black-fg">{typeof(normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}</span>, <span class="ansi-bright-black-fg">args</span>::LBFGS<span class="ansi-bright-black-fg">{Nothing, LineSearches.InitialStatic{Float64}, LineSearches.HagerZhang{Float64, Base.RefValue{Bool}}, Returns{Nothing}}</span>; <span class="ansi-bright-black-fg">kwargs</span>::@Kwargs<span class="ansi-bright-black-fg">{initial_params::Vector{Float64}, adtype::AutoMooncake{Nothing}}</span><span class="ansi-bold">)</span>
-<span class="ansi-bright-black-fg">   @</span> <span class="ansi-magenta-fg">Turing.Optimisation</span> <span class="ansi-bright-black-fg">~/.julia/packages/Turing/H4T0b/src/optimisation/</span><span style="text-decoration:underline" class="ansi-bright-black-fg">Optimisation.jl:420</span>
- [4] <span class="ansi-bold">maximum_likelihood</span><span class="ansi-bold">(</span><span class="ansi-bright-black-fg">model</span>::DynamicPPL.Model<span class="ansi-bright-black-fg">{typeof(normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}</span>, <span class="ansi-bright-black-fg">args</span>::LBFGS<span class="ansi-bright-black-fg">{Nothing, LineSearches.InitialStatic{Float64}, LineSearches.HagerZhang{Float64, Base.RefValue{Bool}}, Returns{Nothing}}</span>; <span class="ansi-bright-black-fg">kwargs</span>::@Kwargs<span class="ansi-bright-black-fg">{initial_params::Vector{Float64}, adtype::AutoMooncake{Nothing}}</span><span class="ansi-bold">)</span>
-<span class="ansi-bright-black-fg">   @</span> <span class="ansi-magenta-fg">Turing.Optimisation</span> <span class="ansi-bright-black-fg">~/.julia/packages/Turing/H4T0b/src/optimisation/</span><span style="text-decoration:underline" class="ansi-bright-black-fg">Optimisation.jl:423</span>
- [5] top-level scope
-<span class="ansi-bright-black-fg">   @</span> <span class="ansi-bright-black-fg">~/work/docs/docs/usage/mode-estimation/</span><span style="text-decoration:underline" class="ansi-bright-black-fg">index.qmd:75</span></pre>
+<pre><span class="ansi-bold">ModeResult</span>
+  ├ estimator    : Turing.Optimisation.MLE
+  ├ lp           : -0.9189385332046728
+  ├ params       : VarNamedTuple with 1 entry
+  │                └ x =&gt; 2.0
+  │ linked       : true
+  └ (2 more fields: optim_result, ldf)</pre>
 </div>
 </div>
 </div>
-<p>When providing values to arguments like <code>initial_params</code> the parameters are typically specified in the order in which they appear in the code of the model, so in this case first <code>s²</code> then <code>m</code>. More precisely it’s the order returned by <code>Turing.Inference.getparams(model, DynamicPPL.VarInfo(model))</code>.</p>
+<p>The default initialisation strategy is <code>InitFromPrior()</code>, which draws initial values from the prior.</p>
+</section>
+<section id="ad-backend" class="level3">
+<h3 class="anchored" data-anchor-id="ad-backend">AD backend</h3>
+<p>You can also specify an automatic differentiation method using the <code>adtype</code> keyword argument:</p>
+<div id="22" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> <span class="bu">Mooncake</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="fu">maximum_likelihood</span>(model; adtype<span class="op">=</span><span class="fu">AutoMooncake</span>())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-bold">ModeResult</span>
+  ├ estimator    : Turing.Optimisation.MLE
+  ├ lp           : -0.9189385332046728
+  ├ params       : VarNamedTuple with 1 entry
+  │                └ x =&gt; 2.0
+  │ linked       : true
+  └ (2 more fields: optim_result, ldf)</pre>
+</div>
+</div>
+</div>
+</section>
+<section id="linked-vs-unlinked-optimisation" class="level3">
+<h3 class="anchored" data-anchor-id="linked-vs-unlinked-optimisation">Linked vs unlinked optimisation</h3>
+<p>By default, Turing transforms model parameters to an unconstrained space before optimising (<code>link=true</code>). There are two reasons why one might want to do this:</p>
+<ol type="1">
+<li>This avoids discontinuities where the log-density drops to <code>-Inf</code> outside the support of a distribution.</li>
+<li>But more importantly, this avoids situations where the original sample contains values that depend on each other. For example, in a <code>Dirichlet</code> distribution, the parameters must sum to 1. That means that if we do not perform linking, these parameters cannot be varied completely independently, which can lead to numerical issues. In contrast, when linking is performed, the parameters are transformed into a (shorter) vector of parameters that are completely unconstrained and independent.</li>
+</ol>
+<p>Note that the parameter values returned are always in the original (untransformed) space, regardless of the <code>link</code> setting.</p>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
 <div class="callout-title-container flex-fill">
-<span class="screen-reader-only">Note</span>Upcoming changes to the optimisation API
+<span class="screen-reader-only">Note</span>What does ‘unconstrained’ really mean?
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>In Turing v0.43, the <code>initial_params</code> argument for optimisation will be changed to be a <code>DynamicPPL.AbstractInitStrategy</code> as described in <a href="../../usage/sampling-options#specifying-initial-parameters">the sampling options page</a>).</p>
-<p>Furthermore, constraints must be specified as (ideally) a <a href="../../usage/varnamedtuple"><code>VarNamedTuple</code></a>. All constraints specified will be interpreted as being in untransformed space.</p>
+<p>Note that the transformation to unconstrained space refers to the support of the <em>original</em> distribution prior to any optimisation constraints being applied. For example, a parameter <code>x ~ Beta(2, 2)</code> will be transformed from the original space of <code>(0, 1)</code> to the unconstrained space of <code>(-Inf, Inf)</code> (via the logit transform). However, it is possible that the optimisation still proceeds in a constrained space, if constraints on the parameter are specified via <code>lb</code> or <code>ub</code>. For example, if we specify <code>lb=0.0</code> and <code>ub=0.2</code> for the same parameter, then the optimisation will proceed in the constrained space of <code>(-Inf, logit(0.2))</code>.</p>
 </div>
 </div>
-<p>We can also do constrained optimisation, by providing either intervals within which the parameters must stay, or constraint functions that they need to respect. For instance, here’s how one can find the MLE with the constraint that <code>x</code> must be between <code>0.0</code> and <code>0.2</code>:</p>
-<div id="16" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">maximum_likelihood</span>(model; lb<span class="op">=</span>[<span class="fl">0.0</span>], ub<span class="op">=</span>[<span class="fl">0.2</span>])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-error">
+<p>If you want to optimise in the original parameter space instead, set <code>link=false</code>.</p>
+<div id="24" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">maximum_a_posteriori</span>(model; link<span class="op">=</span><span class="cn">false</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
 <div class="ansi-escaped-output">
-<pre>TypeError: in keyword argument lb, expected Union{AbstractDict{&lt;:AbstractPPL.VarName}, NamedTuple, VarNamedTuple}, got a value of type Vector{Float64}
-Stacktrace:
- [1] <span class="ansi-bold">maximum_likelihood</span><span class="ansi-bold">(</span>::Random.TaskLocalRNG, ::DynamicPPL.Model<span class="ansi-bright-black-fg">{typeof(normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}</span>; <span class="ansi-bright-black-fg">kwargs</span>::@Kwargs<span class="ansi-bright-black-fg">{lb::Vector{Float64}, ub::Vector{Float64}}</span><span class="ansi-bold">)</span>
-<span class="ansi-bright-black-fg">   @</span> <span class="ansi-magenta-fg">Turing.Optimisation</span> <span class="ansi-bright-black-fg">~/.julia/packages/Turing/H4T0b/src/optimisation/</span><span style="text-decoration:underline" class="ansi-bright-black-fg">Optimisation.jl:420</span>
- [2] <span class="ansi-bold">maximum_likelihood</span><span class="ansi-bold">(</span>::DynamicPPL.Model<span class="ansi-bright-black-fg">{typeof(normal_model), (:y,), (), (), Tuple{Float64}, Tuple{}, DynamicPPL.DefaultContext, false}</span>; <span class="ansi-bright-black-fg">kwargs</span>::@Kwargs<span class="ansi-bright-black-fg">{lb::Vector{Float64}, ub::Vector{Float64}}</span><span class="ansi-bold">)</span>
-<span class="ansi-bright-black-fg">   @</span> <span class="ansi-magenta-fg">Turing.Optimisation</span> <span class="ansi-bright-black-fg">~/.julia/packages/Turing/H4T0b/src/optimisation/</span><span style="text-decoration:underline" class="ansi-bright-black-fg">Optimisation.jl:423</span>
- [3] top-level scope
-<span class="ansi-bright-black-fg">   @</span> <span class="ansi-bright-black-fg">~/work/docs/docs/usage/mode-estimation/</span><span style="text-decoration:underline" class="ansi-bright-black-fg">index.qmd:93</span></pre>
+<pre><span class="ansi-bold">ModeResult</span>
+  ├ estimator    : Turing.Optimisation.MAP
+  ├ lp           : -2.8378770664093453
+  ├ params       : VarNamedTuple with 1 entry
+  │                └ x =&gt; 1.0
+  │ linked       : false
+  └ (2 more fields: optim_result, ldf)</pre>
 </div>
 </div>
 </div>
-<p>The arguments for lower (<code>lb</code>) and upper (<code>ub</code>) bounds follow the arguments of <code>Optimisation.OptimizationProblem</code>, as do other parameters for providing <a href="https://docs.sciml.ai/Optimisation/stable/tutorials/constraints/">constraints</a>, such as <code>cons</code>. Any extraneous keyword arguments given to <code>maximum_likelihood</code> or <code>maximum_a_posteriori</code> are passed to <code>Optimisation.solve</code>. Some often useful ones are <code>maxiters</code> for controlling the maximum number of iterations and <code>abstol</code> and <code>reltol</code> for the absolute and relative convergence tolerances:</p>
-<div id="18" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>badly_converged_mle <span class="op">=</span> <span class="fu">maximum_likelihood</span>(</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    model, <span class="fu">NelderMead</span>(); maxiters<span class="op">=</span><span class="fl">10</span>, reltol<span class="op">=</span><span class="fl">1e-9</span></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>This is usually only useful under very specific circumstances, namely when your model contains distributions for which the mapping from model space to unconstrained space is dependent on another parameter’s value.</p>
+</section>
+<section id="box-constraints" class="level3">
+<h3 class="anchored" data-anchor-id="box-constraints">Box constraints</h3>
+<p>You can provide lower and upper bounds on parameters using the <code>lb</code> and <code>ub</code> keywords respectively. Bounds are specified as a <code>VarNamedTuple</code> and, just like initial values, must be provided in model space (i.e.&nbsp;untransformed):</p>
+<div id="26" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>lb <span class="op">=</span> <span class="fu">VarNamedTuple</span>(; x<span class="op">=</span><span class="fl">0.0</span>)</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>ub <span class="op">=</span> <span class="fu">VarNamedTuple</span>(; x<span class="op">=</span><span class="fl">0.2</span>)</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="fu">maximum_likelihood</span>(model; lb<span class="op">=</span>lb, ub<span class="op">=</span>ub)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <div class="ansi-escaped-output">
 <pre><span class="ansi-bold">ModeResult</span>
   ├ estimator    : Turing.Optimisation.MLE
-  ├ lp           : -0.9189385335512199
+  ├ lp           : -2.5389385332442105
   ├ params       : VarNamedTuple with 1 entry
-  │                └ x =&gt; 2.0000263266839533
+  │                └ x =&gt; 0.19999999997803458
   │ linked       : true
   └ (2 more fields: optim_result, ldf)</pre>
 </div>
 </div>
 </div>
-<p>We can check whether the optimisation converged using the <code>optim_result</code> field of the result:</p>
-<div id="20" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@show</span> badly_converged_mle.optim_result;</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>badly_converged_mle.optim_result = retcode: Success
-u: [2.0000263266839533]
-Final objective value:     0.9189385335512199
-</code></pre>
+<p>Turing will internally translate these bounds to unconstrained space if <code>link=true</code>; as a user you should not need to worry at all about the details of this transformation.</p>
+<p>In this case we only have one parameter, but if there are multiple parameters and you only want to constrain some of them, you can provide bounds for the parameters you want to constrain and omit the others.</p>
+<p>Note that for some distributions (e.g.&nbsp;<code>Dirichlet</code>, <code>LKJCholesky</code>), the mapping from model-space bounds to linked-space bounds is not well-defined. In these cases, Turing will raise an error. If you need constrained optimisation for such variables, either set <code>link=false</code> or use <code>LogDensityFunction</code> with Optimization.jl directly.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Generic constraints
 </div>
 </div>
-<p>For more details, such as a full list of possible arguments, we encourage the reader to read the docstring of the function <code>Turing.Optimisation.estimate_mode</code>, which is what <code>maximum_likelihood</code> and <code>maximum_a_posteriori</code> call, and the documentation of <a href="https://docs.sciml.ai/Optimisation/stable/">Optimisation.jl</a>.</p>
+<div class="callout-body-container callout-body">
+<p>Generic (non-box) constraints are not supported by Turing’s optimisation interface. For these, please use <code>LogDensityFunction</code> and Optimization.jl directly.</p>
+</div>
+</div>
 </section>
-<section id="analyzing-your-mode-estimate" class="level2">
-<h2 class="anchored" data-anchor-id="analyzing-your-mode-estimate">Analyzing your mode estimate</h2>
-<p>Turing extends several methods from <code>StatsBase</code> that can be used to analyse your mode estimation results. Methods implemented include <code>vcov</code>, <code>informationmatrix</code>, <code>coeftable</code>, <code>params</code>, and <code>coef</code>, among others.</p>
-<p>For example, let’s examine our ML estimate from above using <code>coeftable</code>:</p>
-<div id="22" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">StatsBase</span>: coeftable</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="fu">coeftable</span>(mle_estimate)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="solver-options" class="level3">
+<h3 class="anchored" data-anchor-id="solver-options">Solver options</h3>
+<p>Any extra keyword arguments are passed through to <code>Optimization.solve</code>. Some commonly useful ones are <code>maxiters</code>, <code>abstol</code>, and <code>reltol</code>:</p>
+<div id="28" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>params <span class="op">=</span> <span class="fu">VarNamedTuple</span>(; x<span class="op">=-</span><span class="fl">4.0</span>)</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>badly_converged_mle <span class="op">=</span> <span class="fu">maximum_likelihood</span>(</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    model, <span class="fu">NelderMead</span>(); initial_params<span class="op">=</span><span class="fu">InitFromParams</span>(params), maxiters<span class="op">=</span><span class="fl">10</span>, reltol<span class="op">=</span><span class="fl">1e-9</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-bold">ModeResult</span>
+  ├ estimator    : Turing.Optimisation.MLE
+  ├ lp           : -0.9189385432734339
+  ├ params       : VarNamedTuple with 1 entry
+  │                └ x =&gt; 1.9998580932617178
+  │ linked       : true
+  └ (2 more fields: optim_result, ldf)</pre>
+</div>
+</div>
+</div>
+</section>
+<section id="reproducibility" class="level3">
+<h3 class="anchored" data-anchor-id="reproducibility">Reproducibility</h3>
+<p>To get reproducible results, pass an <code>rng</code> as the first argument:</p>
+<div id="30" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Random</span>: Xoshiro</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="fu">maximum_a_posteriori</span>(<span class="fu">Xoshiro</span>(<span class="fl">468</span>), model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-bold">ModeResult</span>
+  ├ estimator    : Turing.Optimisation.MAP
+  ├ lp           : -2.8378770664093453
+  ├ params       : VarNamedTuple with 1 entry
+  │                └ x =&gt; 1.0
+  │ linked       : true
+  └ (2 more fields: optim_result, ldf)</pre>
+</div>
+</div>
+</div>
+<p>This controls the random number generator used for parameter initialisation; the actual optimisation process is deterministic.</p>
+<p>For more details and a full list of keyword arguments, see the docstring of <code>Turing.Optimisation.estimate_mode</code>.</p>
+</section>
+</section>
+<section id="analysing-your-mode-estimate" class="level2">
+<h2 class="anchored" data-anchor-id="analysing-your-mode-estimate">Analysing your mode estimate</h2>
+<p>Turing extends several methods from <code>StatsBase</code> that can be used to analyse your mode estimation results. Methods implemented include <code>vcov</code>, <code>informationmatrix</code>, <code>coeftable</code>, <code>coef</code>, and <code>coefnames</code>.</p>
+<p>For example, let’s examine our MLE estimate from above using <code>coeftable</code>:</p>
+<div id="32" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">StatsBase</span>: coeftable</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="fu">coeftable</span>(mle_estimate)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display cell-output-markdown" data-execution_count="1">
 <table class="caption-top table table-sm table-striped small">
 <thead>
@@ -980,13 +1087,246 @@ Final objective value:     0.9189385335512199
 </div>
 </div>
 <p>Standard errors are calculated from the Fisher information matrix (inverse Hessian of the log likelihood or log joint). Note that standard errors calculated in this way may not always be appropriate for MAP estimates, so please be cautious in interpreting them.</p>
+<p>The Hessian is computed using automatic differentiation. By default, <code>ForwardDiff</code> is used, but if you are feeling brave you can specify a different backend via the <code>adtype</code> keyword argument to <code>informationmatrix</code>. (Note that AD backend support for second-order derivatives is more limited than for first-order derivatives, so not all backends will work here.)</p>
+<div id="34" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">StatsBase</span>: informationmatrix</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> <span class="bu">ReverseDiff</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="fu">informationmatrix</span>(mle_estimate; adtype<span class="op">=</span><span class="fu">AutoReverseDiff</span>())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>1×1 Matrix{Float64}:
+ 1.0</code></pre>
+</div>
+</div>
 </section>
 <section id="sampling-with-the-mapmle-as-initial-states" class="level2">
 <h2 class="anchored" data-anchor-id="sampling-with-the-mapmle-as-initial-states">Sampling with the MAP/MLE as initial states</h2>
 <p>You can begin sampling your chain from an MLE/MAP estimate by wrapping it in <code>InitFromParams</code> and providing it to the <code>sample</code> function with the keyword <code>initial_params</code>. For example, here is how to sample from the full posterior using the MAP estimate as the starting point:</p>
-<div id="24" class="cell" data-execution_count="0">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>map_estimate <span class="op">=</span> <span class="fu">maximum_a_posteriori</span>(model)</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>chain <span class="op">=</span> <span class="fu">sample</span>(model, <span class="fu">NUTS</span>(), <span class="fl">1_000</span>; initial_params<span class="op">=</span><span class="fu">InitFromParams</span>(map_estimate))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="36" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>map_estimate <span class="op">=</span> <span class="fu">maximum_a_posteriori</span>(model)</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>chain <span class="op">=</span> <span class="fu">sample</span>(model, <span class="fu">NUTS</span>(), <span class="fl">1_000</span>; initial_params<span class="op">=</span><span class="fu">InitFromParams</span>(map_estimate))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-green-fg">Sampling   0%|                                          |  ETA: N/A</span>
+<span class="ansi-cyan-fg ansi-bold">┌ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Found initial step size
+<span class="ansi-cyan-fg ansi-bold">└ </span>  ϵ = 1.6
+<span class="ansi-green-fg">Sampling   1%|▎                                         |  ETA: 0:12:30</span>
+<span class="ansi-green-fg">Sampling   1%|▍                                         |  ETA: 0:06:40</span>
+<span class="ansi-green-fg">Sampling   2%|▋                                         |  ETA: 0:04:20</span>
+<span class="ansi-green-fg">Sampling   2%|▉                                         |  ETA: 0:03:18</span>
+<span class="ansi-green-fg">Sampling   3%|█▏                                        |  ETA: 0:02:36</span>
+<span class="ansi-green-fg">Sampling   3%|█▎                                        |  ETA: 0:02:11</span>
+<span class="ansi-green-fg">Sampling   4%|█▌                                        |  ETA: 0:01:50</span>
+<span class="ansi-green-fg">Sampling   4%|█▋                                        |  ETA: 0:01:37</span>
+<span class="ansi-green-fg">Sampling   5%|█▉                                        |  ETA: 0:01:25</span>
+<span class="ansi-green-fg">Sampling   5%|██▏                                       |  ETA: 0:01:17</span>
+<span class="ansi-green-fg">Sampling   6%|██▍                                       |  ETA: 0:01:09</span>
+<span class="ansi-green-fg">Sampling   6%|██▌                                       |  ETA: 0:01:03</span>
+<span class="ansi-green-fg">Sampling   7%|██▊                                       |  ETA: 0:00:58</span>
+<span class="ansi-green-fg">Sampling   7%|███                                       |  ETA: 0:00:54</span>
+<span class="ansi-green-fg">Sampling   8%|███▏                                      |  ETA: 0:00:50</span>
+<span class="ansi-green-fg">Sampling   8%|███▍                                      |  ETA: 0:00:47</span>
+<span class="ansi-green-fg">Sampling   9%|███▋                                      |  ETA: 0:00:43</span>
+<span class="ansi-green-fg">Sampling   9%|███▊                                      |  ETA: 0:00:41</span>
+<span class="ansi-green-fg">Sampling  10%|████                                      |  ETA: 0:00:38</span>
+<span class="ansi-green-fg">Sampling  10%|████▎                                     |  ETA: 0:00:36</span>
+<span class="ansi-green-fg">Sampling  11%|████▍                                     |  ETA: 0:00:34</span>
+<span class="ansi-green-fg">Sampling  11%|████▋                                     |  ETA: 0:00:33</span>
+<span class="ansi-green-fg">Sampling  12%|████▉                                     |  ETA: 0:00:31</span>
+<span class="ansi-green-fg">Sampling  12%|█████                                     |  ETA: 0:00:30</span>
+<span class="ansi-green-fg">Sampling  13%|█████▎                                    |  ETA: 0:00:28</span>
+<span class="ansi-green-fg">Sampling  13%|█████▌                                    |  ETA: 0:00:27</span>
+<span class="ansi-green-fg">Sampling  14%|█████▋                                    |  ETA: 0:00:26</span>
+<span class="ansi-green-fg">Sampling  14%|█████▉                                    |  ETA: 0:00:25</span>
+<span class="ansi-green-fg">Sampling  15%|██████▏                                   |  ETA: 0:00:24</span>
+<span class="ansi-green-fg">Sampling  15%|██████▎                                   |  ETA: 0:00:23</span>
+<span class="ansi-green-fg">Sampling  16%|██████▌                                   |  ETA: 0:00:22</span>
+<span class="ansi-green-fg">Sampling  16%|██████▊                                   |  ETA: 0:00:21</span>
+<span class="ansi-green-fg">Sampling  17%|███████                                   |  ETA: 0:00:20</span>
+<span class="ansi-green-fg">Sampling  17%|███████▏                                  |  ETA: 0:00:20</span>
+<span class="ansi-green-fg">Sampling  18%|███████▍                                  |  ETA: 0:00:19</span>
+<span class="ansi-green-fg">Sampling  18%|███████▌                                  |  ETA: 0:00:18</span>
+<span class="ansi-green-fg">Sampling  19%|███████▊                                  |  ETA: 0:00:18</span>
+<span class="ansi-green-fg">Sampling  19%|████████                                  |  ETA: 0:00:17</span>
+<span class="ansi-green-fg">Sampling  20%|████████▎                                 |  ETA: 0:00:17</span>
+<span class="ansi-green-fg">Sampling  20%|████████▍                                 |  ETA: 0:00:16</span>
+<span class="ansi-green-fg">Sampling  21%|████████▋                                 |  ETA: 0:00:16</span>
+<span class="ansi-green-fg">Sampling  21%|████████▉                                 |  ETA: 0:00:15</span>
+<span class="ansi-green-fg">Sampling  22%|█████████                                 |  ETA: 0:00:15</span>
+<span class="ansi-green-fg">Sampling  22%|█████████▎                                |  ETA: 0:00:14</span>
+<span class="ansi-green-fg">Sampling  23%|█████████▌                                |  ETA: 0:00:14</span>
+<span class="ansi-green-fg">Sampling  23%|█████████▋                                |  ETA: 0:00:14</span>
+<span class="ansi-green-fg">Sampling  24%|█████████▉                                |  ETA: 0:00:13</span>
+<span class="ansi-green-fg">Sampling  24%|██████████▏                               |  ETA: 0:00:13</span>
+<span class="ansi-green-fg">Sampling  25%|██████████▎                               |  ETA: 0:00:12</span>
+<span class="ansi-green-fg">Sampling  25%|██████████▌                               |  ETA: 0:00:12</span>
+<span class="ansi-green-fg">Sampling  26%|██████████▊                               |  ETA: 0:00:12</span>
+<span class="ansi-green-fg">Sampling  26%|██████████▉                               |  ETA: 0:00:12</span>
+<span class="ansi-green-fg">Sampling  27%|███████████▏                              |  ETA: 0:00:11</span>
+<span class="ansi-green-fg">Sampling  27%|███████████▍                              |  ETA: 0:00:11</span>
+<span class="ansi-green-fg">Sampling  28%|███████████▋                              |  ETA: 0:00:11</span>
+<span class="ansi-green-fg">Sampling  28%|███████████▊                              |  ETA: 0:00:10</span>
+<span class="ansi-green-fg">Sampling  29%|████████████                              |  ETA: 0:00:10</span>
+<span class="ansi-green-fg">Sampling  29%|████████████▏                             |  ETA: 0:00:10</span>
+<span class="ansi-green-fg">Sampling  30%|████████████▍                             |  ETA: 0:00:10</span>
+<span class="ansi-green-fg">Sampling  30%|████████████▋                             |  ETA: 0:00:09</span>
+<span class="ansi-green-fg">Sampling  31%|████████████▉                             |  ETA: 0:00:09</span>
+<span class="ansi-green-fg">Sampling  31%|█████████████                             |  ETA: 0:00:09</span>
+<span class="ansi-green-fg">Sampling  32%|█████████████▎                            |  ETA: 0:00:09</span>
+<span class="ansi-green-fg">Sampling  32%|█████████████▌                            |  ETA: 0:00:09</span>
+<span class="ansi-green-fg">Sampling  33%|█████████████▋                            |  ETA: 0:00:08</span>
+<span class="ansi-green-fg">Sampling  33%|█████████████▉                            |  ETA: 0:00:08</span>
+<span class="ansi-green-fg">Sampling  34%|██████████████▏                           |  ETA: 0:00:08</span>
+<span class="ansi-green-fg">Sampling  34%|██████████████▎                           |  ETA: 0:00:08</span>
+<span class="ansi-green-fg">Sampling  35%|██████████████▌                           |  ETA: 0:00:08</span>
+<span class="ansi-green-fg">Sampling  35%|██████████████▊                           |  ETA: 0:00:08</span>
+<span class="ansi-green-fg">Sampling  36%|██████████████▉                           |  ETA: 0:00:08</span>
+<span class="ansi-green-fg">Sampling  36%|███████████████▏                          |  ETA: 0:00:07</span>
+<span class="ansi-green-fg">Sampling  37%|███████████████▍                          |  ETA: 0:00:07</span>
+<span class="ansi-green-fg">Sampling  37%|███████████████▌                          |  ETA: 0:00:07</span>
+<span class="ansi-green-fg">Sampling  38%|███████████████▊                          |  ETA: 0:00:07</span>
+<span class="ansi-green-fg">Sampling  38%|████████████████                          |  ETA: 0:00:07</span>
+<span class="ansi-green-fg">Sampling  39%|████████████████▏                         |  ETA: 0:00:07</span>
+<span class="ansi-green-fg">Sampling  39%|████████████████▍                         |  ETA: 0:00:06</span>
+<span class="ansi-green-fg">Sampling  40%|████████████████▋                         |  ETA: 0:00:06</span>
+<span class="ansi-green-fg">Sampling  40%|████████████████▊                         |  ETA: 0:00:06</span>
+<span class="ansi-green-fg">Sampling  41%|█████████████████                         |  ETA: 0:00:06</span>
+<span class="ansi-green-fg">Sampling  41%|█████████████████▎                        |  ETA: 0:00:06</span>
+<span class="ansi-green-fg">Sampling  42%|█████████████████▌                        |  ETA: 0:00:06</span>
+<span class="ansi-green-fg">Sampling  42%|█████████████████▋                        |  ETA: 0:00:06</span>
+<span class="ansi-green-fg">Sampling  43%|█████████████████▉                        |  ETA: 0:00:06</span>
+<span class="ansi-green-fg">Sampling  43%|██████████████████                        |  ETA: 0:00:06</span>
+<span class="ansi-green-fg">Sampling  44%|██████████████████▎                       |  ETA: 0:00:05</span>
+<span class="ansi-green-fg">Sampling  44%|██████████████████▌                       |  ETA: 0:00:05</span>
+<span class="ansi-green-fg">Sampling  45%|██████████████████▊                       |  ETA: 0:00:05</span>
+<span class="ansi-green-fg">Sampling  45%|██████████████████▉                       |  ETA: 0:00:05</span>
+<span class="ansi-green-fg">Sampling  46%|███████████████████▏                      |  ETA: 0:00:05</span>
+<span class="ansi-green-fg">Sampling  46%|███████████████████▍                      |  ETA: 0:00:05</span>
+<span class="ansi-green-fg">Sampling  47%|███████████████████▌                      |  ETA: 0:00:05</span>
+<span class="ansi-green-fg">Sampling  47%|███████████████████▊                      |  ETA: 0:00:05</span>
+<span class="ansi-green-fg">Sampling  48%|████████████████████                      |  ETA: 0:00:05</span>
+<span class="ansi-green-fg">Sampling  48%|████████████████████▏                     |  ETA: 0:00:04</span>
+<span class="ansi-green-fg">Sampling  49%|████████████████████▍                     |  ETA: 0:00:04</span>
+<span class="ansi-green-fg">Sampling  49%|████████████████████▋                     |  ETA: 0:00:04</span>
+<span class="ansi-green-fg">Sampling  50%|████████████████████▊                     |  ETA: 0:00:04</span>
+<span class="ansi-green-fg">Sampling  50%|█████████████████████                     |  ETA: 0:00:04</span>
+<span class="ansi-green-fg">Sampling  51%|█████████████████████▎                    |  ETA: 0:00:04</span>
+<span class="ansi-green-fg">Sampling  51%|█████████████████████▍                    |  ETA: 0:00:04</span>
+<span class="ansi-green-fg">Sampling  52%|█████████████████████▋                    |  ETA: 0:00:04</span>
+<span class="ansi-green-fg">Sampling  52%|█████████████████████▉                    |  ETA: 0:00:04</span>
+<span class="ansi-green-fg">Sampling  53%|██████████████████████▏                   |  ETA: 0:00:04</span>
+<span class="ansi-green-fg">Sampling  53%|██████████████████████▎                   |  ETA: 0:00:04</span>
+<span class="ansi-green-fg">Sampling  54%|██████████████████████▌                   |  ETA: 0:00:04</span>
+<span class="ansi-green-fg">Sampling  54%|██████████████████████▋                   |  ETA: 0:00:04</span>
+<span class="ansi-green-fg">Sampling  55%|██████████████████████▉                   |  ETA: 0:00:03</span>
+<span class="ansi-green-fg">Sampling  55%|███████████████████████▏                  |  ETA: 0:00:03</span>
+<span class="ansi-green-fg">Sampling  56%|███████████████████████▍                  |  ETA: 0:00:03</span>
+<span class="ansi-green-fg">Sampling  56%|███████████████████████▌                  |  ETA: 0:00:03</span>
+<span class="ansi-green-fg">Sampling  57%|███████████████████████▊                  |  ETA: 0:00:03</span>
+<span class="ansi-green-fg">Sampling  57%|████████████████████████                  |  ETA: 0:00:03</span>
+<span class="ansi-green-fg">Sampling  58%|████████████████████████▏                 |  ETA: 0:00:03</span>
+<span class="ansi-green-fg">Sampling  58%|████████████████████████▍                 |  ETA: 0:00:03</span>
+<span class="ansi-green-fg">Sampling  59%|████████████████████████▋                 |  ETA: 0:00:03</span>
+<span class="ansi-green-fg">Sampling  59%|████████████████████████▊                 |  ETA: 0:00:03</span>
+<span class="ansi-green-fg">Sampling  60%|█████████████████████████                 |  ETA: 0:00:03</span>
+<span class="ansi-green-fg">Sampling  60%|█████████████████████████▎                |  ETA: 0:00:03</span>
+<span class="ansi-green-fg">Sampling  61%|█████████████████████████▍                |  ETA: 0:00:03</span>
+<span class="ansi-green-fg">Sampling  61%|█████████████████████████▋                |  ETA: 0:00:03</span>
+<span class="ansi-green-fg">Sampling  62%|█████████████████████████▉                |  ETA: 0:00:03</span>
+<span class="ansi-green-fg">Sampling  62%|██████████████████████████                |  ETA: 0:00:03</span>
+<span class="ansi-green-fg">Sampling  63%|██████████████████████████▎               |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  63%|██████████████████████████▌               |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  64%|██████████████████████████▋               |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  64%|██████████████████████████▉               |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  65%|███████████████████████████▏              |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  65%|███████████████████████████▎              |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  66%|███████████████████████████▌              |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  66%|███████████████████████████▊              |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  67%|████████████████████████████              |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  67%|████████████████████████████▏             |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  68%|████████████████████████████▍             |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  68%|████████████████████████████▌             |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  69%|████████████████████████████▊             |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  69%|█████████████████████████████             |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  70%|█████████████████████████████▎            |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  70%|█████████████████████████████▍            |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  71%|█████████████████████████████▋            |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  71%|█████████████████████████████▉            |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  72%|██████████████████████████████            |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  72%|██████████████████████████████▎           |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  73%|██████████████████████████████▌           |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  73%|██████████████████████████████▋           |  ETA: 0:00:02</span>
+<span class="ansi-green-fg">Sampling  74%|██████████████████████████████▉           |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  74%|███████████████████████████████▏          |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  75%|███████████████████████████████▎          |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  75%|███████████████████████████████▌          |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  76%|███████████████████████████████▊          |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  76%|███████████████████████████████▉          |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  77%|████████████████████████████████▏         |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  77%|████████████████████████████████▍         |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  78%|████████████████████████████████▋         |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  78%|████████████████████████████████▊         |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  79%|█████████████████████████████████         |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  79%|█████████████████████████████████▏        |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  80%|█████████████████████████████████▍        |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  80%|█████████████████████████████████▋        |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  81%|█████████████████████████████████▉        |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  81%|██████████████████████████████████        |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  82%|██████████████████████████████████▎       |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  82%|██████████████████████████████████▌       |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  83%|██████████████████████████████████▋       |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  83%|██████████████████████████████████▉       |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  84%|███████████████████████████████████▏      |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  84%|███████████████████████████████████▎      |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  85%|███████████████████████████████████▌      |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  85%|███████████████████████████████████▊      |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  86%|███████████████████████████████████▉      |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  86%|████████████████████████████████████▏     |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  87%|████████████████████████████████████▍     |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  87%|████████████████████████████████████▌     |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  88%|████████████████████████████████████▊     |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  88%|█████████████████████████████████████     |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  89%|█████████████████████████████████████▏    |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  89%|█████████████████████████████████████▍    |  ETA: 0:00:01</span>
+<span class="ansi-green-fg">Sampling  90%|█████████████████████████████████████▋    |  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  90%|█████████████████████████████████████▊    |  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  91%|██████████████████████████████████████    |  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  91%|██████████████████████████████████████▎   |  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  92%|██████████████████████████████████████▌   |  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  92%|██████████████████████████████████████▋   |  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  93%|██████████████████████████████████████▉   |  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  93%|███████████████████████████████████████   |  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  94%|███████████████████████████████████████▎  |  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  94%|███████████████████████████████████████▌  |  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  95%|███████████████████████████████████████▊  |  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  95%|███████████████████████████████████████▉  |  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  96%|████████████████████████████████████████▏ |  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  96%|████████████████████████████████████████▍ |  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  97%|████████████████████████████████████████▌ |  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  97%|████████████████████████████████████████▊ |  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  98%|█████████████████████████████████████████ |  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  98%|█████████████████████████████████████████▏|  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  99%|█████████████████████████████████████████▍|  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling  99%|█████████████████████████████████████████▋|  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling 100%|█████████████████████████████████████████▊|  ETA: 0:00:00</span>
+<span class="ansi-green-fg">Sampling 100%|██████████████████████████████████████████| Time: 0:00:04</span>
+<span class="ansi-bright-black-fg">Sampling 100%|██████████████████████████████████████████| Time: 0:00:07</span>
+</pre>
+</div>
+</div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>Chains MCMC chain (1000×15×1 Array{Float64, 3}):
+
+Iterations        = 501:1:1500
+Number of chains  = 1
+Samples per chain = 1000
+Wall duration     = 5.4 seconds
+Compute duration  = 5.4 seconds
+parameters        = x
+internals         = n_steps, is_accept, acceptance_rate, log_density, hamiltonian_energy, hamiltonian_energy_error, max_hamiltonian_energy_error, tree_depth, numerical_error, step_size, nom_step_size, logprior, loglikelihood, logjoint
+
+Use `describe(chains)` for summary statistics and quantiles.</code></pre>
+</div>
 </div>
 
 

@@ -21,20 +21,12 @@ In our example, we'll be working to predict whether someone is likely to default
 To start, let's import all the libraries we'll need.
 
 ```{julia}
-# Import Turing and Distributions.
-using Turing, Distributions
-
-# Import RDatasets.
+using Turing
 using RDatasets
-
-# Import MCMCChains, Plots, and StatsPlots for visualisations and diagnostics.
 using MCMCChains, Plots, StatsPlots
-
-# We need a logistic function, which is provided by StatsFuns.
 using StatsFuns: logistic
-
-# Functionality for splitting and normalising the data
-using MLDataUtils: shuffleobs, stratifiedobs, rescale!
+using MLUtils: splitobs
+using StatsBase: fit, transform!, ZScoreTransform
 
 # Set a seed for reproducibility.
 using Random
@@ -43,7 +35,8 @@ Random.seed!(0);
 
 ## Data Cleaning & Set Up
 
-Now we're going to import our dataset. The first six rows of the dataset are shown below so you can get a good feel for what kind of data we have.
+Now we're going to import our dataset.
+The first six rows of the dataset are shown below so you can get a good feel for what kind of data we have.
 
 ```{julia}
 # Import the "Default" dataset.
@@ -53,12 +46,15 @@ data = RDatasets.dataset("ISLR", "Default");
 first(data, 6)
 ```
 
-Most machine learning processes require some effort to tidy up the data, and this is no different. We need to convert the `Default` and `Student` columns, which say "Yes" or "No" into 1s and 0s. Afterwards, we'll get rid of the old words-based columns.
+Most machine learning processes require some effort to tidy up the data, and this is no different.
+We need to convert the `Default` and `Student` columns, which say "Yes" or "No" into 1s and 0s.
+Afterwards, we'll get rid of the old words-based columns.
 
 ```{julia}
 # Convert "Default" and "Student" to numeric values.
-data[!, :DefaultNum] = [r.Default == "Yes" ? 1.0 : 0.0 for r in eachrow(data)]
-data[!, :StudentNum] = [r.Student == "Yes" ? 1.0 : 0.0 for r in eachrow(data)]
+yesno = ["No", "Yes"]
+data[!, :DefaultNum] = indexin(data[!, :Default], yesno) .- 1
+data[!, :StudentNum] = indexin(data[!, :Student], yesno) .- 1
 
 # Delete the old columns which say "Yes" and "No".
 select!(data, Not([:Default, :Student]))
@@ -67,31 +63,40 @@ select!(data, Not([:Default, :Student]))
 first(data, 6)
 ```
 
-After we've done that tidying, it's time to split our dataset into training and testing sets, and separate the labels from the data. We separate our data into two halves, `train` and `test`. You can use a higher percentage of splitting (or a lower one) by modifying the `at = 0.05` argument. We have highlighted the use of only a 5% sample to show the power of Bayesian inference with small sample sizes.
-
-We must rescale our variables so that they are centred around zero by subtracting each column by the mean and dividing it by the standard deviation. This rescaling ensures features are on comparable scales, which improves sampler initialisation and convergence. To do this we will leverage `MLDataUtils`, which also lets us effortlessly shuffle our observations and perform a [stratified split](https://en.wikipedia.org/wiki/Stratified_sampling) to get a representative test set.
+Our predictor variables are `StudentNum`, `Balance`, and `Income`, and our target variable is `DefaultNum`; we separate those out into `X` and `Y` for ease of use later on.
+We'll also convert them to `Matrix` and `Vector` types, respectively, by wrapping them in `Array`.
 
 ```{julia}
-function split_data(df, target; at=0.70)
-    shuffled = shuffleobs(df)
-    return trainset, testset = stratifiedobs(row -> row[target], shuffled; p=at)
-end
+# `splitobs` later expects that `X` has observations in columns,
+# hence the transpose on `X`.
+X = Array(data[!, [:StudentNum, :Balance, :Income]])'
+Y = Array(data[!, :DefaultNum])
+size(X), size(Y)
+```
 
-features = [:StudentNum, :Balance, :Income]
-numerics = [:Balance, :Income]
-target = :DefaultNum
+It's now time to split our dataset into training and testing sets.
+We separate our data into two partitions, `train` and `test`.
+You can use a higher percentage of splitting (or a lower one) by modifying the `at = 0.05` argument.
+Here, we are training on only 5% of the data in order to highlight the power of Bayesian inference with small sample sizes.
+To do the splitting we will leverage `MLUtils`, which also lets us effortlessly shuffle our observations and perform a [stratified split](https://en.wikipedia.org/wiki/Stratified_sampling) to get a representative test set.
 
-trainset, testset = split_data(data, target; at=0.05)
-for feature in numerics
-    μ, σ = rescale!(trainset[!, feature]; obsdim=1)
-    rescale!(testset[!, feature], μ, σ; obsdim=1)
-end
+```{julia}
+(train_X, train_Y), (test_X, test_Y) = splitobs((X, Y); at=0.05, shuffle=true, stratified=Y)
 
-# Turing requires data in matrix form, not dataframe
-train = Matrix(trainset[:, features])
-test = Matrix(testset[:, features])
-train_label = trainset[:, target]
-test_label = testset[:, target];
+# Let's check that the labels are distributed
+# similarly in the training and test sets.
+mean(train_Y), mean(test_Y)
+```
+
+We must now rescale our numeric variables so that they are centred around zero by subtracting each column by the mean and dividing it by the standard deviation.
+This rescaling ensures features are on comparable scales, which improves sampler initialisation and convergence.
+
+Note here that we leave out the `StudentNum` variable (row 1) from the normalisation, since it is already binary and doesn't need to be rescaled.
+
+```{julia}
+dt = fit(ZScoreTransform, view(train_X, 2:3, :); dims=2)
+transform!(dt, view(train_X, 2:3, :))
+transform!(dt, view(test_X, 2:3, :))
 ```
 
 ## Model Declaration
@@ -102,24 +107,25 @@ Finally, we can define our model.
 
   - `x` is our set of independent variables;
   - `y` is the element we want to predict;
-  - `n` is the number of observations we have; and
-  - `σ` is the standard deviation we want to assume for our priors.
+  - `σ` is the (fixed) standard deviation we want to assume for our priors.
 
-Within the model, we create four coefficients (`intercept`, `student`, `balance`, and `income`) and assign a prior of normally distributed with means of zero and standard deviations of `σ`. We want to find values of these four coefficients to predict any given `y`.
+Within the model, we create four coefficients (`intercept`, `student`, `balance`, and `income`) and assign a prior of normally distributed with means of zero and standard deviations of `σ`.
+We want to find values of these four coefficients to predict any given `y`.
 
 The `for` block creates a variable `v` which is the logistic function. We then observe the likelihood of calculating `v` given the actual label, `y[i]`.
 
 ```{julia}
-# Bayesian logistic regression (LR)
-@model function logistic_regression(x, y, n, σ)
-    intercept ~ Normal(0, σ)
+@model function logistic_regression(x, y, σ)
+    N = size(x, 2)
+    @assert length(y) == N
 
+    intercept ~ Normal(0, σ)
     student ~ Normal(0, σ)
     balance ~ Normal(0, σ)
     income ~ Normal(0, σ)
 
-    for i in 1:n
-        v = logistic(intercept + student * x[i, 1] + balance * x[i, 2] + income * x[i, 3])
+    for i in 1:N
+        v = logistic(intercept + student * x[1, i] + balance * x[2, i] + income * x[3, i])
         y[i] ~ Bernoulli(v)
     end
 end;
@@ -127,7 +133,8 @@ end;
 
 ## Sampling
 
-Now we can run our sampler. This time we'll use [`NUTS`](https://turinglang.org/stable/docs/library/#Turing.Inference.NUTS) to sample from our posterior.
+Now we can run our sampler.
+Here we'll use [`NUTS`](https://turinglang.org/stable/docs/library/#Turing.Inference.NUTS) to sample from our posterior.
 
 ```{julia}
 #| output: false
@@ -135,24 +142,16 @@ setprogress!(false)
 ```
 
 ```{julia}
-#| output: false
-# Retrieve the number of observations.
-n, _ = size(train)
-
 # Sample using NUTS.
-m = logistic_regression(train, train_label, n, 1)
+m = logistic_regression(train_X, train_Y, 1.0)
 chain = sample(m, NUTS(), MCMCThreads(), 1_500, 3)
 ```
 
-```{julia}
-#| echo: false
-chain
-```
-
-::: {.callout-warning collapse="true"}
+::: {.callout-warning}
 ## Sampling With Multiple Threads
-The `sample()` call above assumes that you have at least `nchains` threads available in your Julia instance. If you do not, the multiple chains 
-will run sequentially, and you may notice a warning. For more information, see [the Turing documentation on sampling multiple chains.]({{<meta core-functionality>}}#sampling-multiple-chains)
+The `sample()` call above assumes that you have at least `nchains` threads available in your Julia instance.
+If you do not, the multiple chains will run sequentially, and you may notice a warning.
+For more information, see [the Turing documentation on sampling multiple chains]({{<meta core-functionality>}}#sampling-multiple-chains).
 :::
 
 ```{julia}
@@ -185,7 +184,7 @@ end
 
 Looks good!
 
-We can also use the `corner` function from MCMCChains to show the distributions of the various parameters of our logistic regression.
+We can also use the `corner` function from StatsPlots to show the distributions of the various parameters of our logistic regression.
 
 ```{julia}
 # The labels to use.
@@ -199,60 +198,65 @@ Fortunately the corner plot appears to demonstrate unimodal distributions for ea
 
 ## Making Predictions
 
-How do we test how well the model actually predicts whether someone is likely to default? We need to build a prediction function that takes the `test` object we made earlier and runs it through the average parameter calculated during sampling.
+How do we test how well the model actually predicts whether someone is likely to default?
+We need to build a prediction function that takes the `test` object we made earlier and runs it through the average parameter calculated during sampling.
 
-The `prediction` function below takes a `Matrix` and a `Chain` object. It takes the mean of each parameter's sampled values and re-runs the logistic function using those mean values for every element in the test set.
+The `prediction` function below takes a `Matrix` and a `Chain` object.
+It takes the mean of each parameter's sampled values and re-runs the logistic function using those mean values for every element in the test set.
 
 ```{julia}
-function prediction(x::Matrix, chain, threshold)
+using MCMCChains: MCMCChains
+
+function prediction(x::AbstractMatrix, chain::MCMCChains.Chains, threshold)
     # Pull the means from each parameter's sampled values in the chain.
     intercept = mean(chain[:intercept])
     student = mean(chain[:student])
     balance = mean(chain[:balance])
     income = mean(chain[:income])
 
-    # Retrieve the number of rows.
-    n, _ = size(x)
+    # Retrieve the number of observations.
+    n = size(x, 2)
 
     # Generate a vector to store our predictions.
-    v = Vector{Float64}(undef, n)
+    v = Vector{Bool}(undef, n)
 
     # Calculate the logistic function for each element in the test set.
     for i in 1:n
         num = logistic(
-            intercept .+ student * x[i, 1] + balance * x[i, 2] + income * x[i, 3]
+            intercept .+ student * x[1, i] + balance * x[2, i] + income * x[3, i]
         )
-        if num >= threshold
-            v[i] = 1
-        else
-            v[i] = 0
-        end
+        v[i] = num >= threshold
     end
     return v
-end;
+end
 ```
 
-Let's see how we did! We run the test matrix through the prediction function, and compute the [mean squared error](https://en.wikipedia.org/wiki/Mean_squared_error) (MSE) for our prediction. The `threshold` variable sets the decision boundary for classification. For example, a threshold of 0.07 will predict a default (value of 1) for any predicted probability greater than 0.07 and no default otherwise. Lower thresholds increase sensitivity but may increase false positives.
+Let's see how we did!
+We run the test matrix through the prediction function, and compute the [mean squared error](https://en.wikipedia.org/wiki/Mean_squared_error) (MSE) for our prediction.
+The `threshold` variable sets the decision boundary for classification.
+For example, a threshold of 0.07 will predict a default (value of 1) for any predicted probability greater than 0.07 and no default otherwise.
+Lower thresholds increase sensitivity but may increase false positives.
 
 ```{julia}
 # Set the prediction threshold.
 threshold = 0.07
 
 # Make the predictions.
-predictions = prediction(test, chain, threshold)
+predictions = prediction(test_X, chain, threshold)
 
 # Calculate MSE for our test set.
-loss = sum((predictions - test_label) .^ 2) / length(test_label)
+loss = sum((predictions - test_Y) .^ 2) / length(test_Y)
 ```
 
-Perhaps more important is to see what percentage of defaults we correctly predicted. The code below simply counts defaults and predictions and presents the results.
+Perhaps more important is to see what percentage of defaults we correctly predicted.
+The code below simply counts defaults and predictions and presents the results.
 
 ```{julia}
-defaults = sum(test_label)
-not_defaults = length(test_label) - defaults
+defaults = sum(test_Y)
+not_defaults = length(test_Y) - defaults
 
-predicted_defaults = sum(test_label .== predictions .== 1)
-predicted_not_defaults = sum(test_label .== predictions .== 0)
+predicted_defaults = sum(test_Y .== predictions .== 1)
+predicted_not_defaults = sum(test_Y .== predictions .== 0)
 
 println("Defaults: $defaults
     Predictions: $predicted_defaults
@@ -271,6 +275,5 @@ let
 end
 ```
 
-The above shows that with a threshold of 0.07, we correctly predict a respectable portion of the defaults, and correctly identify most non-defaults. This is fairly sensitive to a choice of threshold, and you may wish to experiment with it.
-
-This tutorial has demonstrated how to use Turing to perform Bayesian logistic regression.
+The above shows that with a threshold of 0.07, we correctly predict a respectable portion of the defaults, and correctly identify most non-defaults.
+This is fairly sensitive to a choice of threshold, and you may wish to experiment with it.

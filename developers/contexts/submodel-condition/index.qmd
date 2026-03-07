@@ -44,16 +44,11 @@ The phrase 'becoming' a different variable is a little underspecified: it is use
 The method responsible for it is `tilde_assume(::PrefixContext, right, vn, vi)`: this attaches the prefix in the context to the `VarName` argument, before recursively calling `tilde_assume` with the new prefixed `VarName`.
 This means that even though a statement `x ~ dist` still enters the tilde pipeline at the top level as `x`, if the model evaluation context contains a `PrefixContext`, any function after `tilde_assume(::PrefixContext, ...)` will see `a.x` instead.
 
-## ConditionContext
+## CondFixContext
 
-`ConditionContext` is a context which stores values of variables that are to be conditioned on.
-These values may be stored as a `Dict` which maps `VarName`s to values, or alternatively as a `NamedTuple`.
-The latter only works correctly if all `VarName`s are 'basic', in that they have an identity optic (i.e., something like `a.x` or `a[1]` is forbidden).
-Because of this limitation, we will only use `Dict` in this example.
-
-::: {.callout-note}
-If a `ConditionContext` with a `NamedTuple` encounters anything to do with a prefix, its internal `NamedTuple` is converted to a `Dict` anyway, so it is quite reasonable to ignore the `NamedTuple` case in this exposition.
-:::
+`CondFixContext` is a context which stores values of variables that are to be conditioned or fixed on.
+It takes a single type parameter, which is either `DynamicPPL.Condition` or `DynamicPPL.Fix`, which indicates whether the context is for conditioning or fixing.
+These values are internally stored as a `VarNamedTuple.`
 
 One can inspect the conditioning values with, for example:
 
@@ -64,12 +59,15 @@ One can inspect the conditioning values with, for example:
 end
 
 cond_model = d() | (@varname(x) => 1.0)
-cond_ctx = cond_model.context
+
+cond_values = conditioned(cond_model)
 ```
 
 There are several internal functions that are used to determine whether a variable is conditioned, and if so, what its value is.
 
 ```{julia}
+cond_ctx = cond_model.context
+
 DynamicPPL.hasconditioned_nested(cond_ctx, @varname(x))
 ```
 
@@ -88,15 +86,20 @@ Notice that (neglecting `missing` values) the return value of `contextual_isassu
 :::
 
 If a variable `x` is conditioned on, then the effect of this is to set the value of `x` to the given value (while still including its contribution to the log probability density).
-Since `x` is no longer a random variable, if we were to evaluate the model, we would find only one key in the `VarInfo`:
+Since `x` is no longer a random variable, if we were to evaluate the model, we would find only one key:
 
 ```{julia}
-keys(VarInfo(cond_model))
+rand(cond_model)
 ```
 
 ## Joint behaviour: desiderata at the model level
 
-When paired together, these two contexts have the potential to cause substantial confusion: `PrefixContext` modifies the variable names that are seen, which may cause them to be out of sync with the values contained inside the `ConditionContext`.
+:::{.callout-note}
+The same points apply to both conditioning and fixing, so we will discuss it generically in terms of `CondFixContext`.
+The code examples will use conditioning to demonstrate this.
+:::
+
+When paired together, these two contexts have the potential to cause substantial confusion: `PrefixContext` modifies the variable names that are seen, which may cause them to be out of sync with the values contained inside the `CondFixContext`.
 
 We begin by mentioning some high-level desiderata for their joint behaviour.
 Take these models, for example:
@@ -127,9 +130,9 @@ with_inner_cond = outer2()
 
 We want that:
 
- 1. `keys(VarInfo(outer()))` should return `[a.x, a.y]`;
- 2. `keys(VarInfo(with_outer_cond))` should return `[a.y]`;
- 3. `keys(VarInfo(with_inner_cond))` should return `[a.y]`,
+ 1. `keys(rand(outer()))` should return `[a.x, a.y]`;
+ 2. `keys(rand(with_outer_cond))` should return `[a.y]`;
+ 3. `keys(rand(with_inner_cond))` should return `[a.y]`,
 
 **In other words, we can condition submodels either from the outside (point (2)) or from the inside (point (3)), and the variable name we use to specify the conditioning should match the level at which we perform the conditioning.**
 
@@ -153,9 +156,9 @@ We do not specify the implementation details here, but we will sketch out someth
 **Points (2) and (3)** are more tricky.
 As the reader may surmise, the difference between them is the order in which the contexts are stacked.
 
-For the _outer_ conditioning case (point (2)), the `ConditionContext` will contain a `VarName` that is already prefixed.
-When we enter the inner submodel, this `ConditionContext` has to be passed down and somehow combined with the `PrefixContext` that is created when we enter the submodel.
-We make the claim here that the best way to do this is to nest the `PrefixContext` _inside_ the `ConditionContext`.
+For the _outer_ conditioning case (point (2)), the `CondFixContext` will contain a `VarName` that is already prefixed.
+When we enter the inner submodel, this `CondFixContext` has to be passed down and somehow combined with the `PrefixContext` that is created when we enter the submodel.
+We make the claim here that the best way to do this is to nest the `PrefixContext` _inside_ the `CondFixContext`.
 This is indeed what happens, as can be demonstrated by running the model.
 
 ```{julia}
@@ -163,8 +166,8 @@ with_outer_cond()
 ```
 
 For the _inner_ conditioning case (point (3)), the outer model is not run with any special context.
-The inner model will itself contain a `ConditionContext` will contain a `VarName` that is not prefixed.
-When we run the model, this `ConditionContext` should be then nested _inside_ a `PrefixContext` to form the final evaluation context.
+The inner model will itself contain a `CondFixContext` will contain a `VarName` that is not prefixed.
+When we run the model, this `CondFixContext` should be then nested _inside_ a `PrefixContext` to form the final evaluation context.
 Again, we can run the model to see this in action:
 
 ```{julia}
@@ -174,13 +177,17 @@ with_inner_cond()
 Putting all of the information so far together, what it means is that if we have these two inner contexts (taken from above):
 
 ```{julia}
-using DynamicPPL: PrefixContext, ConditionContext, DefaultContext
+using DynamicPPL: PrefixContext, DefaultContext, CondFixContext, Condition
 
-inner_ctx_with_outer_cond = ConditionContext(
-    Dict(@varname(a.x) => 1.0), PrefixContext(@varname(a))
-)
-inner_ctx_with_inner_cond = PrefixContext(
-    @varname(a), ConditionContext(Dict(@varname(x) => 1.0))
+outer_cond = @vnt begin
+    a.x := 1.0
+end
+inner_ctx_with_outer_cond = CondFixContext{Condition}(outer_cond, PrefixContext(@varname(a)))
+
+inner_cond = @vnt begin
+    x := 1.0
+end
+inner_ctx_with_inner_cond = PrefixContext(@varname(a), CondFixContext{Condition}(inner_cond)
 )
 ```
 
@@ -207,7 +214,7 @@ This allows us to finally specify our task as follows:
 ## How do we do it?
 
 (1) `hasconditioned_nested` and `getconditioned_nested` accomplish this by first 'collapsing' the context stack, i.e. they go through the context stack, remove all `PrefixContext`s, and apply those prefixes to any conditioned variables below it in the stack.
-Once the `PrefixContext`s have been removed, one can then iterate through the context stack and check if any of the `ConditionContext`s contain the variable, or get the value itself.
+Once the `PrefixContext`s have been removed, one can then iterate through the context stack and check if any of the `CondFixContext`s contain the variable, or get the value itself.
 For more details the reader is encouraged to read the source code.
 
 (2a) We ensure that the context stack is correctly arranged by relying on the behaviour of `make_evaluate_args_and_kwargs`.
@@ -221,7 +228,7 @@ This is done inside the `@model` macro, or technically, its subsidiary function 
 
 ## Nested submodels
 
-Just in case the above wasn't complicated enough, we need to also be very careful when dealing with nested submodels, which have multiple layers of `PrefixContext`s which may be interspersed with `ConditionContext`s.
+Just in case the above wasn't complicated enough, we need to also be very careful when dealing with nested submodels, which have multiple layers of `PrefixContext`s which may be interspersed with `CondFixContext`s.
 For example, in this series of nested submodels,
 
 ```{julia}
@@ -248,11 +255,18 @@ The general strategy that we adopt is similar to above.
 Following the principle that `PrefixContext` should be nested inside the outer context, but outside the inner submodel's context, we can infer that the correct context inside `charlie` should be:
 
 ```{julia}
+vnt_by = @vnt begin
+    b.y := 1.0
+end
+vnt_x = @vnt begin
+    x := 1.0
+end
+
 big_ctx = PrefixContext(
     @varname(a),
-    ConditionContext(
-        Dict(@varname(b.y) => 1.0),
-        PrefixContext(@varname(b), ConditionContext(Dict(@varname(x) => 1.0))),
+    CondFixContext{Condition}(
+        vnt_by,
+        PrefixContext(@varname(b), CondFixContext{Condition}(vnt_x)),
     ),
 )
 ```
@@ -303,7 +317,7 @@ When editing this code, it is worth being mindful of this as a potential source 
 If you have encountered left and right folds, the above discussion illustrates the difference between them: the wrong implementation of `myprefix` uses a left fold (which collects prefixes in the opposite order from which they are encountered), while the correct implementation uses a right fold.
 :::
 
-## Loose ends 1: Manual prefixing
+## Loose end: Manual prefixing
 
 Sometimes users may want to manually prefix a model, for example:
 
@@ -337,9 +351,3 @@ prefixed_model = prefix(model, :a)
 
 (model.context, prefixed_model.context)
 ```
-
-## Loose ends 2: FixedContext
-
-Finally, note that all of the above also applies to the interaction between `PrefixContext` and `FixedContext`, except that the functions have different names.
-(`FixedContext` behaves the same way as `ConditionContext`, except that unlike conditioned variables, fixed variables do not contribute to the log probability density.)
-This generally results in a large amount of code duplication, but the concepts that underlie both contexts are exactly the same.

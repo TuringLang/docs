@@ -12,97 +12,90 @@ using Pkg;
 Pkg.instantiate();
 ```
 
-Multinomial logistic regression is an extension of logistic regression. Logistic regression is used to model problems in which there are exactly two possible discrete outcomes. Multinomial logistic regression is used to model problems in which there are two or more possible discrete outcomes.
+Multinomial logistic regression is an extension of logistic regression.
+Logistic regression is used to model problems in which there are exactly two possible discrete outcomes.
+Multinomial logistic regression is used to model problems in which there are two or more possible discrete outcomes.
 
-In our example, we'll be using the iris dataset. The iris multiclass problem aims to predict the species of a flower given measurements (in centimetres) of sepal length and width and petal length and width. There are three possible species: Iris setosa, Iris versicolor, and Iris virginica.
+In our example, we'll be using the iris dataset.
+The iris multiclass problem aims to predict the species of a flower given measurements (in centimetres) of sepal length and width and petal length and width.
+There are three possible species: *Iris setosa*, *Iris versicolor*, and *Iris virginica*.
 
 To start, let's import all the libraries we'll need.
 
 ```{julia}
-# Load Turing.
 using Turing
-
-# Load RDatasets.
-using RDatasets
-
-# Load StatsPlots for visualisations and diagnostics.
+using MCMCChains: Chains
 using StatsPlots
-
 # Functionality for splitting and normalising the data.
-using MLDataUtils: shuffleobs, splitobs, rescale!
-
+using MLUtils: shuffleobs, splitobs, load_iris
+using StatsBase: fit, ZScoreTransform, transform!
 # We need a softmax function which is provided by NNlib.
-using NNlib: softmax
-
+using LogExpFunctions: softmax
 # Functionality for constructing arrays with identical elements efficiently.
 using FillArrays
-
-# Functionality for working with scaled identity matrices.
-using LinearAlgebra
 
 # Set a seed for reproducibility.
 using Random
 Random.seed!(0);
 ```
 
-## Data Cleaning & Set Up
+## Data Cleaning and Set Up
 
-Now we're going to import our dataset. Twenty rows of the dataset are shown below so you can get a good feel for what kind of data we have.
+Now we're going to import our dataset.
+Twenty rows of the dataset are shown below so you can get a good feel for what kind of data we have.
 
 ```{julia}
 # Import the "iris" dataset.
-data = RDatasets.dataset("datasets", "iris");
+X, Y = load_iris()
+nobs = size(X, 2)
 
-# Show twenty random rows.
-data[rand(1:size(data, 1), 20), :]
+# Show 10 random rows of the outcomes.
+Y[rand(1:nobs, 10)]
 ```
 
-In this data set, the outcome `Species` is currently coded as a string. We convert it to a numerical value by using indices 1, 2, and 3 to indicate species setosa, versicolor, and virginica, respectively.
+In this data set, the outcome `Species` is currently coded as a string.
+We convert it to a numerical value by using indices 1, 2, and 3 to indicate species setosa, versicolor, and virginica, respectively.
 
 ```{julia}
-# Recode the `Species` column.
 species = ["setosa", "versicolor", "virginica"]
-data[!, :Species_index] = indexin(data[!, :Species], species)
-
-# Show twenty random rows of the new species columns
-data[rand(1:size(data, 1), 20), [:Species, :Species_index]]
+Y = Vector{Int64}(indexin(Y, species))
+Y[rand(1:nobs, 10)]
 ```
 
-After we've done that tidying, it's time to split our dataset into training and testing sets, and separate the features and target from the data. Additionally, we must rescale our feature variables so that they are centred around zero by subtracting each column by the mean and dividing it by the standard deviation. This standardisation improves sampler efficiency by ensuring all features are on comparable scales.
+After we've done that tidying, it's time to split our dataset into training and testing sets, and separate the features and target from the data.
+Additionally, we must rescale our feature variables so that they are centred around zero by subtracting each column by the mean and dividing it by the standard deviation.
+This standardisation improves sampler efficiency by ensuring all features are on comparable scales.
 
 ```{julia}
 # Split our dataset 50%/50% into training/test sets.
-trainset, testset = splitobs(shuffleobs(data), 0.5)
-
-# Define features and target.
-features = [:SepalLength, :SepalWidth, :PetalLength, :PetalWidth]
-target = :Species_index
-
-# Turing requires data in matrix and vector form.
-train_features = Matrix(trainset[!, features])
-test_features = Matrix(testset[!, features])
-train_target = trainset[!, target]
-test_target = testset[!, target]
+(train_features, train_target), (test_features, test_target) = splitobs(shuffleobs((X, Y)); at=0.5)
 
 # Standardise the features.
-μ, σ = rescale!(train_features; obsdim=1)
-rescale!(test_features, μ, σ; obsdim=1);
+dt = fit(ZScoreTransform, train_features; dims=2)
+transform!(dt, train_features)
+transform!(dt, test_features)
 ```
 
 ## Model Declaration
 
-Finally, we can define our model `logistic_regression`. It is a function that takes three arguments where
+Finally, we can define our model `logistic_regression`.
+It is a function that takes three arguments where
 
   - `x` is our set of independent variables;
   - `y` is the element we want to predict;
   - `σ` is the standard deviation we want to assume for our priors.
 
-We select the setosa species as the baseline class (the choice does not matter). Then we create the intercepts and vectors of coefficients for the other classes against that baseline. More concretely, we create scalar intercepts `intercept_versicolor` and `intersept_virginica` and coefficient vectors `coefficients_versicolor` and `coefficients_virginica` with four coefficients each for the features `SepalLength`, `SepalWidth`, `PetalLength` and `PetalWidth`. We assume a normal distribution with mean zero and standard deviation `σ` as prior for each scalar parameter. We want to find the posterior distribution of these, in total ten, parameters to be able to predict the species for any given set of features.
+We select the setosa species as the baseline class (the choice does not matter).
+Then we create the intercepts and vectors of coefficients for the other classes against that baseline.
+More concretely, we create scalar intercepts `intercept_versicolor` and `intersept_virginica` and coefficient vectors `coefficients_versicolor` and `coefficients_virginica` with four coefficients, one for each feature.
+This gives us a total of 10 parameters to estimate.
+We assume a normal distribution with mean zero and standard deviation `σ` as prior for each scalar parameter.
+We want to find the posterior distribution of these parameters to be able to predict the species for any given set of features.
 
 ```{julia}
 # Bayesian multinomial logistic regression
 @model function logistic_regression(x, y, σ)
-    n = size(x, 1)
+    n = size(x, 2)
     length(y) == n ||
         throw(DimensionMismatch("number of observations in `x` and `y` is not equal"))
 
@@ -113,8 +106,8 @@ We select the setosa species as the baseline class (the choice does not matter).
     coefficients_virginica ~ MvNormal(Zeros(4), σ^2 * I)
 
     # Compute the likelihood of the observations.
-    values_versicolor = intercept_versicolor .+ x * coefficients_versicolor
-    values_virginica = intercept_virginica .+ x * coefficients_virginica
+    values_versicolor = intercept_versicolor .+ (coefficients_versicolor' * x)
+    values_virginica = intercept_virginica .+ (coefficients_virginica' * x)
     for i in 1:n
         # the 0 corresponds to the base category `setosa`
         v = softmax([0, values_versicolor[i], values_virginica[i]])
@@ -125,7 +118,8 @@ end;
 
 ## Sampling
 
-Now we can run our sampler. This time we'll use [`NUTS`](https://turinglang.org/stable/docs/library/#Turing.Inference.NUTS) to sample from our posterior.
+Now we can run our sampler.
+Here we'll use [`NUTS`](https://turinglang.org/stable/docs/library/#Turing.Inference.NUTS) to sample from our posterior.
 
 ```{julia}
 #| output: false
@@ -133,21 +127,15 @@ setprogress!(false)
 ```
 
 ```{julia}
-#| output: false
 m = logistic_regression(train_features, train_target, 1)
 chain = sample(m, NUTS(), MCMCThreads(), 1_500, 3)
 ```
 
-
-```{julia}
-#| echo: false
-chain
-```
-
-::: {.callout-warning collapse="true"}
+::: {.callout-info}
 ## Sampling With Multiple Threads
-The `sample()` call above assumes that you have at least `nchains` threads available in your Julia instance. If you do not, the multiple chains
-will run sequentially, and you may notice a warning. For more information, see [the Turing documentation on sampling multiple chains.]({{<meta core-functionality>}}#sampling-multiple-chains)
+The `sample()` call above assumes that you have at least `nchains` threads available in your Julia instance.
+If you do not, the multiple chains will run sequentially, and you may notice a warning.
+For more information, see [the Turing documentation on sampling multiple chains.]({{<meta core-functionality>}}#sampling-multiple-chains)
 :::
 
 Since we ran multiple chains, we may as well do a spot check to make sure each chain converges around similar points.
@@ -158,34 +146,26 @@ plot(chain)
 
 Looks good!
 
-We can also use the `corner` function from MCMCChains to show the distributions of the various parameters of our multinomial logistic regression. The corner function requires MCMCChains and StatsPlots.
+We can also use the `corner` function from StatsPlots to show the distributions of the various parameters of our multinomial logistic regression.
+`corner(chain)` will show the distributions of all parameters, but here we will only show the first three to avoid cluttering the plot.
 
 ```{julia}
-# Only plotting the first 3 coefficients due to a bug in Plots.jl
-corner(
-    chain,
-    MCMCChains.namesingroup(chain, :coefficients_versicolor)[1:3];
-)
-```
-
-```{julia}
-# Only plotting the first 3 coefficients due to a bug in Plots.jl
-corner(
-    chain,
-    MCMCChains.namesingroup(chain, :coefficients_virginica)[1:3];
-)
+corner(chain, MCMCChains.namesingroup(chain, :coefficients_versicolor))
 ```
 
 Fortunately the corner plots appear to demonstrate unimodal distributions for each of our parameters, so it should be straightforward to take the means of each parameter's sampled values to estimate our model to make predictions.
 
 ## Making Predictions
 
-How do we test how well the model actually predicts which of the three classes an iris flower belongs to? We need to build a `prediction` function that takes the test dataset and runs it through the average parameter calculated during sampling.
+How do we test how well the model actually predicts which of the three classes an iris flower belongs to?
+We need to build a `prediction` function that takes the test dataset and runs it through the average parameter calculated during sampling.
 
-The `prediction` function below takes a `Matrix` and a `Chains` object. It computes the mean of the sampled parameters and calculates the species with the highest probability for each observation. Note that we do not have to evaluate the `softmax` function since it does not affect the order of its inputs.
+The `prediction` function below takes a matrix and a `Chains` object.
+It computes the mean of the sampled parameters and calculates the species with the highest probability for each observation.
+Note that we do not have to evaluate the `softmax` function since it does not affect the order of its inputs.
 
 ```{julia}
-function prediction(x::Matrix, chain)
+function prediction(x::AbstractMatrix{<:Real}, chain::MCMCChains.Chains)
     # Pull the means from each parameter's sampled values in the chain.
     intercept_versicolor = mean(chain, :intercept_versicolor)
     intercept_virginica = mean(chain, :intercept_virginica)
@@ -197,8 +177,8 @@ function prediction(x::Matrix, chain)
     ]
 
     # Compute the index of the species with the highest probability for each observation.
-    values_versicolor = intercept_versicolor .+ x * coefficients_versicolor
-    values_virginica = intercept_virginica .+ x * coefficients_virginica
+    values_versicolor = intercept_versicolor .+ (coefficients_versicolor' * x)
+    values_virginica = intercept_virginica .+ (coefficients_virginica' * x)
     species_indices = [
         argmax((0, x, y)) for (x, y) in zip(values_versicolor, values_virginica)
     ]
@@ -207,29 +187,28 @@ function prediction(x::Matrix, chain)
 end;
 ```
 
-Let's see how we did! We run the test matrix through the prediction function, and compute the accuracy for our prediction.
+Let's see how we did!
+We run the test matrix through the prediction function, and compute the accuracy for our prediction.
 
 ```{julia}
 # Make the predictions.
 predictions = prediction(test_features, chain)
 
 # Calculate accuracy for our test set.
-mean(predictions .== testset[!, :Species_index])
+mean(predictions .== test_target)
 ```
 
 Perhaps more important is to see the accuracy per class.
 
 ```{julia}
 for s in 1:3
-    rows = testset[!, :Species_index] .== s
+    rows = test_target .== s
     println("Number of `", species[s], "`: ", count(rows))
     println(
         "Percentage of `",
         species[s],
         "` predicted correctly: ",
-        mean(predictions[rows] .== testset[rows, :Species_index]),
+        mean(predictions[rows] .== test_target[rows])
     )
 end
 ```
-
-This tutorial has demonstrated how to use Turing to perform Bayesian multinomial logistic regression.

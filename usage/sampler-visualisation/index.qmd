@@ -26,10 +26,6 @@ using Plots
 using StatsPlots
 using Turing
 using Random
-using Bijectors
-
-# Set a seed.
-Random.seed!(0)
 
 # Define a strange model.
 @model function gdemo(x)
@@ -46,16 +42,16 @@ end
 # Define our data points.
 x = [1.5, 2.0, 13.0, 2.1, 0.0]
 
-# Set up the model call, sample from the prior.
+# Set up the model call.
 model = gdemo(x)
 
 # Evaluate surface at coordinates.
-evaluate(m1, m2) = logjoint(model, (m=m2, s²=invlink.(Ref(InverseGamma(2, 3)), m1)))
+evaluate(m1, m2) = logjoint(model, (m=m2, s²=exp(m1)))
 
 function plot_sampler(chain; label="")
     # Extract values from chain.
     val = get(chain, [:s², :m, :logjoint])
-    ss = link.(Ref(InverseGamma(2, 3)), val.s²)
+    ss = log.(val.s²) # Convert to unconstrained space
     ms = val.m
     lps = val.logjoint
 
@@ -77,7 +73,6 @@ function plot_sampler(chain; label="")
         μ_rng,
         evaluate;
         camera=(30, 65),
-        #   ticks=nothing,
         colorbar=false,
         color=:inferno,
         title=label,
@@ -95,8 +90,8 @@ function plot_sampler(chain; label="")
         legend=false,
         colorbar=false,
         alpha=0.5,
-        xlabel="σ",
-        ylabel="μ",
+        xlabel="log(s²)",
+        ylabel="m",
         zlabel="Log probability",
         title=label,
     )
@@ -114,86 +109,93 @@ setprogress!(false)
 
 ### Gibbs
 
-Gibbs sampling tends to exhibit a "jittery" trajectory. The example below combines HMC and PG sampling to traverse the posterior.
+Gibbs sampling tends to exhibit a "jittery" trajectory.
+The example below combines HMC and PG sampling to traverse the posterior.
 
 ```{julia}
-c = sample(model, Gibbs(:s² => HMC(0.01, 5), :m => PG(20)), 1000)
-plot_sampler(c)
+c1 = sample(Xoshiro(468), model, Gibbs(:s² => HMC(0.01, 5), :m => PG(20)), 1000)
+plot_sampler(c1)
 ```
 
 ### HMC
 
-Hamiltonian Monte Carlo (HMC) sampling is a typical sampler to use, as it tends to be fairly good at converging in an efficient manner. It can often be tricky to set the correct parameters for this sampler however, and the NUTS sampler is often easier to run if you don't want to spend too much time fiddling with step size and the number of steps to take. Note however that HMC does not explore the positive values μ very well, likely due to the leapfrog and step size parameter settings.
+Hamiltonian Monte Carlo (HMC) sampling is a typical sampler to use, as it tends to be fairly good at converging in an efficient manner.
+It can often be tricky to set the correct parameters for this sampler however, and the NUTS sampler is often easier to run if you don't want to spend too much time fiddling with step size and the number of steps to take.
+Note however that HMC does not explore the positive values μ very well, likely due to the leapfrog and step size parameter settings.
 
 ```{julia}
-c = sample(model, HMC(0.01, 10), 1000)
-plot_sampler(c)
+c2 = sample(Xoshiro(468), model, HMC(0.01, 10), 1000)
+plot_sampler(c2)
 ```
 
 ### HMCDA
 
-The HMCDA sampler is an implementation of the Hamiltonian Monte Carlo with Dual Averaging algorithm found in the paper "The No-U-Turn Sampler: Adaptively Setting Path Lengths in Hamiltonian Monte Carlo" by Hoffman and Gelman (2011). The paper can be found on [arXiv](https://arxiv.org/abs/1111.4246) for the interested reader.
+The HMCDA sampler is an implementation of the Hamiltonian Monte Carlo with Dual Averaging algorithm found in the paper ["The No-U-Turn Sampler: Adaptively Setting Path Lengths in Hamiltonian Monte Carlo"](https://arxiv.org/abs/1111.4246) by Hoffman and Gelman (2011).
 
 ```{julia}
-c = sample(model, HMCDA(200, 0.65, 0.3), 1000)
-plot_sampler(c)
+c3 = sample(Xoshiro(468), model, HMCDA(200, 0.65, 0.3), 1000)
+plot_sampler(c3)
 ```
 
 ### MH
 
-Metropolis-Hastings (MH) sampling is one of the earliest Markov Chain Monte Carlo methods. MH sampling does not "move" a lot, unlike many of the other samplers implemented in Turing. Typically a much longer chain is required to converge to an appropriate parameter estimate.
+Metropolis–Hastings (MH) sampling is one of the earliest Markov Chain Monte Carlo methods.
+MH sampling does not "move" a lot, unlike many of the other samplers implemented in Turing.
+Typically a much longer chain is required to converge to an appropriate parameter estimate.
 
 The plot below only uses 1,000 iterations of Metropolis-Hastings.
 
 ```{julia}
-c = sample(model, MH(), 1000)
-plot_sampler(c)
+c4 = sample(Xoshiro(468), model, MH(), 1000)
+plot_sampler(c4)
 ```
 
 As you can see, the MH sampler doesn't move parameter estimates very often.
 
 ### NUTS
 
-The No U-Turn Sampler (NUTS) is an implementation of the algorithm found in the paper "The No-U-Turn Sampler: Adaptively Setting Path Lengths in Hamiltonian Monte Carlo" by Hoffman and Gelman (2011). The paper can be found on [arXiv](https://arxiv.org/abs/1111.4246) for the interested reader.
+The No U-Turn Sampler (NUTS) is an implementation of the algorithm found in the paper ["The No-U-Turn Sampler: Adaptively Setting Path Lengths in Hamiltonian Monte Carlo"](https://arxiv.org/abs/1111.4246) by Hoffman and Gelman (2011).
 
 NUTS tends to be very good at traversing complex posteriors quickly.
 
 
 ```{julia}
-c = sample(model, NUTS(0.65), 1000)
-plot_sampler(c)
+c5 = sample(Xoshiro(468), model, NUTS(0.65), 1000)
+plot_sampler(c5)
 ```
 
-The only parameter that needs to be set other than the number of iterations to run is the target acceptance rate. In the Hoffman and Gelman paper, they note that a target acceptance rate of 0.65 is typical.
+The only parameter that needs to be set other than the number of iterations to run is the target acceptance rate.
+In the Hoffman and Gelman paper, they note that a target acceptance rate of 0.65 is typical.
 
-Here is a plot showing a very high acceptance rate. Note that it appears to "stick" to a mode and is not particularly good at exploring the posterior as compared to the 0.65 target acceptance ratio case.
+Here is a plot showing a very high acceptance rate.
+Note that it appears to "stick" to a mode and is not particularly good at exploring the posterior as compared to the 0.65 target acceptance ratio case.
 
 ```{julia}
-c = sample(model, NUTS(0.95), 1000)
-plot_sampler(c)
+c6 = sample(Xoshiro(468), model, NUTS(0.95), 1000)
+plot_sampler(c6)
 ```
 
 An exceptionally low acceptance rate will show very few moves on the posterior:
 
 ```{julia}
-c = sample(model, NUTS(0.2), 1000)
-plot_sampler(c)
+c7 = sample(Xoshiro(468), model, NUTS(0.2), 1000)
+plot_sampler(c7)
 ```
 
 ### PG
 
-The Particle Gibbs (PG) sampler is an implementation of an algorithm from the paper "Particle Markov chain Monte Carlo methods" by Andrieu, Doucet, and Holenstein (2010). The interested reader can learn more [here](https://rss.onlinelibrary.wiley.com/doi/full/10.1111/j.1467-9868.2009.00736.x).
+The Particle Gibbs (PG) sampler is an implementation of an algorithm from the paper ["Particle Markov chain Monte Carlo methods"](https://www.stats.ox.ac.uk/~doucet/andrieu_doucet_holenstein_PMCMC.pdf) by Andrieu, Doucet, and Holenstein (2010).
 
-The two parameters are the number of particles, and the number of iterations. The plot below shows the use of 20 particles.
+The `PG` sampler takes a single parameter, which is the number of particles.
 
 ```{julia}
-c = sample(model, PG(20), 1000)
-plot_sampler(c)
+c8 = sample(Xoshiro(468), model, PG(20), 1000)
+plot_sampler(c8)
 ```
 
-Next, we plot using 50 particles.
+We'll also try using 50 particles:
 
 ```{julia}
-c = sample(model, PG(50), 1000)
-plot_sampler(c)
+c9 = sample(Xoshiro(468), model, PG(50), 1000)
+plot_sampler(c9)
 ```

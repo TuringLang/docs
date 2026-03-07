@@ -1,0 +1,1498 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.27">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Tracking Extra Quantities – Turing.jl</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<link href="../../usage/predictive-distributions/index.html" rel="next">
+<link href="../../usage/modifying-logprob/index.html" rel="prev">
+<link href="../..//assets/favicon.ico" rel="icon">
+<script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../../site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-8b4baf804e461d9b72633f0de59a0cac.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-dark-f1aadacce99040138bbb613f9330654f.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-8b4baf804e461d9b72633f0de59a0cac.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap-ac1e03387d2198e04255da2b04a6c5b6.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../../site_libs/bootstrap/bootstrap-dark-054ffbf34c98b2a3c29b01c06a0118fe.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../../site_libs/bootstrap/bootstrap-ac1e03387d2198e04255da2b04a6c5b6.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<style>html{ scroll-behavior: smooth; }</style>
+<style>
+  a {
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+</style>
+
+
+<meta property="og:title" content="The Turing Language">
+<meta property="og:description" content="Turing.jl is a probabilistic programming language and Bayesian modelling framework for the Julia programming language.">
+<meta property="og:image" content="https://turinglang.org/docs/assets/images/turing-text-logo.jpg">
+<meta property="og:site_name" content="Turing.jl">
+<meta property="og:image:alt" content="Turing.jl Logo">
+<meta property="og:locale" content="en_GB">
+<meta name="twitter:title" content="Tracking Extra Quantities – Turing.jl">
+<meta name="twitter:description" content="Turing.jl is a probabilistic programming language and Bayesian modelling framework for the Julia programming language.">
+<meta name="twitter:image" content="https://turinglang.org/docs/assets/images/turing-text-logo.jpg">
+<meta name="twitter:creator" content="@Hong_Ge2">
+<meta name="twitter:site" content="@TuringLang">
+<meta name="twitter:card" content="summary_large_image">
+</head>
+
+<body class="nav-sidebar floating nav-fixed quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="https://turinglang.org/" class="navbar-brand navbar-brand-logo">
+    <img src="https://turinglang.org/assets/logo/turing-logo-light.svg" alt="" class="navbar-logo light-content">
+    <img src="https://turinglang.org/assets/logo/turing-logo-dark.svg" alt="" class="navbar-logo dark-content">
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../getting-started/"> 
+<span class="menu-text">Get Started</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../tutorials/"> 
+<span class="menu-text">Tutorials</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../faq/"> 
+<span class="menu-text">FAQ</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://turinglang.org/library/"> 
+<span class="menu-text">Libraries</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://turinglang.org/news/"> 
+<span class="menu-text">News</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://turinglang.org/team/"> 
+<span class="menu-text">Team</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-v0.43" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">v0.43</span>
+    </a>
+    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="nav-menu-v0.43">    
+        <li>
+    <a class="dropdown-item" href="https://turinglang.org/docs/changelog.html">
+ <span class="dropdown-text">Changelog</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="https://turinglang.org/docs/versions.html">
+ <span class="dropdown-text">All Versions</span></a>
+  </li>  
+    </ul>
+  </li>
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools tools-wide">
+    <a href="https://x.com/TuringLang" title="Turing Twitter" class="quarto-navigation-tool px-1" aria-label="Turing Twitter"><i class="bi bi-twitter-x"></i></a>
+    <a href="https://discourse.julialang.org/c/domain/probprog/48" title="Turing Discourse" class="quarto-navigation-tool px-1" aria-label="Turing Discourse"><i class="bi bi-chat-dots"></i></a>
+    <a href="https://julialang.slack.com/archives/CCYDC34A0" title="Turing Slack" class="quarto-navigation-tool px-1" aria-label="Turing Slack"><i class="bi bi-slack"></i></a>
+    <a href="https://github.com/TuringLang" title="Turing GitHub" class="quarto-navigation-tool px-1" aria-label="Turing GitHub"><i class="bi bi-github"></i></a>
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="Toggle dark mode"><i class="bi"></i></a>
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../usage/automatic-differentiation/index.html">User Guide</a></li><li class="breadcrumb-item"><a href="../../usage/tracking-extra-quantities/index.html">Tracking Extra Quantities</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header">
+      <a href="../../index.html" class="sidebar-logo-link">
+      <img src="https://turinglang.org/assets/logo/turing-logo-light.svg" alt="" class="sidebar-logo light-content py-0 d-lg-inline d-none">
+      <img src="https://turinglang.org/assets/logo/turing-logo-dark.svg" alt="" class="sidebar-logo dark-content py-0 d-lg-inline d-none">
+      </a>
+      </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../getting-started/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Getting Started</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../core-functionality/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Core Functionality</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">User Guide</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../usage/automatic-differentiation/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Automatic Differentiation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../usage/sampling-options/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MCMC Sampling Options</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../usage/submodels/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Submodels</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../usage/custom-distribution/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Custom Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../usage/probability-interface/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Querying Model Probabilities</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../usage/modifying-logprob/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Modifying the Log Probability</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../usage/tracking-extra-quantities/index.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Tracking Extra Quantities</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../usage/predictive-distributions/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Predictive Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../usage/mode-estimation/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Mode Estimation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../usage/threadsafe-evaluation/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Threadsafe Evaluation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../usage/performance-tips/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Performance Tips</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../usage/sampler-visualisation/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sampler Visualization</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../usage/dynamichmc/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Using DynamicHMC</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../usage/varnamedtuple/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">VarNamedTuple</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../usage/external-samplers/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Using External Samplers</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../usage/troubleshooting/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Troubleshooting</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
+ <span class="menu-text">Tutorials</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/coin-flipping/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Introduction: Coin Flipping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/gaussian-mixture-models/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Gaussian Mixture Models</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/bayesian-logistic-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Logistic Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/bayesian-neural-networks/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Neural Networks</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/hidden-markov-models/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Hidden Markov Models</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/bayesian-linear-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Linear Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/infinite-mixture-models/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Infinite Mixture Models</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/bayesian-poisson-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Poisson Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/multinomial-logistic-regression/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multinomial Logistic Regression</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/variational-inference/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variational Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/bayesian-differential-equations/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Differential Equations</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/probabilistic-pca/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Probabilistic PCA</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/bayesian-time-series-analysis/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian Time Series Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/gaussian-processes-introduction/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Gaussian Processes: Introduction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tutorials/gaussian-process-latent-variable-models/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Gaussian Process Latent Variable Models</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
+ <span class="menu-text">Developers</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../developers/contributing/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Contributing</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">DynamicPPL’s Compiler</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../developers/compiler/minituring-compiler/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A Mini Turing Implementation I: Compiler</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../developers/compiler/minituring-contexts/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A Mini Turing Implementation II: Contexts</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
+ <span class="menu-text">DynamicPPL Contexts</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../developers/contexts/submodel-condition/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Conditioning and fixing in submodels</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">Variable Transformations</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../developers/transforms/distributions/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Distributions and the Jacobian</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../developers/transforms/bijectors/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bijectors in MCMC</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
+ <span class="menu-text">Inference in Detail</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../developers/inference/variational-inference/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variational Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../developers/inference/implementing-samplers/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Implementing Samplers</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../faq/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Frequently Asked Questions</span></a>
+  </div>
+</li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of Contents</h2>
+   
+  <ul>
+  <li><a href="#using-during-inference" id="toc-using-during-inference" class="nav-link active" data-scroll-target="#using-during-inference">Using <code>:=</code> (during inference)</a></li>
+  <li><a href="#using-returned-post-inference" id="toc-using-returned-post-inference" class="nav-link" data-scroll-target="#using-returned-post-inference">Using <code>returned</code> (post-inference)</a></li>
+  <li><a href="#which-to-use" id="toc-which-to-use" class="nav-link" data-scroll-target="#which-to-use">Which to use?</a></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/TuringLang/docs/edit/main/usage/tracking-extra-quantities/index.qmd" target="_blank" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/TuringLang/docs/issues/new" target="_blank" class="toc-action"><i class="bi empty"></i>Report an issue</a></li><li><a href="index.ipynb" target="_blank" class="toc-action" download="tracking-extra-quantities.ipynb"><i class="bi bi-journal-code"></i>Download notebook</a></li><li><a href="https://colab.research.google.com/github/TuringLang/docs/blob/gh-pages/pr-previews/683/usage/tracking-extra-quantities/index.ipynb" target="_blank" class="toc-action"><i class="bi bi-google"></i>Open in Colab</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../usage/automatic-differentiation/index.html">User Guide</a></li><li class="breadcrumb-item"><a href="../../usage/tracking-extra-quantities/index.html">Tracking Extra Quantities</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">Tracking Extra Quantities</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>Often, there are quantities in models that we might be interested in viewing the values of, but which are not random variables in the model that are explicitly drawn from a distribution.</p>
+<p>As a motivating example, the most natural parameterisation for a model might not be the most computationally feasible. Consider the following (efficiently reparametrized) implementation of Neal’s funnel <a href="https://arxiv.org/abs/physics/0009028">(Neal, 2003)</a>:</p>
+<div id="4" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Turing</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">setprogress!</span>(<span class="cn">false</span>)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">Neal</span>()</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Raw draws</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    y_raw <span class="op">~</span> <span class="fu">Normal</span>(<span class="fl">0</span>, <span class="fl">1</span>)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    x_raw <span class="op">~</span> <span class="fu">arraydist</span>([<span class="fu">Normal</span>(<span class="fl">0</span>, <span class="fl">1</span>) for i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">9</span>])</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Transform:</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> <span class="fl">3</span> <span class="op">*</span> y_raw</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> <span class="fu">exp</span>.(y <span class="op">./</span> <span class="fl">2</span>) <span class="op">.*</span> x_raw</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="cn">nothing</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">[ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>[Turing]: progress logging is disabled globally
+</pre>
+</div>
+</div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>Neal (generic function with 2 methods)</code></pre>
+</div>
+</div>
+<p>In this case, the random variables exposed in the chain (<code>x_raw</code>, <code>y_raw</code>) are not in a helpful form — what we’re after are the deterministically transformed variables <code>x</code> and <code>y</code>.</p>
+<p>There are two ways to track these extra quantities in Turing.jl.</p>
+<section id="using-during-inference" class="level2">
+<h2 class="anchored" data-anchor-id="using-during-inference">Using <code>:=</code> (during inference)</h2>
+<p>The first way is to use the <code>:=</code> operator, which behaves exactly like <code>=</code> except that the values of the variables on its left-hand side are automatically added to the chain returned by the sampler. For example:</p>
+<div id="6" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">Neal_coloneq</span>()</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Raw draws</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    y_raw <span class="op">~</span> <span class="fu">Normal</span>(<span class="fl">0</span>, <span class="fl">1</span>)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    x_raw <span class="op">~</span> <span class="fu">arraydist</span>([<span class="fu">Normal</span>(<span class="fl">0</span>, <span class="fl">1</span>) for i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">9</span>])</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Transform:</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    y <span class="op">:=</span> <span class="fl">3</span> <span class="op">*</span> y_raw</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    x <span class="op">:=</span> <span class="fu">exp</span>.(y <span class="op">./</span> <span class="fl">2</span>) <span class="op">.*</span> x_raw</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="fu">sample</span>(<span class="fu">Neal_coloneq</span>(), <span class="fu">NUTS</span>(), <span class="fl">1000</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">┌ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Found initial step size
+<span class="ansi-cyan-fg ansi-bold">└ </span>  ϵ = 1.6
+</pre>
+</div>
+</div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>Chains MCMC chain (1000×34×1 Array{Float64, 3}):
+
+Iterations        = 501:1:1500
+Number of chains  = 1
+Samples per chain = 1000
+Wall duration     = 4.67 seconds
+Compute duration  = 4.67 seconds
+parameters        = y_raw, x_raw[1], x_raw[2], x_raw[3], x_raw[4], x_raw[5], x_raw[6], x_raw[7], x_raw[8], x_raw[9], y, x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9]
+internals         = n_steps, is_accept, acceptance_rate, log_density, hamiltonian_energy, hamiltonian_energy_error, max_hamiltonian_energy_error, tree_depth, numerical_error, step_size, nom_step_size, logprior, loglikelihood, logjoint
+
+Use `describe(chains)` for summary statistics and quantiles.</code></pre>
+</div>
+</div>
+</section>
+<section id="using-returned-post-inference" class="level2">
+<h2 class="anchored" data-anchor-id="using-returned-post-inference">Using <code>returned</code> (post-inference)</h2>
+<p>Alternatively, one can specify the extra quantities as part of the model function’s return statement:</p>
+<div id="8" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">Neal_return</span>()</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Raw draws</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    y_raw <span class="op">~</span> <span class="fu">Normal</span>(<span class="fl">0</span>, <span class="fl">1</span>)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    x_raw <span class="op">~</span> <span class="fu">arraydist</span>([<span class="fu">Normal</span>(<span class="fl">0</span>, <span class="fl">1</span>) for i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">9</span>])</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Transform and return as a NamedTuple</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> <span class="fl">3</span> <span class="op">*</span> y_raw</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> <span class="fu">exp</span>.(y <span class="op">./</span> <span class="fl">2</span>) <span class="op">.*</span> x_raw</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (x<span class="op">=</span>x, y<span class="op">=</span>y)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>chain <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">Neal_return</span>(), <span class="fu">NUTS</span>(), <span class="fl">1000</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">┌ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Found initial step size
+<span class="ansi-cyan-fg ansi-bold">└ </span>  ϵ = 1.6
+</pre>
+</div>
+</div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>Chains MCMC chain (1000×24×1 Array{Float64, 3}):
+
+Iterations        = 501:1:1500
+Number of chains  = 1
+Samples per chain = 1000
+Wall duration     = 2.14 seconds
+Compute duration  = 2.14 seconds
+parameters        = y_raw, x_raw[1], x_raw[2], x_raw[3], x_raw[4], x_raw[5], x_raw[6], x_raw[7], x_raw[8], x_raw[9]
+internals         = n_steps, is_accept, acceptance_rate, log_density, hamiltonian_energy, hamiltonian_energy_error, max_hamiltonian_energy_error, tree_depth, numerical_error, step_size, nom_step_size, logprior, loglikelihood, logjoint
+
+Use `describe(chains)` for summary statistics and quantiles.</code></pre>
+</div>
+</div>
+<p>The sampled chain does not contain <code>x</code> and <code>y</code>, but we can extract the values using the <code>returned</code> function. Calling this function outputs an array:</p>
+<div id="10" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>nts <span class="op">=</span> <span class="fu">returned</span>(<span class="fu">Neal_return</span>(), chain)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>1000×1 Matrix{@NamedTuple{x::Vector{Float64}, y::Float64}}:
+ (x = [4.971768922705513, 2.3237805835563368, 4.209612172745882, 0.9853642933221646, 0.7152929440835761, 3.0623119576381583, 2.2684800787044876, -1.6245188234661523, -0.25845021185811845], y = 2.491448356185848)
+ (x = [0.0754750711328595, -0.006174138442519743, -0.0011507490405201501, -0.025146605742469675, 0.014633110582507809, 0.034106215577027324, 0.03133437241500249, -0.06430864227975529, -0.012982453740109692], y = -6.185877884811773)
+ (x = [1.8664271542314617, -3.5012628682402793, -4.96187070966661, 1.0484918521794997, 1.1254201293954218, 9.609308345707104, 5.5438323455028256, 2.1604504138879346, 4.846931217127568], y = 2.764218514191622)
+ (x = [-1.9982063297654553, -1.7505965093508904, -4.836268949339761, -3.4825053931536947, -1.7444941043724647, 0.682581887178301, 3.1733345919153866, 1.202973353624833, -3.107170371294823], y = 1.9047414480630973)
+ (x = [-0.0016383126531045382, -0.44529126395438906, 0.004876295317705459, -0.115126271493618, -0.07734520123746863, 0.07987166193467368, 0.3156760887154421, 0.1609606312297534, 0.10739300175742078], y = -2.951177527386795)
+ (x = [0.30898467957982434, 5.341652424093301, -2.1051063796268563, 2.3470398664433363, 1.0409708346054796, 1.2514044877644062, -3.126828453898923, -2.421576730545104, 0.3965696171293382], y = 2.319851693489108)
+ (x = [0.12012852358673003, -0.5611840969972497, 0.049886456517500906, -0.03423108668919624, 0.5328376179815594, -0.16250060963265028, -0.6883644937880545, 0.05821075112473091, 0.20870687257625287], y = -2.691921163663113)
+ (x = [-0.0135042202007237, 0.15680451074013285, -0.039968228294050966, -0.2200456810047799, -0.5433933359172697, 0.7932046520842131, -0.10551886467809114, 0.07858772506822999, -0.3431162525719653], y = -1.9942452036473792)
+ (x = [-0.01234418108602267, 0.08998222884144297, 0.012804000570412234, -0.004314899480974691, 0.08171362520001521, -0.10493735497420321, 0.07752686214632061, 0.08765660966838697, 0.002662990337659245], y = -5.259604147779703)
+ (x = [-0.04868240681447305, 0.04579794160920572, -0.09148524579726613, -0.23095541494554372, 0.04169746215425272, 0.13605200563100403, 0.052216898740992224, -0.010515776123029816, 0.11417231141695276], y = -4.315190222421111)
+ ⋮
+ (x = [-0.7038537923455653, 0.003085814805865024, -0.11489399082943787, -0.48939019981668364, -0.19555106919857937, 0.3755067166438377, -0.21518271465250166, -0.48043147198693165, -0.6922227483584832], y = -0.7256853281004794)
+ (x = [-0.7038537923455653, 0.003085814805865024, -0.11489399082943787, -0.48939019981668364, -0.19555106919857937, 0.3755067166438377, -0.21518271465250166, -0.48043147198693165, -0.6922227483584832], y = -0.7256853281004794)
+ (x = [1.8896204287249967, -2.0929308812511254, 2.902478390044613, 1.3214028872530301, 0.07561213977153282, -3.19344744160267, 0.1593581987006796, 1.4003916035963009, 5.793276975970565], y = 1.4237742054820821)
+ (x = [1.3326940000693102, -0.7382684092183042, 1.3081184962110703, -0.5141032735365045, 0.08675772296544926, 0.5633360146414437, -0.38109649639487153, -0.5639731641845952, -1.1729728729972633], y = -0.527548657295378)
+ (x = [0.07577224266184333, 0.16149147243889134, -0.7245455994039757, 0.14930316435795216, 0.36956757107953253, 0.5127140069321496, 0.32905082676723146, 0.2051039374296053, -1.6156216020006748], y = -0.909235719265133)
+ (x = [-5.053375933140287, 5.501627501878172, 24.84014772544188, 8.644659517054194, 9.456631696626708, 6.00130274900784, -23.459126426638058, -18.62827222703215, -10.934543090091386], y = 4.562448444340703)
+ (x = [25.796672852492858, -13.331884763111121, 28.823490050848818, -54.522400242440746, 21.627145922392412, 45.880804614754936, 31.780615564971352, -87.03136457072578, -5.060476537677669], y = 6.875045313735495)
+ (x = [19.86849424851048, -62.99287469733988, 40.68916274913512, -31.895318029968163, 86.83348316424252, 12.957339772394526, 47.340800338998534, -91.95357076181762, 33.09967262113694], y = 8.193579853267735)
+ (x = [3.393780089412572, 8.450524255565064, -5.054187072368228, 0.8437801214830871, -7.907102177647656, 4.19679696693006, -3.7292568603150724, 1.7953582823784862, -0.09304501962696608], y = 3.3817546097164275)</code></pre>
+</div>
+</div>
+<p>where each element of which is a NamedTuple, as specified in the return statement of the model.</p>
+<div id="12" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>nts[<span class="fl">1</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>(x = [4.971768922705513, 2.3237805835563368, 4.209612172745882, 0.9853642933221646, 0.7152929440835761, 3.0623119576381583, 2.2684800787044876, -1.6245188234661523, -0.25845021185811845], y = 2.491448356185848)</code></pre>
+</div>
+</div>
+</section>
+<section id="which-to-use" class="level2">
+<h2 class="anchored" data-anchor-id="which-to-use">Which to use?</h2>
+<p>There are some pros and cons of using <code>returned</code>, as opposed to <code>:=</code>.</p>
+<p>Firstly, <code>returned</code> is more flexible, as it allows you to track any type of object; <code>:=</code> only works with variables that can be inserted into an <code>MCMCChains.Chains</code> object. (Notice that <code>x</code> is a vector, and in the first case where we used <code>:=</code>, reconstructing the vector value of <code>x</code> can also be rather annoying as the chain stores each individual element of <code>x</code> separately.)</p>
+<p>A drawback is that naively using <code>returned</code> can lead to unnecessary computation during inference. This is because during the sampling process, the return values are also calculated (since they are part of the model function), but then thrown away. So, if the extra quantities are expensive to compute, this can be a problem.</p>
+<p>To avoid this, you will essentially have to create two different models, one for inference and one for post-inference. The simplest way of doing this is to add a parameter to the model argument:</p>
+<div id="14" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">Neal_coloneq_optional</span>(track<span class="op">::</span><span class="dt">Bool</span>)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Raw draws</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    y_raw <span class="op">~</span> <span class="fu">Normal</span>(<span class="fl">0</span>, <span class="fl">1</span>)</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    x_raw <span class="op">~</span> <span class="fu">arraydist</span>([<span class="fu">Normal</span>(<span class="fl">0</span>, <span class="fl">1</span>) for i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">9</span>])</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> track</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>        y <span class="op">=</span> <span class="fl">3</span> <span class="op">*</span> y_raw</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> <span class="fu">exp</span>.(y <span class="op">./</span> <span class="fl">2</span>) <span class="op">.*</span> x_raw</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> (x<span class="op">=</span>x, y<span class="op">=</span>y)</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="cn">nothing</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>chain <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">Neal_coloneq_optional</span>(<span class="cn">false</span>), <span class="fu">NUTS</span>(), <span class="fl">1000</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">┌ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Found initial step size
+<span class="ansi-cyan-fg ansi-bold">└ </span>  ϵ = 1.6125
+</pre>
+</div>
+</div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>Chains MCMC chain (1000×24×1 Array{Float64, 3}):
+
+Iterations        = 501:1:1500
+Number of chains  = 1
+Samples per chain = 1000
+Wall duration     = 1.47 seconds
+Compute duration  = 1.47 seconds
+parameters        = y_raw, x_raw[1], x_raw[2], x_raw[3], x_raw[4], x_raw[5], x_raw[6], x_raw[7], x_raw[8], x_raw[9]
+internals         = n_steps, is_accept, acceptance_rate, log_density, hamiltonian_energy, hamiltonian_energy_error, max_hamiltonian_energy_error, tree_depth, numerical_error, step_size, nom_step_size, logprior, loglikelihood, logjoint
+
+Use `describe(chains)` for summary statistics and quantiles.</code></pre>
+</div>
+</div>
+<p>The above ensures that <code>x</code> and <code>y</code> are not calculated during inference, but allows us to still use <code>returned</code> to extract them:</p>
+<div id="16" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">returned</span>(<span class="fu">Neal_coloneq_optional</span>(<span class="cn">true</span>), chain)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>1000×1 Matrix{@NamedTuple{x::Vector{Float64}, y::Float64}}:
+ (x = [0.7191510235392418, 3.905713394758526, 8.281626070759867, -2.6115338647283943, -0.3442049547869111, -5.210480102984139, 9.422658093373805, -7.520723189295031, 15.125782581915406], y = 3.6866298836365257)
+ (x = [-9.448030659139464, 3.1267366258103753, 12.516746922571407, -17.448824633109687, -8.656100544921097, -4.110875695011572, -9.102377027000978, 5.617376159848905, 3.0108294974949654], y = 4.922384368141568)
+ (x = [0.33608131468539526, -0.018376758857645056, 0.011686973167388844, 0.14624704565540433, 0.6116532646936781, 0.18367657995365747, -0.014301487431601614, 0.21851753159450188, 0.41738673917866986], y = -2.4236584860274197)
+ (x = [1.2901534912150463, -1.4695909721639284, -4.634717363246353, 16.37882682658611, -1.0590761651944667, -4.637274073376477, -1.9061936917722953, -1.178429014197456, 2.3116957793939674], y = 3.627327485877467)
+ (x = [-0.011242480754485648, -0.04048982101479944, 0.04525608755101625, -0.09779893192477294, 0.03233074622953138, -0.008193653650048802, -0.2970673244498588, 0.008688423809932549, -0.05302807388197942], y = -4.034806324308622)
+ (x = [0.04961678162408771, 0.00261947084808898, 0.04073155404637254, -0.09787382284389753, 0.2534875882327752, -0.04639645340229711, -0.2462845883467444, 0.008110787100355408, -0.021357626250174882], y = -4.464074254840649)
+ (x = [-2.735712306529559, -0.012838091976775986, -4.630321967174858, 0.896437519012781, -5.725449972254334, -0.08884572952889988, 11.089258640758903, -0.22620048684651756, 2.0959132785792236], y = 3.230639666399233)
+ (x = [0.4311501316862398, -0.5750688390435672, 0.7195278161313552, -3.1975090445247516, 0.41261517442040807, -2.9695165647319683, -4.2422687774369585, -0.843133011089816, -1.1420985383639781], y = 1.7455567036071646)
+ (x = [-0.12858977969204977, 0.4029523339727117, 0.76798112888994, -0.44626133497867554, 0.2313721749422572, -0.5622278128292483, -0.3077826243963561, -0.6659626391569127, -0.6009894187258702], y = -1.992829446954404)
+ (x = [0.06599352917849963, -0.6588846937321244, -0.9678422490250683, 0.33408549123011505, 0.3951553505763164, 1.0582237269033812, 1.7399344450364354, 0.3877402216278356, -1.2759621122595841], y = -0.5942070694862351)
+ ⋮
+ (x = [-2.2884249088966664, 0.7351211462267445, -1.0871110992436834, -1.4603277266917292, 1.7507616802121873, 1.201967784755579, 1.6072712619907024, 1.729305734088009, -2.648030742510429], y = 1.1154540952700678)
+ (x = [0.12472860098146737, -0.41525040060884094, 0.7367319877240496, -0.010993512828430321, -0.23019453300977533, -0.06308301529189357, -0.10843931444370969, -0.6058417690151167, 0.8357018954779508], y = -1.0617328917767)
+ (x = [0.12472860098146737, -0.41525040060884094, 0.7367319877240496, -0.010993512828430321, -0.23019453300977533, -0.06308301529189357, -0.10843931444370969, -0.6058417690151167, 0.8357018954779508], y = -1.0617328917767)
+ (x = [0.5024052562022598, 0.2839890848265218, 0.045777525617825346, 0.120214980235342, 0.39266821847220007, -0.06327010440437422, 0.12093281299970106, -0.3137342240213182, 0.20098752343403675], y = -2.251316562784476)
+ (x = [-7.917563175989181, -5.668450785025118, -1.774494155283356, -4.289540648673937, 3.8482713167621876, 1.8133953165314354, -2.606964101531235, 6.584752776746951, -0.6779077975247486], y = 3.2385776924901184)
+ (x = [2.6795685779931944, -1.081262967805773, -0.2124836654707157, 0.8509031760980976, -0.10989926710442166, -0.3433339934627941, -0.3471957097304487, 0.5348065013556812, -0.2483007334925142], y = 0.16594388415367534)
+ (x = [-0.3844484231662, 0.25984899694116526, -0.1603884237301794, 0.17864476612028032, -0.08296691114455071, -0.041406000461237984, 0.03851712007588257, -0.20310747596304699, 0.36654529181936724], y = -2.5888915282464318)
+ (x = [-0.5625485673857155, 1.116525844862485, -0.4974918173889109, 0.8810087589635947, -0.1281402815061365, -0.8208106823675047, 0.39763446919114065, -0.26580211326204883, 0.5226418296963191], y = -0.9915002714043704)
+ (x = [-0.17830910169420439, -0.1736856918360515, -0.137169664067437, -0.05041816493980455, 0.21626178858847048, -0.04782818099683066, 0.22182493385741942, -0.009880054951485848, 0.23335583784002234], y = -3.6219005620323266)</code></pre>
+</div>
+</div>
+<p>Another equivalent option is to use a submodel:</p>
+<div id="18" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">Neal</span>()</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    y_raw <span class="op">~</span> <span class="fu">Normal</span>(<span class="fl">0</span>, <span class="fl">1</span>)</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    x_raw <span class="op">~</span> <span class="fu">arraydist</span>([<span class="fu">Normal</span>(<span class="fl">0</span>, <span class="fl">1</span>) for i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">9</span>])</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (x_raw<span class="op">=</span>x_raw, y_raw<span class="op">=</span>y_raw)</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>chain <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">Neal</span>(), <span class="fu">NUTS</span>(), <span class="fl">1000</span>)</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">Neal_with_extras</span>()</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>    neal <span class="op">~</span> <span class="fu">to_submodel</span>(<span class="fu">Neal</span>(), <span class="cn">false</span>)</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> <span class="fl">3</span> <span class="op">*</span> neal.y_raw</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> <span class="fu">exp</span>.(y <span class="op">./</span> <span class="fl">2</span>) <span class="op">.*</span> neal.x_raw</span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (x<span class="op">=</span>x, y<span class="op">=</span>y)</span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a><span class="fu">returned</span>(<span class="fu">Neal_with_extras</span>(), chain)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">┌ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Found initial step size
+<span class="ansi-cyan-fg ansi-bold">└ </span>  ϵ = 3.2
+</pre>
+</div>
+</div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>1000×1 Matrix{@NamedTuple{x::Vector{Float64}, y::Float64}}:
+ (x = [0.05202847749135902, 0.0683438146344811, -0.04901367116168349, 0.047392872119787065, -0.02616670978588592, 0.01264152836651321, 0.006252610122582615, -0.03165532672005788, 0.03432563738167708], y = -5.504808244625933)
+ (x = [-17.23646731880084, 0.11030248160379942, -4.312193324809778, 6.459311226760696, -3.6987445093255773, -0.5473766883053777, 3.848360236010501, 5.285069601252971, 10.290046432844903], y = 3.922810291914122)
+ (x = [-0.04666157123838792, 0.04458731272469726, -0.010934321928090051, 0.07134027471587277, 0.08604720459781491, -0.04335229368062876, 0.03385254514830589, 0.10553821408469956, 0.036428195363811], y = -5.44094677969416)
+ (x = [0.1871443787994315, -0.4739261565300106, -0.3121925482398931, -1.1803185452476566, 0.16044768054407865, -0.8799414059375664, -1.4514924859905267, -0.4274994056373373, 1.021341822268246], y = -0.7470583156554182)
+ (x = [-0.5428804503142151, 0.978523940180578, 0.5267339342961057, 2.511889222429754, -0.3098087652673046, 1.582111166939204, 3.113363433838206, 1.1944764030535162, -1.8620855346132428], y = 0.7571677648009532)
+ (x = [0.5193803654357354, -0.3748867947675335, -0.16899693552808254, -1.0982913454479635, 0.00921287711612174, -0.21241599990238358, -1.2550845389455185, -0.31171105819126194, 0.6391843540342377], y = -0.7997743244228621)
+ (x = [-4.492460407418457, 1.920667845926247, -2.44321797178778, 0.11971630859356083, -4.00580676347265, 0.6855924758182338, 1.2724997166759269, 1.0128765483443172, -0.10171769339995097], y = 1.2255092276279278)
+ (x = [0.28132137053767736, -22.529629770645563, 22.76641453231977, -0.7792819078264218, 15.850984343229328, -5.251265475921955, -7.027414988021509, 14.188774535316858, -16.914319181902563], y = 4.69819705805131)
+ (x = [-0.030326691829848127, 0.1365243560052593, -0.1534974721190957, -0.00128011942380427, 0.04058225473018824, -0.04915784625506886, -0.0634351356013383, 0.08704989934983817, 0.1755274242514739], y = -4.500055178745354)
+ (x = [-0.030326691829848127, 0.1365243560052593, -0.1534974721190957, -0.00128011942380427, 0.04058225473018824, -0.04915784625506886, -0.0634351356013383, 0.08704989934983817, 0.1755274242514739], y = -4.500055178745354)
+ ⋮
+ (x = [0.12146843919536765, 0.1177397911340479, -0.10034614326977037, -0.09987484085267741, 0.5090248772131429, 0.3660929978051738, 0.29544087843841693, -0.13259454145617705, -0.1259382599083102], y = -2.6758145740890007)
+ (x = [0.035059412145781226, -0.4151026009316134, 0.057170298269181546, -0.22367828393735595, 0.213333105507029, -0.7182160587760699, -0.1628356830451665, 0.3405928049930902, -0.06627821091055168], y = -2.4707825164607327)
+ (x = [0.6065955039216163, -0.4424944064596372, -0.22399171131770299, -0.12760931076140408, -0.04925418984266114, -0.001875036809229272, -0.24788951715619081, 0.4810612208259843, 0.014427198952087767], y = -2.6150383968972237)
+ (x = [-6.6040237370655825, 5.174115487331277, 3.146890621401022, 1.7660621675743302, 2.2632297469395533, -1.7028590651263484, 2.945662569553405, -7.71007810773915, -1.958613035813672], y = 2.5872478167547466)
+ (x = [0.7149142554145378, -0.24132102603854053, -0.354333264945671, -0.14317287933958214, -0.11045383089128351, 0.059449371382309886, -0.18996595957518247, 0.4879235540093109, 0.21685206470156002], y = -2.5761483163822323)
+ (x = [-1.0954141568495237, -0.4617934308855332, -0.678650238508812, 0.2175749053301531, -0.2335919148860491, 0.14798054886346299, -0.15345721392410971, -0.3296001387602141, -1.075730851840981], y = -1.4701425224052138)
+ (x = [1.8953164896781418, 0.31054415252425943, -0.6821609354301823, 0.3453662406123886, 0.43053983443686306, 0.8893230707097434, 0.037867669073559436, 0.5048399564504928, -0.031133419433725017], y = -0.5260323103185867)
+ (x = [-3.1681424175185953, 6.306216724472836, -1.2412121175283801, 10.15493538615901, 3.2325315683534233, 1.8754754802960758, -0.35101418714056415, 3.2361881986362007, -3.230604853860704], y = 4.1513934073130105)
+ (x = [0.9048433640872702, 0.12233997997175078, -0.1519458144488402, 1.061779352602345, 0.10107099289123701, 0.4141175119066926, -1.6586022461244, 1.1767636044612932, -0.6931415055031158], y = -0.3663332345893955)</code></pre>
+</div>
+</div>
+<p>Note that for the <code>returned</code> call to work, the <code>Neal_with_extras()</code> model must have the same variable names as stored in <code>chain</code>. This means the submodel <code>Neal()</code> must not be prefixed, i.e.&nbsp;<code>to_submodel()</code> must be passed a second parameter <code>false</code>.</p>
+
+
+</section>
+
+<a onclick="window.scrollTo(0, 0); return false;" role="button" id="quarto-back-to-top"><i class="bi bi-arrow-up"></i> Back to top</a></main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/turinglang\.org\/docs");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../../usage/modifying-logprob/index.html" class="pagination-link" aria-label="Modifying the Log Probability">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Modifying the Log Probability</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../../usage/predictive-distributions/index.html" class="pagination-link" aria-label="Predictive Distributions">
+        <span class="nav-page-text">Predictive Distributions</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/TuringLang/docs/edit/main/usage/tracking-extra-quantities/index.qmd" target="_blank" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/TuringLang/docs/issues/new" target="_blank" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer><footer class="custom-footer">
+  <div class="footer-container">
+    <div class="footer-grid">
+      <div class="footer-links-wrapper">
+        <div class="footer-column footer-explore">
+          <h5>Explore</h5>
+          <a href="https://turinglang.org/docs/getting-started/">Get Started</a>
+          <a href="https://turinglang.org/docs/tutorials/">Tutorials</a>
+          <a href="https://turinglang.org/docs/faq/">FAQ</a>
+          <a href="https://turinglang.org/library/">Libraries</a>
+          <a href="https://turinglang.org/news/">News</a>
+          <a href="https://turinglang.org/team/">Team</a>
+        </div>
+
+        <div class="footer-column footer-connect">
+          <h5>Connect</h5>
+          <a href="https://github.com/TuringLang" target="_blank" rel="noopener"><i class="bi bi-github"></i> GitHub</a>
+          <a href="https://x.com/TuringLang" target="_blank" rel="noopener"><i class="bi bi-twitter-x"></i> Twitter</a>
+          <a href="https://julialang.slack.com/archives/CCYDC34A0" target="_blank" rel="noopener"><i class="bi bi-slack"></i> Slack</a>
+          <a href="https://discourse.julialang.org/c/domain/probprog/48" target="_blank" rel="noopener"><i class="bi bi-chat-dots"></i> Discourse</a>
+        </div>
+      </div>
+
+      <div class="footer-column footer-brands">
+        <h5>Supported by leading researchers</h5>
+        <p>Turing.jl is developed by researchers and engineers at the following research institutions.</p>
+        <div class="logo-grid">
+          <a href="https://mlg.eng.cam.ac.uk/" class="partner-logo" target="_blank" rel="noopener">
+            <img src="../../assets/images/brands/university-cambridge-logo-black-example-640x132.png" alt="University of Cambridge Logo" class="brands-light-mode-logo">
+            <img src="../../assets/images/brands/university-cambridge-logo-white-example-640x133.png" alt="University of Cambridge Logo Dark" class="brands-dark-mode-logo">
+          </a>
+          <a href="https://www.turing.ac.uk/" class="partner-logo" target="_blank" rel="noopener">
+            <img src="../../assets/images/brands/Turing_Logo_1000x400px_Black.webp" alt="The Alan Turing Institute Logo" class="brands-light-mode-logo">
+            <img src="../../assets/images/brands/Turing_Logo_1000x400px_White.webp" alt="The Alan Turing Institute Logo Dark" class="brands-dark-mode-logo">
+          </a>
+        </div>
+      </div>
+
+    </div>
+    <div class="footer-bottom">
+      <p>Turing.jl was created by <a href="https://mlg.eng.cam.ac.uk/hong/" target="_blank" rel="noopener">Hong Ge</a>, and maintained by the core <a href="https://turinglang.org/team/" target="_blank" rel="noopener">team</a> of developers and <a href="https://github.com/TuringLang/Turing.jl/graphs/contributors" target="_blank" rel="noopener">contributors</a>.<br>© 2025 The Turing Project Contributors. <a href="https://github.com/TuringLang/Turing.jl/blob/main/LICENCE" target="_blank" rel="noopener">MIT License</a>.</p>
+      <a href="https://github.com/TuringLang/docs/" target="_blank" rel="noopener" class="footer-source-link"><i class="bi bi-github"></i> Website Source</a>
+    </div>
+  </div>
+</footer>
+
+
+
+
+<script src="../../site_libs/quarto-html/zenscroll-min.js"></script>
+</body></html>

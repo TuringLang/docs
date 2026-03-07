@@ -57,7 +57,7 @@ using RDatasets
 
 using LinearAlgebra
 
-# Import the "Default" dataset.
+# Import the "mtcars" dataset.
 data = RDatasets.dataset("datasets", "mtcars");
 
 # Show the first six rows of the dataset.
@@ -137,11 +137,9 @@ test = Matrix(test_cut[:, remove_names]);
     mu = intercept .+ x * coefficients
     return y ~ MvNormal(mu, σ² * I)
 end;
-```
 
-```{julia}
 n_obs, n_vars = size(train)
-m = linear_regression(train, train_label, n_obs, n_vars);
+m = linear_regression(train, train_label, n_obs, n_vars)
 ```
 
 ## Basic Usage
@@ -150,7 +148,7 @@ For instance, the most commonly used family is the mean-field Gaussian family.
 For this, Turing provides functions that automatically construct the initialisation corresponding to the model `m`:
 
 ```{julia}
-q_init = q_meanfield_gaussian(m);
+q_init = q_meanfield_gaussian(m)
 ```
 
 `vi` will automatically recognise the variational family through the type of `q_init`.
@@ -159,6 +157,7 @@ Here is a detailed documentation for the constructor:
 ```{julia}
 @doc(Variational.q_meanfield_gaussian)
 ```
+
 As we can see, the precise initialisation can be customized through the keyword arguments.
 
 Let's run VI with the default setting:
@@ -258,6 +257,7 @@ Plots.plot!(iters, elbo_mf, xlabel="Iterations", ylabel="ELBO", label="callback"
 We can see that the ELBO values are less noisy and progress more smoothly due to averaging.
 
 ## Using Different Optimisers
+
 The default optimiser we use is a proximal variant of DoWG[^KMJ2023].
 For Gaussian variational families, this works well as a default option.
 Sometimes, the step size of `AdvancedVI.DoWG` could be too large, resulting in unstable behaviour.
@@ -312,7 +312,7 @@ This term, however, traditionally comes from the fact that full-rank families us
 In contrast to the mean-field family, the full-rank family will often result in more computation per optimisation step and slower convergence, especially in high dimensions:
 
 ```{julia}
-q_fr, info_fr, _ = vi(m, q_init_fr, n_iters; show_progress=false, callback)
+q_fr, info_fr, state_fr = vi(m, q_init_fr, n_iters; show_progress=false, callback)
 
 Plots.plot(elbo_mf, xlabel="Iterations", ylabel="ELBO", label="Mean-Field", ylims=(-200, Inf))
 
@@ -346,35 +346,17 @@ Now, we can, for example, look at expectations:
 avg = vec(mean(z; dims=2))
 ```
 
-The vector has the same ordering as the parameters in the model, *e.g.* in this case `σ²` has index `1`, `intercept` has index `2` and `coefficients` has indices `3:12`. If  you forget or you might want to do something programmatically with the result, you can obtain the `sym → indices` mapping as follows:
+The vector has the same ordering as the parameters in the model: for example, in this case `σ²` will have index `1`, `intercept` has index `2` and `coefficients` has indices `3:12`.
 
-```{julia}
-using Bijectors: bijector
-
-_, sym2range = bijector(m, Val(true));
-sym2range
-```
-
-For example, we can check the sample distribution and mean value of `σ²`:
-
-```{julia}
-histogram(z[1, :])
-avg[union(sym2range[:σ²]...)]
-```
-
-```{julia}
-avg[union(sym2range[:intercept]...)]
-```
-
-```{julia}
-avg[union(sym2range[:coefficients]...)]
-```
+:::{.callout-warning}
+Note that the ordering of the parameters in the vector is an internal detail and is not guaranteed to be consistent across different versions of Turing, nor is it guaranteed to obey semantic versioning.
+:::
 
 For further convenience, we can wrap the samples into a `Chains` object to summarise the results.
 
 ```{julia}
-varinf = Turing.DynamicPPL.VarInfo(m)
-vns_and_values = Turing.DynamicPPL.varname_and_value_leaves(Turing.DynamicPPL.values_as(varinf, OrderedDict))
+vnt = rand(m)
+vns_and_values = Turing.DynamicPPL.varname_and_value_leaves(Dict(pairs(vnt)))
 varnames = map(first, vns_and_values)
 vi_chain = Chains(reshape(z', (size(z,2), size(z,1), 1)), varnames)
 ```

@@ -151,3 +151,40 @@ Small changes can have big performance impacts. Common culprits include:
 - Breaking assumptions that allowed compiler optimizations
 
 See our [Performance Tips]({{< meta usage-performance-tips >}}) and [Troubleshooting Guide]({{< meta usage-troubleshooting >}}) for debugging performance regressions.
+
+## How do I integrate state-space filters (SSMProblems / GeneralisedFilters) with Turing?
+
+State-space filtering algorithms such as those implemented in `SSMProblems.jl`
+and `GeneralisedFilters.jl` evaluate the marginal likelihood of the observations
+given model parameters.
+
+In this setup, the filtering algorithm marginalizes out the latent states of the 
+state-space model. Turing therefore only samples the model parameters while the 
+likelihood is computed externally by the filter.
+
+You can integrate this directly into a Turing model using the `@addlogprob!` macro:
+
+```julia
+using Turing
+
+# `run_filter` represents an external filtering algorithm from
+# SSMProblems.jl / GeneralisedFilters.jl that computes the
+# marginal log-likelihood of the observations.
+
+@model function ssm_model(data)
+    # prior over model parameters
+    θ ~ Normal(0, 1)
+
+    # compute marginal likelihood using the external filter
+    logZ = run_filter(data, θ)
+
+    # add likelihood contribution to the model
+    Turing.@addlogprob! logZ
+end
+```
+
+```julia-repl
+julia> model = ssm_model(data)
+
+julia> chain = sample(model, NUTS(), 1000)
+```

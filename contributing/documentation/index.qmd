@@ -2,7 +2,7 @@
 title: Documentation
 ---
 
-# Where is Turing's documentation?
+# Navigating Turing's documentation system
 
 Each of the packages in the Turing ecosystem (see [Libraries](/library)) has its own documentation, which is typically found in the `docs` folder of the corresponding package.
 For example, the source code for DynamicPPL's documentation can be found in [its repository](https://github.com/TuringLang/DynamicPPL.jl).
@@ -12,23 +12,64 @@ Anything that appears in `turinglang.org/docs` is built from the [`docs` reposit
 
 Other sections of the website (anything that isn't a package, or a tutorial) – for example, the list of libraries – is built from the [`turinglang.github.io` repository](https://github.com/TuringLang/turinglang.github.io).
 
-In general, we prefer documentation to be written on the `TuringLang/docs` repository.
+*In general, we prefer documentation for Turing users to be written on the `docs` repository.*
 This is because it is more easily discoverable for users via the search bar and sidebar.
+
 Documentation written on the individual package repositories can be found via the main site's search bar (due to a GitHub workflow that scrapes all the packages' contents and indexes them here), but once you navigate to a package's documentation, you cannot then use the sidebar to come back to the main documentation site.
+As such, we tend to only use package-specific documentation for developer notes and API docs.
 
-# Documenting unreleased features
+## Documenting unreleased features
 
-There are sometimes cases where it is not possible to add docs to the `TuringLang/docs` repository.
-In particular, because the `TuringLang/docs` repo builds from a released version of Turing and all its dependencies, new features in unreleased versions cannot be documented here.
+There are sometimes cases where it is not possible to add docs to the `docs` repository.
+In particular, because the `docs` repo builds from a released version of Turing and all its dependencies, new features in unreleased versions cannot be documented here.
 However, it's always better to document things as you go along rather than to wait for a release and then play catch-up!
-In such instances, we recommend first adding documentation to the relevant package's `docs` folder (using Documenter.jl as usual), and later copying it over to the main `TuringLang/docs` repository (adjusting for the Quarto format) once the new version is released.
-Note that because the `TuringLang/docs` repository is tied to a specific version of Turing.jl, if you have updated the documentation for a new dependency of Turing (e.g. DynamicPPL or Bijectors), you also need to ensure that there is a version of Turing.jl that is compatible with that new version.
 
-# Environments
+In such instances, we recommend first adding documentation to the relevant package's internal documentation (using Documenter.jl as usual), and later copying it over to the main `docs` repository (adjusting for the Quarto format) once the new version is released.
+Note that because the `docs` repository is tied to a specific version of Turing.jl, if you have updated the documentation for a new dependency of Turing (e.g. DynamicPPL or Bijectors), you also need to ensure that there is a version of Turing.jl that is compatible with that new version.
 
-The `TuringLang/docs` repository is built from a single Manifest file, which contains a pinned version of Turing.jl.
+# How to contribute to the docs repo
+
+## Local development
+
+The `TuringLang/docs` repository uses Quarto.
+You can add a new page by creating a new `.qmd` file and including its filepath in the top-level `_quarto.yml` file, which defines the structure of the website.
+Generally, we prefer adding individual `index.qmd` files in new folders, as this leads to cleaner URLs.
+
+When you create a new page, you can test it locally by running `quarto render /path/to/mynewpage/index.qmd`, and then launching a HTTP server from the folder containing the rendered HTML file (for example, using `cd _site/path/to/mynewpage && python -m http.server`).
+
+Note that if you use `quarto preview`, this may take a very long time since Quarto will attempt to render the entire site!
+You can see the [repository README](https://github.com/TuringLang/docs) for some information on how to get around this using the `_freeze` folder.
+
+## The docs environment
+
+The `docs` repository is built from a single Manifest file, which contains a pinned version of Turing.jl.
 All notebooks are run with the same environment, which ensures consistency across the documentation site.
 
 In general, you should **not** add new packages to this environment which **depend** on Turing (i.e., reverse dependencies of Turing), or packages that have Turing extensions.
 The reason for this is because such packages will have compatibility bounds on Turing.
 Thus, we will be unable to update the docs to use the newest Turing version, until and unless those packages also update their compatibility bounds.
+
+Whenever a new version of Turing.jl is released, the Manifest file should ideally be updated (with a single `] up` in the Julia REPL), and the new docs published.
+This process is not yet automated, though, so sometimes the version of Turing may fall behind the latest release.
+Usually for minor versions we make sure to update the docs as soon as practicable, but less so for patch versions.
+
+## GitHub CI
+
+Each PR to the `docs` repository will trigger two GitHub Actions workflows:
+
+1. The workflow that builds the documentation. If this workflow fails, it's usually due to an error in the code, or some environment resolution issues.
+
+   :::{.callout-tip}
+   If you specifically want to demonstrate the *presence* of an error, you can add `#| error: true` to the top of the code block in question.
+   :::
+
+2. The workflow that checks that the version of Turing is the newest possible version.
+   If this workflow fails, it's because the Manifest file contains an older version of Turing.
+
+Note that the build-docs workflow utilises a lot of caching in order to speed up the build process (a full docs build can take 1.5 hours).
+However, this caching is dependent on the Manifest file not changing.
+Therefore, be aware that if you update the Manifest file, the next workflow run will require a full build!
+
+**If you are writing new docs that do not rely on a newer version of any dependency, it is often better to avoid updating the Manifest file, and instead just add the new docs.**
+In this case, it's fine to let the check-version CI workflow fail.
+You can add a Manifest update in a separate PR.

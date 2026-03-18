@@ -1,0 +1,72 @@
+---
+title: Code Formatting
+---
+
+The TuringLang ecosystem currently uses [JuliaFormatter.jl](https://github.com/domluna/JuliaFormatter.jl) to ensure consistent code style across the codebase.
+All code must be formatted before submitting a pull request, and ideally with every commit.
+
+# Basic usage
+
+We use v1 of JuliaFormatter (as of the time of writing, JuliaFormatter v2 is still somewhat unreliable).
+Make sure to install it in your *global* Julia environment (not the project environment, as adding it to the `Project.toml` would make it an invalid dependency of the project):
+
+```julia
+# Do not include `--project=...` here
+julia -e 'using Pkg; Pkg.add(name="JuliaFormatter", version="1"); Pkg.pin("JuliaFormatter")'
+```
+
+To format all Julia files in the current directory and subdirectories:
+
+```julia
+julia -e 'using JuliaFormatter; format(".")'
+```
+
+Run this command from the root of the repository before committing your changes.
+
+# Faster Formatting
+
+:::{.callout-note}
+This section is optional, but highly recommended if you are comfortable with Julia and are working on Turing codebases regularly.
+:::
+
+Running `julia -e ...`, especially on v1 of JuliaFormatter, can be very slow due to Julia's TTFX.
+To get around this, you can use [PackageCompiler.jl](https://julialang.github.io/PackageCompiler.jl/) to create a custom sysimage, which already includes cached compiled versions of JuliaFormatter's functions.
+In our experience, this has led to drastic improvements in formatting speed: for example, on DynamicPPL.jl it slashes the formatting time from around 6 seconds to 0.5 seconds.
+
+The easiest way to do so is to directly copy [the code in this GitHub Gist](https://gist.github.com/penelopeysm/9338c160eeb05437205535c2edcf80ee) into your shell configuration file (e.g. `~/.bash_profile`).
+You can of course modify this as you see fit.
+Once you have done this (and started a new shell session), you can simply use the `jf1` command to format your code, which will be *much* faster than the previous method.
+
+# Pre-commit hook
+
+We do not currently have [pre-commit hooks](https://pre-commit.com/) for code formatting, but you can include your own if you wish.
+
+To do so, add this to `.pre-commit-config.yaml` at the top level of the repository, and then run `pre-commit install` to set up the hook.
+
+```yaml
+repos:
+- repo: "https://github.com/domluna/JuliaFormatter.jl"
+  rev: "v1.0.62"
+  hooks:
+  - id: "julia-formatter"
+```
+
+:::{.callout-note}
+If you are intending to format on every commit, you will likely find that the basic `julia -e ...` method is intolerably slow!
+We therefore recommend using the PackageCompiler-enabled method for the pre-commit hook.
+:::
+
+If you are using the faster PackageCompiler-enabled method, use the following instead (adapt as necessary if you made any changes to the function):
+
+```yaml
+repos:
+- repo: local
+  hooks:
+  - id: format
+    name: format
+    language: system
+    entry: bash -c 'source ~/.bash_profile; jf1'
+```
+
+However, in either case, please make sure that you do not commit this file to the repository.
+To avoid accidentally doing so, you can add `.pre-commit-config.yaml` to `.git/info/exclude` (which is like a local `.gitignore` that is not part of source control).

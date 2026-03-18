@@ -1,0 +1,67 @@
+---
+title: Tests
+---
+
+# Running all tests
+
+For any Julia repository, you can run the whole suite by running `julia --project=.` from the root of the Turing repository, and then running
+
+```julia
+]test
+```
+
+or equivalently
+
+```julia
+import Pkg; Pkg.test()
+```
+
+# Running a subset of tests
+
+However, it is not always desirable to run the entire test suite: Turing.jl's test suite takes around an hour.
+It would be far better to run only a subset of tests when working on a specific feature.
+
+The Julia community has come up with *many* different ways of running subsets of tests.
+Perhaps unsurprisingly, the story of testing on TuringLang repositories is slightly complicated: different repositories have the test suites set up differently.
+
+**In general**, we would like to move towards a world where all repositories have test files that can be run individually using [TestPicker.jl](https://github.com/theogf/TestPicker.jl).
+We have found that this is one of the most convenient ways to run a subset of tests.
+In order for a test file to be compatible with TestPicker, it must be self-contained (and ideally, a module).
+In particular, it should not depend on functions that were `include`d in a different file.
+For example, if `test/runtests.jl` includes `test/utils.jl`, and `test/myfeature.jl` relies on something inside `test/utils.jl`, then `test/myfeature.jl` cannot be run on its own.
+
+Any help in refactoring test suites in this way is very welcome!
+
+## Turing.jl
+
+For the main Turing.jl repository, we can't use TestPicker.jl (yet).
+You can, however, run specific test files using the `test_args` keyword argument of `Pkg.test()`.
+
+```julia
+import Pkg; Pkg.test("Turing"; test_args=["optim", "hmc", "--skip", "ext"])
+```
+
+The above command would run all files with "optim" or "hmc" in their path, such as `test/optimisation/Optimisation.jl`, but not files with "ext" in their path.
+Alternatively, you can set these arguments as command line arguments when you run Julia:
+
+```julia
+julia --project=. -e 'import Pkg; Pkg.test(; test_args=ARGS)' -- optim hmc --skip ext
+```
+
+(or equivalently, set the global `ARGS` variable, and call `include("test/runtests.jl")`.)
+
+## DynamicPPL.jl
+
+DynamicPPL has been completely set up to work with TestPicker.
+Consequently, you can run any test file on its own by:
+
+1. Installing TestPicker in your global environment;
+2. From the Julia REPL, pressing `!` to enter the selection mode, typing in a (partial) filename, and running it when prompted.
+
+If you are modifying another package to be compatible with TestPicker, you can follow the style of the test files in DynamicPPL as a guide.
+
+## Other repositories
+
+Other repositories in the Turing ecosystem are in various stages of being set up to work with TestPicker; you will have to check this by yourself.
+
+In a pinch, to run only a subset of files, you can comment out the `include` statements in `test/runtests.jl` that correspond to files you don't want to run, and then run the whole test suite as normal.

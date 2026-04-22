@@ -248,15 +248,16 @@ The `NamedTuple` returned by `callback` will be appended to the corresponding en
 The custom callback can be supplied to `vi` as a keyword argument:
 
 ```{julia}
-result_with_callback = vi(m, q_meanfield_gaussian, n_iters; show_progress=false, callback=callback);
+result_mf = vi(m, q_meanfield_gaussian, n_iters; show_progress=false, callback=callback);
 ```
 
 Let's plot the result:
 
 ```{julia}
+info_mf = result_mf.info
 iters = 1:10:length(info_mf)
 elbo_mf = [i.elbo_avg for i in info_mf[iters]]
-Plots.plot([i.elbo for i in info], xlabel="Iterations", ylabel="ELBO", label="info", linewidth=0.4)
+Plots.plot([i.elbo for i in info_mf], xlabel="Iterations", ylabel="ELBO", label="info", linewidth=0.4)
 Plots.plot!(iters, elbo_mf, xlabel="Iterations", ylabel="ELBO", label="callback", ylims=(-200,Inf), linewidth=2)
 ```
 
@@ -278,8 +279,8 @@ Since `AdvancedVI` does not implement a proximal operator for `Optimisers.Adam`,
 ```{julia}
 using Optimisers
 
-_, info_adam, _ = vi(
-    m, q_init, n_iters;
+result = vi(
+    m, q_meanfield_gaussian, n_iters;
     show_progress=false,
     callback=callback,
     algorithm=KLMinRepGradDescent(AutoForwardDiff(); optimizer=Optimisers.Adam(3e-3), operator=ClipScale())
@@ -287,7 +288,8 @@ _, info_adam, _ = vi(
 ```
 
 ```{julia}
-iters = 1:10:length(info_mf)
+info_adam = result.info
+iters = 1:10:length(info_adam)
 elbo_adam = [i.elbo_avg for i in info_adam[iters]]
 Plots.plot(iters, elbo_mf, xlabel="Iterations", ylabel="ELBO", label="DoWG")
 Plots.plot!(iters, elbo_adam, xlabel="Iterations", ylabel="ELBO", label="Adam")
@@ -305,10 +307,6 @@ This, however, approximates the posterior covariance with a diagonal matrix.
 To model the full covariance matrix, we can use the *full-rank* Gaussian family[^TL2014][^KTRGB2017]:
 
 ```{julia}
-q_init_fr = q_fullrank_gaussian(m);
-```
-
-```{julia}
 @doc(Variational.q_fullrank_gaussian)
 ```
 
@@ -318,11 +316,11 @@ This term, however, traditionally comes from the fact that full-rank families us
 In contrast to the mean-field family, the full-rank family will often result in more computation per optimisation step and slower convergence, especially in high dimensions:
 
 ```{julia}
-q_fr, info_fr, state_fr = vi(m, q_init_fr, n_iters; show_progress=false, callback)
+result_fr = vi(m, q_fullrank_gaussian, n_iters; show_progress=false, callback)
 
 Plots.plot(elbo_mf, xlabel="Iterations", ylabel="ELBO", label="Mean-Field", ylims=(-200, Inf))
 
-elbo_fr = [i.elbo_avg for i in info_fr[iters]]
+elbo_fr = [i.elbo_avg for i in result_fr.info[iters]]
 Plots.plot!(elbo_fr, xlabel="Iterations", ylabel="ELBO", label="Full-Rank", ylims=(-200, Inf))
 ```
 
@@ -331,45 +329,39 @@ Due to the relationship between the ELBO and the Kullback–Leibler divergence, 
 This trade-off between statistical accuracy and optimisation speed is often referred to as the *statistical-computational trade-off*.
 The fact that we can control this trade-off through the choice of variational family is a strength, rather than a limitation, of variational inference.
 
-We can also visualise the covariance matrix.
-
-```{julia}
-heatmap(cov(rand(q_fr, 100_000), dims=2))
-```
-
 ## Obtaining Summary Statistics
 
 Let's inspect the resulting variational approximation in more detail and compare it against MCMC.
-To obtain summary statistics from VI, we can draw samples from the resulting variational approximation:
+To obtain summary statistics from VI, we can draw samples from the resulting variational approximation by calling `rand` on the `VIResult`.
+Note that even though VI is often performed in transformed space, `rand(result)` will return samples in the original space of the parameters.
 
 ```{julia}
-z = rand(q_fr, 100_000);
+rand(result_fr)
+```
+
+:::{.callout-note}
+## Samples in transformed space
+
+If you want to obtain samples in transformed space, you can access `result_fr.ldf` to obtain the `LogDensityFunction` used for inference.
+Calling `rand(result_fr.ldf)` will return a vector of samples in the transformed space.
+However, note that these vectors are harder to interpret and work with.
+:::
+
+Each sample is a [`DynamicPPL.VarNamedTuple`]({{< meta usage-varnamedtuple >}}), and a matrix of these can be converted into a `Chains` object.
+
+```{julia}
+z = rand(result_fr, 100_000, 1)
+using AbstractMCMC: AbstractMCMC
+vi_chain = AbstractMCMC.from_samples(MCMCChains.Chains, z)
 ```
 
 Now, we can, for example, look at expectations:
 
 ```{julia}
-avg = vec(mean(z; dims=2))
-```
-
-The vector has the same ordering as the parameters in the model: for example, in this case `σ²` will have index `1`, `intercept` has index `2` and `coefficients` has indices `3:12`.
-
-:::{.callout-warning}
-Note that the ordering of the parameters in the vector is an internal detail and is not guaranteed to be consistent across different versions of Turing, nor is it guaranteed to obey semantic versioning.
-:::
-
-For further convenience, we can wrap the samples into a `Chains` object to summarise the results.
-
-```{julia}
-vnt = rand(m)
-vns_and_values = Turing.DynamicPPL.varname_and_value_leaves(OrderedDict(pairs(vnt)))
-varnames = map(first, vns_and_values)
-vi_chain = Chains(reshape(z', (size(z,2), size(z,1), 1)), varnames)
 describe(vi_chain)
 ```
 
 (Since we're drawing independent samples, we can simply ignore the ESS and Rhat metrics.)
-Unfortunately, extracting `varnames` is a bit verbose at the moment, but hopefully will become simpler in the near future. 
 
 Let's compare this against samples from `NUTS`:
 
@@ -426,11 +418,8 @@ first(test_cut, 6)
 
 ```{julia}
 # Construct the Chains from the Variational Approximations
-z_mf = rand(q_mf, 10_000);
-z_fr = rand(q_fr, 10_000);
-
-vi_mf_chain = Chains(reshape(z_mf', (size(z_mf,2), size(z_mf,1), 1)), varnames);
-vi_fr_chain = Chains(reshape(z_fr', (size(z_fr,2), size(z_fr,1), 1)), varnames);
+vi_mf_chain = AbstractMCMC.from_samples(MCMCChains.Chains, rand(result_mf, 10_000, 1))
+vi_fr_chain = AbstractMCMC.from_samples(MCMCChains.Chains, rand(result_fr, 10_000, 1))
 ```
 
 ```{julia}

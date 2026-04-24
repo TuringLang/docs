@@ -119,8 +119,10 @@ There are several options; all the `InitFrom...` structs are re-exported by Turi
 
 - `InitFromPrior()`: generate initial parameters by sampling from the prior
 - `InitFromUniform(lower, upper)`: generate initial parameters by sampling uniformly from the given bounds in linked space
-- `InitFromParams(namedtuple_or_dict)`: use the provided initial parameters, supplied either as a `NamedTuple` or a `Dict{<:VarName}`
-- `InitFromParams(mode_estimate)`: use the parameters in the optimisation result obtained via `maximum_a_posteriori` or `maximum_likelihood`
+- `InitFromParams(vnt)`: use the provided initial parameters, supplied as a [`VarNamedTuple`]({{< meta usage-varnamedtuple >}}). `NamedTuple` and `Dict{VarName}` input is also supported.
+
+There are also a number of other overloads for `InitFromParams`, such as `InitFromParams(mode_estimate)`, which lets you use the parameters in the optimisation result obtained via `maximum_a_posteriori` or `maximum_likelihood`.
+Please see the docstrings for `InitFromParams` for more details (use `?InitFromParams` in the REPL).
 
 If `initial_params` is unspecified, each sampler will use its own default initialisation strategy: for most samplers this is `InitFromPrior` but for Hamiltonian samplers it is `InitFromUniform(-2, 2)` (which mimics the behaviour of Stan).
 
@@ -269,7 +271,6 @@ This catches a number of potential errors in a model, such as having repeated va
 
 If you wish to disable this you can pass `check_model=false` to `sample()`.
 
-
 ## Callbacks
 
 The `callback` keyword argument can be used to specify a function that is called at the end of each sampler iteration.
@@ -278,6 +279,29 @@ This function should have the signature `callback(rng, model, sampler, sample, i
 If you are performing multi-chain sampling, `kwargs` will additionally contain `chain_number::Int`, which ranges from 1 to the number of chains.
 
 The [TuringCallbacks.jl package](https://github.com/TuringLang/TuringCallbacks.jl) contains a `TensorBoardCallback`, which can be used to obtain live progress visualisations using [TensorBoard](https://www.tensorflow.org/tensorboard).
+
+## Fixed transforms
+
+Many of Turing's inference algorithms require the use of transformed variables to ensure that they are unconstrained.
+
+By default, these transforms are determined dynamically each time the model is run.
+The reason for this is because the transforms depend on the support of the distributions used, and this can in turn depend on the values of the parameters.
+For example, `y` here has a transform that depends on `x`:
+
+```{julia}
+@model function demo_transform()
+    x ~ Exponential()
+    y ~ Uniform(0, x)
+end
+```
+
+However, if you are certain that your model's variables always have a fixed support, you can pass the `fix_transforms=true` keyword argument to `sample()`.
+This precomputes the transforms once at the start of sampling and reuses them for the rest of the sampling process.
+
+Note however that while this sounds attractive from a performance perspective, it does not always lead to any noticeable difference!
+For many distributions, the computation of the transform is often extremely fast and is comparable to looking up the stored transform.
+
+Please see [the DynamicPPL documentation on fixed transforms](https://turinglang.org/DynamicPPL.jl/stable/fixed_transforms) for more information.
 
 ## Automatic differentiation
 

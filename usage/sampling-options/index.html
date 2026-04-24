@@ -504,6 +504,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../../usage/vectorisation/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Vectorisation of Turing models</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../../usage/external-samplers/index.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Using External Samplers</span></a>
   </div>
@@ -785,6 +791,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#thinning-and-warmup" id="toc-thinning-and-warmup" class="nav-link" data-scroll-target="#thinning-and-warmup">Thinning and warmup</a></li>
   <li><a href="#performing-model-checks" id="toc-performing-model-checks" class="nav-link" data-scroll-target="#performing-model-checks">Performing model checks</a></li>
   <li><a href="#callbacks" id="toc-callbacks" class="nav-link" data-scroll-target="#callbacks">Callbacks</a></li>
+  <li><a href="#fixed-transforms" id="toc-fixed-transforms" class="nav-link" data-scroll-target="#fixed-transforms">Fixed transforms</a></li>
   <li><a href="#automatic-differentiation" id="toc-automatic-differentiation" class="nav-link" data-scroll-target="#automatic-differentiation">Automatic differentiation</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/TuringLang/docs/edit/main/usage/sampling-options/index.qmd" target="_blank" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/TuringLang/docs/issues/new" target="_blank" class="toc-action"><i class="bi empty"></i>Report an issue</a></li><li><a href="index.ipynb" target="_blank" class="toc-action" download="sampling-options.ipynb"><i class="bi bi-journal-code"></i>Download notebook</a></li><li><a href="https://colab.research.google.com/github/TuringLang/docs/blob/gh-pages/versions/v0.44.2/usage/sampling-options/index.ipynb" target="_blank" class="toc-action"><i class="bi bi-google"></i>Open in Colab</a></li></ul></div></nav>
@@ -932,9 +939,9 @@ Note
 <ul>
 <li><code>InitFromPrior()</code>: generate initial parameters by sampling from the prior</li>
 <li><code>InitFromUniform(lower, upper)</code>: generate initial parameters by sampling uniformly from the given bounds in linked space</li>
-<li><code>InitFromParams(namedtuple_or_dict)</code>: use the provided initial parameters, supplied either as a <code>NamedTuple</code> or a <code>Dict{&lt;:VarName}</code></li>
-<li><code>InitFromParams(mode_estimate)</code>: use the parameters in the optimisation result obtained via <code>maximum_a_posteriori</code> or <code>maximum_likelihood</code></li>
+<li><code>InitFromParams(vnt)</code>: use the provided initial parameters, supplied as a <a href="../../usage/varnamedtuple"><code>VarNamedTuple</code></a>. <code>NamedTuple</code> and <code>Dict{VarName}</code> input is also supported.</li>
 </ul>
+<p>There are also a number of other overloads for <code>InitFromParams</code>, such as <code>InitFromParams(mode_estimate)</code>, which lets you use the parameters in the optimisation result obtained via <code>maximum_a_posteriori</code> or <code>maximum_likelihood</code>. Please see the docstrings for <code>InitFromParams</code> for more details (use <code>?InitFromParams</code> in the REPL).</p>
 <p>If <code>initial_params</code> is unspecified, each sampler will use its own default initialisation strategy: for most samplers this is <code>InitFromPrior</code> but for Hamiltonian samplers it is <code>InitFromUniform(-2, 2)</code> (which mimics the behaviour of Stan).</p>
 <div id="16" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>chn <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), <span class="fu">MH</span>(), <span class="fl">5</span>; initial_params<span class="op">=</span><span class="fu">InitFromParams</span>((x <span class="op">=</span> <span class="fl">1.0</span>, y <span class="op">=</span> <span class="op">-</span><span class="fl">5.0</span>)))</span>
@@ -1022,8 +1029,8 @@ Note
 Iterations        = 1:1:5
 Number of chains  = 1
 Samples per chain = 5
-Wall duration     = 0.06 seconds
-Compute duration  = 0.06 seconds
+Wall duration     = 0.08 seconds
+Compute duration  = 0.08 seconds
 parameters        = x, y
 internals         = accepted, logprior, loglikelihood, logjoint
 
@@ -1061,7 +1068,7 @@ Use `describe(chains)` for summary statistics and quantiles.</code></pre>
 Iterations        = 1:1:5
 Number of chains  = 3
 Samples per chain = 5
-Wall duration     = 0.04 seconds
+Wall duration     = 0.05 seconds
 Compute duration  = 0.02 seconds
 parameters        = x, y
 internals         = accepted, logprior, loglikelihood, logjoint
@@ -1163,13 +1170,30 @@ Use `describe(chains)` for summary statistics and quantiles.</code></pre>
 <p>If you are performing multi-chain sampling, <code>kwargs</code> will additionally contain <code>chain_number::Int</code>, which ranges from 1 to the number of chains.</p>
 <p>The <a href="https://github.com/TuringLang/TuringCallbacks.jl">TuringCallbacks.jl package</a> contains a <code>TensorBoardCallback</code>, which can be used to obtain live progress visualisations using <a href="https://www.tensorflow.org/tensorboard">TensorBoard</a>.</p>
 </section>
+<section id="fixed-transforms" class="level2">
+<h2 class="anchored" data-anchor-id="fixed-transforms">Fixed transforms</h2>
+<p>Many of Turing’s inference algorithms require the use of transformed variables to ensure that they are unconstrained.</p>
+<p>By default, these transforms are determined dynamically each time the model is run. The reason for this is because the transforms depend on the support of the distributions used, and this can in turn depend on the values of the parameters. For example, <code>y</code> here has a transform that depends on <code>x</code>:</p>
+<div id="34" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">demo_transform</span>()</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>    x <span class="op">~</span> <span class="fu">Exponential</span>()</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>    y <span class="op">~</span> <span class="fu">Uniform</span>(<span class="fl">0</span>, x)</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>demo_transform (generic function with 2 methods)</code></pre>
+</div>
+</div>
+<p>However, if you are certain that your model’s variables always have a fixed support, you can pass the <code>fix_transforms=true</code> keyword argument to <code>sample()</code>. This precomputes the transforms once at the start of sampling and reuses them for the rest of the sampling process.</p>
+<p>Note however that while this sounds attractive from a performance perspective, it does not always lead to any noticeable difference! For many distributions, the computation of the transform is often extremely fast and is comparable to looking up the stored transform.</p>
+<p>Please see <a href="https://turinglang.org/DynamicPPL.jl/stable/fixed_transforms">the DynamicPPL documentation on fixed transforms</a> for more information.</p>
+</section>
 <section id="automatic-differentiation" class="level2">
 <h2 class="anchored" data-anchor-id="automatic-differentiation">Automatic differentiation</h2>
 <p>Finally, please note that for samplers which use automatic differentiation (e.g., HMC and NUTS), the AD type should be specified in the sampler constructor itself, rather than as a keyword argument to <code>sample()</code>.</p>
 <p>In other words, this is correct:</p>
-<div id="34" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>spl <span class="op">=</span> <span class="fu">NUTS</span>(; adtype<span class="op">=</span><span class="fu">AutoForwardDiff</span>())</span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>chn <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), spl, <span class="fl">10</span>);</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="36" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>spl <span class="op">=</span> <span class="fu">NUTS</span>(; adtype<span class="op">=</span><span class="fu">AutoForwardDiff</span>())</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>chn <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), spl, <span class="fl">10</span>);</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <div class="ansi-escaped-output">
 <pre><span class="ansi-cyan-fg ansi-bold">┌ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Found initial step size
@@ -1179,8 +1203,8 @@ Use `describe(chains)` for summary statistics and quantiles.</code></pre>
 </div>
 </div>
 <p>and not this:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>spl <span class="op">=</span> <span class="fu">NUTS</span>()</span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>chn <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), spl, <span class="fl">10</span>; adtype<span class="op">=</span><span class="fu">AutoForwardDiff</span>())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>spl <span class="op">=</span> <span class="fu">NUTS</span>()</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>chn <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">demo_model</span>(), spl, <span class="fl">10</span>; adtype<span class="op">=</span><span class="fu">AutoForwardDiff</span>())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
 </section>

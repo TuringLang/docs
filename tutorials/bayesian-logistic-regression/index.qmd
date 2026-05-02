@@ -158,8 +158,8 @@ For more information, see [the Turing documentation on sampling multiple chains]
 #| echo: false
 let
     mean_params = mean(chain)
-    @assert mean_params[:student, :mean] < 0.1
-    @assert mean_params[:balance, :mean] > 1
+    @assert mean_params[@varname(student)] < 0.1
+    @assert mean_params[@varname(balance)] > 1
 end
 ```
 
@@ -171,30 +171,17 @@ plot(chain)
 
 ```{julia}
 #| echo: false
+using FlexiChains
 let
-    mean_params = mapreduce(hcat, mean(chain; append_chains=false)) do df
-        return df[:, :mean]
-    end
-    for i in (2, 3)
-        @assert mean_params[:, i] != mean_params[:, 1]
-        @assert isapprox(mean_params[:, i], mean_params[:, 1]; rtol=5e-2)
+    mean_per_chain = mean(chain; dims=:iter)
+    for parameter in FlexiChains.parameters(mean_per_chain)
+        @assert isapprox(mean_per_chain[parameter, chain=2], mean_per_chain[parameter, chain=1]; rtol=0.1)
+        @assert isapprox(mean_per_chain[parameter, chain=3], mean_per_chain[parameter, chain=1]; rtol=0.1)
     end
 end
 ```
 
-Looks good!
-
-We can also use the `corner` function from StatsPlots to show the distributions of the various parameters of our logistic regression.
-
-```{julia}
-# The labels to use.
-l = [:student, :balance, :income]
-
-# Use the corner function. Requires StatsPlots and MCMCChains.
-corner(chain, l)
-```
-
-Fortunately the corner plot appears to demonstrate unimodal distributions for each of our parameters, so it should be straightforward to take the means of each parameter's sampled values to estimate our model to make predictions.
+Fortunately the plot appears to demonstrate unimodal distributions for each of our parameters, so it should be straightforward to take the means of each parameter's sampled values to estimate our model to make predictions.
 
 ## Making Predictions
 

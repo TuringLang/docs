@@ -85,7 +85,7 @@ If you require absolute reproducibility, you should use [the StableRNGs.jl packa
 
 ## Switching the output type
 
-By default, the results of MCMC sampling are bundled up in an `MCMCChains.Chains` object.
+By default, the results of MCMC sampling are bundled up in an `FlexiChains.VNChain` object.
 
 ```{julia}
 chn = sample(demo_model(), HMC(0.1, 20), 5)
@@ -128,11 +128,11 @@ If `initial_params` is unspecified, each sampler will use its own default initia
 
 ```{julia}
 chn = sample(demo_model(), MH(), 5; initial_params=InitFromParams((x = 1.0, y = -5.0)))
-chn[:x][1], chn[:y][1]
+chn[@varname(x), iter=1, chain=1], chn[@varname(y), iter=1, chain=1]
 ```
 
 ::: {.callout-note}
-Note that a number of samplers use warm-up steps by default (see the [Thinning and Warmup section below](#thinning-and-warmup)), so `chn[:param][1]` may not correspond to the exact initial parameters you provided.
+Note that a number of samplers use warm-up steps by default (see the [Thinning and Warmup section below](#thinning-and-warmup)), so `chn[@varname(param), iter=1, chain=1]` may not correspond to the exact initial parameters you provided.
 `MH()` does not do this, which is why we use it here.
 :::
 
@@ -155,7 +155,7 @@ If you want to use the same initial parameters for all chains, you can use `fill
 ```{julia}
 initial_params = fill(InitFromParams((x=1.0, y=-5.0)), 3)
 chn = sample(demo_model(), MH(), MCMCThreads(), 5, 3; initial_params=initial_params)
-chn[:x][1,:], chn[:y][1,:]
+chn[@varname(x), iter=1], chn[@varname(y), iter=1]
 ```
 
 In Turing v0.41, initialisation with a raw `NamedTuple` is still supported (it will simply be wrapped in `InitFromParams()`); but we expect to remove this eventually, so it will likely be more future-proof to wrap this in `InitFromParams()` yourself.
@@ -174,7 +174,7 @@ rng = Xoshiro(468)
 chn1 = sample(rng, demo_model(), MH(), 5; save_state=true);
 ```
 
-For `MCMCChains.Chains`, this results in the final sampler state being stored inside the chain metadata.
+For `FlexiChains.VNChain`, this results in the final sampler state being stored inside the chain metadata.
 You can access it using `Turing.loadstate`:
 
 ```{julia}
@@ -183,18 +183,15 @@ typeof(saved_state)
 ```
 
 ::: {.callout-note}
-You can also directly access the saved sampler state with `chn1.info.samplerstate`, but we recommend _not_ using this as it relies on the internal structure of `MCMCChains.Chains`.
+You can also directly access the saved sampler state with `FlexiChains.last_sampler_state(chn1)`, which is equivalent.
 :::
 
 Sampling can then be resumed from this state by providing it as the `initial_state` keyword argument.
+Note that `loadstate` always returns a vector of states, even for single-chain sampling, so before passing it to `sample` you should extract the single state inside it:
 
 ```{julia}
-chn2 = sample(demo_model(), MH(), 5; initial_state=saved_state)
+chn2 = sample(demo_model(), MH(), 5; initial_state=only(saved_state))
 ```
-
-Note that the exact format saved in `chn.info.samplerstate`, and that expected by `initial_state`, depends on the invocation of `sample` used.
-For single-chain sampling, the saved state, and the required initial state, is just a single sampler state.
-For multiple-chain sampling, it is a vector of states, one per chain.
 
 ::: {.callout-warning}
 ## `resume_from`
@@ -203,10 +200,11 @@ The `resume_from` argument has been removed in Turing v0.41; please use `initial
 In v0.41, `loadstate` is also exported from Turing rather than DynamicPPL.
 :::
 
+For multiple-chain sampling, `sample()` expects a vector of states, one per chain.
 This means that, for example, after sampling a single chain, you could sample three chains that branch off from that final state:
 
 ```{julia}
-initial_states = fill(saved_state, 3)
+initial_states = fill(only(saved_state), 3)
 chn3 = sample(demo_model(), MH(), MCMCThreads(), 5, 3; initial_state=initial_states)
 ```
 
@@ -220,7 +218,7 @@ If both are provided, `initial_params` will be silently ignored.
 chn2 = sample(rng, demo_model(), MH(), 5;
     initial_state=saved_state, initial_params=InitFromParams((x=0.0, y=0.0))
 )
-chn2[:x][1], chn2[:y][1]
+chn2[@varname(x)][1], chn2[@varname(y)][1]
 ```
 
 In general, the saved state will contain a set of parameters (which will be the last parameters in the previous chain).
@@ -232,7 +230,8 @@ Finally, note that the first sample in the resumed chain will not be the same as
 ```{julia}
 # In general these will not be the same (although it _could_ be if the MH step
 # was rejected -- that is why we seed the sampling in this section).
-chn1[:x][end], chn2[:x][1]
+
+chn1[@varname(x)][end], chn1[@varname(y)][end]
 ```
 :::
 

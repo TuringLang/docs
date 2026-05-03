@@ -156,10 +156,11 @@ It looks like all parameters have converged.
 ```{julia}
 #| echo: false
 let
-    ess_df = ess(chain)
-    @assert minimum(ess_df[:, :ess]) > 500 "Minimum ESS: $(minimum(ess_df[:, :ess])) - not > 500"
-    @assert mean(ess_df[:, :ess]) > 2_000 "Mean ESS: $(mean(ess_df[:, :ess])) - not > 2000"
-    @assert maximum(ess_df[:, :ess]) > 3_500 "Maximum ESS: $(maximum(ess_df[:, :ess])) - not > 3500"
+    using MCMCDiagnosticTools: ess
+    ess_arr = Array(ess(chain))
+    @assert minimum(ess_arr) > 500 "Minimum ESS: $(minimum(ess_arr)) - not > 500"
+    @assert mean(ess_arr) > 2_000 "Mean ESS: $(mean(ess_arr)) - not > 2000"
+    @assert maximum(ess_arr) > 3_500 "Maximum ESS: $(maximum(ess_arr)) - not > 3500"
 end
 ```
 
@@ -189,9 +190,13 @@ The function below accepts a chain and an input matrix and calculates prediction
 
 ```{julia}
 # Make a prediction given an input vector.
+import FlexiChains
+
 function prediction(chain, x)
-    p = get_params(chain[200:end, :, :])
-    targets = p.intercept' .+ x * reduce(hcat, p.coefficients)'
+    Niters = FlexiChains.niters(chain)
+    intercept = chain[@varname(intercept), iter=200:Niters, chain=1]
+    coefficients = chain[@varname(coefficients), iter=200:Niters, chain=1, stack=true]
+    targets = intercept' .+ x * coefficients'
     return vec(mean(targets; dims=2))
 end
 ```

@@ -139,22 +139,20 @@ The code below generates an animation showing the graph of the data above, and t
 
 ```{julia}
 # Extract our m and s parameters from the chain.
-m_set = chn[@varname(m), chain=1]
-s_set = chn[@varname(s), chain=1]
+m_set = chn[@varname(m), chain=1, stack=true]
+s_set = chn[@varname(s), chain=1, stack=true]
 ```
 
-Note that each element of `s_set` corresponds to one MCMC sample, and is a vector of integers (that means that `s_set` is itself an `Vector` of `Vector`s!)
-If you prefer to have a stacked 2D array, you can use `chn[@varname(s), chain=1, stack=true]` instead.
-We won't demonstrate that here.
+Notice that `m_set` and `s_set` are both 2D arrays, where the first dimension is the iteration dimension, and the second dimension the parameter dimension.
+(Without the `stack=true` option, we would get a vector of vectors.)
 
 ```{julia}
-# Iterate through the MCMC samples.
-Ns = 1:length(chn)
+# Iterate through the MCMC samples and make an animation.
+Niters = size(m_set, 1)
 
-# Make an animation.
-animation = @gif for i in Ns
-    m = m_set[i]
-    s = s_set[i]
+animation = @gif for i in 1:Niters
+    m = m_set[i, :]
+    s = s_set[i, :]
     emissions = m[s]
 
     p = plot(
@@ -252,10 +250,10 @@ Plotting the estimated states, we can see that the results align well with our e
 ```{julia}
 p = plot(xlim=(0, 30), ylim=(-1, 5), size=(500, 250))
 
-for i in 1:100
-    ind = rand(DiscreteUniform(1, 1000))
+idxs = sample(1:FlexiChains.niters(chn_recover), 100; replace=false)
+for i in idxs
     plot!(
-        chn_recover[@varname(s), iter=ind, chain=1],
+        chn_recover[@varname(s), iter=i, chain=1],
         color = :grey, opacity = 0.1, legend = :false
     )
 end

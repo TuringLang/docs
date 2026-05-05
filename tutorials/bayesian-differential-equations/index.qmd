@@ -156,12 +156,29 @@ plot(chain)
 
 In Bayesian analysis it is often useful to retrodict the data, i.e. generate simulated data using samples from the posterior distribution, and compare to the original data (see for instance section 3.3.2 - model checking of McElreath's book "Statistical Rethinking").
 Here, we solve the ODE for 300 randomly picked posterior samples in the `chain`.
+
+```{julia}
+using FlexiChains: VNChain, DimArray
+
+function draw_posterior_samples(chain::VNChain, N::Int)
+    # Extract only the parameters of interest, and convert to an array.
+    params = DimArray(chain[[@varname(α), @varname(β), @varname(γ), @varname(δ)]])
+    # Reshape to (number of samples, number of parameters).
+    params = reshape(params, size(params, 1) * size(params, 2), :)
+    # Sample N parameter combinations from the posterior without replacement.
+    sample_indices = sample(1:size(params, 1), N; replace=false)
+    # Return (N * 4) array of parameter samples.
+    return params[sample_indices, :]
+end
+
+posterior_samples = draw_posterior_samples(chain, 300)
+```
+
 We plot the ensemble of solutions to check if the solution resembles the data.
 The 300 retrodicted time courses from the posterior are plotted in gray, the noisy observations are shown as blue and red dots, and the green and purple lines are the ODE solution that was used to generate the data.
 
 ```{julia}
 plot(; legend=false)
-posterior_samples = sample(chain[[:α, :β, :γ, :δ]], 300; replace=false)
 for p in eachrow(Array(posterior_samples))
     sol_p = solve(prob, Tsit5(); p=p, saveat=0.1)
     plot!(sol_p; alpha=0.1, color="#BBBBBB")
@@ -209,8 +226,9 @@ chain2 = sample(model2, NUTS(0.45), MCMCSerial(), 5000, 3; progress=false)
 Again we inspect the trajectories of 300 randomly selected posterior samples.
 
 ```{julia}
+posterior_samples = draw_posterior_samples(chain2, 300)
+
 plot(; legend=false)
-posterior_samples = sample(chain2[[:α, :β, :γ, :δ]], 300; replace=false)
 for p in eachrow(Array(posterior_samples))
     sol_p = solve(prob, Tsit5(); p=p, saveat=0.1)
     plot!(sol_p; alpha=0.1, color="#BBBBBB")
@@ -318,8 +336,9 @@ Finally, we plot trajectories of 300 randomly selected samples from the posterio
 Again, the dots indicate our observations, the coloured lines are the "true" simulations without noise, and the gray lines are trajectories from the posterior samples.
 
 ```{julia}
+posterior_samples = draw_posterior_samples(chain_dde, 300)
+
 plot(; legend=false)
-posterior_samples = sample(chain_dde[[:α, :β, :γ, :δ]], 300; replace=false)
 for p in eachrow(Array(posterior_samples))
     sol_p = solve(prob_dde, MethodOfSteps(Tsit5()); p=p, saveat=0.1)
     plot!(sol_p; alpha=0.1, color="#BBBBBB")

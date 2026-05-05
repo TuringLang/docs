@@ -171,9 +171,9 @@ As per the p-PCA formula, we think of each row (i.e. each gene feature) followin
     Z ~ filldist(Normal(), k, N)
 
     # mean offset
-    μ ~ MvNormal(Eye(D))
+    μ ~ MvNormal(Zeros(D), I)
     genes_mean = W * Z .+ reshape(μ, n_genes, 1)
-    return X ~ arraydist([MvNormal(m, Eye(N)) for m in eachcol(genes_mean')])
+    return X ~ arraydist([MvNormal(m, I) for m in eachcol(genes_mean')])
 end;
 ```
 
@@ -209,30 +209,26 @@ ppca = pPCA(mat_exp', k) # instantiate the probabilistic model
 chain_ppca = sample(ppca, NUTS(; adtype=AutoMooncake()), 500);
 ```
 
-The samples are saved in `chain_ppca`, which is an `MCMCChains.Chains` object.
-We can check its shape:
+The samples are saved in `chain_ppca`, which is a `FlexiChains.VNChain` object.
+Sampling statistics such as R-hat, ESS, mean estimates, and so on can be obtained from this:
 
 ```{julia}
-size(chain_ppca) # (no. of iterations, no. of vars, no. of chains) = (500, 159, 1)
-```
+using FlexiChains
 
-Sampling statistics such as R-hat, ESS, mean estimates, and so on can also be obtained from this:
-
-```{julia}
-describe(chain_ppca)
+summarystats(chain_ppca)
 ```
 
 #### Step 5: posterior predictive checks
 
 We try to reconstruct the input data using the posterior mean as parameter estimates.
-We first retrieve the samples for the projection matrix `W` from `chain_ppca`. This can be done using the Julia `group(chain, parameter_name)` function.
+We first retrieve the samples for the projection matrix `W` from `chain_ppca`.
 Then we calculate the mean value for each element in $W$, averaging over the whole chain of samples.
 
 ```{julia}
 # Extract parameter estimates for predicting x - mean of posterior
-W = reshape(mean(group(chain_ppca, :W))[:, 2], (n_genes, k))
-Z = reshape(mean(group(chain_ppca, :Z))[:, 2], (k, n_cells))
-μ = mean(group(chain_ppca, :μ))[:, 2]
+W = mean(chain_ppca[@varname(W)])
+Z = mean(chain_ppca[@varname(Z)])
+μ = mean(chain_ppca[@varname(μ)])
 
 mat_rec = W * Z .+ repeat(μ; inner=(1, n_cells))
 ```
@@ -321,7 +317,7 @@ We instantiate the model and ask Turing to sample from it using NUTS sampler. Th
 ```{julia}
 ppca_ARD = pPCA_ARD(mat_exp') # instantiate the probabilistic model
 chain_ppcaARD = sample(ppca_ARD, NUTS(; adtype=AutoMooncake()), 500) # sampling
-plot(group(chain_ppcaARD, :α); margin=6.0mm)
+plot(chain_ppcaARD, [@varname(α)]; margin=6.0mm)
 ```
 
 Again, we do some inference diagnostics.
@@ -329,13 +325,13 @@ Here we look at the convergence of the chains for the $α$ parameter.
 This parameter determines the relevance of individual components.
 We see that the chains have converged and the posterior of the $\alpha$ parameters is centred around much smaller values in two instances.
 In the following, we will use the mean of the small values to select the *relevant* dimensions (remember that, smaller values of $\alpha$ correspond to more important components.).
-We can clearly see from the values of $\alpha$ that there should be two dimensions (corresponding to $\bar{\alpha}_3=\bar{\alpha}_5≈0.05$) for this dataset.
+We can clearly see from the values of $\alpha$ that two of its values are smaller, which implies that there should be two dimensions for this dataset.
 
 ```{julia}
 # Extract parameter mean estimates of the posterior
-W = permutedims(reshape(mean(group(chain_ppcaARD, :W))[:, 2], (n_genes, n_genes)))
-Z = permutedims(reshape(mean(group(chain_ppcaARD, :Z))[:, 2], (n_genes, n_cells)))'
-α = mean(group(chain_ppcaARD, :α))[:, 2]
+W = mean(chain_ppcaARD[@varname(W)])
+Z = mean(chain_ppcaARD[@varname(Z)])
+α = mean(chain_ppcaARD[@varname(α)])
 plot(α; label="α")
 ```
 
@@ -347,7 +343,7 @@ We obtain a posterior predicted matrix $\mathbf{X} \in \mathbb{R}^{2 \times 60}$
 ```{julia}
 α_indices = sortperm(α)[1:2]
 k = size(α_indices)[1]
-X_rec = W[:, α_indices] * Z[α_indices, :]
+X_rec = (W[α_indices, :])' * Z[α_indices, :]
 
 df_rec = DataFrame(X_rec', :auto)
 heatmap(

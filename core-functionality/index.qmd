@@ -130,12 +130,14 @@ The arguments for each sampler are:
 
 More information about each sampler can be found in [Turing.jl's API docs](https://turinglang.org/Turing.jl).
 
-The `MCMCChains` module (which is re-exported by Turing) provides plotting tools for the `Chain` objects returned by a `sample` function.
-See the [MCMCChains](https://github.com/TuringLang/MCMCChains.jl) repository for more information on the suite of tools available for diagnosing MCMC chains.
+FlexiChains.jl provides plotting tools for the `VNChain` objects returned by a `sample` function.
+For more information about FlexiChains and its plotting capabilities, please see the [FlexiChains.jl documentation](https://pysm.dev/FlexiChains.jl/stable).
 
 ```julia
+using FlexiChains
+
 # Summarise results
-describe(c3)
+summarystats(c3)
 
 # Plot results
 plot(c3)
@@ -182,13 +184,12 @@ model = model_name() | (arg_1 = 1, arg_2 = 2)
 The returned chain contains samples of the variables in the model.
 
 ```julia
-var_1 = mean(chn[:var_1]) # Taking the mean of a variable named var_1.
+var_1 = mean(chn[@varname(var_1)]) # Taking the mean of a variable named var_1.
 ```
 
-The key (`:var_1`) can either be a `Symbol` or a `String`.
-For example, to fetch `x[1]`, one can use `chn[Symbol("x[1]")]` or `chn["x[1]"]`.
-If you want to retrieve all parameters associated with a specific symbol, you can use `group`.
-As an example, if you have the parameters `"x[1]"`, `"x[2]"`, and `"x[3]"`, calling `group(chn, :x)` or `group(chn, "x")` will return a new chain with only `"x[1]"`, `"x[2]"`, and `"x[3]"`.
+The key should be a `VarName`, constructed with the `@varname` macro.
+
+FlexiChains has a very powerful indexing interface, which includes the ability to index into sub-variables: please see [the FlexiChains docs](https://pysm.dev/FlexiChains.jl/stable/turing/#Accessing-data) for more information.
 
 ### Tilde-statement ordering
 
@@ -232,10 +233,12 @@ If you want to sample multiple chains without using parallelism, you can use `MC
 
 ```julia
 # Sample 3 chains in a serial fashion.
-chains = sample(model, sampler, MCMCSerial(), 1000, 3)
+chn = sample(model, sampler, MCMCSerial(), 1000, 3)
 ```
 
-The `chains` variable now contains a `Chains` object which can be indexed by chain. To pull out the first chain from the `chains` object, use `chains[:,:,1]`. The method is the same if you use either of the below parallel sampling methods.
+The `chn` variable now contains multiple chains, as can be seen from the printout.
+To pull out the first chain from the `chn` object, use `chn[chain=1]`.
+The method is the same if you use either of the below parallel sampling methods.
 
 #### Multithreaded sampling
 
@@ -345,7 +348,7 @@ c = sample(model, HMC(0.05, 20), 500)
 ```
 
 Note the need to initialise `x` when missing since we are iterating over its elements later in the model.
-The generated values for `x` can be extracted from the `Chains` object using `c[:x]`.
+The generated values for `x` can be extracted from the `FlexiChain` object using `c[@varname(x)]`.
 
 Turing also supports mixed `missing` and non-`missing` values in `x`, where the missing ones will be treated as random variables to be sampled while the others get treated as observations.
 For example:
@@ -475,7 +478,7 @@ logpdf(InverseGamma(2, 3), 1.0) +
 logpdf(Normal(0, sqrt(1.0)), 1.0)
 ```
 
-Querying with `Chains` object is easy as well:
+Querying with `FlexiChain` objects is easy as well:
 
 ```{julia}
 chn = sample(model, Prior(), 10)
@@ -572,20 +575,6 @@ end
     return mu
 end
 ```
-
-### Working with MCMCChains.jl
-
-Turing.jl wraps its samples using `MCMCChains.Chains` so that all the functions working for `MCMCChains.Chain` can be re-used in Turing.jl.
-Two typical functions are `MCMCChains.describe` and `MCMCChains.plot`, which can be used as follows for an obtained chain `chn`.
-For more information on `MCMCChains`, please see the [GitHub repository](https://github.com/TuringLang/MCMCChains.jl).
-
-```{julia}
-describe(chn) # Lists statistics of the samples.
-plot(chn) # Plots statistics of the samples.
-```
-
-There are numerous functions in addition to `describe` and `plot` in the `MCMCChains` package, such as those used in convergence diagnostics.
-For more information on the package, please see the [GitHub repository](https://github.com/TuringLang/MCMCChains.jl).
 
 ### Changing Default Settings
 

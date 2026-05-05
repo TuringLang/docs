@@ -16,7 +16,8 @@ This tutorial illustrates training Bayesian [hidden Markov models](https://en.wi
 The main goals are learning the transition matrix, emission parameter, and hidden states.
 For a more rigorous academic overview of hidden Markov models, see [An Introduction to Hidden Markov Models and Bayesian Networks](https://mlg.eng.cam.ac.uk/zoubin/papers/ijprai.pdf) (Ghahramani, 2001).
 
-In this tutorial, we assume there are $k$ discrete hidden states; the observations are continuous and normally distributed - centred around the hidden states. This assumption reduces the number of parameters to be estimated in the emission matrix.
+In this tutorial, we assume there are $k$ discrete hidden states; the observations are continuous and normally distributed, and centred around the hidden states.
+This assumption reduces the number of parameters to be estimated in the emission matrix.
 
 Let's load the libraries we'll need, and set a random seed for reproducibility.
 
@@ -44,7 +45,8 @@ plot(y; xlim=(0, 30), ylim=(-1, 5), size=(500, 250), legend = false)
 scatter!(y, color = :blue; xlim=(0, 30), ylim=(-1, 5), size=(500, 250), legend = false)
 ```
 
-We can see that we have three states, one for each height of the plot (1, 2, 3). This height is also our emission parameter, so state one produces a value of one, state two produces a value of two, and so on.
+We can see that we have three states, one for each height of the plot (1, 2, 3).
+This height is also our emission parameter, so state one produces a value of one, state two produces a value of two, and so on.
 
 Ultimately, we would like to understand three major parameters:
 
@@ -52,15 +54,22 @@ Ultimately, we would like to understand three major parameters:
  2. The emission parameters, which describes a typical value emitted by some state. In the plot above, the emission parameter for state one is simply one.
  3. The state sequence is our understanding of what state we were actually in when we observed some data. This is very important in more sophisticated HMMs, where the emission value does not equal our state.
 
-With this in mind, let's set up our model. We are going to use some of our knowledge as modelers to provide additional information about our system. This takes the form of the prior on our emission parameter.
+With this in mind, let's set up our model.
+We are going to use some of our knowledge as modelers to provide additional information about our system.
+This takes the form of the prior on our emission parameter.
 
 $$
 m_i \sim \mathrm{Normal}(i, 0.5) \quad \text{where} \quad m = \{1,2,3\}
 $$
 
-Simply put, this says that we expect state one to emit values in a Normally distributed manner, where the mean of each state's emissions is that state's value. The variance of 0.5 helps the model converge more quickly — consider the case where we have a variance of 1 or 2. In this case, the likelihood of observing a 2 when we are in state 1 is actually quite high, as it is within a standard deviation of the true emission value. Applying the prior that we are likely to be tightly centred around the mean prevents our model from being too confused about the state that is generating our observations.
+Simply put, this says that we expect state one to emit values in a Normally distributed manner, where the mean of each state's emissions is that state's value.
+The variance of 0.5 helps the model converge more quickly — consider the case where we have a variance of 1 or 2.
+In this case, the likelihood of observing a 2 when we are in state 1 is actually quite high, as it is within a standard deviation of the true emission value.
+Applying the prior that we are likely to be tightly centred around the mean prevents our model from being too confused about the state that is generating our observations.
 
-The priors on our transition matrix are noninformative, using `T[i] ~ Dirichlet(ones(K)/K)`. The Dirichlet prior used in this way assumes that the state is likely to change to any other state with equal probability. As we'll see, this transition matrix prior will be overwritten as we observe data.
+The priors on our transition matrix are noninformative, using `T[i] ~ Dirichlet(ones(K)/K)`.
+The Dirichlet prior used in this way assumes that the state is likely to change to any other state with equal probability.
+As we'll see, this transition matrix prior will be overwritten as we observe data.
 
 ```{julia}
 # Turing model definition.
@@ -96,11 +105,15 @@ The priors on our transition matrix are noninformative, using `T[i] ~ Dirichlet(
 end;
 ```
 
-We will use a combination of two samplers (HMC and Particle Gibbs) by passing them to the [Gibbs sampler](https://en.wikipedia.org/wiki/Gibbs_sampling). The Gibbs sampler allows for compositional inference, where different samplers can be applied to different parameters based on their properties. (For API details of these samplers, please see [Turing.jl's API documentation](https://turinglang.org/Turing.jl/stable/api/Inference/).)
+We will use a combination of two samplers (HMC and Particle Gibbs) by passing them to the [Gibbs sampler](https://en.wikipedia.org/wiki/Gibbs_sampling).
+The Gibbs sampler allows for compositional inference, where different samplers can be applied to different parameters based on their properties.
+(For API details of these samplers, please see [Turing.jl's API documentation](https://turinglang.org/Turing.jl/stable/api/Inference/).)
 
-In this case, we use HMC for `m` and `T`, representing the emission and transition matrices respectively. We use the Particle Gibbs sampler for `s`, the state sequence. You may wonder why it is that we are not assigning `s` to the HMC sampler, and why it is that we need compositional Gibbs sampling at all.
+In this case, we use HMC for `m` and `T`, representing the emission and transition matrices respectively.
+We use the Particle Gibbs sampler for `s`, the state sequence.
+You may wonder why it is that we are not assigning `s` to the HMC sampler, and why it is that we need compositional Gibbs sampling at all.
 
-The parameter `s` is not a continuous variable.
+This is because the parameter `s` is not a continuous variable.
 It is a vector of **integers**, and thus Hamiltonian methods like HMC and NUTS won't work correctly.
 Gibbs allows us to apply the right tools to the best effect.
 If you are a particularly advanced user interested in higher performance, you may benefit from setting up your Gibbs sampler to use [different automatic differentiation]({{<meta usage-automatic-differentiation>}}#compositional-sampling-with-differing-ad-modes) backends for each parameter space.
@@ -126,16 +139,20 @@ The code below generates an animation showing the graph of the data above, and t
 
 ```{julia}
 # Extract our m and s parameters from the chain.
-m_set = MCMCChains.group(chn, :m).value
-s_set = MCMCChains.group(chn, :s).value
+m_set = chn[@varname(m), chain=1, stack=true]
+s_set = chn[@varname(s), chain=1, stack=true]
+```
 
-# Iterate through the MCMC samples.
-Ns = 1:length(chn)
+Notice that `m_set` and `s_set` are both 2D arrays, where the first dimension is the iteration dimension, and the second dimension the parameter dimension.
+(Without the `stack=true` option, we would get a vector of vectors.)
 
-# Make an animation.
-animation = @gif for i in Ns
+```{julia}
+# Iterate through the MCMC samples and make an animation.
+Niters = size(m_set, 1)
+
+animation = @gif for i in 1:Niters
     m = m_set[i, :]
-    s = Int.(s_set[i, :])
+    s = s_set[i, :]
     emissions = m[s]
 
     p = plot(
@@ -157,19 +174,14 @@ Looks like our model did a pretty good job, but we should also check to make sur
 
 ```{julia}
 # Index the chain with the persistence probabilities.
-subchain = chn[["T[1][1]", "T[2][2]", "T[3][3]"]]
+subchain = chn[[@varname(T[1][1]), @varname(T[2][2]), @varname(T[3][3])]]
 
 plot(subchain; seriestype=:traceplot, title="Persistence Probability", legend=false)
 ```
 
 A cursory examination of the traceplot above indicates that all three chains converged to something resembling
-stationary. We can use the diagnostic functions provided by [MCMCChains](https://github.com/TuringLang/MCMCChains.jl) to engage in some more formal tests, like the Heidelberg and Welch diagnostic:
-
-```{julia}
-heideldiag(MCMCChains.group(chn, :T))[1]
-```
-
-The p-values on the test suggest that we cannot reject the hypothesis that the observed sequence comes from a stationary distribution, so we can be reasonably confident that our transition matrix has converged to something reasonable.
+stationary.
+We can use the diagnostic functions provided by [MCMCDiagnosticTools](https://github.com/TuringLang/MCMCDiagnosticTools.jl) to engage in some more formal tests, like the [Heidelberg and Welch diagnostic](https://turinglang.org/MCMCDiagnosticTools.jl/stable/#MCMCDiagnosticTools.heideldiag).
 
 ## Efficient Inference With The Forward Algorithm
 
@@ -203,12 +215,12 @@ We can compare the chains of these two models, confirming the posterior estimate
 #| code-fold: true
 #| code-summary: "Plotting Chains"
 
-plot(chn["m[1]"], label = "m[1], Model 1, Gibbs", color = :lightblue)
-plot!(chn2["m[1]"], label = "m[1], Model 2, NUTS", color = :blue)
-plot!(chn["m[2]"], label = "m[2], Model 1, Gibbs", color = :pink)
-plot!(chn2["m[2]"], label = "m[2], Model 2, NUTS", color = :red)
-plot!(chn["m[3]"], label = "m[3], Model 1, Gibbs", color = :yellow)
-plot!(chn2["m[3]"], label = "m[3], Model 2, NUTS", color = :orange)
+plot(chn[@varname(m[1])], label = "m[1], Model 1, Gibbs", color = :lightblue)
+plot!(chn2[@varname(m[1])], label = "m[1], Model 2, NUTS", color = :blue)
+plot!(chn[@varname(m[2])], label = "m[2], Model 1, Gibbs", color = :pink)
+plot!(chn2[@varname(m[2])], label = "m[2], Model 2, NUTS", color = :red)
+plot!(chn[@varname(m[3])], label = "m[3], Model 1, Gibbs", color = :yellow)
+plot!(chn2[@varname(m[3])], label = "m[3], Model 2, NUTS", color = :orange)
 ```
 
 
@@ -236,10 +248,16 @@ chn_recover = sample(BayesHmmRecover(y, 3, true), NUTS(), 1000)
 Plotting the estimated states, we can see that the results align well with our expectations:
 
 ```{julia}
+import FlexiChains
+
+Niters = FlexiChains.niters(chn_recover)
 p = plot(xlim=(0, 30), ylim=(-1, 5), size=(500, 250))
-for i in 1:100
-    ind = rand(DiscreteUniform(1, 1000))
-    plot!(MCMCChains.group(chn_recover, :s).value[ind,:], color = :grey, opacity = 0.1, legend = :false)
+idxs = sample(1:Niters, 100; replace=false)
+for i in idxs
+    plot!(
+        chn_recover[@varname(s), iter=i, chain=1],
+        color = :grey, opacity = 0.1, legend = :false
+    )
 end
 scatter!(y, color = :blue)
 

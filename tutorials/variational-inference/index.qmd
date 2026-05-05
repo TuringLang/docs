@@ -347,18 +347,20 @@ Calling `rand(result_fr.ldf)` will return a vector of samples in the transformed
 However, note that these vectors are harder to interpret and work with.
 :::
 
-Each sample is a [`DynamicPPL.VarNamedTuple`]({{< meta usage-varnamedtuple >}}), and a matrix of these can be converted into a `Chains` object.
+Each sample is a [`DynamicPPL.VarNamedTuple`]({{< meta usage-varnamedtuple >}}), and a matrix of these can be converted into a `FlexiChain` object.
 
 ```{julia}
 z = rand(result_fr, 100_000, 1)
 using AbstractMCMC: AbstractMCMC
-vi_chain = AbstractMCMC.from_samples(MCMCChains.Chains, z)
+import FlexiChains
+vi_chain = AbstractMCMC.from_samples(FlexiChains.VNChain, z)
 ```
 
 Now, we can, for example, look at expectations:
 
 ```{julia}
-describe(vi_chain)
+using FlexiChains
+summarystats(vi_chain)
 ```
 
 (Since we're drawing independent samples, we can simply ignore the ESS and Rhat metrics.)
@@ -368,8 +370,8 @@ Let's compare this against samples from `NUTS`:
 ```{julia}
 mcmc_chain = sample(m, NUTS(), 10_000; progress=false);
 
-vi_mean = mean(vi_chain)[:, 2]
-mcmc_mean = mean(mcmc_chain, names(mcmc_chain, :parameters))[:, 2]
+vi_mean = Array(mean(vi_chain))
+mcmc_mean = Array(mean(mcmc_chain))
 
 plot(mcmc_mean; xticks=1:1:length(mcmc_mean), label="mean of NUTS")
 plot!(vi_mean; label="mean of VI")
@@ -398,9 +400,8 @@ test_cut.OLSPrediction = unstandardize(GLM.predict(ols, test_cut), train_unstand
 ```{julia}
 # Make a prediction given an input vector, using mean parameter values from a chain.
 function prediction(chain, x)
-    p = get_params(chain)
-    α = mean(p.intercept)
-    β = collect(mean.(p.coefficients))
+    α = mean(chain[@varname(intercept)])
+    β = mean(chain[@varname(coefficients)])
     return α .+ x * β
 end
 ```
@@ -417,9 +418,9 @@ first(test_cut, 6)
 ```
 
 ```{julia}
-# Construct the Chains from the Variational Approximations
-vi_mf_chain = AbstractMCMC.from_samples(MCMCChains.Chains, rand(result_mf, 10_000, 1))
-vi_fr_chain = AbstractMCMC.from_samples(MCMCChains.Chains, rand(result_fr, 10_000, 1))
+# Construct the chains from the Variational Approximations
+vi_mf_chain = AbstractMCMC.from_samples(FlexiChains.VNChain, rand(result_mf, 10_000, 1))
+vi_fr_chain = AbstractMCMC.from_samples(FlexiChains.VNChain, rand(result_fr, 10_000, 1))
 ```
 
 ```{julia}
@@ -473,8 +474,10 @@ Interestingly the squared difference between true- and mean-prediction on the te
 But, as Bayesians, we know that the mean doesn't tell the entire story. One quick check is to look at the mean predictions ± standard deviation of the two different approaches:
 
 ```{julia}
-preds_vi_mf = mapreduce(hcat, 1:5:size(vi_mf_chain, 1)) do i
-    return unstandardize(prediction(vi_mf_chain[i], test), train_unstandardized.MPG)
+Niters = FlexiChains.niters(vi_mf_chain)
+
+preds_vi_mf = mapreduce(hcat, 1:5:Niters) do i
+    return unstandardize(prediction(vi_mf_chain[iter=i], test), train_unstandardized.MPG)
 end
 
 p1 = scatter(
@@ -485,13 +488,14 @@ p1 = scatter(
     size=(900, 500),
     markersize=8,
 )
+
 scatter!(1:size(test, 1), unstandardize(test_label, train_unstandardized.MPG); label="true")
 xaxis!(1:size(test, 1))
 ylims!(10, 40)
 title!("VI Mean-Field")
 
-preds_vi_fr = mapreduce(hcat, 1:5:size(vi_mf_chain, 1)) do i
-    return unstandardize(prediction(vi_fr_chain[i], test), train_unstandardized.MPG)
+preds_vi_fr = mapreduce(hcat, 1:5:Niters) do i
+    return unstandardize(prediction(vi_fr_chain[iter=i], test), train_unstandardized.MPG)
 end
 
 p2 = scatter(
@@ -507,8 +511,9 @@ xaxis!(1:size(test, 1))
 ylims!(10, 40)
 title!("VI Full-Rank")
 
-preds_mcmc = mapreduce(hcat, 1:5:size(mcmc_chain, 1)) do i
-    return unstandardize(prediction(mcmc_chain[i], test), train_unstandardized.MPG)
+Niters_mcmc = FlexiChains.niters(mcmc_chain)
+preds_mcmc = mapreduce(hcat, 1:5:Niters_mcmc) do i
+    return unstandardize(prediction(mcmc_chain[iter=i], test), train_unstandardized.MPG)
 end
 
 p3 = scatter(

@@ -24,7 +24,6 @@ To start, let's import all the libraries we'll need.
 
 ```{julia}
 using Turing
-using MCMCChains: Chains
 using StatsPlots
 # Functionality for splitting and normalising the data.
 using MLUtils: shuffleobs, splitobs, load_iris
@@ -146,11 +145,11 @@ plot(chain)
 
 Looks good!
 
-We can also use the `corner` function from StatsPlots to show the distributions of the various parameters of our multinomial logistic regression.
-`corner(chain)` will show the distributions of all parameters, but here we will only show the first three to avoid cluttering the plot.
+We can also use the `cornerplot` function from StatsPlots to show the distributions of the various parameters of our multinomial logistic regression.
+`StatsPlots.cornerplot(chain)` will show the distributions of all parameters, but here we will only show the versicolor coefficients to avoid cluttering the plot.
 
 ```{julia}
-corner(chain, MCMCChains.namesingroup(chain, :coefficients_versicolor))
+StatsPlots.cornerplot(chain, [@varname(coefficients_versicolor)]; size=(900, 900))
 ```
 
 Fortunately the corner plots appear to demonstrate unimodal distributions for each of our parameters, so it should be straightforward to take the means of each parameter's sampled values to estimate our model to make predictions.
@@ -165,16 +164,13 @@ It computes the mean of the sampled parameters and calculates the species with t
 Note that we do not have to evaluate the `softmax` function since it does not affect the order of its inputs.
 
 ```{julia}
-function prediction(x::AbstractMatrix{<:Real}, chain::MCMCChains.Chains)
+import FlexiChains
+function prediction(x::AbstractMatrix{<:Real}, chain::FlexiChains.VNChain)
     # Pull the means from each parameter's sampled values in the chain.
-    intercept_versicolor = mean(chain, :intercept_versicolor)
-    intercept_virginica = mean(chain, :intercept_virginica)
-    coefficients_versicolor = [
-        mean(chain, k) for k in MCMCChains.namesingroup(chain, :coefficients_versicolor)
-    ]
-    coefficients_virginica = [
-        mean(chain, k) for k in MCMCChains.namesingroup(chain, :coefficients_virginica)
-    ]
+    intercept_versicolor = mean(chain[@varname(intercept_versicolor)])
+    intercept_virginica = mean(chain[@varname(intercept_virginica)])
+    coefficients_versicolor = mean(chain[@varname(coefficients_versicolor)])
+    coefficients_virginica = mean(chain[@varname(coefficients_virginica)])
 
     # Compute the index of the species with the highest probability for each observation.
     values_versicolor = intercept_versicolor .+ (coefficients_versicolor' * x)

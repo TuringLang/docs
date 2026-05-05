@@ -165,13 +165,11 @@ scatter!(t, yf; color=2, label="Data")
 With the model specified and with a reasonable prior we can now let Turing decompose the time series for us!
 
 ```{julia}
-using MCMCChains: get_sections
-
-function mean_ribbon(samples)
-    qs = quantile(samples)
-    low = qs[:, Symbol("2.5%")]
-    up = qs[:, Symbol("97.5%")]
-    m = mean(samples)[:, :mean]
+function mean_ribbon(chn)
+    subsetted_chn = chn[[@varname(y)]]
+    low = Array(quantile(subsetted_chn, 0.025))
+    up = Array(quantile(subsetted_chn, 0.975))
+    m = Array(mean(subsetted_chn))
     return m, (m - low, up - m)
 end
 
@@ -218,6 +216,7 @@ model = decomp_model(x, cyclic_features, +) | (; y = yf)
 chain = sample(model, NUTS(), 2000, progress=false)
 yf_samples = predict(decondition(model), chain)
 m, conf = mean_ribbon(yf_samples)
+
 predictive_plt = plot(
     t,
     m .+ yf_max;
@@ -237,7 +236,9 @@ plot(predictive_plt, decomposed_plt...; layout=(3, 1), size=(700, 1000))
 ```{julia}
 #| echo: false
 let
-    @assert mean(ess(chain)[:, :ess]) > 500 "Mean ESS: $(mean(ess(chain)[:, :ess])) - not > 500"
+    using MCMCDiagnosticTools: ess
+
+    @assert mean(Array(ess(chain))) > 500 "Mean ESS: $(mean(Array(ess(chain)))) - not > 500"
     lower_quantile = m .- conf[1] # 2.5% quantile
     upper_quantile = m .+ conf[2] # 97.5% quantile
     @assert mean(lower_quantile .≤ yf .≤ upper_quantile) ≥ 0.9 "Surprisingly few observations in predicted 95% interval: $(mean(lower_quantile .≤ yf .≤ upper_quantile))"
@@ -249,15 +250,28 @@ We see that the least squares linear fit deviates somewhat from the posterior tr
 Since our model takes cyclic effects into account separately,
 we get a better estimate of the true overall trend than if we would have just fitted a line.
 But what frequency content did the model identify?
+Let's start by wrangling the data into a nice format for plotting:
 
+```{julia}
+import DimensionalData as DD
+
+function get_cyclic_coefficients(chain)
+    βc = chain[@varname(βc), stack=true]   # iters x chains x params
+    βc = dropdims(βc; dims=2)              # iters x params
+    βc = DD.set(βc, DD.AnonDim => :freq)   # rename the parameter dimension "freq"
+    return βc
+end
+
+βc = get_cyclic_coefficients(chain)
+```
 
 ```{julia}
 function plot_cyclic_features(βsin, βcos)
-    labels = reshape(["freq = $i" for i in freqs], 1, :)
+    labels = permutedims(["$i" for i in freqs])
     colors = collect(freqs)'
     style = reshape([i <= 10 ? :solid : :dash for i in 1:length(labels)], 1, :)
     sin_features_plt = density(
-        βsin[:, :, 1];
+        βsin;
         title="Sine features posterior",
         label=labels,
         ylabel="Density",
@@ -267,16 +281,16 @@ function plot_cyclic_features(βsin, βcos)
         legend=nothing,
     )
     cos_features_plt = density(
-        βcos[:, :, 1];
+        βcos;
         title="Cosine features posterior",
         ylabel="Density",
         xlabel="Weight",
-        label=nothing,
+        label=labels,
         color=colors,
         linestyle=style,
     )
 
-    return seasonal_features_plt = plot(
+    return plot(
         sin_features_plt,
         cos_features_plt;
         layout=(2, 1),
@@ -285,8 +299,7 @@ function plot_cyclic_features(βsin, βcos)
     )
 end
 
-βc = Array(group(chain, :βc))
-plot_cyclic_features(βc[:, begin:num_freqs, :], βc[:, (num_freqs + 1):end, :])
+plot_cyclic_features(βc[:, begin:num_freqs], βc[:, (num_freqs + 1):end])
 ```
 
 Plotting the posterior over the cyclic features reveals that the model managed to extract the true frequency content.
@@ -327,7 +340,7 @@ plot(predictive_plt, decomposed_plt...; layout=(3, 1), size=(700, 1000))
 ```{julia}
 #| echo: false
 let
-    @assert mean(ess(chain)[:, :ess]) > 500 "Mean ESS: $(mean(ess(chain)[:, :ess])) - not > 500"
+    @assert mean(Array(ess(chain))) > 500 "Mean ESS: $(mean(Array(ess(chain)))) - not > 500"
     lower_quantile = m .- conf[1] # 2.5% quantile
     upper_quantile = m .+ conf[2] # 97.5% quantile
     @assert mean(lower_quantile .≤ yg .≤ upper_quantile) ≥ 0.9 "Surprisingly few observations in predicted 95% interval: $(mean(lower_quantile .≤ yg .≤ upper_quantile))"
@@ -338,8 +351,8 @@ The model fits!
 What about the inferred cyclic components?
 
 ```{julia}
-βc = Array(group(chain, :βc))
-plot_cyclic_features(βc[:, begin:num_freqs, :], βc[:, (num_freqs + 1):end, :])
+βc = get_cyclic_coefficients(chain)
+plot_cyclic_features(βc[:, begin:num_freqs], βc[:, (num_freqs + 1):end])
 ```
 
 While a multiplicative model does manage to fit the data, it does not recover the true parameters for this dataset.

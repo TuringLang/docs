@@ -214,6 +214,23 @@ To see the difference, we can compare the ELBO of the two:
 We can see that `ELBO_q_avg` is slightly more optimal.
 :::
 
+:::{.callout-note}
+## Automatic differentiation for VI
+
+VI uses automatic differentiation in two places: the `adtype` keyword argument to `vi` selects the backend used to differentiate the model's log density (`AutoForwardDiff()` by default), while the first argument to `KLMinRepGradDescent`, `KLMinRepGradProxDescent`, and `KLMinScoreGradDescent` selects the backend used to differentiate the variational objective.
+(The other `KLMin...` algorithms take no AD backend argument; they rely only on `vi`'s `adtype`.)
+For larger models a reverse-mode backend such as `AutoMooncake()` is often faster than the `AutoForwardDiff()` used above.
+Note that it should be supplied in both places: changing only the algorithm's backend leaves the model's own gradient — usually the expensive part — on `vi`'s default.
+As with sampling, you must load the backend package yourself, for example `import Mooncake`.
+See the [Automatic Differentiation]({{<meta usage-automatic-differentiation>}}) page for more on backends.
+
+Note that `AutoReverseDiff(; compile=true)` is not supported for VI and raises an error, because a compiled tape can silently give incorrect gradients when reused across optimisation steps.
+Use `AutoReverseDiff(; compile=false)` instead.
+
+Since AdvancedVI 0.7, `KLMinScoreGradDescent` optimises in unconstrained (linked) space, consistent with the other `KLMin...` algorithms.
+For a model with constrained parameters its results may differ slightly from earlier releases.
+:::
+
 
 `result.info` also contains information generated during optimisation that could be useful for diagnostics.
 For the default setting, which is `RepGradELBO`, it contains the ELBO estimated at each step, which can be plotted as follows:

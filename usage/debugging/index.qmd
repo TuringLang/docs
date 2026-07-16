@@ -1,0 +1,74 @@
+---
+title: Debugging Models
+engine: julia
+---
+
+```{julia}
+#| echo: false
+#| output: false
+using Pkg;
+Pkg.instantiate();
+```
+
+This page describes the tools available for checking that a Turing model is defined correctly.
+It complements the [Troubleshooting]({{<meta usage-troubleshooting>}}) page, which explains specific error messages: the tools here help you find problems before (or without) hitting an error.
+
+```{julia}
+using Turing
+```
+
+## Checking model validity with `check_model`
+
+`DynamicPPL.check_model` evaluates a model once and checks it for common problems, such as the same variable appearing on the left-hand side of more than one tilde statement, or `NaN` values being observed.
+It returns `true` if the check passes, and `false` (with warnings explaining the problem) otherwise.
+
+For example, this model observes a `NaN` value, which usually indicates a bug in the data preparation:
+
+```{julia}
+using DynamicPPL: check_model
+
+@model function gaussian(y)
+    x ~ Normal()
+    y ~ Normal(x)
+end
+
+check_model(gaussian(NaN))
+```
+
+whereas the same model with valid data passes:
+
+```{julia}
+check_model(gaussian(1.5))
+```
+
+Turing runs this check automatically at the start of `sample` (and the mode estimation functions).
+If the check reports a false positive for your model, you can disable it by passing `check_model=false` to `sample`.
+
+The keyword argument `error_on_failure=true` makes `check_model` throw an error instead of returning `false`, which is useful in scripts and tests.
+
+## Checking type stability
+
+Type instability is one of the most common reasons for a model being slower than expected.
+`DynamicPPL.DebugUtils.model_warntype(model)` works like `@code_warntype`, but for an entire model: types that the compiler cannot infer are marked in red in the output.
+The [Performance Tips]({{<meta usage-performance-tips>}}#ensure-that-types-in-your-model-can-be-inferred) page has a worked example, along with advice on how to fix the instabilities it finds.
+There is also `DynamicPPL.DebugUtils.model_typed`, which returns the typed representation instead of printing it.
+
+## Checking gradients
+
+If a model samples poorly with a gradient-based sampler such as NUTS, it is worth checking whether the AD backend computes correct gradients for it.
+`DynamicPPL.TestUtils.AD.run_ad` evaluates the gradient of a model with a given backend and, by default, tests it against a reference backend:
+
+```{julia}
+using ADTypes: AutoReverseDiff
+using DynamicPPL.TestUtils.AD: run_ad
+using ReverseDiff
+
+run_ad(gaussian(1.5), AutoReverseDiff())
+```
+
+If the gradient is incorrect, this errors.
+For debugging `NaN` or infinite gradients, see the [Troubleshooting]({{<meta usage-troubleshooting>}}) page.
+
+## Further help
+
+If these tools do not surface the problem, feel free to [open an issue](https://github.com/TuringLang/Turing.jl/issues), ideally with the smallest model that reproduces it.

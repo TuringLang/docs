@@ -802,7 +802,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <section id="checking-model-validity-with-check_model" class="level2">
 <h2 class="anchored" data-anchor-id="checking-model-validity-with-check_model">Checking model validity with <code>check_model</code></h2>
-<p><code>DynamicPPL.check_model</code> evaluates a model once and checks it for common problems, such as the same variable appearing on the left-hand side of more than one tilde statement, or <code>NaN</code> values being observed. It returns <code>true</code> if the check passes, and <code>false</code> (with warnings explaining the problem) otherwise.</p>
+<p><code>DynamicPPL.check_model</code> evaluates a model once and checks it for common problems. It returns <code>true</code> if the check passes, and <code>false</code> (with warnings explaining the problem) otherwise.</p>
+<p>Specifically, it checks for:</p>
+<ul>
+<li>the same variable, or overlapping variables (such as <code>x</code> and <code>x[1]</code>), appearing on the left-hand side of more than one tilde statement;</li>
+<li><code>NaN</code> values on the left-hand side of observe statements;</li>
+<li>with the keyword argument <code>fail_if_discrete=true</code>, the presence of discrete random variables, which gradient-based samplers such as HMC and NUTS cannot handle.</li>
+</ul>
+<p>It is equally important to know what it does not catch. The model is evaluated a single time, with values drawn from the prior, so problems that only occur for some parameter values (for example, in a branch that this particular evaluation does not take) can be missed. It also checks only the structure of the model, not its statistical soundness: it cannot tell you that a prior is unreasonable or that parameters are not identifiable. Type instability and incorrect gradients are separate concerns, covered by the checks in the following sections.</p>
 <p>For example, this model observes a <code>NaN</code> value, which usually indicates a bug in the data preparation:</p>
 <div id="6" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">DynamicPPL</span>: check_model</span>
@@ -831,7 +838,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <pre><code>true</code></pre>
 </div>
 </div>
-<p>Turing runs this check automatically at the start of <code>sample</code> (and the mode estimation functions). If the check reports a false positive for your model, you can disable it by passing <code>check_model=false</code> to <code>sample</code>.</p>
+<p>Turing runs this check automatically at the start of <code>sample</code> (and the mode estimation functions). For gradient-based samplers, this includes the discrete-variable check. If the check reports a false positive for your model, you can disable it by passing <code>check_model=false</code> to <code>sample</code>.</p>
 <p>The keyword argument <code>error_on_failure=true</code> makes <code>check_model</code> throw an error instead of returning <code>false</code>, which is useful in scripts and tests.</p>
 </section>
 <section id="checking-type-stability" class="level2">
@@ -850,9 +857,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="cell-output cell-output-stdout">
 <div class="ansi-escaped-output">
 <pre><span class="ansi-cyan-fg ansi-bold">[ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Running AD on gaussian with ADTypes.AutoReverseDiff()
-       params : [-0.37615707772897833]
-       actual : (-3.668606830128418, [2.252314155457957])
-     expected : (-3.668606830128418, [2.252314155457957])
+       params : [1.0640344504190706]
+       actual : (-2.4989947024593535, [-0.6280689008381413])
+     expected : (-2.4989947024593535, [-0.6280689008381413])
 </pre>
 </div>
 </div>
@@ -861,11 +868,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <pre><span class="ansi-bold">ADResult</span>
   ├ model          : gaussian
   ├ adtype         : ADTypes.AutoReverseDiff()
-  ├ value_actual   : -3.668606830128418
-  ├ value_expected : -3.668606830128418
-  ├ grad_actual    : [2.252314155457957]
-  ├ grad_expected  : [2.252314155457957]
-  └ params         : [-0.37615707772897833]
+  ├ value_actual   : -2.4989947024593535
+  ├ value_expected : -2.4989947024593535
+  ├ grad_actual    : [-0.6280689008381413]
+  ├ grad_expected  : [-0.6280689008381413]
+  └ params         : [1.0640344504190706]
 </pre>
 </div>
 </div>

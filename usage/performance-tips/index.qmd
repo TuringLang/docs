@@ -15,6 +15,52 @@ Pkg.instantiate();
 This section briefly summarises a few common techniques to ensure good performance when using Turing.
 We refer to [the Julia documentation](https://docs.julialang.org/en/v1/manual/performance-tips/index.html) for general techniques to ensure good performance of Julia programs.
 
+## Benchmark and profile your model
+
+Before changing your model for performance reasons, it is worth measuring where the time actually goes.
+When sampling with a gradient-based method such as NUTS, almost all of the time is spent evaluating the log density of the model and its gradient.
+You can time both with `DynamicPPL.TestUtils.AD.run_ad`:
+
+```{julia}
+using Turing
+using ADTypes: AutoReverseDiff
+using DynamicPPL.TestUtils.AD: run_ad
+using ReverseDiff
+
+@model function bmodel(x)
+    m ~ Normal()
+    s ~ truncated(Normal(); lower=0)
+    return x ~ MvNormal(fill(m, length(x)), s^2 * I)
+end
+
+result = run_ad(bmodel(randn(100)), AutoReverseDiff(); benchmark=true)
+result.primal_time, result.grad_time
+```
+
+Both times are median seconds per evaluation.
+If the gradient takes many times longer than the log density itself, the AD backend is the thing to change: see [Choose your AD backend](#choose-your-ad-backend) below, and the [Automatic Differentiation]({{<meta usage-automatic-differentiation>}}) page for how to compare several backends on your model.
+If the log density itself is slow, the model is the thing to change, and the remaining sections on this page apply.
+
+To find out where the time goes within a single evaluation, you can use [Julia's built-in profiler](https://docs.julialang.org/en/v1/manual/profile/) on the model's log density:
+
+```{julia}
+#| eval: false
+using DynamicPPL, LogDensityProblems, Profile
+
+model = bmodel(randn(100))
+ldf = LogDensityFunction(model, getlogjoint_internal, LinkAll(); adtype=AutoReverseDiff())
+x = rand(ldf)
+
+Profile.@profile for _ in 1:10_000
+    LogDensityProblems.logdensity_and_gradient(ldf, x)
+end
+Profile.print(; mincount=10)
+```
+
+This profiles the model evaluation and the gradient computation together, which is what a sampler actually runs.
+We do not run the profiler on this page because its output is long and machine-specific: `Profile.print` shows a tree of function calls, each annotated with the number of samples in which it appeared, and the hot spots are the lines with the largest counts (`mincount=10` hides rarely-seen calls).
+Graphical viewers such as `@profview` in VS Code, [ProfileView.jl](https://github.com/timholy/ProfileView.jl), or [PProf.jl](https://github.com/JuliaPerf/PProf.jl) make the output much easier to read than `Profile.print`.
+
 ## Use multivariate distributions
 
 It is generally preferable to use multivariate distributions if possible.

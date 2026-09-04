@@ -130,17 +130,29 @@ The output of both of these methods must be a tuple containing:
  - a 'transition', which is essentially the 'visible output' of the sampler: this object is later used to construct an `FlexiChains.VNChain`;
  - a 'state', representing the current state of the sampler, which is passed to the next step of the MCMC algorithm.
 
-Apart from this, your sampler state should also implement `AbstractMCMC.getparams(model, state)` to return the parameters of the model as a vector.
-Here, `transition` represents the first output of the `step` function.
+Apart from this, your sampler state should also implement `AbstractMCMC.getparams(state)`, which returns the parameters as a vector exactly as your sampler sees them, and `AbstractMCMC.getstats(state)`, which returns a `NamedTuple` of sampler statistics for the step (or `NamedTuple()` if there are none).
+Both take the state, not the transition.
 
 ```julia
-function AbstractMCMC.getparams(model::AbstractMCMC.LogDensityModel, state::MyState)
+function AbstractMCMC.getparams(state::MyState)
     # Return a vector containing the parameters of the model.
+end
+
+function AbstractMCMC.getstats(state::MyState)
+    # Return a NamedTuple of statistics, e.g. (; accepted=state.accepted).
 end
 ```
 
 These functions are the bare minimum that your external sampler must implement to work with Turing models.
 There are other methods which can be overloaded to improve the performance or other features of the sampler; please refer to the documentation linked above for more details.
+Two of them deserve a mention here.
+
+If your sampler adapts during warmup, implement `AbstractMCMC.step_warmup` with the same signatures as `step`.
+Turing routes the `num_warmup` iterations through it, and samplers that do not define it fall back to `step`.
+
+To use the sampler as a component of `Gibbs`, define the three-argument `AbstractMCMC.setparams!!(model::AbstractMCMC.LogDensityModel, state, params)`.
+Gibbs re-conditions the model between sweeps, so this method must recompute any log density the state caches rather than only writing `params` into it.
+Turing refuses an external sampler whose state only has the two-argument `setparams!!(state, params)`, because that form cannot see the re-conditioned model.
 
 In general, we recommend that the `AbstractMCMC` interface is implemented directly in your library.
 However, any DynamicPPL- or Turing-specific functionality is best implemented in a `MySamplerTuringExt` extension.

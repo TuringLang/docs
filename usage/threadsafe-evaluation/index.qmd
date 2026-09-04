@@ -78,7 +78,8 @@ x, __abstractvarinfo__ = DynamicPPL.tilde_assume!!(..., __abstractvarinfo__)
 and writing into `__abstractvarinfo__` is, _in general_, not threadsafe.
 Thus, parallelising tilde-statements can lead to data races [as described in the Julia manual](https://docs.julialang.org/en/v1/manual/multi-threading/#Using-@threads-without-data-races).
 
-Turing's threadsafe flag works by creating one `AbstractVarInfo` per thread, and then combining the results at the end of model evaluation.
+Turing's threadsafe flag works by giving each task its own accumulator state, and then combining the results at the end of model evaluation.
+The state follows the task rather than the thread, so a task that yields or migrates between threads keeps its own updates.
 :::
 
 Once the model has been marked as threadsafe, Turing guarantees to provide the correct result in functions such as:
@@ -265,7 +266,7 @@ Metadata is where information about the random variables' values are stored.
 It is a Dict-like structure, and pushing to it from multiple threads is therefore not threadsafe (Julia's `Dict` has similar limitations).
 
 On the other hand, accumulators are used to store outputs of the model, such as log-probabilities
-The way DynamicPPL's threadsafe evaluation works is to create one set of accumulators per thread, and then combine the results at the end of model evaluation.
+The way DynamicPPL's threadsafe evaluation works is to give each task its own set of accumulators, and then combine the results at the end of model evaluation.
 
 In this way, any function call that _solely_ involving accumulators can be made threadsafe.
 For example, this is why observations are supported: there is no need to modify metadata, and only the log-likelihood accumulator needs to be updated.

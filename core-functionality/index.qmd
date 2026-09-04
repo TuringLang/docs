@@ -122,10 +122,10 @@ c5 = sample(gdemo(1.5, 2), NUTS(0.65), 1000)
 
 The arguments for each sampler are:
 
-- SMC: number of particles.
-- PG: number of particles, number of iterations.
+- SMC: resampling scheme (optional). The number of samples requested from `sample` is the number of particles in the single sweep.
+- PG: number of particles, resampling scheme (optional).
 - HMC: leapfrog step size, leapfrog step numbers.
-- Gibbs: component sampler 1, component sampler 2, ...
+- Gibbs: pairs of variable names and the component sampler for each.
 - NUTS: number of adaptation steps (optional), target accept ratio.
 
 More information about each sampler can be found in [Turing.jl's API docs](https://turinglang.org/Turing.jl).
@@ -535,6 +535,14 @@ simple_choice_f = simple_choice([1.5, 2.0, 0.3])
 
 chn = sample(simple_choice_f, Gibbs(:p => HMC(0.2, 3), :z => PG(20)), 1000)
 ```
+
+Every variable the model reaches must belong to a component, and several variables can share one component by passing them together, as in `Gibbs((:p, :z) => PG(20))`.
+A component may not change the dimension of a variable that belongs to another component, or whether that variable exists at all.
+If one variable decides the shape of another, for example a count that sets the length of a vector, put both in the same component.
+Gibbs stops with an error when it detects such a change, and the `Gibbs` docstring explains which partitions are safe.
+
+Gibbs does not support model arguments that contain `missing`.
+Declare the latent variable inside the model and condition on the observations with `|` or `condition` instead.
 
 The `Gibbs` sampler can be used to specify unique automatic differentiation backends for different variable spaces.
 Please see the [Automatic Differentiation]({{<meta usage-automatic-differentiation>}}) page for more.

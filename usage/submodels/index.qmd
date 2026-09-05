@@ -268,6 +268,39 @@ ps = to_submodel(priors(x))
 (; c0, c1, mu) = ps
 ```
 
+## Stan programs as distributions
+
+A Stan program can also appear on the right-hand side of a tilde-statement, through DynamicPPL's `to_distribution`.
+This needs the BridgeStan package and a working Stan toolchain, so the example below is not executed here.
+
+```julia
+using BridgeStan, DynamicPPL, Turing
+
+const STAN = raw"""
+parameters {
+  real location;
+  real<lower=0> scale;
+}
+model {
+  location ~ normal(0, 1);
+  scale ~ lognormal(0, 1);
+}
+"""
+
+@model function demo(stan, y)
+    params ~ to_distribution(stan)
+    return y ~ Normal(params[1], params[2])
+end
+
+chain = sample(demo(STAN, 0.4), NUTS(), 1000)
+```
+
+The left-hand side receives Stan's constrained parameters as a flat vector in declaration order, so `params[1]` is `location` and `params[2]` is `scale`, and the Stan model block contributes its log density to the joint.
+The first call for a given program compiles it with BridgeStan and identical calls reuse the cached distribution.
+Both ForwardDiff and Mooncake can differentiate through the embedded program.
+Unlike `to_submodel`, which returns the submodel's return value and records its latent variables under a prefix, `to_distribution` treats the whole Stan parameter vector as one variable.
+The [DynamicPPL documentation](https://turinglang.org/DynamicPPL.jl/stable/to_distribution_and_to_submodel/) describes the `data`, `seed`, `stanc_args` and `make_args` keywords.
+
 ## Submodels versus distributions
 
 Finally, we end with a discussion of why some of the behaviour for submodels above has come about.

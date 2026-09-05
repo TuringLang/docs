@@ -125,13 +125,14 @@ The arguments for each sampler are:
 - SMC: resampling scheme (optional). The number of samples requested from `sample` is the number of particles in the single sweep.
 - PG: number of particles, resampling scheme (optional).
 - HMC: leapfrog step size, leapfrog step numbers.
+- MH: no arguments to propose from the prior, or a covariance matrix for a Gaussian random walk over the complete linked parameter vector, as in `MH(0.1 * I(2))`.
 - Gibbs: pairs of variable names and the component sampler for each.
 - NUTS: number of adaptation steps (optional), target accept ratio.
 
 More information about each sampler can be found in [Turing.jl's API docs](https://turinglang.org/Turing.jl).
 
 FlexiChains.jl provides plotting tools for the `VNChain` objects returned by a `sample` function.
-For more information about FlexiChains and its plotting capabilities, please see the [FlexiChains.jl documentation](https://pysm.dev/FlexiChains.jl/stable).
+For more information about FlexiChains and its plotting capabilities, please see the [FlexiChains.jl documentation](https://juliabayes.org/FlexiChains.jl/stable/).
 
 ```julia
 using FlexiChains
@@ -189,7 +190,7 @@ var_1 = mean(chn[@varname(var_1)]) # Taking the mean of a variable named var_1.
 
 The key should be a `VarName`, constructed with the `@varname` macro.
 
-FlexiChains has a very powerful indexing interface, which includes the ability to index into sub-variables: please see [the FlexiChains docs](https://pysm.dev/FlexiChains.jl/stable/turing/#Accessing-data) for more information.
+FlexiChains has a very powerful indexing interface, which includes the ability to index into sub-variables: please see [the FlexiChains docs](https://juliabayes.org/FlexiChains.jl/stable/turing#Accessing-data) for more information.
 
 ### Tilde-statement ordering
 
@@ -396,17 +397,14 @@ chain = sample(m, HMC(0.01, 5), 1000)
 
 #### Access Values inside Chain
 
-You can access the values inside a chain in several ways:
+`sample` returns a `FlexiChains.VNChain`, and its values are reached by indexing with a `VarName`.
+For a chain `c`:
 
- 1. Turn them into a `DataFrame` object
- 2. Use their raw `AxisArray` form
- 3. Create a three-dimensional `Array` object
+ 1. `c[@varname(x)]` returns the draws of `x` as a matrix with one row per iteration and one column per chain, and `c[@varname(x), iter=1, chain=1]` picks out a single draw.
+ 2. `c[@varname(x[1])]` indexes into an array-valued variable, and `c[[@varname(x[1]), @varname(x[2])]]` keeps only the listed keys.
+ 3. `DataFrame(c)` converts the chain to a `DataFrame` through the Tables.jl interface (after `using DataFrames`), and `MCMCChains.Chains(c)` converts it to an `MCMCChains.Chains` if you need the older format.
 
-For example, let `c` be a `Chain`:
-
- 1. `DataFrame(c)` converts `c` to a `DataFrame`,
- 2. `c.value` retrieves the values inside `c` as an `AxisArray`, and
- 3. `c.value.data` retrieves the values inside `c` as a 3D `Array`.
+The [FlexiChains indexing documentation](https://juliabayes.org/FlexiChains.jl/stable/indexing) describes the selectors in full.
 
 #### Variable Types and Type Parameters
 
@@ -549,6 +547,45 @@ Please see the [Automatic Differentiation]({{<meta usage-automatic-differentiati
 
 For more details of compositional sampling in Turing.jl, please see [the corresponding paper](https://proceedings.mlr.press/v84/ge18b.html).
 
+A Gibbs chain also carries the statistics that its component samplers report, prefixed with the variable each component samples.
+For the sampler above, the HMC component's statistics appear as `p_acceptance_rate`, `p_step_size` and so on, so `chn[FlexiChains.Extra(:p_acceptance_rate)]` retrieves one of them after `using FlexiChains`.
+
+### Particle samplers: SMC and PG
+
+`SMC` runs a single sequential Monte Carlo sweep, and the number of samples you ask `sample` for is the number of particles in that sweep.
+The particles are resampled once at the end, so the returned draws carry equal weight and can be summarised directly.
+
+```{julia}
+using FlexiChains
+c_smc = sample(gdemo(1.5, 2), SMC(), 1000)
+```
+
+Every draw of an `SMC` chain carries the same `log_normalizing_constant`, whose exponential is an unbiased estimate of the marginal likelihood of the data under the usual particle-filter assumptions, and an `ess_per_step` vector with the effective sample size after each likelihood term.
+
+```{julia}
+c_smc[FlexiChains.Extra(:log_normalizing_constant)][1], c_smc[FlexiChains.Extra(:ess_per_step)][1]
+```
+
+By default both samplers resample with the stratified scheme whenever the effective sample size drops below half the number of particles.
+The scheme and the threshold can be chosen: the scheme types are `StratifiedResampler`, `SystematicResampler` and `MultinomialResampler`, all in `Turing.Inference`, and the threshold is a fraction of the particle count.
+
+```{julia}
+c_sys = sample(gdemo(1.5, 2), SMC(Turing.Inference.SystematicResampler(), 0.5), 1000)
+c_pg = sample(gdemo(1.5, 2), PG(10, Turing.Inference.MultinomialResampler(), 0.5), 200)
+```
+
+`PG` chains also carry `log_normalizing_constant`, but for `PG` its exponential is a biased estimate of the marginal likelihood and must not be used for model comparison, as explained in the `PG` docstring.
+
+Passing `multithreaded=true` to either constructor spreads the particles of each sweep across threads without changing the results.
+This is independent of `MCMCThreads()`, which parallelises whole chains, and needs Julia to be started with several threads to have any effect.
+
+```julia
+sample(gdemo(1.5, 2), SMC(; multithreaded=true), 1000)
+sample(gdemo(1.5, 2), PG(10; multithreaded=true), 200)
+```
+
+Because `SMC` performs one sweep rather than an MCMC loop, it has no sampler state to save or resume, so `save_state` and `initial_state` have no effect on it.
+
 ### Working with `filldist` and `arraydist`
 
 Turing.jl provides convenience wrappers `filldist(dist::Distribution, n::Int)` and `arraydist(dists::AbstractVector{<:Distribution})` to construct product distributions, e.g., to model a set of variables that share the same structure but vary by group.
@@ -601,7 +638,7 @@ For more information on Turing's automatic differentiation backend, please see t
 
 `Turing.jl` uses ProgressLogging.jl to log the sampling progress.
 Progress logging is enabled as default but might slow down inference.
-It can be turned on or off by setting the keyword argument `progress` of `sample`; see the [Sampling Options]{{<meta usage-sampling-options>}} page for more details.
+It can be turned on or off by setting the keyword argument `progress` of `sample`; see the [Sampling Options]({{<meta usage-sampling-options>}}) page for more details.
 Moreover, you can enable or disable progress logging globally by calling `setprogress!(true)` or `setprogress!(false)`, respectively.
 
 Turing uses heuristics to select an appropriate visualisation backend.

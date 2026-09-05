@@ -162,6 +162,9 @@ N = LogDensityProblems.dimension(ldf_linked)
 LogDensityProblems.logdensity(ldf_linked, randn(N))
 ```
 
+The vector passed to `logdensity` must have exactly `dimension(ldf)` elements.
+A vector of the wrong length throws an `ArgumentError` naming both lengths, rather than failing somewhere inside model evaluation or silently using only the first few elements.
+
 ## Automatic differentiation
 
 The `LogDensityFunction` that we created above does not yet know how to compute gradients of the parameters on its own.
@@ -212,6 +215,40 @@ LogDensityFunction(model, logdensity_function, ranges_and_transforms, sample_vec
 ```
 
 Please see the DynamicPPL API documentation for more information on these arguments.
+
+## Minibatch log densities
+
+Stochastic inference algorithms, such as those in AdvancedVI and stochastic-gradient variants of HMC, evaluate the log density on a minibatch of the data and scale the likelihood up to the full dataset.
+`subsample` builds a `LogDensityFunction` for one such minibatch.
+
+The observation has to be written with `independent_distribution`, which declares that the data are conditionally independent draws, and the full dataset has to be supplied by conditioning rather than as a model argument.
+
+```{julia}
+@model function location_model()
+    μ ~ Normal()
+    x ~ independent_distribution(Normal(μ))
+end
+data = [-1.0, 0.5, 1.0]
+full_model = location_model() | (x = data,)
+```
+
+`subsample(model, indices, dataset_size)` fixes the minibatch to the given indices, and `subsample(model, batch_size, dataset_size)` draws `batch_size` indices uniformly without replacement.
+The likelihood of the selected observations is multiplied by `dataset_size / batch_size`, while the prior enters once.
+
+```{julia}
+ldf_batch = subsample(full_model, [1, 3], length(data))
+LogDensityProblems.logdensity(ldf_batch, [0.2])
+```
+
+which is the prior plus the scaled likelihood of observations 1 and 3:
+
+```{julia}
+logpdf(Normal(), 0.2) + (3 / 2) * (logpdf(Normal(0.2), data[1]) + logpdf(Normal(0.2), data[3]))
+```
+
+The minibatch stays fixed for the life of the `LogDensityFunction`, so an algorithm that wants a fresh batch at every step constructs a new one each time.
+Pass `transform_strategy=LinkAll()` when the algorithm needs unconstrained parameters.
+The [DynamicPPL documentation on subsampling](https://turinglang.org/DynamicPPL.jl/stable/ldf/subsampling/) covers custom resamplers and the unbiasedness condition they must satisfy.
 
 ## Conversions between `VarNamedTuple` and vectors
 

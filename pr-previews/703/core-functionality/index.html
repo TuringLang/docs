@@ -815,6 +815,7 @@ window.Quarto = {
   <li><a href="#beyond-the-basics" id="toc-beyond-the-basics" class="nav-link" data-scroll-target="#beyond-the-basics">Beyond the Basics</a>
   <ul class="collapse">
   <li><a href="#compositional-sampling-using-gibbs" id="toc-compositional-sampling-using-gibbs" class="nav-link" data-scroll-target="#compositional-sampling-using-gibbs">Compositional Sampling Using Gibbs</a></li>
+  <li><a href="#particle-samplers-smc-and-pg" id="toc-particle-samplers-smc-and-pg" class="nav-link" data-scroll-target="#particle-samplers-smc-and-pg">Particle samplers: SMC and PG</a></li>
   <li><a href="#working-with-filldist-and-arraydist" id="toc-working-with-filldist-and-arraydist" class="nav-link" data-scroll-target="#working-with-filldist-and-arraydist">Working with <code>filldist</code> and <code>arraydist</code></a></li>
   <li><a href="#changing-default-settings" id="toc-changing-default-settings" class="nav-link" data-scroll-target="#changing-default-settings">Changing Default Settings</a></li>
   </ul></li>
@@ -975,11 +976,12 @@ Caution
 <li>SMC: resampling scheme (optional). The number of samples requested from <code>sample</code> is the number of particles in the single sweep.</li>
 <li>PG: number of particles, resampling scheme (optional).</li>
 <li>HMC: leapfrog step size, leapfrog step numbers.</li>
+<li>MH: no arguments to propose from the prior, or a covariance matrix for a Gaussian random walk over the complete linked parameter vector, as in <code>MH(0.1 * I(2))</code>.</li>
 <li>Gibbs: pairs of variable names and the component sampler for each.</li>
 <li>NUTS: number of adaptation steps (optional), target accept ratio.</li>
 </ul>
 <p>More information about each sampler can be found in <a href="https://turinglang.org/Turing.jl">Turing.jl’s API docs</a>.</p>
-<p>FlexiChains.jl provides plotting tools for the <code>VNChain</code> objects returned by a <code>sample</code> function. For more information about FlexiChains and its plotting capabilities, please see the <a href="https://pysm.dev/FlexiChains.jl/stable">FlexiChains.jl documentation</a>.</p>
+<p>FlexiChains.jl provides plotting tools for the <code>VNChain</code> objects returned by a <code>sample</code> function. For more information about FlexiChains and its plotting capabilities, please see the <a href="https://juliabayes.org/FlexiChains.jl/stable/">FlexiChains.jl documentation</a>.</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">FlexiChains</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Summarise results</span></span>
@@ -1014,7 +1016,7 @@ Caution
 <p>The returned chain contains samples of the variables in the model.</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>var_1 <span class="op">=</span> <span class="fu">mean</span>(chn[<span class="pp">@varname</span>(var_1)]) <span class="co"># Taking the mean of a variable named var_1.</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The key should be a <code>VarName</code>, constructed with the <code>@varname</code> macro.</p>
-<p>FlexiChains has a very powerful indexing interface, which includes the ability to index into sub-variables: please see <a href="https://pysm.dev/FlexiChains.jl/stable/turing/#Accessing-data">the FlexiChains docs</a> for more information.</p>
+<p>FlexiChains has a very powerful indexing interface, which includes the ability to index into sub-variables: please see <a href="https://juliabayes.org/FlexiChains.jl/stable/turing#Accessing-data">the FlexiChains docs</a> for more information.</p>
 </section>
 <section id="tilde-statement-ordering" class="level3">
 <h3 class="anchored" data-anchor-id="tilde-statement-ordering">Tilde-statement ordering</h3>
@@ -1241,18 +1243,13 @@ Caution
 </section>
 <section id="access-values-inside-chain" class="level4">
 <h4 class="anchored" data-anchor-id="access-values-inside-chain">Access Values inside Chain</h4>
-<p>You can access the values inside a chain in several ways:</p>
+<p><code>sample</code> returns a <code>FlexiChains.VNChain</code>, and its values are reached by indexing with a <code>VarName</code>. For a chain <code>c</code>:</p>
 <ol type="1">
-<li>Turn them into a <code>DataFrame</code> object</li>
-<li>Use their raw <code>AxisArray</code> form</li>
-<li>Create a three-dimensional <code>Array</code> object</li>
+<li><code>c[@varname(x)]</code> returns the draws of <code>x</code> as a matrix with one row per iteration and one column per chain, and <code>c[@varname(x), iter=1, chain=1]</code> picks out a single draw.</li>
+<li><code>c[@varname(x[1])]</code> indexes into an array-valued variable, and <code>c[[@varname(x[1]), @varname(x[2])]]</code> keeps only the listed keys.</li>
+<li><code>DataFrame(c)</code> converts the chain to a <code>DataFrame</code> through the Tables.jl interface (after <code>using DataFrames</code>), and <code>MCMCChains.Chains(c)</code> converts it to an <code>MCMCChains.Chains</code> if you need the older format.</li>
 </ol>
-<p>For example, let <code>c</code> be a <code>Chain</code>:</p>
-<ol type="1">
-<li><code>DataFrame(c)</code> converts <code>c</code> to a <code>DataFrame</code>,</li>
-<li><code>c.value</code> retrieves the values inside <code>c</code> as an <code>AxisArray</code>, and</li>
-<li><code>c.value.data</code> retrieves the values inside <code>c</code> as a 3D <code>Array</code>.</li>
-</ol>
+<p>The <a href="https://juliabayes.org/FlexiChains.jl/stable/indexing">FlexiChains indexing documentation</a> describes the selectors in full.</p>
 </section>
 <section id="variable-types-and-type-parameters" class="level4">
 <h4 class="anchored" data-anchor-id="variable-types-and-type-parameters">Variable Types and Type Parameters</h4>
@@ -1461,37 +1458,93 @@ Caution
 <p>Gibbs does not support model arguments that contain <code>missing</code>. Declare the latent variable inside the model and condition on the observations with <code>|</code> or <code>condition</code> instead.</p>
 <p>The <code>Gibbs</code> sampler can be used to specify unique automatic differentiation backends for different variable spaces. Please see the <a href="../usage/automatic-differentiation">Automatic Differentiation</a> page for more.</p>
 <p>For more details of compositional sampling in Turing.jl, please see <a href="https://proceedings.mlr.press/v84/ge18b.html">the corresponding paper</a>.</p>
+<p>A Gibbs chain also carries the statistics that its component samplers report, prefixed with the variable each component samples. For the sampler above, the HMC component’s statistics appear as <code>p_acceptance_rate</code>, <code>p_step_size</code> and so on, so <code>chn[FlexiChains.Extra(:p_acceptance_rate)]</code> retrieves one of them after <code>using FlexiChains</code>.</p>
+</section>
+<section id="particle-samplers-smc-and-pg" class="level3">
+<h3 class="anchored" data-anchor-id="particle-samplers-smc-and-pg">Particle samplers: SMC and PG</h3>
+<p><code>SMC</code> runs a single sequential Monte Carlo sweep, and the number of samples you ask <code>sample</code> for is the number of particles in that sweep. The particles are resampled once at the end, so the returned draws carry equal weight and can be summarised directly.</p>
+<div id="52" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb47"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">FlexiChains</span></span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>c_smc <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">gdemo</span>(<span class="fl">1.5</span>, <span class="fl">2</span>), <span class="fu">SMC</span>(), <span class="fl">1000</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-bright-black-fg">╭─</span><span class="ansi-bold">FlexiChain (1000 iterations, 1 chain)</span><span class="ansi-bright-black-fg"> ───────────────────────────────────────</span><span class="ansi-bright-black-fg">╮</span>
+<span class="ansi-bright-black-fg">│</span> <span style="color:rgb(255,135,95)">↓ iter  = 1:1000</span>                                                             <span class="ansi-bright-black-fg">│</span>
+<span class="ansi-bright-black-fg">│</span> <span style="color:rgb(0,135,215)">→ chain = 1:1</span>                                                                <span class="ansi-bright-black-fg">│</span>
+<span class="ansi-bright-black-fg">│</span>                                                                              <span class="ansi-bright-black-fg">│</span>
+<span class="ansi-bright-black-fg">│</span> <span class="ansi-bold">Parameters (2)</span><span class="ansi-bright-black-fg"> ── AbstractPPL.VarName</span>                                        <span class="ansi-bright-black-fg">│</span>
+<span class="ansi-bright-black-fg">│</span>  <span class="ansi-green-fg">Float64</span>  s², m                                                              <span class="ansi-bright-black-fg">│</span>
+<span class="ansi-bright-black-fg">│</span>                                                                              <span class="ansi-bright-black-fg">│</span>
+<span class="ansi-bright-black-fg">│</span> <span class="ansi-bold">Extras (5)</span>                                                                   <span class="ansi-bright-black-fg">│</span>
+<span class="ansi-bright-black-fg">│</span>  <span class="ansi-green-fg">Float64        </span>  log_normalizing_constant, logprior, loglikelihood,         <span class="ansi-bright-black-fg">│</span>
+<span class="ansi-bright-black-fg">│</span>                   logjoint                                                   <span class="ansi-bright-black-fg">│</span>
+<span class="ansi-bright-black-fg">│</span>  <span class="ansi-green-fg">Vector{Float64}</span>  ess_per_step <span class="ansi-white-fg">(2,)</span>                                          <span class="ansi-bright-black-fg">│</span>
+<span class="ansi-bright-black-fg">╰──────────────────────────────────────────────────────────────────────────────╯</span></pre>
+</div>
+</div>
+</div>
+<p>Every draw of an <code>SMC</code> chain carries the same <code>log_normalizing_constant</code>, whose exponential is an unbiased estimate of the marginal likelihood of the data under the usual particle-filter assumptions, and an <code>ess_per_step</code> vector with the effective sample size after each likelihood term.</p>
+<div id="54" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb48"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a>c_smc[FlexiChains.<span class="fu">Extra</span>(<span class="op">:</span>log_normalizing_constant)][<span class="fl">1</span>], c_smc[FlexiChains.<span class="fu">Extra</span>(<span class="op">:</span>ess_per_step)][<span class="fl">1</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>(-3.702869547625619, [647.1180363442427, 373.55797363204675])</code></pre>
+</div>
+</div>
+<p>By default both samplers resample with the stratified scheme whenever the effective sample size drops below half the number of particles. The scheme and the threshold can be chosen: the scheme types are <code>StratifiedResampler</code>, <code>SystematicResampler</code> and <code>MultinomialResampler</code>, all in <code>Turing.Inference</code>, and the threshold is a fraction of the particle count.</p>
+<div id="56" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb50"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a>c_sys <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">gdemo</span>(<span class="fl">1.5</span>, <span class="fl">2</span>), <span class="fu">SMC</span>(Turing.Inference.<span class="fu">SystematicResampler</span>(), <span class="fl">0.5</span>), <span class="fl">1000</span>)</span>
+<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a>c_pg <span class="op">=</span> <span class="fu">sample</span>(<span class="fu">gdemo</span>(<span class="fl">1.5</span>, <span class="fl">2</span>), <span class="fu">PG</span>(<span class="fl">10</span>, Turing.Inference.<span class="fu">MultinomialResampler</span>(), <span class="fl">0.5</span>), <span class="fl">200</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-bright-black-fg">╭─</span><span class="ansi-bold">FlexiChain (200 iterations, 1 chain)</span><span class="ansi-bright-black-fg"> ────────────────────────────────────────</span><span class="ansi-bright-black-fg">╮</span>
+<span class="ansi-bright-black-fg">│</span> <span style="color:rgb(255,135,95)">↓ iter  = 1:200</span>                                                              <span class="ansi-bright-black-fg">│</span>
+<span class="ansi-bright-black-fg">│</span> <span style="color:rgb(0,135,215)">→ chain = 1:1</span>                                                                <span class="ansi-bright-black-fg">│</span>
+<span class="ansi-bright-black-fg">│</span>                                                                              <span class="ansi-bright-black-fg">│</span>
+<span class="ansi-bright-black-fg">│</span> <span class="ansi-bold">Parameters (2)</span><span class="ansi-bright-black-fg"> ── AbstractPPL.VarName</span>                                        <span class="ansi-bright-black-fg">│</span>
+<span class="ansi-bright-black-fg">│</span>  <span class="ansi-green-fg">Float64</span>  s², m                                                              <span class="ansi-bright-black-fg">│</span>
+<span class="ansi-bright-black-fg">│</span>                                                                              <span class="ansi-bright-black-fg">│</span>
+<span class="ansi-bright-black-fg">│</span> <span class="ansi-bold">Extras (4)</span>                                                                   <span class="ansi-bright-black-fg">│</span>
+<span class="ansi-bright-black-fg">│</span>  <span class="ansi-green-fg">Float64</span>  log_normalizing_constant, logprior, loglikelihood, logjoint        <span class="ansi-bright-black-fg">│</span>
+<span class="ansi-bright-black-fg">╰──────────────────────────────────────────────────────────────────────────────╯</span></pre>
+</div>
+</div>
+</div>
+<p><code>PG</code> chains also carry <code>log_normalizing_constant</code>, but for <code>PG</code> its exponential is a biased estimate of the marginal likelihood and must not be used for model comparison, as explained in the <code>PG</code> docstring.</p>
+<p>Passing <code>multithreaded=true</code> to either constructor spreads the particles of each sweep across threads without changing the results. This is independent of <code>MCMCThreads()</code>, which parallelises whole chains, and needs Julia to be started with several threads to have any effect.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb51"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sample</span>(<span class="fu">gdemo</span>(<span class="fl">1.5</span>, <span class="fl">2</span>), <span class="fu">SMC</span>(; multithreaded<span class="op">=</span><span class="cn">true</span>), <span class="fl">1000</span>)</span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a><span class="fu">sample</span>(<span class="fu">gdemo</span>(<span class="fl">1.5</span>, <span class="fl">2</span>), <span class="fu">PG</span>(<span class="fl">10</span>; multithreaded<span class="op">=</span><span class="cn">true</span>), <span class="fl">200</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Because <code>SMC</code> performs one sweep rather than an MCMC loop, it has no sampler state to save or resume, so <code>save_state</code> and <code>initial_state</code> have no effect on it.</p>
 </section>
 <section id="working-with-filldist-and-arraydist" class="level3">
 <h3 class="anchored" data-anchor-id="working-with-filldist-and-arraydist">Working with <code>filldist</code> and <code>arraydist</code></h3>
 <p>Turing.jl provides convenience wrappers <code>filldist(dist::Distribution, n::Int)</code> and <code>arraydist(dists::AbstractVector{&lt;:Distribution})</code> to construct product distributions, e.g., to model a set of variables that share the same structure but vary by group.</p>
 <p>The function <code>filldist</code> provides a general interface to construct product distributions over distributions of the same type and parameterisation.</p>
 <p>In general, <code>filldist(dist, sz1, sz2, ...)</code> constructs a product distribution over an array of size <code>(sz1, sz2, ...)</code>, where each element is distributed according to <code>dist</code>. However, <code>filldist</code> also uses FillArrays.jl to provide an efficient representation of the product distribution.</p>
-<div id="52" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb47"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">demo</span>(x, g)</span>
-<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>    k <span class="op">=</span> <span class="fu">length</span>(<span class="fu">unique</span>(g))</span>
-<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>    a <span class="op">~</span> <span class="fu">filldist</span>(<span class="fu">Exponential</span>(), k)</span>
-<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a>    mu <span class="op">=</span> a[g]</span>
-<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="fu">eachindex</span>(x)</span>
-<span id="cb47-6"><a href="#cb47-6" aria-hidden="true" tabindex="-1"></a>        x[i] <span class="op">~</span> <span class="fu">Normal</span>(mu[i])</span>
-<span id="cb47-7"><a href="#cb47-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
-<span id="cb47-8"><a href="#cb47-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> mu</span>
-<span id="cb47-9"><a href="#cb47-9" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="58" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb52"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">demo</span>(x, g)</span>
+<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a>    k <span class="op">=</span> <span class="fu">length</span>(<span class="fu">unique</span>(g))</span>
+<span id="cb52-3"><a href="#cb52-3" aria-hidden="true" tabindex="-1"></a>    a <span class="op">~</span> <span class="fu">filldist</span>(<span class="fu">Exponential</span>(), k)</span>
+<span id="cb52-4"><a href="#cb52-4" aria-hidden="true" tabindex="-1"></a>    mu <span class="op">=</span> a[g]</span>
+<span id="cb52-5"><a href="#cb52-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="fu">eachindex</span>(x)</span>
+<span id="cb52-6"><a href="#cb52-6" aria-hidden="true" tabindex="-1"></a>        x[i] <span class="op">~</span> <span class="fu">Normal</span>(mu[i])</span>
+<span id="cb52-7"><a href="#cb52-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb52-8"><a href="#cb52-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> mu</span>
+<span id="cb52-9"><a href="#cb52-9" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>demo (generic function with 2 methods)</code></pre>
 </div>
 </div>
 <p><code>arraydist</code> is completely semantically equivalent to <a href="https://juliastats.org/Distributions.jl/stable/product/"><code>Distributions.product_distribution</code></a>, although may have slightly improved performance in some cases.</p>
-<div id="54" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb49"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">demo</span>(x, g)</span>
-<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>    k <span class="op">=</span> <span class="fu">length</span>(<span class="fu">unique</span>(g))</span>
-<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>    a <span class="op">~</span> <span class="fu">arraydist</span>([<span class="fu">Exponential</span>(i) for i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>k])</span>
-<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a>    mu <span class="op">=</span> a[g]</span>
-<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="fu">eachindex</span>(x)</span>
-<span id="cb49-6"><a href="#cb49-6" aria-hidden="true" tabindex="-1"></a>        x[i] <span class="op">~</span> <span class="fu">Normal</span>(mu[i])</span>
-<span id="cb49-7"><a href="#cb49-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
-<span id="cb49-8"><a href="#cb49-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> mu</span>
-<span id="cb49-9"><a href="#cb49-9" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="60" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb54"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">demo</span>(x, g)</span>
+<span id="cb54-2"><a href="#cb54-2" aria-hidden="true" tabindex="-1"></a>    k <span class="op">=</span> <span class="fu">length</span>(<span class="fu">unique</span>(g))</span>
+<span id="cb54-3"><a href="#cb54-3" aria-hidden="true" tabindex="-1"></a>    a <span class="op">~</span> <span class="fu">arraydist</span>([<span class="fu">Exponential</span>(i) for i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>k])</span>
+<span id="cb54-4"><a href="#cb54-4" aria-hidden="true" tabindex="-1"></a>    mu <span class="op">=</span> a[g]</span>
+<span id="cb54-5"><a href="#cb54-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="fu">eachindex</span>(x)</span>
+<span id="cb54-6"><a href="#cb54-6" aria-hidden="true" tabindex="-1"></a>        x[i] <span class="op">~</span> <span class="fu">Normal</span>(mu[i])</span>
+<span id="cb54-7"><a href="#cb54-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb54-8"><a href="#cb54-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> mu</span>
+<span id="cb54-9"><a href="#cb54-9" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>demo (generic function with 2 methods)</code></pre>
 </div>
@@ -1507,7 +1560,7 @@ Caution
 </section>
 <section id="progress-logging" class="level4">
 <h4 class="anchored" data-anchor-id="progress-logging">Progress Logging</h4>
-<p><code>Turing.jl</code> uses ProgressLogging.jl to log the sampling progress. Progress logging is enabled as default but might slow down inference. It can be turned on or off by setting the keyword argument <code>progress</code> of <code>sample</code>; see the [Sampling Options]../usage/sampling-options page for more details. Moreover, you can enable or disable progress logging globally by calling <code>setprogress!(true)</code> or <code>setprogress!(false)</code>, respectively.</p>
+<p><code>Turing.jl</code> uses ProgressLogging.jl to log the sampling progress. Progress logging is enabled as default but might slow down inference. It can be turned on or off by setting the keyword argument <code>progress</code> of <code>sample</code>; see the <a href="../usage/sampling-options">Sampling Options</a> page for more details. Moreover, you can enable or disable progress logging globally by calling <code>setprogress!(true)</code> or <code>setprogress!(false)</code>, respectively.</p>
 <p>Turing uses heuristics to select an appropriate visualisation backend. If you use Jupyter notebooks, the default backend is <a href="https://github.com/tkf/ConsoleProgressMonitor.jl">ConsoleProgressMonitor.jl</a>. In all other cases, progress logs are displayed with <a href="https://github.com/c42f/TerminalLoggers.jl">TerminalLoggers.jl</a>. Alternatively, if you provide a custom visualisation backend, Turing uses it instead of the default backend.</p>
 
 

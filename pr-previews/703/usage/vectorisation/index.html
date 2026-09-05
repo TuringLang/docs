@@ -775,6 +775,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#automatic-differentiation" id="toc-automatic-differentiation" class="nav-link" data-scroll-target="#automatic-differentiation">Automatic differentiation</a></li>
   <li><a href="#changing-the-log-density-function" id="toc-changing-the-log-density-function" class="nav-link" data-scroll-target="#changing-the-log-density-function">Changing the log-density function</a></li>
   <li><a href="#using-custom-transforms" id="toc-using-custom-transforms" class="nav-link" data-scroll-target="#using-custom-transforms">Using custom transforms</a></li>
+  <li><a href="#minibatch-log-densities" id="toc-minibatch-log-densities" class="nav-link" data-scroll-target="#minibatch-log-densities">Minibatch log densities</a></li>
   <li><a href="#conversions-between-varnamedtuple-and-vectors" id="toc-conversions-between-varnamedtuple-and-vectors" class="nav-link" data-scroll-target="#conversions-between-varnamedtuple-and-vectors">Conversions between <code>VarNamedTuple</code> and vectors</a>
   <ul class="collapse">
   <li><a href="#from-varnamedtuple-to-vector" id="toc-from-varnamedtuple-to-vector" class="nav-link" data-scroll-target="#from-varnamedtuple-to-vector">From <code>VarNamedTuple</code> to vector</a></li>
@@ -828,8 +829,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="cell-output cell-output-display" data-execution_count="1">
 <div class="ansi-escaped-output">
 <pre>VarNamedTuple
-├─ <span class="ansi-cyan-fg">x</span> =&gt; 1.607791153757558
-└─ <span class="ansi-cyan-fg">y</span> =&gt; 1.4373523048614245</pre>
+├─ <span class="ansi-cyan-fg">x</span> =&gt; -1.3717667179458728
+└─ <span class="ansi-cyan-fg">y</span> =&gt; -1.8356261371393736</pre>
 </div>
 </div>
 </div>
@@ -886,8 +887,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>params</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>2-element Vector{Float64}:
- 1.607791153757558
- 1.4373523048614245</code></pre>
+ -1.3717667179458728
+ -1.8356261371393736</code></pre>
 </div>
 </div>
 </section>
@@ -920,9 +921,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">rand</span>(ldf)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>3-element Vector{Float64}:
- 0.2176080556966352
- 0.7676181913435927
- 0.014773752959772103</code></pre>
+ 0.39221066707299945
+ 0.012199437363269679
+ 0.5955898955637308</code></pre>
 </div>
 </div>
 <p>By default, <code>LogDensityFunction</code> does not apply any extra transformations to the parameters, which is why the output above is still constrained to the simplex. However, such constraints can cause problems for some algorithms which expect to work in unconstrained space. To address this, you can instantiate a <code>LogDensityFunction</code> as follows:</p>
@@ -941,8 +942,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">rand</span>(ldf_linked)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>2-element Vector{Float64}:
- -1.6315881359718696
- -0.2524361317891836</code></pre>
+ -0.9667747960418952
+  2.038818890867102</code></pre>
 </div>
 </div>
 </section>
@@ -967,9 +968,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="24" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>LogDensityProblems.<span class="fu">logdensity</span>(ldf_linked, <span class="fu">randn</span>(N))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>-3.908575830221002</code></pre>
+<pre><code>-2.908542999360554</code></pre>
 </div>
 </div>
+<p>The vector passed to <code>logdensity</code> must have exactly <code>dimension(ldf)</code> elements. A vector of the wrong length throws an <code>ArgumentError</code> naming both lengths, rather than failing somewhere inside model evaluation or silently using only the first few elements.</p>
 </section>
 <section id="automatic-differentiation" class="level2">
 <h2 class="anchored" data-anchor-id="automatic-differentiation">Automatic differentiation</h2>
@@ -1001,7 +1003,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="30" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>LogDensityProblems.<span class="fu">logdensity_and_gradient</span>(ldf_ad, <span class="fu">randn</span>(N))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>(-2.7367249866070305, [0.3156980074918995, -0.2160614062660745])</code></pre>
+<pre><code>(-3.2784126122091526, [0.47614586275409965, 0.6052866294290726])</code></pre>
 </div>
 </div>
 <p>If you need more information on how to choose an AD backend, please see the <a href="../../usage/automatic-differentiation">automatic differentiation page</a> for more information.</p>
@@ -1019,36 +1021,68 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">LogDensityFunction</span>(model, logdensity_function, ranges_and_transforms, sample_vec; adtype)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Please see the DynamicPPL API documentation for more information on these arguments.</p>
 </section>
+<section id="minibatch-log-densities" class="level2">
+<h2 class="anchored" data-anchor-id="minibatch-log-densities">Minibatch log densities</h2>
+<p>Stochastic inference algorithms, such as those in AdvancedVI and stochastic-gradient variants of HMC, evaluate the log density on a minibatch of the data and scale the likelihood up to the full dataset. <code>subsample</code> builds a <code>LogDensityFunction</code> for one such minibatch.</p>
+<p>The observation has to be written with <code>independent_distribution</code>, which declares that the data are conditionally independent draws, and the full dataset has to be supplied by conditioning rather than as a model argument.</p>
+<div id="32" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">location_model</span>()</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>    μ <span class="op">~</span> <span class="fu">Normal</span>()</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    x <span class="op">~</span> <span class="fu">independent_distribution</span>(<span class="fu">Normal</span>(μ))</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>data <span class="op">=</span> [<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">0.5</span>, <span class="fl">1.0</span>]</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>full_model <span class="op">=</span> <span class="fu">location_model</span>() <span class="op">|</span> (x <span class="op">=</span> data,)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>Model{typeof(location_model), (), (), (), Tuple{}, Tuple{}, DynamicPPL.CondFixContext{DynamicPPL.Condition, VarNamedTuple{(:x,), Tuple{Vector{Float64}}}, DefaultContext}, false}(location_model, NamedTuple(), NamedTuple(), CondFixContext{DynamicPPL.Condition}(VarNamedTuple(x = [-1.0, 0.5, 1.0],), DynamicPPL.DefaultContext()))</code></pre>
+</div>
+</div>
+<p><code>subsample(model, indices, dataset_size)</code> fixes the minibatch to the given indices, and <code>subsample(model, batch_size, dataset_size)</code> draws <code>batch_size</code> indices uniformly without replacement. The likelihood of the selected observations is multiplied by <code>dataset_size / batch_size</code>, while the prior enters once.</p>
+<div id="34" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>ldf_batch <span class="op">=</span> <span class="fu">subsample</span>(full_model, [<span class="fl">1</span>, <span class="fl">3</span>], <span class="fu">length</span>(data))</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>LogDensityProblems.<span class="fu">logdensity</span>(ldf_batch, [<span class="fl">0.2</span>])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>-5.255754132818691</code></pre>
+</div>
+</div>
+<p>which is the prior plus the scaled likelihood of observations 1 and 3:</p>
+<div id="36" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="fu">logpdf</span>(<span class="fu">Normal</span>(), <span class="fl">0.2</span>) <span class="op">+</span> (<span class="fl">3</span> <span class="op">/</span> <span class="fl">2</span>) <span class="op">*</span> (<span class="fu">logpdf</span>(<span class="fu">Normal</span>(<span class="fl">0.2</span>), data[<span class="fl">1</span>]) <span class="op">+</span> <span class="fu">logpdf</span>(<span class="fu">Normal</span>(<span class="fl">0.2</span>), data[<span class="fl">3</span>]))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>-5.255754132818692</code></pre>
+</div>
+</div>
+<p>The minibatch stays fixed for the life of the <code>LogDensityFunction</code>, so an algorithm that wants a fresh batch at every step constructs a new one each time. Pass <code>transform_strategy=LinkAll()</code> when the algorithm needs unconstrained parameters. The <a href="https://turinglang.org/DynamicPPL.jl/stable/ldf/subsampling/">DynamicPPL documentation on subsampling</a> covers custom resamplers and the unbiasedness condition they must satisfy.</p>
+</section>
 <section id="conversions-between-varnamedtuple-and-vectors" class="level2">
 <h2 class="anchored" data-anchor-id="conversions-between-varnamedtuple-and-vectors">Conversions between <code>VarNamedTuple</code> and vectors</h2>
 <p>Finally, we will cover the functions that allow you to convert between <code>VarNamedTuple</code> and vector formats.</p>
 <section id="from-varnamedtuple-to-vector" class="level3">
 <h3 class="anchored" data-anchor-id="from-varnamedtuple-to-vector">From <code>VarNamedTuple</code> to vector</h3>
 <p>We already saw that we can draw random samples from a <code>LogDensityFunction</code> in vector format:</p>
-<div id="32" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">rand</span>(ldf_ad)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="38" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="fu">rand</span>(ldf_ad)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>2-element Vector{Float64}:
-  0.6530286255288482
- -0.25615638086058806</code></pre>
+ 0.6149781111636257
+ 1.1616548690344835</code></pre>
 </div>
 </div>
 <p>By default, this draws from the prior of the model, using <code>InitFromPrior</code> (see <a href="../../usage/sampling-options#specifying-initial-parameters">Sampling options</a> for more information on this). If you want vectorised samples for a <em>specific</em> set of parameters, you can provide an initialisation strategy that uses those parameters:</p>
-<div id="34" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>vnt <span class="op">=</span> <span class="fu">rand</span>(model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="40" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>vnt <span class="op">=</span> <span class="fu">rand</span>(model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <div class="ansi-escaped-output">
 <pre>VarNamedTuple
-└─ <span class="ansi-cyan-fg">x</span> =&gt; [0.2626715041007822, 0.04918368627014458, 0.6881448096290732]</pre>
+└─ <span class="ansi-cyan-fg">x</span> =&gt; [0.5314596271134041, 0.11482973393718837, 0.3537106389494073]</pre>
 </div>
 </div>
 </div>
-<div id="36" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="fu">rand</span>(ldf_ad, <span class="fu">InitFromParams</span>(vnt))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="42" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb33"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="fu">rand</span>(ldf_ad, <span class="fu">InitFromParams</span>(vnt))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>2-element Vector{Float64}:
- -0.3389821150297728
- -2.6384373062593536</code></pre>
+  0.8191521424307382
+ -1.1250287180085687</code></pre>
 </div>
 </div>
 <p>(Note that this does technically mean that the output is no longer truly ‘random’.)</p>
@@ -1056,23 +1090,23 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="from-vector-to-varnamedtuple" class="level3">
 <h3 class="anchored" data-anchor-id="from-vector-to-varnamedtuple">From vector to <code>VarNamedTuple</code></h3>
 <p>Now suppose that you have run an inference algorithm using a <code>LogDensityFunction</code> and it has given you back a set of ‘best’ parameters (as a vector, of course):</p>
-<div id="38" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>best_params <span class="op">=</span> <span class="fu">randn</span>(LogDensityProblems.<span class="fu">dimension</span>(ldf_ad))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="44" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>best_params <span class="op">=</span> <span class="fu">randn</span>(LogDensityProblems.<span class="fu">dimension</span>(ldf_ad))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>2-element Vector{Float64}:
- -0.3796654238947788
- -0.1864846547925752</code></pre>
+ -0.39473870289619667
+ -0.5149056857757057</code></pre>
 </div>
 </div>
 <p>To convert this back into a <code>VarNamedTuple</code>, you have to reevaluate the model. The easiest way to do so is to use <code>DynamicPPL.ParamsWithStats</code>:</p>
-<div id="40" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb31"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>pws <span class="op">=</span> <span class="fu">ParamsWithStats</span>(best_params, ldf_ad)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="46" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb37"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>pws <span class="op">=</span> <span class="fu">ParamsWithStats</span>(best_params, ldf_ad)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <div class="ansi-escaped-output">
 <pre><span class="ansi-bold">ParamsWithStats</span>
  ├─ <span class="ansi-bold">params</span>
  │  VarNamedTuple
- │  └─ <span class="ansi-cyan-fg">x</span> =&gt; [0.2548685726491209, 0.33792714537952895, 0.40720428197135017]
+ │  └─ <span class="ansi-cyan-fg">x</span> =&gt; [0.2520165893308384, 0.27977887459218126, 0.4682045360769803]
  └─ <span class="ansi-bold">stats</span>
     ├─ <span class="ansi-blue-fg">logprior</span> = 0.6931471805599453
     ├─ <span class="ansi-blue-fg">loglikelihood</span> = 0.0
@@ -1081,13 +1115,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 <p>This also helpfully computes the log-probabilities associated with this set of parameters (if you do not need this, you can disable it with <code>ParamsWithStats(...; include_log_probs=false)</code>). You can then access <code>pws.params</code> to get the <code>VarNamedTuple</code> of parameters. For example, to retrieve the original value of <code>x</code>:</p>
-<div id="42" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>pws.params[<span class="pp">@varname</span>(x)]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="48" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb38"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>pws.params[<span class="pp">@varname</span>(x)]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>3-element Vector{Float64}:
- 0.2548685726491209
- 0.33792714537952895
- 0.40720428197135017</code></pre>
+ 0.2520165893308384
+ 0.27977887459218126
+ 0.4682045360769803</code></pre>
 </div>
 </div>
 </section>

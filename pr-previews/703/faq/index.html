@@ -853,23 +853,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="threading-within-models" class="level3">
 <h3 class="anchored" data-anchor-id="threading-within-models">2. Threading Within Models</h3>
-<p>Using threads inside your model (e.g., <code>Threads.@threads</code>) requires more care. In particular, only threaded <strong>observe</strong> statements are safe to use; threaded <strong>assume</strong> statements can lead to crashes or incorrect results. Please see the <a href="../usage/threadsafe-evaluation">Threadsafe Evaluation page</a> for complete details.</p>
+<p>Using threads inside your model (e.g., <code>Threads.@threads</code>) requires more care. Ordinary Julia code can be parallelised freely, but any tilde-statement or <code>@addlogprob!</code> inside a threaded block needs the model to be marked with <code>setthreadsafe</code>. Please see the <a href="../usage/threadsafe-evaluation">Threadsafe Evaluation page</a> for complete details.</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@model</span> <span class="kw">function</span> <span class="fu">f</span>(y)</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> <span class="fu">Vector</span><span class="dt">{Float64}</span>(<span class="cn">undef</span>, <span class="fu">length</span>(y))</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">Threads</span>.<span class="pp">@threads</span> <span class="cf">for</span> i <span class="kw">in</span> <span class="fu">eachindex</span>(y)</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>        <span class="co"># This would be unsafe!</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        <span class="co"># x[i] ~ Normal()</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>        <span class="co"># This is safe:</span></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>        y[i] <span class="op">~</span> <span class="fu">Normal</span>()</span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="co"># If you have parallel tilde-statements or `@addlogprob!` in a model, </span></span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="co"># you must mark the model as threadsafe:</span></span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> <span class="fu">setthreadsafe</span>(<span class="fu">f</span>(y), <span class="cn">true</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>        x[i] <span class="op">~</span> <span class="fu">Normal</span>()</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        y[i] <span class="op">~</span> <span class="fu">Normal</span>(x[i])</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Parallel tilde-statements or `@addlogprob!` require the threadsafe flag:</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> <span class="fu">setthreadsafe</span>(<span class="fu">f</span>(y), <span class="cn">true</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p><strong>Important limitations:</strong></p>
 <ul>
-<li><strong>Observe statements</strong>: Generally safe to use in threaded loops</li>
-<li><strong>Assume statements</strong> (sampling statements): Often crash unpredictably or produce incorrect results</li>
+<li><strong>Without <code>setthreadsafe</code></strong>: threaded tilde-statements give wrong results or errors</li>
+<li><strong>Reproducibility</strong>: threaded <strong>assume</strong> statements are supported but are not guaranteed to give the same draws for the same seed. Threaded <strong>observe</strong> statements are fully reproducible</li>
+<li><strong>Performance</strong>: threadsafe evaluation costs extra, so only enable it for models that need it</li>
 <li><strong>AD backend compatibility</strong>: Many AD backends don’t support threading. See the <a href="../usage/threadsafe-evaluation">Threadsafe Evaluation</a> page for which backends work reliably</li>
 </ul>
 </section>

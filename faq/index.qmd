@@ -60,28 +60,26 @@ See the [Core Functionality guide]({{<meta core-functionality>}}#sampling-multip
 ### 2. Threading Within Models
 
 Using threads inside your model (e.g., `Threads.@threads`) requires more care.
-In particular, only threaded **observe** statements are safe to use; threaded **assume** statements can lead to crashes or incorrect results.
+Ordinary Julia code can be parallelised freely, but any tilde-statement or `@addlogprob!` inside a threaded block needs the model to be marked with `setthreadsafe`.
 Please see the [Threadsafe Evaluation page]({{< meta usage-threadsafe-evaluation >}}) for complete details.
 
 ```julia
 @model function f(y)
     x = Vector{Float64}(undef, length(y))
     Threads.@threads for i in eachindex(y)
-        # This would be unsafe!
-        # x[i] ~ Normal()
-        # This is safe:
-        y[i] ~ Normal()
+        x[i] ~ Normal()
+        y[i] ~ Normal(x[i])
     end
 end
-# If you have parallel tilde-statements or `@addlogprob!` in a model, 
-# you must mark the model as threadsafe:
+# Parallel tilde-statements or `@addlogprob!` require the threadsafe flag:
 model = setthreadsafe(f(y), true)
 ```
 
 **Important limitations:**
 
-- **Observe statements**: Generally safe to use in threaded loops
-- **Assume statements** (sampling statements): Often crash unpredictably or produce incorrect results
+- **Without `setthreadsafe`**: threaded tilde-statements may give wrong results or errors
+- **Reproducibility**: threaded **assume** statements are supported but are not guaranteed to give the same draws for the same seed. Threaded **observe** statements are fully reproducible
+- **Performance**: threadsafe evaluation costs extra, so only enable it for models that need it
 - **AD backend compatibility**: Many AD backends don't support threading. See the [Threadsafe Evaluation]({{< meta usage-threadsafe-evaluation >}}) page for which backends work reliably
 
 ## How do I check the type stability of my Turing model?

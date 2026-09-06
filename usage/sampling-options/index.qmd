@@ -254,7 +254,8 @@ Here are some examples of how these two keyword arguments interact:
 Each sampler has its own default value for `num_warmup`, but `discard_initial` always defaults to `num_warmup`.
 
 Warmup steps and 'regular' non-warmup steps differ in that warmup steps call `AbstractMCMC.step_warmup`, whereas regular steps call `AbstractMCMC.step`.
-For all the samplers defined in Turing, these two functions are identical; however, they may in general differ for other samplers.
+Turing's own kernels, such as `HMC`, `NUTS`, `MH` and `PG`, do not distinguish the two.
+The wrappers do: `externalsampler` forwards warmup steps to the wrapped sampler's `step_warmup`, so an external sampler that adapts during warmup, such as `AdvancedMH.RobustAdaptiveMetropolis`, adapts as intended, and `Gibbs` and `RepeatSampler` pass warmup steps on to the samplers they wrap.
 Please consult the documentation of the respective sampler for details.
 
 A thinning factor can be specified using the `thinning` keyword argument.
@@ -272,8 +273,11 @@ If you wish to disable this you can pass `check_model=false` to `sample()`.
 
 ## Callbacks
 
-The `callback` keyword argument can be used to specify a function that is called at the end of each sampler iteration.
-This function should have the signature `callback(rng, model, sampler, sample, iteration::Int; kwargs...)`.
+The `callback` keyword argument can be used to specify a function that is called each time a sample is kept.
+This function should have the signature `callback(rng, model, sampler, sample, state, iteration::Int; kwargs...)`, where `state` is the sampler state that produced the sample and `iteration` counts kept samples from 1 to the number requested.
+Steps that are discarded through `discard_initial` or `thinning` do not trigger the callback.
+Warmup steps are only skipped when they are discarded, so with `discard_initial` smaller than `num_warmup` the kept warmup samples trigger it too.
+`SMC` runs a single sweep instead of an MCMC loop and ignores `callback` with a warning.
 
 If you are performing multi-chain sampling, `kwargs` will additionally contain `chain_number::Int`, which ranges from 1 to the number of chains.
 

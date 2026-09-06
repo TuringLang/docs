@@ -122,8 +122,8 @@ Metropolis-Hastings proposes ``\theta' \sim q(\theta' \mid \theta)`` and accepts
 
 A symmetric random-walk proposal has ``q(\theta \mid \theta') = q(\theta' \mid \theta)``, so the ratio of proposal densities cancels and the log acceptance probability is ``\min[0, \log \pi(\theta') - \log \pi(\theta)]``.
 
-The first `step` chooses the starting point.
-`sample` passes its `initial_params` keyword argument through to this method, so the sampler honours it and otherwise draws a start from the proposal distribution.
+Supply a starting point with finite log density through `initial_params`.
+`sample` passes that keyword argument through to the first `step`, which refuses to start without it or outside the support, because the acceptance test below cannot move a chain whose current log density is `-Inf`.
 
 ```{julia}
 function AbstractMCMC.step(
@@ -133,8 +133,10 @@ function AbstractMCMC.step(
     initial_params=nothing,
     kwargs...,
 )
-    θ = initial_params === nothing ? rand(rng, sampler.proposal) : initial_params
+    initial_params === nothing && throw(ArgumentError("initial_params is required"))
+    θ = initial_params
     lp = LogDensityProblems.logdensity(model.logdensity, θ)
+    isfinite(lp) || throw(ArgumentError("initial_params must have finite log density"))
     return θ, MHState(θ, lp)
 end
 ```

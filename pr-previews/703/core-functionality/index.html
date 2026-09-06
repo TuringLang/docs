@@ -976,7 +976,7 @@ Caution
 <li>SMC: resampling scheme (optional). The number of samples requested from <code>sample</code> is the number of particles in the single sweep.</li>
 <li>PG: number of particles, resampling scheme (optional).</li>
 <li>HMC: leapfrog step size, leapfrog step numbers.</li>
-<li>MH: no arguments to propose from the prior, or a covariance matrix for a Gaussian random walk over the complete linked parameter vector, as in <code>MH(0.1 * I(2))</code>.</li>
+<li>MH: propose from the prior if <code>MH()</code>, or from a Gaussian random walk if <code>MH(cov)</code> over the unconstrained parameter vector, as in <code>MH(0.1 * I(2))</code>.</li>
 <li>Gibbs: pairs of variable names and the component sampler for each.</li>
 <li>NUTS: number of adaptation steps (optional), target accept ratio.</li>
 </ul>
@@ -1454,7 +1454,7 @@ Caution
 </div>
 </div>
 </div>
-<p>Every variable the model reaches must belong to a component, and several variables can share one component by passing them together, as in <code>Gibbs((:p, :z) =&gt; PG(20))</code>. A component may not change the dimension of a variable that belongs to another component, or whether that variable exists at all. If one variable decides the shape of another, for example a count that sets the length of a vector, put both in the same component. Gibbs stops with an error when it detects such a change, and the <code>Gibbs</code> docstring explains which partitions are safe.</p>
+<p>Every variable the model reaches must belong to a component, and several variables can share one component by passing them together, as in <code>Gibbs((:p, :z) =&gt; PG(20))</code>. A value the model stores as a unit cannot be split between components: <code>x[1] ~ Normal()</code> and <code>x[2] ~ Normal()</code> can go to different components, but <code>x ~ MvNormal(...)</code> must go to one. A component may not change the dimension of a variable that belongs only to another component, or whether that variable exists at all. If one variable decides the shape of another, for example a count that sets the length of a vector, put both in the same component. Gibbs stops with an error when it detects such a change, but the check only sees states a component accepted, so a run that completes is not proof that the partition is valid. The <code>Gibbs</code> docstring explains which partitions are safe.</p>
 <p>Gibbs does not support model arguments that contain <code>missing</code>. Declare the latent variable inside the model and condition on the observations with <code>|</code> or <code>condition</code> instead.</p>
 <p>The <code>Gibbs</code> sampler can be used to specify unique automatic differentiation backends for different variable spaces. Please see the <a href="../usage/automatic-differentiation">Automatic Differentiation</a> page for more.</p>
 <p>For more details of compositional sampling in Turing.jl, please see <a href="https://proceedings.mlr.press/v84/ge18b.html">the corresponding paper</a>.</p>
@@ -1513,7 +1513,7 @@ Caution
 <p>Passing <code>multithreaded=true</code> to either constructor spreads the particles of each sweep across threads without changing the results. This is independent of <code>MCMCThreads()</code>, which parallelises whole chains, and needs Julia to be started with several threads to have any effect.</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb51"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sample</span>(<span class="fu">gdemo</span>(<span class="fl">1.5</span>, <span class="fl">2</span>), <span class="fu">SMC</span>(; multithreaded<span class="op">=</span><span class="cn">true</span>), <span class="fl">1000</span>)</span>
 <span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a><span class="fu">sample</span>(<span class="fu">gdemo</span>(<span class="fl">1.5</span>, <span class="fl">2</span>), <span class="fu">PG</span>(<span class="fl">10</span>; multithreaded<span class="op">=</span><span class="cn">true</span>), <span class="fl">200</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Because <code>SMC</code> performs one sweep rather than an MCMC loop, it has no sampler state to save or resume, so <code>save_state</code> and <code>initial_state</code> have no effect on it.</p>
+<p>Because <code>SMC</code> performs one sweep rather than an MCMC loop, it has no iterations to discard, thin or call back from and no sampler state to save or resume. It ignores <code>discard_initial</code>, <code>thinning</code>, <code>callback</code>, <code>save_state</code>, <code>initial_state</code> and <code>initial_params</code>, and warns when any of them is passed.</p>
 </section>
 <section id="working-with-filldist-and-arraydist" class="level3">
 <h3 class="anchored" data-anchor-id="working-with-filldist-and-arraydist">Working with <code>filldist</code> and <code>arraydist</code></h3>

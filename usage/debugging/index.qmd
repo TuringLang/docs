@@ -26,11 +26,13 @@ Specifically, it checks for:
 
 - the same variable, or overlapping variables (such as `x` and `x[1]`), appearing on the left-hand side of more than one tilde statement;
 - `NaN` values on the left-hand side of observe statements;
+- a latent variable whose value was computed from a model input before its tilde statement, since that value is about to be overwritten and the variable was probably meant to be an observation;
 - with the keyword argument `fail_if_discrete=true`, the presence of discrete random variables, which gradient-based samplers such as HMC and NUTS cannot handle.
 
 It is equally important to know what it does not catch.
 The model is evaluated a single time, with values drawn from the prior, so problems that only occur for some parameter values (for example, in a branch that this particular evaluation does not take) can be missed.
 It also checks only the structure of the model, not its statistical soundness: it cannot tell you that a prior is unreasonable or that parameters are not identifiable.
+The overwrite check needs ForwardDiff to be loaded, and is best effort even then, so it can miss a dependency that runs through an untaken branch, a condition, or code it cannot differentiate.
 Type instability and incorrect gradients are separate concerns, covered by the checks in the following sections.
 
 For example, this model observes a `NaN` value, which usually indicates a bug in the data preparation:
@@ -51,6 +53,21 @@ whereas the same model with valid data passes:
 ```{julia}
 check_model(gaussian(1.5))
 ```
+
+The overwrite check catches a different kind of mistake, where a value derived from the data is given a prior instead of being observed:
+
+```{julia}
+@model function overwritten(y)
+    z = 2y
+    z ~ Normal()
+    return y ~ Normal(z)
+end
+
+check_model(overwritten(1.5))
+```
+
+Here `z` is computed from `y` and then immediately discarded, because `z ~ Normal()` samples a fresh value for it.
+Note that the check warns but still returns `true`, since this is legal Julia and legal DynamicPPL, just rarely what was meant.
 
 Turing runs this check automatically at the start of `sample` (and the mode estimation functions).
 For gradient-based samplers, this includes the discrete-variable check.
